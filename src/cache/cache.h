@@ -16,6 +16,7 @@ struct cache {
 };
 
 struct cache *createArmCache(void *memory);
+void removeArmCache(struct cache *cache);
 void cleanCaches(uint64_t from_pc, uint64_t to_pc_exclude);
 
 #endif
