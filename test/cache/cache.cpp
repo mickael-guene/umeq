@@ -8,8 +8,8 @@ TEST(Cache, createRemove) {
     char memory[CACHE_SIZE];
     struct cache *cache;
 
-    cache = createArmCache(memory);
-    removeArmCache(cache);
+    cache = createCache(memory);
+    removeCache(cache);
 }
 
 TEST(Cache, lookupFailed) {
@@ -17,12 +17,12 @@ TEST(Cache, lookupFailed) {
     struct cache *cache;
     void *cache_hit;
 
-    cache = createArmCache(memory);
+    cache = createCache(memory);
     
     cache_hit = cache->lookup(cache, 0x8000);
     EXPECT_TRUE(cache_hit == NULL);
 
-    removeArmCache(cache);
+    removeCache(cache);
 }
 
 TEST(Cache, lookupSuccess) {
@@ -35,7 +35,7 @@ TEST(Cache, lookupSuccess) {
     for(i = 0; i < sizeof(data); i++) {
         data[i] = i;
     }
-    cache = createArmCache(memory);
+    cache = createCache(memory);
     
     cache->append(cache, 0x8000, data, sizeof(data));
     cache_hit = (char *) cache->lookup(cache, 0x8000);
@@ -44,7 +44,7 @@ TEST(Cache, lookupSuccess) {
         EXPECT_EQ(cache_hit[i], data[i]);
     }
 
-    removeArmCache(cache);
+    removeCache(cache);
 }
 
 TEST(Cache, multipleCache) {
@@ -59,7 +59,7 @@ TEST(Cache, multipleCache) {
         data[i] = i;
     }
     for(i = 0; i < 2; i++) {
-        cache[i] = createArmCache(memory[i]);
+        cache[i] = createCache(memory[i]);
     }
     cache[0]->append(cache[0], 0x8000, data, sizeof(data));
     cache[1]->append(cache[1], 0x18000, data, sizeof(data));
@@ -81,7 +81,7 @@ TEST(Cache, multipleCache) {
     }
 
     for(i = 0; i < 2; i++) {
-        removeArmCache(cache[i]);
+        removeCache(cache[i]);
     }
 }
 
@@ -95,7 +95,7 @@ TEST(Cache, cleanCache) {
     for(i = 0; i < sizeof(data); i++) {
         data[i] = i;
     }
-    cache = createArmCache(memory);
+    cache = createCache(memory);
     
     cache->append(cache, 0x8000, data, sizeof(data));
     cache_hit = (char *) cache->lookup(cache, 0x8000);
@@ -107,7 +107,7 @@ TEST(Cache, cleanCache) {
     cache_hit = (char *) cache->lookup(cache, 0x8000);
     EXPECT_TRUE(cache_hit == NULL);
 
-    removeArmCache(cache);
+    removeCache(cache);
 }
 
 TEST(Cache, cleanCacheMultiple) {
@@ -122,7 +122,7 @@ TEST(Cache, cleanCacheMultiple) {
         data[i] = i;
     }
     for(i = 0; i < 2; i++) {
-        cache[i] = createArmCache(memory[i]);
+        cache[i] = createCache(memory[i]);
     }
     cache[0]->append(cache[0], 0x8000, data, sizeof(data));
     cache[1]->append(cache[1], 0x18000, data, sizeof(data));
@@ -145,6 +145,6 @@ TEST(Cache, cleanCacheMultiple) {
     EXPECT_TRUE(cache_hit == NULL);
 
     for(i = 0; i < 2; i++) {
-        removeArmCache(cache[i]);
+        removeCache(cache[i]);
     }
 }

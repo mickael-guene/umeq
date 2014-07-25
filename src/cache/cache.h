@@ -15,8 +15,8 @@ struct cache {
     void (*append)(struct cache *cache, uint64_t pc, void *data, int size);
 };
 
-struct cache *createArmCache(void *memory);
-void removeArmCache(struct cache *cache);
+struct cache *createCache(void *memory);
+void removeCache(struct cache *cache);
 void cleanCaches(uint64_t from_pc, uint64_t to_pc_exclude);
 
 #endif
