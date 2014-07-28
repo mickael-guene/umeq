@@ -7,6 +7,7 @@
 #include <assert.h>
 
 #include "loader.h"
+#include "runtime.h"
 
 #define PAGE_SIZE                       4096
 #define PAGE_MASK                       (PAGE_SIZE - 1)
@@ -161,7 +162,7 @@ static int mapSegment(int fd, Elf32_Phdr *segment, struct load_auxv_info *auxv_i
     }
 
     /* mapping and clearing bss if needed */
-    mapFileResult = mmap((void *)vaddr, segment->p_filesz + padding, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED, fd, offset);
+    mapFileResult = mmap_guest((void *)vaddr, segment->p_filesz + padding, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED, fd, offset);
     if (mapFileResult == (void *)vaddr) {
         long zeroAddr = segment->p_vaddr + segment->p_filesz;
         long zeroAddrAlignedOnNextPage = (zeroAddr + PAGE_SIZE - 1) & ~PAGE_MASK;
@@ -174,7 +175,7 @@ static int mapSegment(int fd, Elf32_Phdr *segment, struct load_auxv_info *auxv_i
         if (zeroAddrSize) {
             /* need to map more memory for bss ? */
             if (zeroAddrMapSize > 0) {
-                mapFileResult = mmap((void *)zeroAddrAlignedOnNextPage, zeroAddrMapSize, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
+                mapFileResult = mmap_guest((void *)zeroAddrAlignedOnNextPage, zeroAddrMapSize, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
                 if (mapFileResult != (void *)zeroAddrAlignedOnNextPage)
                     goto exit;
             }

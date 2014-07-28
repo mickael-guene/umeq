@@ -1,0 +1,2 @@
+enable_language(C ASM)
+add_library(runtime exit.c assert.c abort.c syscall.S stdio.c write.c log.c open.c read.c lseek.c close.c map.c string.c pthread.c)
