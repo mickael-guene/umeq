@@ -842,7 +842,7 @@ void disassemble_arm(struct target *target, struct irInstructionAllocator *ir, u
     uint32_t *pc_ptr = (uint32_t *) pc;
 
     assert((pc & 3) == 0);
-    for(i = 0; i < 1/*maxInsn*/; i++) {
+    for(i = 0; i < maxInsn; i++) {
         context->pc = (uint32_t) (uint64_t)pc_ptr;
         if (context->pc == 0xffff0fc0) {
             isExit = vdso_cmpxchg(context, ir);
