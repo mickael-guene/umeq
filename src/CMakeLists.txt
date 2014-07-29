@@ -4,13 +4,15 @@ include_directories(loader)
 include_directories(runtime)
 include_directories(target)
 include_directories(target/arm)
-
+include_directories(syscall)
+include_directories(syscall/syscall32_64)
 
 add_subdirectory(jitter)
 add_subdirectory(cache)
 add_subdirectory(loader)
 add_subdirectory(runtime)
 add_subdirectory(target)
+add_subdirectory(syscall)
 
 add_executable(umeq main.c start.S)
-target_link_libraries(umeq -nostdlib -T${umeq_SOURCE_DIR}/src/custom.ld -Wl,-z,execstack -static -Wl,--start-group jitter loader cache runtime arm_target -Wl,--end-group)
+target_link_libraries(umeq -nostdlib -T${umeq_SOURCE_DIR}/src/custom.ld -Wl,-z,execstack -static -Wl,--start-group jitter loader cache runtime arm_target syscall32_64 -Wl,--end-group)

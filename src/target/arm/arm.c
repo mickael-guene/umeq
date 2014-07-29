@@ -61,7 +61,10 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
 
 static void disassemble(struct target *target, struct irInstructionAllocator *ir, uint64_t pc, int maxInsn)
 {
-    assert(0 && "disassembler start here");
+    if (pc & 1)
+        disassemble_thumb(target, ir, pc, maxInsn);
+    else
+        disassemble_arm(target, ir, pc, maxInsn);
 }
 
 static uint32_t isLooping(struct target *target)
