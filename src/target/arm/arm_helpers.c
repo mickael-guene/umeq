@@ -248,6 +248,12 @@ uint32_t thumb_hlp_compute_next_flags(uint64_t context, uint32_t opcode, uint32_
             c = (calc < op1)?0x20000000:0;
             v = (((calc ^ op1) & (calc ^ op2)) >> 3) & 0x10000000;
             break;
+        case 2://sub
+        case 10://cmp
+            calc = rn - op;
+            c = (op1 >= op2)?0x20000000:0;
+            v = (((op1 ^ op2) & (op1 ^ calc)) >> 3) & 0x10000000;
+            break;
         case 13://mov
             calc = op;
             break;

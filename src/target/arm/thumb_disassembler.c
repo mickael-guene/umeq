@@ -18,6 +18,36 @@ static int inItBlock(struct arm_target *context)
     return 0;
 }
 
+static uint32_t ThumbExpandimm_C_imm32(uint32_t imm12)
+{
+    uint32_t res;
+
+    if (imm12 & 0xc00) {
+        uint32_t unrotated_value = 0x80 + (imm12 & 0x7f);
+        uint32_t shift = (imm12 >> 7) & 0x1f;
+
+        res = (unrotated_value >> shift) + (unrotated_value << (32 - shift));
+    } else {
+        uint32_t imm8 = imm12 & 0xff;
+        switch((imm12 >> 8) & 3) {
+            case 0:
+                res = imm8;
+                break;
+            case 1:
+                res = (imm8 << 16) + imm8;
+                break;
+            case 2:
+                res = (imm8 << 24) + (imm8 << 8);
+                break;
+            case 3:
+                res = (imm8 << 24) + (imm8 << 16) + (imm8 << 8) + imm8;
+                break;
+        }
+    }
+
+    return res;
+}
+
 /* sequence shortcut */
 static void dump_state(struct arm_target *context, struct irInstructionAllocator *ir)
 {
@@ -194,6 +224,90 @@ static int dis_t1_mov_immediate(struct arm_target *context, uint32_t insn, struc
     return 0;
 }
 
+static int dis_t1_cmp_immediate(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rn = INSN(10, 8);
+    uint32_t imm32 = INSN(7, 0);
+    int s = 1;
+    struct irRegister *nextCpsr;
+
+    if (s) {
+        struct irRegister *params[4];
+
+        params[0] = mk_32(ir, 10);
+        params[1] = read_reg(context, ir, rn);
+        params[2] = mk_32(ir, imm32);
+        params[3] = read_cpsr(context, ir);
+
+        nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags",
+                                   ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags),
+                                   params);
+    }
+    if (s) {
+        write_cpsr(context, ir, nextCpsr);
+    }
+
+    return 0;
+}
+
+static int dis_t1_add_8_bits_immediate(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rdn = INSN(10, 8);
+    uint32_t imm32 = INSN(7, 0);
+    int s = !inItBlock(context);
+    struct irRegister *nextCpsr;
+
+    if (s) {
+        struct irRegister *params[4];
+
+        params[0] = mk_32(ir, 4);
+        params[1] = read_reg(context, ir, rdn);
+        params[2] = mk_32(ir, imm32);
+        params[3] = read_cpsr(context, ir);
+
+        nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags",
+                                   ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags),
+                                   params);
+    }
+
+    write_reg(context, ir, rdn, ir->add_add_32(ir, read_reg(context, ir, rdn), mk_32(ir, imm32)));
+
+    if (s) {
+        write_cpsr(context, ir, nextCpsr);
+    }
+
+    return 0;
+}
+
+static int dis_t1_sub_8_bits_immediate(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rdn = INSN(10, 8);
+    uint32_t imm32 = INSN(7, 0);
+    int s = !inItBlock(context);
+    struct irRegister *nextCpsr;
+
+    if (s) {
+        struct irRegister *params[4];
+
+        params[0] = mk_32(ir, 2);
+        params[1] = read_reg(context, ir, rdn);
+        params[2] = mk_32(ir, imm32);
+        params[3] = read_cpsr(context, ir);
+
+        nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags",
+                                   ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags),
+                                   params);
+    }
+
+    write_reg(context, ir, rdn, ir->add_sub_32(ir, read_reg(context, ir, rdn), mk_32(ir, imm32)));
+
+    if (s) {
+        write_cpsr(context, ir, nextCpsr);
+    }
+
+    return 0;
+}
+
 static int dis_t1_load_store_word_immediate(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int l = INSN(11, 11);
@@ -238,35 +352,6 @@ static int dis_t1_svc(struct arm_target *context, uint32_t insn, struct irInstru
     return 1;
 }
 
-static int dis_t1_add_8_bits_immediate(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    int rdn = INSN(10, 8);
-    uint32_t imm32 = INSN(7, 0);
-    int s = !inItBlock(context);
-    struct irRegister *nextCpsr;
-
-    if (s) {
-        struct irRegister *params[4];
-
-        params[0] = mk_32(ir, 4);
-        params[1] = read_reg(context, ir, rdn);
-        params[2] = mk_32(ir, imm32);
-        params[3] = read_cpsr(context, ir);
-
-        nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags",
-                                   ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags),
-                                   params);
-    }
-
-    write_reg(context, ir, rdn, ir->add_add_32(ir, read_reg(context, ir, rdn), mk_32(ir, imm32)));
-
-    if (s) {
-        write_cpsr(context, ir, nextCpsr);
-    }
-
-    return 0;
-}
-
 static int dis_t1_bx(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rm = INSN(6, 3);
@@ -275,6 +360,57 @@ static int dis_t1_bx(struct arm_target *context, uint32_t insn, struct irInstruc
     dump_state(context, ir);
     write_reg(context, ir, 15, dst);
     ir->add_exit(ir, ir->add_32U_to_64(ir, dst));
+
+    return 1;
+}
+
+static int dis_t1_b_t1(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int32_t imm32 = INSN(7, 0);
+    int cond = INSN(11, 8);
+    uint32_t branch_target;
+
+    dump_state(context, ir);
+    /* early exit */
+    if (cond < 14) {
+        struct irRegister *params[4];
+        struct irRegister *pred;
+
+        params[0] = mk_32(ir, cond);
+        params[1] = read_cpsr(context, ir);
+        params[2] = NULL;
+        params[3] = NULL;
+
+        pred = ir->add_call_32(ir, "arm_hlp_compute_flags_pred",
+                               mk_64(ir, (uint64_t) arm_hlp_compute_flags_pred),
+                               params);
+        write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc + 2));
+        ir->add_exit_cond(ir, ir->add_mov_const_64(ir, context->pc + 2), pred);
+    } else
+        fatal("cond(%d) >= 14 ?\n", cond);
+
+    /* sign extend */
+    imm32 = (imm32 << 24) >> 23;
+
+    branch_target = context->pc + 4 + imm32;
+    write_reg(context, ir, 15, ir->add_mov_const_32(ir, branch_target));
+    ir->add_exit(ir, ir->add_mov_const_64(ir, branch_target));
+
+    return 1;
+}
+
+static int dis_t1_b_t2(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int32_t imm32 = INSN(10, 0);
+    uint32_t branch_target;
+
+    /* sign extend */
+    imm32 = (imm32 << 21) >> 20;
+
+    branch_target = context->pc + 4 + imm32;
+    dump_state(context, ir);
+    write_reg(context, ir, 15, ir->add_mov_const_32(ir, branch_target));
+    ir->add_exit(ir, ir->add_mov_const_64(ir, branch_target));
 
     return 1;
 }
@@ -382,6 +518,21 @@ static int dis_t2_ldr_immediate_t4(struct arm_target *context, uint32_t insn, st
     return isExit;
 }
 
+static int dis_t2_mov_t2(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN2(11, 8);
+    int s = INSN1(4, 4);
+    uint32_t imm12 = (INSN1(10, 10) << 11) | (INSN2(14, 12) << 8) | INSN2(7, 0);
+    uint32_t imm32 = ThumbExpandimm_C_imm32(imm12);
+
+    /* FIXME: implement flag update but take care of thumbexpandimm_c which update carry */
+    assert(s == 0);
+
+    write_reg(context, ir, rd, mk_32(ir, imm32));
+
+    return 0;
+}
+
  /* pure disassembler */
 static int dis_t1_shift_A_add_A_substract_A_move_A_compare(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -392,8 +543,14 @@ static int dis_t1_shift_A_add_A_substract_A_move_A_compare(struct arm_target *co
         case 16 ... 19:
             isExit = dis_t1_mov_immediate(context, insn, ir);
             break;
+        case 20 ... 23:
+            isExit = dis_t1_cmp_immediate(context, insn, ir);
+            break;
         case 24 ... 27:
             isExit = dis_t1_add_8_bits_immediate(context, insn, ir);
+            break;
+        case 28 ... 31:
+            isExit = dis_t1_sub_8_bits_immediate(context, insn, ir);
             break;
         default:
             fatal("insn = 0x%x | opcode = %d(0x%x)\n", insn, opcode, opcode);
@@ -477,8 +634,7 @@ static int dis_t1_cond_branch_A_svc(struct arm_target *context, uint32_t insn, s
         //undefined
         assert(0);
     } else {
-        //cond branch
-        assert(0);
+        isExit = dis_t1_b_t1(context, insn, ir);
     }
 
     return isExit;
@@ -507,6 +663,9 @@ static int disassemble_thumb1_insn(struct arm_target *context, uint32_t insn, st
             break;
         case 52 ... 55:
             isExit = dis_t1_cond_branch_A_svc(context, insn, ir);
+            break;
+        case 56 ... 57:
+            isExit = dis_t1_b_t2(context, insn, ir);
             break;
         default:
             fatal("insn = %x | opcode = %d(0x%x)\n", insn, opcode, opcode);
@@ -555,7 +714,22 @@ static int dis_t2_data_processing_plain_binary_immediate(struct arm_target *cont
 
 static int dis_t2_data_processing_modified_immediate(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    assert(0);
+    int op = INSN1(8, 5);
+    int rn = INSN1(3, 0);
+    int isExit = 0;
+
+    switch(op) {
+        case 2:
+            if (rn == 15)
+                dis_t2_mov_t2(context, insn, ir);
+            else
+                assert(0);
+            break;
+        default:
+            fatal("insn=0x%x op=%d(0x%x)\n", insn, op, op);
+    }
+
+
 }
 
 static int dis_t2_ldr(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
