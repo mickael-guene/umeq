@@ -6,7 +6,7 @@ void debug(const char *format, ...) {
     va_list args;
 
     va_start(args, format);
-    fprintf(stderr, "INFO: ");
+    fprintf(stderr, "DEBUG: ");
     vfprintf(stderr, format, args);
     va_end(args) ;
 }
@@ -38,12 +38,11 @@ void error(const char *format, ...) {
     va_end(args) ;
 }
 
-void fatal(const char *format, ...) {
+void fatal_internal(const char *format, ...) {
     va_list args;
 
     va_start(args, format);
     fprintf(stderr, "FATAL: ");
     vfprintf(stderr, format, args);
     va_end(args) ;
-    assert(0);
 }

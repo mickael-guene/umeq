@@ -7,6 +7,7 @@
 #include <errno.h>
 
 #include "syscall32_64.h"
+#include "runtime.h"
 
 #define g_2_h(ptr)  ((uint64_t)(ptr))
 #define h_2_g(ptr)  ((ptr))

@@ -45,7 +45,7 @@ static struct irRegister *read_reg(struct arm_target *context, struct irInstruct
         return ir->add_read_context_32(ir, offsetof(struct arm_registers, r[index]));
 }
 
-void write_reg(struct arm_target *context, struct irInstructionAllocator *ir, int index, struct irRegister *value)
+static void write_reg(struct arm_target *context, struct irInstructionAllocator *ir, int index, struct irRegister *value)
 {
     ir->add_write_context_32(ir, value, offsetof(struct arm_registers, r[index]));
 }
@@ -55,7 +55,7 @@ static struct irRegister *read_cpsr(struct arm_target *context, struct irInstruc
     return ir->add_read_context_32(ir, offsetof(struct arm_registers, cpsr));
 }
 
-void write_cpsr(struct arm_target *context, struct irInstructionAllocator *ir, struct irRegister *value)
+static void write_cpsr(struct arm_target *context, struct irInstructionAllocator *ir, struct irRegister *value)
 {
     ir->add_write_context_32(ir, value, offsetof(struct arm_registers, cpsr));
 }
@@ -65,7 +65,7 @@ static struct irRegister *read_sco(struct arm_target *context, struct irInstruct
     return ir->add_read_context_32(ir, offsetof(struct arm_registers, shifter_carry_out));
 }
 
-void write_sco(struct arm_target *context, struct irInstructionAllocator *ir, struct irRegister *value)
+static void write_sco(struct arm_target *context, struct irInstructionAllocator *ir, struct irRegister *value)
 {
     ir->add_write_context_32(ir, value, offsetof(struct arm_registers, shifter_carry_out));
 }

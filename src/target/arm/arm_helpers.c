@@ -4,8 +4,10 @@
 
 #include "arm_private.h"
 #include "arm_helpers.h"
+#include "runtime.h"
 
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
+//#define DUMP_STACK 1
 
 void arm_hlp_dump(uint64_t regs)
 {
@@ -229,4 +231,31 @@ uint32_t arm_hlp_compute_sco(uint64_t context, uint32_t insn, uint32_t rm, uint3
     }
 
     return sco;
+}
+
+uint32_t thumb_hlp_compute_next_flags(uint64_t context, uint32_t opcode, uint32_t rn, uint32_t op, uint32_t oldcpsr)
+{
+    int n, z, c, v;
+    uint32_t op1 = rn;
+    uint32_t op2 = op;
+    uint32_t calc;
+
+    c = oldcpsr & 0x20000000;
+    v = oldcpsr & 0x10000000;
+    switch(opcode) {
+        case 4://add
+            calc = rn + op;
+            c = (calc < op1)?0x20000000:0;
+            v = (((calc ^ op1) & (calc ^ op2)) >> 3) & 0x10000000;
+            break;
+        case 13://mov
+            calc = op;
+            break;
+        default:
+            fatal("thumb_hlp_compute_next_flags : unsupported opcode %d\n", opcode);
+    }
+    n = (calc & 0x80000000);
+    z = (calc == 0)?0x40000000:0;
+
+    return n|z|c|v;
 }

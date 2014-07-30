@@ -8,6 +8,7 @@
 #include "sysnums-arm.h"
 #include "hownums-arm.h"
 #include "syscall32_64.h"
+#include "runtime.h"
 
 void arm_hlp_syscall(uint64_t regs)
 {

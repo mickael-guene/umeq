@@ -16,6 +16,7 @@ extern uint32_t arm_hlp_compute_flags_pred(uint64_t context, uint32_t cond, uint
 extern uint32_t arm_hlp_compute_next_flags(uint64_t context, uint32_t opcode_and_shifter_carry_out, uint32_t rn, uint32_t op, uint32_t oldcpsr);
 extern uint32_t arm_hlp_compute_sco(uint64_t context, uint32_t insn, uint32_t rm, uint32_t op, uint32_t oldcpsr);
 extern void arm_hlp_syscall(uint64_t regs);
+extern uint32_t thumb_hlp_compute_next_flags(uint64_t context, uint32_t opcode, uint32_t rn, uint32_t op, uint32_t oldcpsr);
 
 #endif
 
