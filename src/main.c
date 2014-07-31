@@ -79,7 +79,7 @@ static int loop_cache(uint32_t entry, uint32_t stack_entry, uint32_t signum, voi
             int jitSize;
 
             resetJitter(handle);
-            target->disassemble(target, ir, currentPc, 10);
+            target->disassemble(target, ir, currentPc, 1/*10*/);
             //displayIr(handle);
             jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
             if (jitSize > 0) {

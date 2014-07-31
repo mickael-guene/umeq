@@ -7,6 +7,8 @@
 #include "runtime.h"
 
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
+#define INSN1(msb, lsb) INSN(msb+16, lsb+16)
+#define INSN2(msb, lsb) INSN(msb, lsb)
 //#define DUMP_STACK 1
 
 void arm_hlp_dump(uint64_t regs)
@@ -182,7 +184,7 @@ uint32_t arm_hlp_compute_next_flags(uint64_t context, uint32_t opcode_and_shifte
     n = (calc & 0x80000000);
     z = (calc == 0)?0x40000000:0;
 
-    return n|z|c|v;
+    return n|z|c|v|(oldcpsr&0x0fffffff);
 }
 
 uint32_t arm_hlp_compute_sco(uint64_t context, uint32_t insn, uint32_t rm, uint32_t op, uint32_t oldcpsr)
@@ -263,5 +265,256 @@ uint32_t thumb_hlp_compute_next_flags(uint64_t context, uint32_t opcode, uint32_
     n = (calc & 0x80000000);
     z = (calc == 0)?0x40000000:0;
 
-    return n|z|c|v;
+    return n|z|c|v|(oldcpsr&0x0fffffff);
+}
+
+uint32_t thumb_hlp_t2_modified_compute_next_flags(uint64_t context, uint32_t opcode_and_shifter_carry_out, uint32_t rn, uint32_t op, uint32_t oldcpsr)
+{
+    int n, z, c, v;
+    uint32_t op1 = rn;
+    uint32_t op2 = op;
+    uint32_t calc;
+    uint32_t shifter_carry_out;
+    uint32_t opcode;
+    uint32_t c_in = (oldcpsr >> 29) & 1;
+
+    opcode = opcode_and_shifter_carry_out & 0xf;
+    shifter_carry_out = opcode_and_shifter_carry_out & 0x20000000;
+    c = oldcpsr & 0x20000000;
+    v = oldcpsr & 0x10000000;
+    switch(opcode) {
+        case 0://and / test
+            calc = rn & op;
+            c = shifter_carry_out;
+            break;
+        default:
+            printf("thumb_hlp_t2_modified_compute_next_flags : opcode = %d\n\n", opcode);
+            assert(0);
+    }
+    n = (calc & 0x80000000);
+    z = (calc == 0)?0x40000000:0;
+
+    return n|z|c|v|(oldcpsr&0x0fffffff);
+}
+
+uint32_t arm_hlp_clz(uint64_t context, uint32_t rm)
+{
+    uint32_t res = 0;
+    int i;
+
+    for(i = 31; i >= 0; i--) {
+        if ((rm >> i) & 1)
+            break;
+        res++;
+    }
+
+    return res;
+}
+
+uint32_t arm_hlp_multiply_unsigned_lsb(uint64_t context, uint32_t op1, uint32_t op2)
+{
+    return op1 * op2;
+}
+
+uint32_t arm_hlp_multiply_flag_update(uint64_t context, uint32_t res, uint32_t old_cpsr)
+{
+    uint32_t cpsr = old_cpsr & 0x3fffffff;
+
+    if (res == 0)
+        cpsr |= 0x40000000;
+    if (res >> 31)
+        cpsr |= 0x80000000;
+
+    return cpsr;
+}
+
+/* FIXME: ldrex / strex implementation below is not sematically correct. It's subject
+          to the ABBA problem which is not the case of ldrex/strex hardware implementation
+ */
+uint32_t arm_hlp_ldrex(uint64_t regs, uint32_t address, uint32_t size_access)
+{
+    struct arm_target *context = container_of((void *) regs, struct arm_target, regs);
+
+    switch(size_access) {
+        case 4:
+            context->exclusive_value = (uint64_t) *((uint32_t *)(uint64_t) address);
+            break;
+        default:
+            fatal("size_access %d unsupported\n", size_access);
+    }
+
+    return (uint32_t) context->exclusive_value;
+}
+
+uint32_t arm_hlp_strex(uint64_t regs, uint32_t address, uint32_t size_access, uint32_t value)
+{
+    struct arm_target *context = container_of((void *) regs, struct arm_target, regs);
+    uint32_t res = 0;
+
+    switch(size_access) {
+        case 4:
+            if (__sync_bool_compare_and_swap((uint32_t *)(uint64_t) address, (uint32_t)context->exclusive_value, value))
+                res = 0;
+            else
+                res = 1;
+            break;
+        default:
+            fatal("size_access %d unsupported\n", size_access);
+    }
+
+    return res;
+}
+
+void arm_hlp_memory_barrier(uint64_t regs)
+{
+    __sync_synchronize();
+}
+
+static uint32_t unsignedSat8(int32_t i)
+{
+    if (i > 255)
+        return 255;
+    else if (i < 0)
+        return 0;
+    else
+        return i;
+}
+
+static void uadd8(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int rn = INSN1(3, 0);
+    int rd = INSN2(11, 8);
+    int rm = INSN2(3, 0);
+    uint32_t sum[4];
+    int i;
+
+    //clear ge
+    regs->cpsr &= 0xfff0ffff;
+    for(i = 0; i < 4; i++) {
+        sum[i] = ((regs->r[rn] >> (i * 8)) & 0xff) + ((regs->r[rm] >> (i * 8)) & 0xff);
+        regs->cpsr |= (sum[i] >= 0x100)?(0x10000 << i):0;
+    }
+    regs->r[rd] = ((sum[3] & 0xff) << 24) + ((sum[2] & 0xff) << 16) + ((sum[1] & 0xff) << 8) + (sum[0] & 0xff);
+}
+
+static void uqsub8(uint64_t _regs, int rd, int rn, int rm)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int32_t diff[4];
+    int i;
+
+    for(i = 0; i < 4; i++) {
+        diff[i] = ((regs->r[rn] >> (i * 8)) & 0xff) - ((regs->r[rm] >> (i * 8)) & 0xff);
+    }
+    regs->r[rd] = (unsignedSat8(diff[3]) << 24) | (unsignedSat8(diff[2]) << 16) | (unsignedSat8(diff[1]) << 8) | unsignedSat8(diff[0]);
+}
+
+static void uqsub8_a1(uint64_t _regs, uint32_t insn)
+{
+    uqsub8(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+void thumb_hlp_t2_unsigned_parallel(uint64_t regs, uint32_t insn)
+{
+    int op1 = INSN1(6, 4);
+    int op2 = INSN2(5, 4);
+
+    if (op2 == 0) {
+        switch(op1) {
+            case 0:
+                uadd8(regs, insn);
+                break;
+            default:
+                fatal("op1 = %d(0x%x)\n", op1, op1);
+        }
+    } else {
+        assert(0);
+    }
+}
+
+void arm_hlp_unsigned_parallel(uint64_t regs, uint32_t insn)
+{
+    int op1 = INSN(21, 20);
+    int op2 = INSN(7, 5);
+
+    if (op1 == 1) {
+        assert(0);
+    } else if (op1 == 2) {
+        switch(op2) {
+            case 7:
+                uqsub8_a1(regs, insn);
+                break;
+            default:
+                fatal("op2 = %d(0x%x)\n", op2, op2);
+        }
+    } else if (op1 == 3) {
+        assert(0);
+    } else
+        assert(0);
+}
+
+uint32_t arm_hlp_sel(uint64_t context, uint32_t cpsr, uint32_t rn, uint32_t rm)
+{
+    uint32_t res = 0;
+    int i;
+
+    for(i = 0; i < 4; i++) {
+        if (cpsr & (0x10000 << i))
+            res |= rn & (0xff << (i * 8));
+        else
+            res |= rm & (0xff << (i * 8));
+    }
+
+    return res;
+}
+
+uint32_t arm_hlp_multiply_unsigned_msb(uint64_t context, uint32_t op1, uint32_t op2)
+{
+    uint64_t res = (uint64_t)op1 * (uint64_t)op2;
+
+    return res >> 32;
+}
+
+uint32_t arm_hlp_multiply_signed_lsb(uint64_t context, int32_t op1, int32_t op2)
+{
+    int64_t res = (int64_t)op1 * (int64_t)op2;
+
+    return (uint32_t) res;
+}
+
+uint32_t arm_hlp_multiply_signed_msb(uint64_t context, int32_t op1, int32_t op2)
+{
+    int64_t res = (int64_t)op1 * (int64_t)op2;
+
+    return (uint32_t) (res >> 32);
+}
+
+uint32_t arm_hlp_multiply_accumulate_unsigned_lsb(uint64_t context, uint32_t op1, uint32_t op2, uint32_t rdhi, uint32_t rdlo)
+{
+    return op1 * op2 + rdlo;
+}
+
+uint32_t arm_hlp_multiply_accumulate_signed_lsb(uint64_t context, uint32_t op1, uint32_t op2, uint32_t rdhi, uint32_t rdlo)
+{
+    uint64_t acc = (((uint64_t)rdhi) << 32) + rdlo;
+    int64_t res = (int64_t)op1 * (int64_t)op2 + (int64_t)acc;
+
+    return (uint32_t) res;
+}
+
+uint32_t arm_hlp_multiply_accumulate_unsigned_msb(uint64_t context, uint32_t op1, uint32_t op2, uint32_t rdhi, uint32_t rdlo)
+{
+    uint64_t acc = (((uint64_t)rdhi) << 32) + rdlo;
+    uint64_t res = (uint64_t)op1 * (uint64_t)op2 + acc;
+
+    return res >> 32;
+}
+
+uint32_t arm_hlp_multiply_accumulate_signed_msb(uint64_t context, uint32_t op1, uint32_t op2, uint32_t rdhi, uint32_t rdlo)
+{
+    uint64_t acc = (((uint64_t)rdhi) << 32) + rdlo;
+    int64_t res = (int64_t)op1 * (int64_t)op2 + (int64_t)acc;
+
+    return (uint32_t) (res >> 32);
 }

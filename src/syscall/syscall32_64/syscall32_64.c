@@ -6,11 +6,14 @@
 #include <stdint.h>
 #include <errno.h>
 
+/* MAP_32BIT */
+#include <sys/mman.h>
+
+#include "sysnum.h"
+#include "syscall32_64_types.h"
+#include "syscall32_64_private.h"
 #include "syscall32_64.h"
 #include "runtime.h"
-
-#define g_2_h(ptr)  ((uint64_t)(ptr))
-#define h_2_g(ptr)  ((ptr))
 
 int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5)
 {
@@ -20,8 +23,29 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_exit:
             res = syscall(SYS_exit, (int)p0);
             break;
+        case PR_exit_group:
+            res = syscall(SYS_exit_group, (int)p0);
+            break;
         case PR_write:
             res = syscall(SYS_write, (int)p0, (void *)g_2_h(p1), (size_t)p2);
+            break;
+        case PR_readlink:
+            res = syscall(SYS_readlink, (const char *)g_2_h(p0), (char *)g_2_h(p1), (size_t)p2);
+            break;
+        case PR_fstat64:
+            res = fstat64_s3264(p0, p1);
+            break;
+        case PR_mmap2:
+            /* FIXME: 4096 make it not portable ... keep it here for the moment since mmap need reworks to bypass mmap_min_addr */
+            res = syscall(SYS_mmap,
+                          (void *) g_2_h(p0),
+                          (size_t) p1,
+                          (int) p2,
+                          (int) (p3 | MAP_32BIT),
+                          (int) p4,
+                          (off_t) (p5 * 4096));
+            /* Need to clean cache since old code can be in cache in the same area */
+            cleanCaches(0, ~0);
             break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);

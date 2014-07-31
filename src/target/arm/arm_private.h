@@ -26,9 +26,11 @@ struct arm_target {
     struct target target;
     struct arm_registers regs;
     uint32_t pc;
+    uint64_t itstate;
     uint64_t sp_init;
     uint32_t isLooping;
     uint32_t exitStatus;
+    uint64_t exclusive_value;
 };
 
 extern void disassemble_arm(struct target *target, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);

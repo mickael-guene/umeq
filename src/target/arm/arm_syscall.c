@@ -9,6 +9,7 @@
 #include "hownums-arm.h"
 #include "syscall32_64.h"
 #include "runtime.h"
+#include "arm_syscall.h"
 
 void arm_hlp_syscall(uint64_t regs)
 {
@@ -18,17 +19,33 @@ void arm_hlp_syscall(uint64_t regs)
     Syshow how;
     int res = ENOSYS;
 
-    /* sanity check about range */
-    if (no >= sysnums_arm_nb)
+    /* translate syscall nb into neutral no */
+    if (no == 0xf0005)
+        no_neutral = PR_ARM_set_tls;
+    else if (no >= sysnums_arm_nb)
         fatal("Out of range syscall number %d >= %d\n", no, sysnums_arm_nb);
-    no_neutral = sysnums_arm[context->regs.r[7]];
+    else
+        no_neutral = sysnums_arm[context->regs.r[7]];
     how = syshow_arm[no_neutral];
     /* so how we handle this sycall */
     if (how == HOW_32_to_64) {
         res = syscall32_64(no_neutral, context->regs.r[0], context->regs.r[1], context->regs.r[2], 
                                             context->regs.r[3], context->regs.r[4], context->regs.r[5]);
     } else if (how == HOW_custom_implementation) {
-
+        switch(no_neutral) {
+            case PR_uname:
+                res = arm_uname(context);
+                break;
+            case PR_brk:
+                res = arm_brk(context);
+                break;
+            case PR_ARM_set_tls:
+                context->regs.c13_tls2 = context->regs.r[0];
+                res = 0;
+                break;
+            default:
+                fatal("You say custom but you don't implement it %d\n", no_neutral);
+        }
     } else if (how == HOW_not_yet_supported) {
         fatal("Syscall not yet implemented no=%d/no_neutral=%d\n", no, no_neutral);
     } else if (how == HOW_not_implemented) {
