@@ -610,12 +610,31 @@ static int dis_t2_branch_with_link(struct arm_target *context, uint32_t insn, st
     int s = INSN1(10, 10);
     int i1 = 1 - (INSN2(13, 13) ^ s);
     int i2 = 1 - (INSN2(11, 11) ^ s);
-    int32_t imm32 = ((i1 << 23) | (i2 << 22) | (INSN1(9, 0) << 12) | (INSN2(10, 0) << 1));
+    int32_t imm32 = (s << 24) | ((i1 << 23) | (i2 << 22) | (INSN1(9, 0) << 12) | (INSN2(10, 0) << 1));
     uint32_t branch_target;
 
     /* sign extend */
-    imm32 = (imm32 << 8) >> 8;
+    imm32 = (imm32 << 7) >> 7;
     branch_target = context->pc + 4 + imm32;
+    write_reg(context, ir, 14, ir->add_mov_const_32(ir, context->pc + 4));
+    dump_state(context, ir);
+    write_reg(context, ir, 15, ir->add_mov_const_32(ir, branch_target));
+    ir->add_exit(ir, ir->add_mov_const_64(ir, branch_target));
+
+    return 1;
+}
+
+static int dis_t2_branch_with_link_exchange(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int s = INSN1(10, 10);
+    int i1 = 1 - (INSN2(13, 13) ^ s);
+    int i2 = 1 - (INSN2(11, 11) ^ s);
+    int32_t imm32 = (s << 24) | ((i1 << 23) | (i2 << 22) | (INSN1(9, 0) << 12) | (INSN2(10, 1) << 2));
+    uint32_t branch_target;
+
+    /* sign extend */
+    imm32 = (imm32 << 7) >> 7;
+    branch_target = (context->pc + 4 + imm32) & ~3;
     write_reg(context, ir, 14, ir->add_mov_const_32(ir, context->pc + 4));
     dump_state(context, ir);
     write_reg(context, ir, 15, ir->add_mov_const_32(ir, branch_target));
@@ -1090,6 +1109,8 @@ static int dis_t2_branches_A_misc(struct arm_target *context, uint32_t insn, str
             fatal("op = %d(0x%x)\n", op, op);
         } else
             isExit = dis_t2_b_t3(context, insn, ir);
+    } else if (op1 == 4 || op1 == 6) {
+        isExit = dis_t2_branch_with_link_exchange(context, insn, ir);
     } else {
         fatal("op1 = %d(0x%x)\n", op1, op1);
     }

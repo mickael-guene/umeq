@@ -34,3 +34,8 @@ ADD_TEST(Static.Nolib.Helloloop.a.out.O0.thumb ../src/umeq ${CMAKE_SOURCE_DIR}/t
 ADD_TEST(Static.Nolib.Helloloop.a.out.O1.thumb ../src/umeq ${CMAKE_SOURCE_DIR}/test/static/nolib/helloloop/a.out.O1.thumb)
 ADD_TEST(Static.Nolib.Helloloop.a.out.O2.thumb ../src/umeq ${CMAKE_SOURCE_DIR}/test/static/nolib/helloloop/a.out.O2.thumb)
 ADD_TEST(Static.libc.Hello.a.out.O0.arm ../src/umeq ${CMAKE_SOURCE_DIR}/test/static/libc/hello/a.out.O0.arm)
+ADD_TEST(Static.libc.Hello.a.out.O1.arm ../src/umeq ${CMAKE_SOURCE_DIR}/test/static/libc/hello/a.out.O1.arm)
+ADD_TEST(Static.libc.Hello.a.out.O2.arm ../src/umeq ${CMAKE_SOURCE_DIR}/test/static/libc/hello/a.out.O2.arm)
+ADD_TEST(Static.libc.Hello.a.out.O0.thumb ../src/umeq ${CMAKE_SOURCE_DIR}/test/static/libc/hello/a.out.O0.thumb)
+ADD_TEST(Static.libc.Hello.a.out.O1.thumb ../src/umeq ${CMAKE_SOURCE_DIR}/test/static/libc/hello/a.out.O1.thumb)
+ADD_TEST(Static.libc.Hello.a.out.O2.thumb ../src/umeq ${CMAKE_SOURCE_DIR}/test/static/libc/hello/a.out.O2.thumb)
