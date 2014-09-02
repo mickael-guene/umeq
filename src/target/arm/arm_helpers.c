@@ -31,6 +31,12 @@ void arm_hlp_dump(uint64_t regs)
 #endif
 }
 
+void arm_hlp_dump_and_assert(uint64_t regs)
+{
+    arm_hlp_dump(regs);
+    assert(0);
+}
+
 void arm_hlp_vdso_cmpxchg(uint64_t _regs)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;

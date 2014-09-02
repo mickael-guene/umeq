@@ -20,6 +20,14 @@ static void dump_state(struct arm_target *context, struct irInstructionAllocator
                       param);
 #endif
 }
+static void dump_state_and_assert(struct arm_target *context, struct irInstructionAllocator *ir)
+{
+    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+
+    ir->add_call_void(ir, "arm_hlp_dump_and_assert",
+                      ir->add_mov_const_64(ir, (uint64_t) arm_hlp_dump_and_assert),
+                      param);
+}
 
 static struct irRegister *mk_8(struct irInstructionAllocator *ir, uint8_t value)
 {
@@ -754,6 +762,22 @@ static int dis_uxtb(struct arm_target *context, uint32_t insn, struct irInstruct
     return 0;
 }
 
+static int dis_uxth(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(15, 12);
+    int rm = INSN(3, 0);
+    int rotation = INSN(11, 10) << 3;
+    struct irRegister *rm_reg = read_reg(context, ir, rm);
+    struct irRegister *rm_rotated;
+
+    /* rotate */
+    rm_rotated = mk_media_rotate(ir, rm_reg, rotation);
+    /* mask and assign */
+    write_reg(context, ir, rd, ir->add_and_32(ir, rm_rotated, mk_32(ir, 0xffff)));
+
+    return 0;
+}
+
 static int dis_blx(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rm = INSN(3, 0);
@@ -875,9 +899,56 @@ static int dis_mcr(struct arm_target *context, uint32_t insn, struct irInstructi
     assert(0);
 }
 
-static int dis_ldrh_register(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+static int dis_load_store_halfword_register_offset(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    assert(0);
+    int p = INSN(24, 24);
+    int u = INSN(23, 23);
+    int w = INSN(21, 21);
+    int l = INSN(20, 20);
+    int rn = INSN(19, 16);
+    int rd = INSN(15, 12);
+    int rm = INSN(3, 0);
+    struct irRegister *address;
+    struct irRegister *rm_reg;
+    struct irRegister *rn_reg;
+
+    assert(rd != 15);
+
+    rm_reg = read_reg(context, ir, rm);
+    rn_reg = read_reg(context, ir, rn);
+    /* compute address of access */
+    if (p) {
+        //either offset or pre-indexedregs
+        if (u)
+            address = ir->add_add_32(ir, rn_reg, rm_reg);
+        else
+            address = ir->add_sub_32(ir, rn_reg, rm_reg);
+    } else {
+        //post indexed
+        address = rn_reg;
+    }
+    /* make load/store */
+    if (l == 1) {
+        write_reg(context, ir, rd, ir->add_16U_to_32(ir, ir->add_load_16(ir, address)));
+    } else {
+        ir->add_store_16(ir, ir->add_32_to_16(ir, read_reg(context, ir, rd)), address);
+    }
+    /* write-back if needed */
+    if (p && w) {
+        //pre-indexed
+        write_reg(context, ir, rn, address);
+    } else if (!p && !w) {
+        //post-indexed
+        struct irRegister *newVal;
+
+        if (u)
+            newVal = ir->add_add_32(ir, rn_reg, rm_reg);
+        else
+            newVal = ir->add_sub_32(ir, rn_reg, rm_reg);
+        write_reg(context, ir, rn, newVal);
+    }
+
+    return 0;
 }
 
 static int dis_load_store_halfword_immediate_offset(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1073,6 +1144,60 @@ static int dis_ubfx(struct arm_target *context, uint32_t insn, struct irInstruct
     return 0;
 }
 
+static int dis_sbfx(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int widthm1 = INSN(20, 16);
+    int rd = INSN(15, 12);
+    int lsb = INSN(11, 7);
+    int rn = INSN(3, 0);
+
+    write_reg(context, ir, rd, ir->add_asr_32(ir,
+                                              ir->add_shl_32(ir, read_reg(context, ir, rn), mk_8(ir, 31-lsb-widthm1)),
+                                              mk_8(ir, 31 - widthm1)));
+
+    return 0;
+}
+
+static int dis_bfc(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(15, 12);
+    int msb = INSN(20, 16);
+    int lsb = INSN(11, 7);
+    int width = msb - lsb + 1;
+    int mask = ~(((1 << width) - 1) << lsb);
+
+    assert(rd != 15);
+
+    write_reg(context, ir, rd, ir->add_and_32(ir,
+                                              read_reg(context, ir, rd),
+                                              mk_32(ir, mask)));
+
+    return 0;
+}
+
+static int dis_bfi(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(3, 0);
+    int msb = INSN(20, 16);
+    int lsb = INSN(11, 7);
+    int width = msb - lsb + 1;
+    uint32_t mask_rn = (((1 << width) - 1) << lsb);
+    uint32_t mask_rd = ~mask_rn;
+    struct irRegister *op1;
+    struct irRegister *op2;
+
+    op1 = ir->add_and_32(ir,
+                         ir->add_shl_32(ir, read_reg(context, ir, rn), mk_8(ir, lsb)),
+                         mk_32(ir, mask_rn));
+    op2 = ir->add_and_32(ir,
+                         read_reg(context, ir, rd),
+                         mk_32(ir, mask_rd));
+    write_reg(context, ir, rd, ir->add_or_32(ir, op1, op2));
+
+    return 0;
+}
+
  /* pure disassembler */
 static int dis_msr_imm_and_hints(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -1133,8 +1258,9 @@ static int dis_extra_load_store_insn(struct arm_target *context, uint32_t insn, 
     switch(op2) {
         case 1:
             switch(op1 & 0x5) {
+                case 0:
                 case 1:
-                    isExit = dis_ldrh_register(context, insn, ir);
+                    isExit = dis_load_store_halfword_register_offset(context, insn, ir);
                     break;
                 case 4:
                     isExit = dis_load_store_halfword_immediate_offset(context, insn, ir);
@@ -1240,6 +1366,22 @@ static int dis_packing_A_unpacking_A_saturation_A_reversal(struct arm_target *co
                     assert(0);
             } else
                 fatal("op2 = %d(0x%x)\n", op2, op2);
+            break;
+        case 7:
+            if (op2 == 1) {
+                //rbit
+                assert(0);
+            } else if (op2 == 3) {
+                if (a == 15)
+                    isExit = dis_uxth(context, insn, ir);
+                else
+                    assert(0 && "uxtah");
+            } else if (op2 == 5) {
+                //revsh
+                assert(0);
+            } else {
+                assert(0);
+            }
             break;
         default:
             fatal("op1 = %d(0x%x)\n", op1, op1);
@@ -1379,6 +1521,15 @@ static int dis_media_insn(struct arm_target *context, uint32_t insn, struct irIn
             break;
         case 8 ... 15:
             isExit = dis_packing_A_unpacking_A_saturation_A_reversal(context, insn, ir);
+            break;
+        case 26 ... 27:
+            isExit = dis_sbfx(context, insn, ir);
+            break;
+        case 28 ... 29:
+            if (rn == 15)
+                dis_bfc(context, insn, ir);
+            else
+                dis_bfi(context, insn, ir);
             break;
         case 30 ... 31:
             isExit = dis_ubfx(context, insn, ir);
@@ -1579,11 +1730,9 @@ void disassemble_arm(struct target *target, struct irInstructionAllocator *ir, u
     int isExit; //unconditionnal exit
     uint32_t *pc_ptr = (uint32_t *) pc;
 
-    //fprintf(stderr, "0x%lx\n", pc);
     assert((pc & 3) == 0);
     for(i = 0; i < maxInsn; i++) {
         context->pc = (uint32_t) (uint64_t)pc_ptr;
-        dump_state(context, ir);
         if (context->pc == 0xffff0fc0) {
             isExit = vdso_cmpxchg(context, ir);
         } else if (context->pc == 0xffff0fa0) {
@@ -1593,6 +1742,7 @@ void disassemble_arm(struct target *target, struct irInstructionAllocator *ir, u
         } else {
             isExit = disassemble_insn(context, *pc_ptr++, ir);
         }
+        dump_state(context, ir);
         if (isExit)
             break;
     }

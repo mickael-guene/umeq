@@ -20,6 +20,15 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
     int res = ENOSYS;
 
     switch(no) {
+        case PR_access:
+            res = syscall(SYS_access, (const char *) g_2_h(p0), (int) p1);
+            break;
+        case PR_close:
+            res = syscall(SYS_close, (int)p0);
+            break;
+        case PR_read:
+            res = syscall(SYS_read, (int)p0, (void *) g_2_h(p1), (size_t) p2);
+            break;
         case PR_exit:
             res = syscall(SYS_exit, (int)p0);
             break;
@@ -46,6 +55,12 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
                           (off_t) (p5 * 4096));
             /* Need to clean cache since old code can be in cache in the same area */
             cleanCaches(0, ~0);
+            break;
+        case PR_mprotect:
+            res = syscall(SYS_mprotect, (void *) g_2_h(p0), (size_t) p1, (int) p2);
+            break;
+        case PR_munmap:
+            res = syscall(SYS_munmap, (void *) g_2_h(p0), (size_t) p1);
             break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);

@@ -11,6 +11,7 @@ extern "C" {
 #define __ARM_HELPERS__ 1
 
 extern void arm_hlp_dump(uint64_t regs);
+extern void arm_hlp_dump_and_assert(uint64_t regs);
 extern void arm_hlp_vdso_cmpxchg(uint64_t _regs);
 extern uint32_t arm_hlp_compute_flags_pred(uint64_t context, uint32_t cond, uint32_t cpsr);
 extern uint32_t arm_hlp_compute_next_flags(uint64_t context, uint32_t opcode_and_shifter_carry_out, uint32_t rn, uint32_t op, uint32_t oldcpsr);
