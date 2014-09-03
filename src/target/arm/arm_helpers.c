@@ -293,6 +293,10 @@ uint32_t thumb_hlp_t2_modified_compute_next_flags(uint64_t context, uint32_t opc
             calc = rn & op;
             c = shifter_carry_out;
             break;
+        case 3://orn / mvn
+            calc = rn | (~op);
+            c = shifter_carry_out;
+            break;
         default:
             printf("thumb_hlp_t2_modified_compute_next_flags : opcode = %d\n\n", opcode);
             assert(0);

@@ -1198,6 +1198,33 @@ static int dis_bfi(struct arm_target *context, uint32_t insn, struct irInstructi
     return 0;
 }
 
+static int dis_rev(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(3, 0);
+    struct irRegister *rn_reg = read_reg(context, ir, rn);
+    struct irRegister *tmp;
+    struct irRegister *result;
+
+    tmp = ir->add_or_32(ir,
+                        ir->add_shl_32(ir,
+                                       ir->add_and_32(ir, rn_reg, mk_32(ir, 0x0000ffff)),
+                                       mk_8(ir, 16)),
+                        ir->add_shr_32(ir,
+                                       ir->add_and_32(ir, rn_reg, mk_32(ir, 0xffff0000)),
+                                       mk_8(ir, 16)));
+    result = ir->add_or_32(ir,
+                        ir->add_shl_32(ir,
+                                       ir->add_and_32(ir, tmp, mk_32(ir, 0x00ff00ff)),
+                                       mk_8(ir, 8)),
+                        ir->add_shr_32(ir,
+                                       ir->add_and_32(ir, tmp, mk_32(ir, 0xff00ff00)),
+                                       mk_8(ir, 8)));
+    write_reg(context, ir, rd, result);
+
+    return 0;
+}
+
  /* pure disassembler */
 static int dis_msr_imm_and_hints(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -1346,8 +1373,7 @@ static int dis_packing_A_unpacking_A_saturation_A_reversal(struct arm_target *co
                 //ssat
                 assert(0);
             } else if (op2 == 1) {
-                //rev
-                assert(0);
+                isExit = dis_rev(context, insn, ir);
             } else if (op2 == 3) {
                 if (a == 15)
                     isExit = dis_sxth(context, insn, ir);
@@ -1604,6 +1630,8 @@ static int dis_misc_A_memory_hints_A_adv_simd_insn(struct arm_target *context, u
             default:
                 assert(0);
         }
+    } else if ((op1 & 0x77) == 0x55) {
+        //pld. nothing to do
     } else
         fatal("op1 = %d(0x%x)\n", op1, op1);
 

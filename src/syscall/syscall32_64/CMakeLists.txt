@@ -1,1 +1,1 @@
-add_library (syscall32_64 syscall32_64.c stat_s3264.c)
+add_library (syscall32_64 syscall32_64.c stat_s3264.c fcntl_s3264.c)

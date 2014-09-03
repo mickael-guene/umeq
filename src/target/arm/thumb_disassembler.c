@@ -71,6 +71,14 @@ static void dump_state(struct arm_target *context, struct irInstructionAllocator
                       param);
 #endif
 }
+static void dump_state_and_assert(struct arm_target *context, struct irInstructionAllocator *ir)
+{
+    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+
+    ir->add_call_void(ir, "arm_hlp_dump_and_assert",
+                      ir->add_mov_const_64(ir, (uint64_t) arm_hlp_dump_and_assert),
+                      param);
+}
 
 static struct irRegister *mk_8(struct irInstructionAllocator *ir, uint8_t value)
 {
@@ -162,7 +170,13 @@ static int mk_data_processing_modified(struct arm_target *context, struct irInst
         params[0] = ir->add_or_32(ir,
                                   ir->add_mov_const_32(ir, opcode),
                                   read_sco(context, ir));
-        params[1] = op1;
+        params[1] = op1; //default value
+        switch(opcode) {
+            case 2: case 3:
+                if (rn == 15)
+                    params[1] = mk_32(ir, 0);
+                break;
+        }
         params[2] = op2;
         params[3] = read_cpsr(context, ir);
 
@@ -186,7 +200,7 @@ static int mk_data_processing_modified(struct arm_target *context, struct irInst
             if (rn == 15)
                 result = op2;
             else
-                assert(0);
+                result = ir->add_or_32(ir, op1, op2);
             break;
         case 3://mvn / orn
             if (rn == 15)
@@ -194,6 +208,12 @@ static int mk_data_processing_modified(struct arm_target *context, struct irInst
             else
                 result = ir->add_or_32(ir, op1,
                                            ir->add_xor_32(ir, op2, mk_32(ir, 0xffffffff)));
+            break;
+        case 4:// eor/teq
+            if (rd == 15)
+                isExit = 0;
+            else
+                result = ir->add_xor_32(ir, op1, op2);
             break;
         case 8:// add/cmn
             if (rd == 15) {
@@ -752,6 +772,42 @@ static int dis_t2_load_store_double_immediate_offset(struct arm_target *context,
     return 0;
 }
 
+static int dis_t2_ldrb_t3(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rn = INSN1(3, 0);
+    int rt = INSN2(15, 12);
+    int p = INSN2(10, 10);
+    int u = INSN2(9, 9);
+    int w = INSN2(8, 8);
+    int offset = INSN2(7, 0);
+    struct irRegister *address;
+
+     /* compute address of access */
+    if (p) {
+        //either offset or pre-indexedregs
+        address = address_register_offset(context, ir, rn, (u==1?offset:-offset));
+    } else {
+        //post indexed
+        address = address_register_offset(context, ir, rn, 0);
+    }
+    /* do load byte */
+    write_reg(context, ir, rt, ir->add_8U_to_32(ir, ir->add_load_8(ir, address)));
+
+    /* write-back if needed */
+    if (p && w) {
+        //pre-indexed
+        write_reg(context, ir, rn, address);
+    } else if (!p && w) {
+        //post-indexed
+        struct irRegister *newVal;
+
+        newVal = address_register_offset(context, ir, rn, (u==1?offset:-offset));
+        write_reg(context, ir, rn, newVal);
+    }
+
+    return 0;
+}
+
 static int dis_t2_data_processing_register_shift(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int shift_mode = INSN1(6, 5);
@@ -1040,6 +1096,43 @@ static int dis_t1_cond_branch_A_svc(struct arm_target *context, uint32_t insn, s
     return isExit;
 }
 
+/* FIXME: factorize and move when doing next dis_t1_data_processing opcode */
+static int dis_t1_cmp_t1(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rn = INSN(2, 0);
+    int rm = INSN(5, 3);
+    struct irRegister *params[4];
+    struct irRegister *nextCpsr;
+
+    params[0] = mk_32(ir, 10);
+    params[1] = read_reg(context, ir, rn);
+    params[2] = read_reg(context, ir, rm);
+    params[3] = read_cpsr(context, ir);
+
+    nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags",
+                               ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags),
+                               params);
+    write_cpsr(context, ir, nextCpsr);
+
+    return 0;
+}
+
+static int dis_t1_data_processing(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int isExit = 0;
+    int opcode = INSN(9, 6);
+
+    switch(opcode) {
+        case 10:
+            isExit = dis_t1_cmp_t1(context, insn, ir);
+            break;
+        default:
+            fatal("opcode = %d(0x%x)\n", opcode, opcode);
+    }
+
+    return isExit;
+}
+
 static int disassemble_thumb1_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int inIt = inItBlock(context);
@@ -1069,6 +1162,9 @@ static int disassemble_thumb1_insn(struct arm_target *context, uint32_t insn, st
     switch(opcode) {
         case 0 ... 15:
             isExit = dis_t1_shift_A_add_A_substract_A_move_A_compare(context, insn, ir);
+            break;
+        case 16:
+            isExit = dis_t1_data_processing(context, insn, ir);
             break;
         case 17:
             isExit = dis_t1_special_data_A_branch_and_exchange(context, insn, ir);
@@ -1237,12 +1333,31 @@ static int dis_t2_ldr(struct arm_target *context, uint32_t insn, struct irInstru
 static int dis_t2_ldr_byte_A_hints(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int isExit = 0;
+    int op1 = INSN1(8, 7);
+    int op2 = INSN2(11, 6);
+    int rn = INSN1(3, 0);
     int rt = INSN2(15, 12);
 
     if (rt == 15) {
         //memory hint, we do nothing
     } else {
-        assert(0);
+        if (rn == 15) {
+            assert(0);
+        } else {
+            switch(op1) {
+                case 0:
+                    if (op2 == 0) {
+                        assert(0 && "ldrb_register");
+                    } else if ((op2 & 0x3c) == 0x38) {
+                        assert(0 && "ldrbt");
+                    } else {
+                        isExit = dis_t2_ldrb_t3(context, insn, ir);
+                    }
+                    break;
+                default:
+                    fatal("op1 = %d / op2 = %d(0x%x)\n", op1, op2, op2);
+            }
+        }
     }
 
     return isExit;
