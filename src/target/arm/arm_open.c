@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "arm_private.h"
+#include "arm_syscall.h"
 
 /* FIXME: cleanup and try to merge to 32 => 64 syscall stuff */
 
@@ -97,7 +98,7 @@ static int open_proc_self_auxv()
 int arm_open(struct arm_target *context)
 {
     int res;
-    char *pathname = (char *)(long) context->regs.r[0];
+    char *pathname = (char *)(long) g_2_h(context->regs.r[0]);
     long flags = armToX86Flags(context->regs.r[1]);
     int mode = context->regs.r[2];
 
@@ -107,6 +108,19 @@ int arm_open(struct arm_target *context)
         res = -EACCES;
     else
         res = syscall(SYS_open, (long) pathname, (long) flags, (long) mode);
+
+    return res;
+}
+
+int arm_openat(struct arm_target *context)
+{
+    int res;
+    int dirfd = (int) context->regs.r[0];
+    const char *pathname = (const char *) g_2_h(context->regs.r[1]);
+    long flags = armToX86Flags(context->regs.r[2]);
+    int mode = context->regs.r[3];
+
+    res = syscall(SYS_openat, dirfd, pathname, flags, mode);
 
     return res;
 }

@@ -42,6 +42,28 @@ struct stat64_32 {
 	uint64_t	st_ino;
 };
 
+struct linux_dirent_32 {
+	uint32_t	d_ino;
+	uint32_t	d_off;
+	uint16_t	d_reclen;
+	char		d_name[1];
+};
+
+struct linux_dirent64_32 {
+	uint64_t	d_ino;
+	uint64_t	d_off;
+	uint16_t	d_reclen;
+    uint8_t	    d_type;
+	char		d_name[1];
+};
+
+struct linux_dirent_64 {
+	uint64_t	d_ino;
+	uint64_t	d_off;
+	uint16_t	d_reclen;
+	char		d_name[1];
+};
+
 #endif
 
 #ifdef __cplusplus

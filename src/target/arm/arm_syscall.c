@@ -34,7 +34,10 @@ void arm_hlp_syscall(uint64_t regs)
     } else if (how == HOW_custom_implementation) {
         switch(no_neutral) {
             case PR_open:
-                res =arm_open(context);
+                res = arm_open(context);
+                break;
+            case PR_openat:
+                res = arm_openat(context);
                 break;
             case PR_uname:
                 res = arm_uname(context);
