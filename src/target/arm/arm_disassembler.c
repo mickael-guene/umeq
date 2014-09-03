@@ -1225,6 +1225,15 @@ static int dis_rev(struct arm_target *context, uint32_t insn, struct irInstructi
     return 0;
 }
 
+static int dis_mrs(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(15, 12);
+
+    write_reg(context, ir, rd, read_cpsr(context, ir));
+
+    return 0;
+}
+
  /* pure disassembler */
 static int dis_msr_imm_and_hints(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -1342,6 +1351,14 @@ static int dis_misc_insn(struct arm_target *context, uint32_t insn, struct irIns
     int isExit = 0;
 
     switch(op2) {
+        case 0:
+            if ((op & 1) == 0) {
+                dis_mrs(context, insn, ir);
+            } else {
+                //msr
+                assert(0);
+            }
+            break;
         case 1:
             if (op == 1)
                 isExit = dis_bx(context, insn, ir);
