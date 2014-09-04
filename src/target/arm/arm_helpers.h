@@ -32,9 +32,9 @@ extern uint32_t arm_hlp_multiply_unsigned_msb(uint64_t context, uint32_t op1, ui
 extern uint32_t arm_hlp_multiply_signed_lsb(uint64_t context, int32_t op1, int32_t op2);
 extern uint32_t arm_hlp_multiply_signed_msb(uint64_t context, int32_t op1, int32_t op2);
 extern uint32_t arm_hlp_multiply_accumulate_unsigned_lsb(uint64_t context, uint32_t op1, uint32_t op2, uint32_t rdhi, uint32_t rdlo);
-extern uint32_t arm_hlp_multiply_accumulate_signed_lsb(uint64_t context, uint32_t op1, uint32_t op2, uint32_t rdhi, uint32_t rdlo);
+extern uint32_t arm_hlp_multiply_accumulate_signed_lsb(uint64_t context, int32_t op1, int32_t op2, uint32_t rdhi, uint32_t rdlo);
 extern uint32_t arm_hlp_multiply_accumulate_unsigned_msb(uint64_t context, uint32_t op1, uint32_t op2, uint32_t rdhi, uint32_t rdlo);
-extern uint32_t arm_hlp_multiply_accumulate_signed_msb(uint64_t context, uint32_t op1, uint32_t op2, uint32_t rdhi, uint32_t rdlo);
+extern uint32_t arm_hlp_multiply_accumulate_signed_msb(uint64_t context, int32_t op1, int32_t op2, uint32_t rdhi, uint32_t rdlo);
 
 #endif
 

@@ -505,7 +505,7 @@ uint32_t arm_hlp_multiply_accumulate_unsigned_lsb(uint64_t context, uint32_t op1
     return op1 * op2 + rdlo;
 }
 
-uint32_t arm_hlp_multiply_accumulate_signed_lsb(uint64_t context, uint32_t op1, uint32_t op2, uint32_t rdhi, uint32_t rdlo)
+uint32_t arm_hlp_multiply_accumulate_signed_lsb(uint64_t context, int32_t op1, int32_t op2, uint32_t rdhi, uint32_t rdlo)
 {
     uint64_t acc = (((uint64_t)rdhi) << 32) + rdlo;
     int64_t res = (int64_t)op1 * (int64_t)op2 + (int64_t)acc;
@@ -521,7 +521,7 @@ uint32_t arm_hlp_multiply_accumulate_unsigned_msb(uint64_t context, uint32_t op1
     return res >> 32;
 }
 
-uint32_t arm_hlp_multiply_accumulate_signed_msb(uint64_t context, uint32_t op1, uint32_t op2, uint32_t rdhi, uint32_t rdlo)
+uint32_t arm_hlp_multiply_accumulate_signed_msb(uint64_t context, int32_t op1, int32_t op2, uint32_t rdhi, uint32_t rdlo)
 {
     uint64_t acc = (((uint64_t)rdhi) << 32) + rdlo;
     int64_t res = (int64_t)op1 * (int64_t)op2 + (int64_t)acc;
