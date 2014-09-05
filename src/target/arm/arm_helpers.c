@@ -201,21 +201,27 @@ uint32_t arm_hlp_compute_sco(uint64_t context, uint32_t insn, uint32_t rm, uint3
     op = op & 0xff;
     switch(shift_mode) {
         case 0:
-            if (op) {
+            if (op > 32) {
+                sco = 0;
+            } else if (op) {
                 sco = ((rm << (op - 1)) >> 2) & 0x20000000;
             }
             break;
         case 1:
             if (INSN(4, 4) == 0 && op == 0)
                 op += 32;
-            if (op) {
+            if (op > 32) {
+                sco = 0;
+            } else if (op) {
                 sco = ((rm >> (op - 1)) << 29) & 0x20000000;
             }
             break;
         case 2:
             if (INSN(4, 4) == 0  && op == 0)
                 op += 32;
-            if (op) {
+            if (op >= 32) {
+                sco = (rm & 0x80000000) >> 2;
+            } else if (op) {
                 int32_t rm_s = rm;
 
                 sco = ((rm_s >> (op - 1)) << 29) & 0x20000000;

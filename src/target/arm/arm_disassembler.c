@@ -1470,7 +1470,7 @@ static int dis_data_processing_register_shifted_insn(struct arm_target *context,
         write_sco(context, ir, mk_sco(context, ir,
                                       mk_32(ir, insn),
                                       rm_reg,
-                                      rs_reg));
+                                      ir->add_32_to_8(ir, rs_reg)));
     }
     switch(shift_mode) {
         case 0:
