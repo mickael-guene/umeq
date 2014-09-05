@@ -583,7 +583,10 @@ static int dis_load_store_word_and_unsigned_byte_register_offset(struct arm_targ
                 index = ir->add_asr_32(ir, read_reg(context, ir, rm), mk_8(ir, 32));
             break;
         case 3:
-            assert(0);
+            if (shift_imm)
+                index = mk_ror_imm_32(ir, read_reg(context, ir, rm), shift_imm);
+            else
+                assert(0 && "RRX");
             break;
         default:
             assert(0);
