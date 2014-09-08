@@ -64,6 +64,11 @@ struct linux_dirent_64 {
 	char		d_name[1];
 };
 
+struct timespec_32 {
+   int32_t tv_sec;                /* seconds */
+   int32_t tv_nsec;               /* nanoseconds */
+};
+
 #endif
 
 #ifdef __cplusplus
