@@ -1237,6 +1237,31 @@ static int dis_mrs(struct arm_target *context, uint32_t insn, struct irInstructi
     return 0;
 }
 
+static int dis_msr_register(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rn = INSN(3, 0);
+    int write_nzcvq = INSN(19, 19);
+    int write_g = INSN(18, 18);
+    uint32_t mask = 0;
+    struct irRegister *cpsr_mask;
+    struct irRegister *rn_mask;
+
+    assert(rn != 15);
+    mask += write_nzcvq?0xf8000000:0;
+    mask += write_g?0x000f0000:0;
+
+    cpsr_mask = ir->add_and_32(ir,
+                               read_cpsr(context, ir),
+                               mk_32(ir, ~mask));
+    rn_mask = ir->add_and_32(ir,
+                             read_reg(context, ir, rn),
+                             mk_32(ir, mask));
+
+    write_cpsr(context, ir, ir->add_or_32(ir, cpsr_mask, rn_mask));
+
+    return 0;
+}
+
  /* pure disassembler */
 static int dis_msr_imm_and_hints(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -1357,9 +1382,11 @@ static int dis_misc_insn(struct arm_target *context, uint32_t insn, struct irIns
         case 0:
             if ((op & 1) == 0) {
                 dis_mrs(context, insn, ir);
-            } else {
+            } else if(op == 1 && (op1 & 3) == 0) {
                 //msr
-                assert(0);
+                dis_msr_register(context, insn, ir);
+            } else {
+                assert(0 && "msr system in user code !!!!");
             }
             break;
         case 1:
