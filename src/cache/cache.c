@@ -103,7 +103,7 @@ static void *lookup(struct cache *cache, uint64_t pc)
 {
     struct internal_cache *acache = container_of(cache, struct internal_cache, cache);
     void *res = NULL;
-    int entry_index = (pc >> 2) & (CACHE_ENTRY - 1);
+    int entry_index = (pc >> 0) & (CACHE_ENTRY - 1);
     int way;
 
     if (is_cache_clean_need) {
@@ -128,7 +128,7 @@ static void append(struct cache *cache, uint64_t pc, void *data, int size)
 {
     struct internal_cache *acache = container_of(cache, struct internal_cache, cache);
     struct cache_entry *entry = NULL;
-    int entry_index = (pc >> 2) & (CACHE_ENTRY - 1);
+    int entry_index = (pc >> 0) & (CACHE_ENTRY - 1);
     int way;
 
     /* handle jitter area full */
