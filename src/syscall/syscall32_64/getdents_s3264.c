@@ -22,11 +22,12 @@ int getdents64_s3264(uint32_t fd_p, uint32_t dirp_p, uint32_t count_p)
         if (dirp_64->d_reclen - 8 >= count)
             res_32 = -EINVAL;
         else {
-	        while(res > 0 && count > dirp_64->d_reclen - 8) {
+	        while(res > 0 && count > dirp_64->d_reclen + 1) {
 		        dirp->d_ino = dirp_64->d_ino;
 		        dirp->d_off = dirp_64->d_off;
-		        dirp->d_reclen = dirp_64->d_reclen - 8;
-		        // we copy according to dirp_x86->d_reclen size since there is d_type hidden field
+		        dirp->d_type = *(((char *)dirp_64) + dirp_64->d_reclen - 1);
+		        dirp->d_reclen = dirp_64->d_reclen + 1;
+		        // we copy according to dirp_64->d_reclen size since there is d_type hidden field
 		        memcpy(dirp->d_name, dirp_64->d_name, dirp_64->d_reclen - 8 - 8 - 2);
 		        res -= dirp_64->d_reclen;
                 dirp_64 = (struct linux_dirent_64 *) ((long)dirp_64 + dirp_64->d_reclen);
