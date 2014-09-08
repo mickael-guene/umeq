@@ -14,20 +14,25 @@
 /* it block handle */
 static int inItBlock(struct arm_target *context)
 {
-    return (context->itstate & 0xf) != 0;
+    return (context->disa_itstate & 0xf) != 0;
 }
 
 static int lastInItBlock(struct arm_target *context)
 {
-    return (context->itstate & 0xf) == 0x8;
+    return (context->disa_itstate & 0xf) == 0x8;
+}
+
+static uint32_t nextItState(struct arm_target *context)
+{
+    if ((context->disa_itstate & 0x7) == 0)
+        return 0;
+    else
+        return (context->disa_itstate & 0xe0) | ((context->disa_itstate << 1) & 0x1f);
 }
 
 static void itAdvance(struct arm_target *context)
 {
-    if ((context->itstate & 0x7) == 0)
-        context->itstate = 0;
-    else
-        context->itstate = (context->itstate & 0xe0) | ((context->itstate << 1) & 0x1f);
+    context->disa_itstate = nextItState(context);
 }
 
 static uint32_t ThumbExpandimm_C_imm32(uint32_t imm12)
@@ -128,6 +133,11 @@ static struct irRegister *read_sco(struct arm_target *context, struct irInstruct
 static void write_sco(struct arm_target *context, struct irInstructionAllocator *ir, struct irRegister *value)
 {
     ir->add_write_context_32(ir, value, offsetof(struct arm_registers, shifter_carry_out));
+}
+
+static void write_itstate(struct arm_target *context, struct irInstructionAllocator *ir, struct irRegister *value)
+{
+    ir->add_write_context_32(ir, value, offsetof(struct arm_registers, reg_itstate));
 }
 
 static struct irRegister *address_register_offset(struct arm_target *context, struct irInstructionAllocator *ir, int index, int offset)
@@ -861,7 +871,8 @@ static int dis_t1_itt_A_hints(struct arm_target *context, uint32_t insn, struct 
     int opb = INSN(3, 0);
 
     if (opb) {
-        context->itstate = INSN(7, 0);
+        context->disa_itstate = INSN(7, 0);
+        write_itstate(context, ir, mk_32(ir, context->disa_itstate));
     } else {
         //hints. nothing to do.
         ;
@@ -1140,7 +1151,7 @@ static int disassemble_thumb1_insn(struct arm_target *context, uint32_t insn, st
     int isExit = 0;
 
     if (inIt) {
-        uint32_t cond = (context->itstate >> 4);
+        uint32_t cond = (context->disa_itstate >> 4);
         struct irRegister *params[4];
         struct irRegister *pred;
 
@@ -1152,6 +1163,7 @@ static int disassemble_thumb1_insn(struct arm_target *context, uint32_t insn, st
         pred = ir->add_call_32(ir, "arm_hlp_compute_flags_pred",
                                mk_64(ir, (uint64_t) arm_hlp_compute_flags_pred),
                                params);
+        write_itstate(context, ir, mk_32(ir, nextItState(context)));
         write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc + 2));
         ir->add_exit_cond(ir, ir->add_mov_const_64(ir, context->pc + 2), pred);
         //Following code is useless except when dumping state
@@ -1471,7 +1483,7 @@ static int disassemble_thumb2_insn(struct arm_target *context, uint32_t insn, st
     int isExit = 0;
 
     if (inIt) {
-        uint32_t cond = (context->itstate >> 4);
+        uint32_t cond = (context->disa_itstate >> 4);
         struct irRegister *params[4];
         struct irRegister *pred;
 
@@ -1483,6 +1495,7 @@ static int disassemble_thumb2_insn(struct arm_target *context, uint32_t insn, st
         pred = ir->add_call_32(ir, "arm_hlp_compute_flags_pred",
                                mk_64(ir, (uint64_t) arm_hlp_compute_flags_pred),
                                params);
+        write_itstate(context, ir, mk_32(ir, nextItState(context)));
         write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc + 4));
         ir->add_exit_cond(ir, ir->add_mov_const_64(ir, context->pc + 4), pred);
         //Following code is useless except when dumping state
@@ -1564,6 +1577,7 @@ void disassemble_thumb(struct target *target, struct irInstructionAllocator *ir,
 
     //fprintf(stderr, "0x%lx\n", pc);
     assert((pc & 1) == 1);
+    context->disa_itstate = context->regs.reg_itstate;
     for(i = 0; i < maxInsn; i++) {
         int inIt = inItBlock(context);
 

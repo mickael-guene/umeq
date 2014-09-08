@@ -20,17 +20,18 @@ struct arm_registers {
     uint32_t cpsr;
     uint32_t c13_tls2;
     uint32_t shifter_carry_out;
+    uint32_t reg_itstate;
 };
 
 struct arm_target {
     struct target target;
     struct arm_registers regs;
     uint32_t pc;
-    uint64_t itstate;
     uint64_t sp_init;
     uint32_t isLooping;
     uint32_t exitStatus;
     uint64_t exclusive_value;
+    uint32_t disa_itstate;
 };
 
 extern void disassemble_arm(struct target *target, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);
