@@ -75,7 +75,7 @@ HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*315..319*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*320..324*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*325..329*/
-HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*330..334*/
+HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_custom_implementation, HOW_not_yet_supported,  /*330..334*/
 HOW_32_to_64, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*335..339*/
 HOW_not_yet_supported, HOW_32_to_64, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*340..344*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*345..349*/
@@ -87,7 +87,7 @@ HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_custom_implementation,  /*375..379*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*380..384*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*385..389*/
-HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*390..394*/
+HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_64,  /*390..394*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_64, HOW_not_yet_supported, HOW_not_yet_supported,  /*395..399*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*400..404*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*405..409*/

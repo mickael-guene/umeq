@@ -84,6 +84,25 @@ struct rlimit64_32 {
 	uint64_t rlim_max;
 };
 
+struct rusage_32 {
+	struct timeval_32 ru_utime;	/* user time used */
+	struct timeval_32 ru_stime;	/* system time used */
+	int32_t	ru_maxrss;		/* maximum resident set size */
+	int32_t	ru_ixrss;		/* integral shared memory size */
+	int32_t	ru_idrss;		/* integral unshared data size */
+	int32_t	ru_isrss;		/* integral unshared stack size */
+	int32_t	ru_minflt;		/* page reclaims */
+	int32_t	ru_majflt;		/* page faults */
+	int32_t	ru_nswap;		/* swaps */
+	int32_t	ru_inblock;		/* block input operations */
+	int32_t	ru_oublock;		/* block output operations */
+	int32_t	ru_msgsnd;		/* messages sent */
+	int32_t	ru_msgrcv;		/* messages received */
+	int32_t	ru_nsignals;		/* signals received */
+	int32_t	ru_nvcsw;		/* voluntary context switches */
+	int32_t	ru_nivcsw;		/* involuntary " */
+};
+
 #endif
 
 #ifdef __cplusplus
