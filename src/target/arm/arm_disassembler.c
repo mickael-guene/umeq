@@ -1127,6 +1127,61 @@ static int dis_load_store_double_immediate_offset(struct arm_target *context, ui
     return 0;
 }
 
+static int dis_load_store_double_register_offset(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int p = INSN(24, 24);
+    int u = INSN(23, 23);
+    int w = INSN(21, 21);
+    int l = 1 - INSN(5, 5);
+    int rn = INSN(19, 16);
+    int rd = INSN(15, 12);
+    int rm = INSN(3, 0);
+    struct irRegister *address;
+    struct irRegister *rm_reg;
+    struct irRegister *rn_reg;
+
+    assert(rd + 1 != 15);
+    assert(rd % 2 == 0);
+
+    rm_reg = read_reg(context, ir, rm);
+    rn_reg = read_reg(context, ir, rn);
+    /* compute address of access */
+    if (p) {
+        //either offset or pre-indexedregs
+        if (u)
+            address = ir->add_add_32(ir, rn_reg, rm_reg);
+        else
+            address = ir->add_sub_32(ir, rn_reg, rm_reg);
+    } else {
+        //post indexed
+        address = rn_reg;
+    }
+    /* make load/store */
+    if (l == 1) {
+        write_reg(context, ir, rd, ir->add_load_32(ir, address));
+        write_reg(context, ir, rd + 1, ir->add_load_32(ir, ir->add_add_32(ir, address, mk_32(ir, 4))));
+    } else {
+        ir->add_store_32(ir, read_reg(context, ir, rd), address);
+        ir->add_store_32(ir, read_reg(context, ir, rd + 1), ir->add_add_32(ir, address, mk_32(ir, 4)));
+    }
+    /* write-back if needed */
+    if (p && w) {
+        //pre-indexed
+        write_reg(context, ir, rn, address);
+    } else if (!p && !w) {
+        //post-indexed
+        struct irRegister *newVal;
+
+        if (u)
+            newVal = ir->add_add_32(ir, rn_reg, rm_reg);
+        else
+            newVal = ir->add_sub_32(ir, rn_reg, rm_reg);
+        write_reg(context, ir, rn, newVal);
+    }
+
+    return 0;
+}
+
 static int dis_ldrd_literal(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     assert(0);
@@ -1341,6 +1396,9 @@ static int dis_extra_load_store_insn(struct arm_target *context, uint32_t insn, 
             break;
         case 2:
             switch(op1 & 0x5) {
+                case 0:
+                    isExit = dis_load_store_double_register_offset(context, insn, ir);
+                    break;
                 case 4:
                     if (rn == 15)
                         isExit = dis_ldrd_literal(context, insn, ir);
