@@ -16,11 +16,68 @@
 #include "target.h"
 #include "be_x86_64.h"
 
+/* FIXME: try to factorize loop_nocache and loop_cache */
 static int loop_nocache(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *parent_target)
 {
-    assert(0);
+    struct target **prev_target;
+    jitContext handle;
+    armContext armHandle;
+    struct irInstructionAllocator *ir;
+    struct backend *backend;
+    char jitBuffer[16 * 1024];
+    char beX86_64Memory[BE_X86_64_CONTEXT_SIZE];
+    char jitterMemory[JITTER_CONTEXT_SIZE];
+    char armTargetMemory[ARM_CONTEXT_SIZE];
+    struct target *target;
+    void *arm_context;
+    void *prev_arm_context;
+    uint64_t currentPc = entry;
+    struct target *saved_prev_target;
+    unsigned long tlsarea[16];
+    unsigned long tlsareaAddress;
 
-    return 0;
+    /* setup tls area if not yet set */
+    syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
+    if (!tlsareaAddress) {
+        syscall(SYS_arch_prctl, ARCH_SET_FS, tlsarea);
+        tlsareaAddress = (unsigned long) tlsarea;
+    }
+
+    /* prev_target point to tlsarea */
+    prev_target = (struct target **) tlsareaAddress;
+    backend = createX86_64Backend(beX86_64Memory);
+    handle = createJitter(jitterMemory, backend);
+    ir = getIrInstructionAllocator(handle);
+    armHandle = createArmContext(armTargetMemory);
+    target = getArmTarget(armHandle);
+    arm_context = getArmContext(armHandle);
+    prev_arm_context = (void *) tlsarea[1];
+    tlsarea[1] = (unsigned long) arm_context;
+
+    saved_prev_target = *prev_target;
+    *prev_target = target;
+    target->init(target, saved_prev_target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
+    //if (signum == 0 && parent_target == NULL)
+    //    proot_inform_exec();
+
+    while(target->isLooping(target)) {
+        int jitSize;
+
+        resetJitter(handle);
+        target->disassemble(target, ir, currentPc, 1/*10*/);
+        //displayIr(handle);
+        jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
+        if (jitSize > 0) {
+            currentPc = backend->execute(jitBuffer, (uint64_t) arm_context);
+        } else
+            assert(0);
+    }
+
+    /* restore previous tls context */
+    *prev_target = saved_prev_target;
+    tlsarea[1] = (unsigned long) prev_arm_context;
+
+    return target->getExitStatus(target);
 }
 
 static int loop_cache(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *parent_target)
