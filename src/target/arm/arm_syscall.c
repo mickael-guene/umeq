@@ -52,6 +52,9 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_rt_sigaction:
                 res = arm_rt_sigaction(context);
                 break;
+            case PR_clone:
+                res = arm_clone(context);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }
