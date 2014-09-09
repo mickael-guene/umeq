@@ -69,6 +69,11 @@ struct timespec_32 {
    int32_t tv_nsec;               /* nanoseconds */
 };
 
+struct timeval_32 {
+   int32_t tv_sec;                /* seconds */
+   int32_t tv_usec;               /* microseconds */
+};
+
 #endif
 
 #ifdef __cplusplus

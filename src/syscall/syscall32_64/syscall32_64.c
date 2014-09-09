@@ -93,6 +93,27 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_stat64:
             res = stat64_s3264(p0,p1);
             break;
+        case PR_rt_sigprocmask:
+            res = syscall(SYS_rt_sigprocmask, (int)p0, (const sigset_t *) g_2_h(p1), (sigset_t *) g_2_h(p2));
+            break;
+        case PR_getuid32:
+            res = syscall(SYS_getuid);
+            break;
+        case PR_getgid32:
+            res = syscall(SYS_getgid);
+            break;
+        case PR_geteuid32:
+            res = syscall(SYS_geteuid);
+            break;
+        case PR_getegid32:
+            res = syscall(SYS_getegid);
+            break;
+        case PR_gettimeofday:
+            res = gettimeofday_s3264(p0,p1);
+            break;
+        case PR_getpid:
+            res = syscall(SYS_getpid);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }

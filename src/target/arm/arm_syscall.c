@@ -49,6 +49,9 @@ void arm_hlp_syscall(uint64_t regs)
                 context->regs.c13_tls2 = context->regs.r[0];
                 res = 0;
                 break;
+            case PR_rt_sigaction:
+                res = arm_rt_sigaction(context);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }
