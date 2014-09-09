@@ -1182,6 +1182,47 @@ static int dis_load_store_double_register_offset(struct arm_target *context, uin
     return 0;
 }
 
+static int dis_load_signed_halfword_byte_immediate_offset(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int p = INSN(24, 24);
+    int u = INSN(23, 23);
+    int w = INSN(21, 21);
+    int rn = INSN(19, 16);
+    int rd = INSN(15, 12);
+    int offset = (INSN(11, 8) << 4) + INSN(3, 0);
+    int isHalfWord = INSN(5, 5);
+    struct irRegister *address;
+
+    assert(rd != 15);
+
+    /* compute address of access */
+    if (p) {
+        //either offset or pre-indexedregs
+        address = address_register_offset(context, ir, rn, (u==1?offset:-offset));
+    } else {
+        //post indexed
+        address = address_register_offset(context, ir, rn, 0);
+    }
+    /* make load */
+    if (isHalfWord)
+        write_reg(context, ir, rd, ir->add_16S_to_32(ir, ir->add_load_16(ir, address)));
+    else
+        write_reg(context, ir, rd, ir->add_8S_to_32(ir, ir->add_load_8(ir, address)));
+    /* write-back if needed */
+    if (p && w) {
+        //pre-indexed
+        write_reg(context, ir, rn, address);
+    } else if (!p && !w) {
+        //post-indexed
+        struct irRegister *newVal;
+
+        newVal = address_register_offset(context, ir, rn, (u==1?offset:-offset));
+        write_reg(context, ir, rn, newVal);
+    }
+
+    return 0;
+}
+
 static int dis_ldrd_literal(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     assert(0);
@@ -1413,6 +1454,9 @@ static int dis_extra_load_store_insn(struct arm_target *context, uint32_t insn, 
             switch(op1 & 0x5) {
                 case 4:
                     isExit = dis_load_store_double_immediate_offset(context, insn, ir);
+                    break;
+                case 5:
+                    isExit = dis_load_signed_halfword_byte_immediate_offset(context, insn, ir);
                     break;
                 default:
                     fatal("op1 = %d(0x%x)\n", op1 & 0x5, op1 & 0x5);
