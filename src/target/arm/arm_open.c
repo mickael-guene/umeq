@@ -60,7 +60,7 @@ static long armToX86Flags(int arm_flags)
     return res;
 }
 
-static int x86ToArmFlags(long x86_flags)
+int x86ToArmFlags(long x86_flags)
 {
     int res = 0;
     int i;

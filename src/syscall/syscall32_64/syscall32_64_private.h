@@ -11,6 +11,7 @@ extern int fstat64_s3264(uint32_t fd_p, uint32_t buf_p);
 extern int getdents64_s3264(uint32_t fd, uint32_t dirp, uint32_t count);
 extern int llseek_s3264(uint32_t fd_p, uint32_t offset_high_p, uint32_t offset_low_p, uint32_t result_p, uint32_t whence_p);
 extern int clock_gettime_s3264(uint32_t clk_id_p, uint32_t tp_p);
+extern int ugetrlimit_s3264(uint32_t resource_p, uint32_t rlim_p);
 
 #endif
 

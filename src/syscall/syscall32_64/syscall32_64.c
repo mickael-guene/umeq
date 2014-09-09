@@ -114,6 +114,27 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_getpid:
             res = syscall(SYS_getpid);
             break;
+        case PR_getppid:
+            res = syscall(SYS_getppid);
+            break;
+        case PR_getpgrp:
+            res = syscall(SYS_getpgrp);
+            break;
+        case PR_dup:
+            res = syscall(SYS_dup, (int)p0);
+            break;
+        case PR_ugetrlimit:
+            res = ugetrlimit_s3264(p0,p1);
+            break;
+        case PR_dup2:
+            res = syscall(SYS_dup, (int)p0, (int)p1);
+            break;
+        case PR_setpgid:
+            res = syscall(SYS_setpgid, (pid_t)p0, (pid_t)p1);
+            break;
+        case PR_pipe:
+            res = syscall(SYS_pipe, (int *) g_2_h(p0));
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }

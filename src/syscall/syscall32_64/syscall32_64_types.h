@@ -74,6 +74,16 @@ struct timeval_32 {
    int32_t tv_usec;               /* microseconds */
 };
 
+struct rlimit_32 {
+	uint32_t rlim_cur;
+	uint32_t rlim_max;
+};
+
+struct rlimit64_32 {
+	uint64_t rlim_cur;
+	uint64_t rlim_max;
+};
+
 #endif
 
 #ifdef __cplusplus
