@@ -209,7 +209,12 @@ uint32_t thumb_t2_hlp_compute_sco(uint64_t context, uint32_t insn, uint32_t rm, 
                 sco = 0;
             break;
         case 1:
-            assert(0);
+            if (op == 0) //op is convert to 32
+                sco = ((rm >> (31)) << 29) & 0x20000000;
+            else if (op <= 32)
+                sco = ((rm >> (op - 1)) << 29) & 0x20000000;
+            else
+                sco = 0;
             break;
         case 2:
             if (op == 0)
@@ -317,6 +322,9 @@ uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, uint32_t
             break;
         case 8://tst
             calc = rn & op;
+            break;
+        case 9://rsb
+            calc = -op;
             break;
         case 10://cmp
             calc = rn - op;
