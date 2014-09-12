@@ -193,6 +193,40 @@ uint32_t arm_hlp_compute_next_flags(uint64_t context, uint32_t opcode_and_shifte
     return n|z|c|v|(oldcpsr&0x0fffffff);
 }
 
+uint32_t thumb_t2_hlp_compute_sco(uint64_t context, uint32_t insn, uint32_t rm, uint32_t op, uint32_t oldcpsr)
+{
+    int shift_mode = INSN(5, 4);
+    int sco = oldcpsr & 0x20000000;
+
+    op = op & 0xff;
+    switch(shift_mode) {
+        case 0:
+            if (op == 0) {
+                ;//nothing to do
+            } else if (op <= 32) {
+                sco = ((rm >> (op - 1)) << 29) & 0x20000000;
+            } else
+                sco = 0;
+            break;
+        case 1:
+            assert(0);
+            break;
+        case 2:
+            if (op == 0)
+                sco = ((rm >> (31)) << 29) & 0x20000000;
+            else
+                sco = ((rm >> (op - 1)) << 29) & 0x20000000;
+            break;
+        case 3:
+            assert(0);
+            break;
+        default:
+            assert(0);
+    }
+
+    return sco;
+}
+
 uint32_t arm_hlp_compute_sco(uint64_t context, uint32_t insn, uint32_t rm, uint32_t op, uint32_t oldcpsr)
 {
     int shift_mode = INSN(6, 5);
@@ -247,7 +281,7 @@ uint32_t arm_hlp_compute_sco(uint64_t context, uint32_t insn, uint32_t rm, uint3
     return sco;
 }
 
-uint32_t thumb_hlp_compute_next_flags(uint64_t context, uint32_t opcode, uint32_t rn, uint32_t op, uint32_t oldcpsr)
+uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, uint32_t opcode, uint32_t rn, uint32_t op, uint32_t oldcpsr)
 {
     int n, z, c, v;
     uint32_t op1 = rn;
@@ -257,22 +291,91 @@ uint32_t thumb_hlp_compute_next_flags(uint64_t context, uint32_t opcode, uint32_
     c = oldcpsr & 0x20000000;
     v = oldcpsr & 0x10000000;
     switch(opcode) {
-        case 4://add
-            calc = rn + op;
-            c = (calc < op1)?0x20000000:0;
-            v = (((calc ^ op1) & (calc ^ op2)) >> 3) & 0x10000000;
+        case 0://and
+            calc = rn & op;
             break;
-        case 2://sub
+        case 1://eor
+            calc = rn ^ op;
+            break;
+        case 2://lsl
+            {
+                if (op2 == 0) {
+                    calc = 0;
+                } else if (op2 < 32) {
+                    calc = op1 << op2;
+                    c = ((op1 << (op2 - 1)) >> 2) & 0x20000000;
+                } else if (op2 == 32) {
+                    calc = 0;
+                    c = ((op1 << (op2 - 1)) >> 2) & 0x20000000;
+                } else {
+                    calc = 0;
+                    c = 0;
+                }
+
+                calc = op1 << (op2 & 0xff);
+            }
+            break;
+        case 8://tst
+            calc = rn & op;
+            break;
         case 10://cmp
             calc = rn - op;
             c = (op1 >= op2)?0x20000000:0;
             v = (((op1 ^ op2) & (op1 ^ calc)) >> 3) & 0x10000000;
             break;
-        case 13://mov
-            calc = op;
+        case 12://orr
+            calc = rn | op;
+            break;
+        case 15://mvn
+            calc = ~op;
             break;
         default:
-            fatal("thumb_hlp_compute_next_flags : unsupported opcode %d\n", opcode);
+            fatal("thumb_hlp_compute_next_flags_data_processing : unsupported opcode %d\n", opcode);
+    }
+    n = (calc & 0x80000000);
+    z = (calc == 0)?0x40000000:0;
+
+    return n|z|c|v|(oldcpsr&0x0fffffff);
+}
+
+uint32_t thumb_hlp_compute_next_flags(uint64_t context, uint32_t opcode_and_shifter_carry_out, uint32_t rn, uint32_t op, uint32_t oldcpsr)
+{
+    int n, z, c, v;
+    uint32_t op1 = rn;
+    uint32_t op2 = op;
+    uint32_t calc;
+    uint32_t shifter_carry_out;
+    uint32_t opcode;
+
+    opcode = opcode_and_shifter_carry_out & 0x1f;
+    shifter_carry_out = opcode_and_shifter_carry_out & 0x20000000;
+    c = oldcpsr & 0x20000000;
+    v = oldcpsr & 0x10000000;
+    switch(opcode) {
+        case 12://add register
+        case 14://add 3 bits immediate
+        case 24 ... 27://add 8 bits immediate
+            calc = rn + op;
+            c = (calc < op1)?0x20000000:0;
+            v = (((calc ^ op1) & (calc ^ op2)) >> 3) & 0x10000000;
+            break;
+        case 0 ... 3://lsl immediate
+        case 4 ... 7://lsr immediate
+        case 8 ... 11://asr immediate
+        case 16 ... 19://move immediate
+            calc = op;
+            c = shifter_carry_out;
+            break;
+        case 13://sub register
+        case 15://sub 3 bits immediate
+        case 20 ... 23://cmp immediate
+        case 28 ... 31://sub 8 immediate
+            calc = rn - op;
+            c = (op1 >= op2)?0x20000000:0;
+            v = (((op1 ^ op2) & (op1 ^ calc)) >> 3) & 0x10000000;
+            break;
+        default:
+            fatal("thumb_hlp_compute_next_flags : unsupported opcode %d(0x%x)\n", opcode, opcode);
     }
     n = (calc & 0x80000000);
     z = (calc == 0)?0x40000000:0;
@@ -299,9 +402,44 @@ uint32_t thumb_hlp_t2_modified_compute_next_flags(uint64_t context, uint32_t opc
             calc = rn & op;
             c = shifter_carry_out;
             break;
+        case 1://bic
+            calc = rn & (~op);
+            c = shifter_carry_out;
+            break;
+        case 2://orr / mv
+            calc = rn | op;
+            c = shifter_carry_out;
+            break;
         case 3://orn / mvn
             calc = rn | (~op);
             c = shifter_carry_out;
+            break;
+        case 4://eor / teq
+            calc = rn ^ op;
+            c = shifter_carry_out;
+            break;
+        case 8://add / cmn
+            calc = rn + op;
+            c = (calc < op1)?0x20000000:0;
+            v = (((calc ^ op1) & (calc ^ op2)) >> 3) & 0x10000000;
+            break;
+        case 11:
+            calc = rn + ~op + c_in;
+            if (c_in)
+                c = (calc <= op1)?0x20000000:0;
+            else
+                c = (calc < op1)?0x20000000:0;
+            v = (((op1 ^ op2) & (op1 ^ calc)) >> 3) & 0x10000000;
+            break;
+        case 13://sub / cmp
+            calc = rn - op;
+            c = (op1 >= op2)?0x20000000:0;
+            v = (((op1 ^ op2) & (op1 ^ calc)) >> 3) & 0x10000000;
+            break;
+        case 14://rsb
+            calc = op - rn;
+            c = (op2 >= op1)?0x20000000:0;
+            v = (((op2 ^ op1) & (op2 ^ calc)) >> 3) & 0x10000000;
             break;
         default:
             printf("thumb_hlp_t2_modified_compute_next_flags : opcode = %d\n\n", opcode);
