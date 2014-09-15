@@ -292,6 +292,7 @@ uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, uint32_t
     uint32_t op1 = rn;
     uint32_t op2 = op;
     uint32_t calc;
+    uint32_t c_in = (oldcpsr >> 29) & 1;
 
     c = oldcpsr & 0x20000000;
     v = oldcpsr & 0x10000000;
@@ -351,6 +352,14 @@ uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, uint32_t
                     c = ((ops >> (32 - 1)) << 29) & 0x20000000;
                 }
             }
+            break;
+        case 5://adc
+            calc = rn + op + c_in;
+            if (c_in)
+                c = (calc <= op1)?0x20000000:0;
+            else
+                c = (calc < op1)?0x20000000:0;
+            v = (((calc ^ op1) & (calc ^ op2)) >> 3) & 0x10000000;
             break;
         case 8://tst
             calc = rn & op;
