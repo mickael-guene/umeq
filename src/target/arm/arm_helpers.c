@@ -395,8 +395,19 @@ uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, uint32_t
             c = (op1 >= op2)?0x20000000:0;
             v = (((op1 ^ op2) & (op1 ^ calc)) >> 3) & 0x10000000;
             break;
+        case 11://cmn
+            calc = rn + op;
+            c = (calc < op1)?0x20000000:0;
+            v = (((calc ^ op1) & (calc ^ op2)) >> 3) & 0x10000000;
+            break;
         case 12://orr
             calc = rn | op;
+            break;
+        case 13://mul
+            calc = op1 * op2;
+            break;
+        case 14://bic
+            calc = rn & (~op);
             break;
         case 15://mvn
             calc = ~op;

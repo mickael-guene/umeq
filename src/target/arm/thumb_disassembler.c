@@ -1905,9 +1905,18 @@ static int dis_t1_data_processing(struct arm_target *context, uint32_t insn, str
             break;
         case 8://tst
         case 10://cmp
+        case 11://cmn
             break;
         case 12://orr
             result = ir->add_or_32(ir, op1, op2);
+            break;
+        case 13://mul
+            result = mk_mul_u_lsb(context, ir, op1, op2);
+            break;
+        case 14:
+            result = ir->add_and_32(ir,
+                                    op1,
+                                    ir->add_xor_32(ir, op2, mk_32(ir, 0xffffffff)));
             break;
         case 15://mvn
             result = ir->add_xor_32(ir, op2, mk_32(ir, 0xffffffff));
