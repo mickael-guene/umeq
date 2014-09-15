@@ -103,6 +103,11 @@ struct rusage_32 {
 	int32_t	ru_nivcsw;		/* involuntary " */
 };
 
+struct iovec_32 {
+	uint32_t iov_base;
+    uint32_t iov_len;
+};
+
 #endif
 
 #ifdef __cplusplus

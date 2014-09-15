@@ -1981,6 +1981,34 @@ static int dis_t1_str_register(struct arm_target *context, uint32_t insn, struct
     return 0;
 }
 
+static int dis_t1_strh_register(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rm = INSN(8, 6);
+    int rn = INSN(5, 3);
+    int rt = INSN(2, 0);
+
+    ir->add_store_16(ir, ir->add_32_to_16(ir, read_reg(context, ir, rt)),
+                         ir->add_add_32(ir,
+                                        read_reg(context, ir, rn),
+                                        read_reg(context, ir, rm)));
+
+    return 0;
+}
+
+static int dis_t1_strb_register(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rm = INSN(8, 6);
+    int rn = INSN(5, 3);
+    int rt = INSN(2, 0);
+
+    ir->add_store_8(ir, ir->add_32_to_8(ir, read_reg(context, ir, rt)),
+                         ir->add_add_32(ir,
+                                        read_reg(context, ir, rn),
+                                        read_reg(context, ir, rm)));
+
+    return 0;
+}
+
 static int dis_t1_ldr_register(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rm = INSN(8, 6);
@@ -1995,6 +2023,21 @@ static int dis_t1_ldr_register(struct arm_target *context, uint32_t insn, struct
     return 0;
 }
 
+static int dis_t1_ldrsb_register(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rm = INSN(8, 6);
+    int rn = INSN(5, 3);
+    int rt = INSN(2, 0);
+
+    write_reg(context, ir, rt, ir->add_8S_to_32(ir,
+                                                 ir->add_load_8(ir,
+                                                                 ir->add_add_32(ir,
+                                                                                read_reg(context, ir, rn),
+                                                                                read_reg(context, ir, rm)))));
+
+    return 0;
+}
+
 static int dis_t1_ldrh_register(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rm = INSN(8, 6);
@@ -2002,6 +2045,36 @@ static int dis_t1_ldrh_register(struct arm_target *context, uint32_t insn, struc
     int rt = INSN(2, 0);
 
     write_reg(context, ir, rt, ir->add_16U_to_32(ir,
+                                                 ir->add_load_16(ir,
+                                                                 ir->add_add_32(ir,
+                                                                                read_reg(context, ir, rn),
+                                                                                read_reg(context, ir, rm)))));
+
+    return 0;
+}
+
+static int dis_t1_ldrb_register(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rm = INSN(8, 6);
+    int rn = INSN(5, 3);
+    int rt = INSN(2, 0);
+
+    write_reg(context, ir, rt, ir->add_8U_to_32(ir,
+                                                 ir->add_load_8(ir,
+                                                                 ir->add_add_32(ir,
+                                                                                read_reg(context, ir, rn),
+                                                                                read_reg(context, ir, rm)))));
+
+    return 0;
+}
+
+static int dis_t1_ldrsh_register(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rm = INSN(8, 6);
+    int rn = INSN(5, 3);
+    int rt = INSN(2, 0);
+
+    write_reg(context, ir, rt, ir->add_16S_to_32(ir,
                                                  ir->add_load_16(ir,
                                                                  ir->add_add_32(ir,
                                                                                 read_reg(context, ir, rn),
@@ -2176,6 +2249,26 @@ static int dis_t2_mrs(struct arm_target *context, uint32_t insn, struct irInstru
     return 0;
 }
 
+static int dis_t2_add_adr_t4(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int isExit = 0;
+    int rn = INSN1(3, 0);
+    int rd = INSN2(11, 8);
+    uint32_t imm32 = (INSN1(10,10) << 11) | (INSN2(14, 12) << 8) | INSN2(7, 0);
+
+    assert(rd != 15);
+
+    if (rn == 15) {
+        uint32_t dst = ((context->pc + 4) & ~3) + imm32;
+
+        write_reg(context, ir, rd, mk_32(ir, dst));
+    } else {
+        write_reg(context, ir, rd, ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32)));
+    }
+
+    return isExit;
+}
+
  /* pure disassembler */
 static int dis_t1_shift_A_add_A_substract_A_move_A_compare(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -2277,11 +2370,26 @@ static int dis_t1_load_store_single_data_item(struct arm_target *context, uint32
             case 0:
                 isExit = dis_t1_str_register(context, insn, ir);
                 break;
+            case 1:
+                isExit = dis_t1_strh_register(context, insn, ir);
+                break;
+            case 2:
+                isExit = dis_t1_strb_register(context, insn, ir);
+                break;
+            case 3:
+                isExit = dis_t1_ldrsb_register(context, insn, ir);
+                break;
             case 4:
                 isExit = dis_t1_ldr_register(context, insn, ir);
                 break;
             case 5:
                 isExit = dis_t1_ldrh_register(context, insn, ir);
+                break;
+            case 6:
+                isExit = dis_t1_ldrb_register(context, insn, ir);
+                break;
+            case 7:
+                isExit = dis_t1_ldrsh_register(context, insn, ir);
                 break;
             default:
                 fatal("opb = %d\n", opb);
@@ -2447,6 +2555,27 @@ static int dis_t2_misc_control_insn(struct arm_target *context, uint32_t insn, s
     return isExit;
 }
 
+static int dis_t2_change_processor_state_A_hints(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int isExit = 0;
+    int op1 = INSN2(10, 8);
+    int op2 = INSN2(7, 0);
+
+    if (op1) {
+        assert(0);
+    } else {
+        switch(op2) {
+            case 0:
+                //nop so nothing to do
+                break;
+            default:
+                fatal("op2 = %d(0x%x)\n", op2, op2);
+        }
+    }
+
+    return isExit;
+}
+
 static int dis_t2_branches_A_misc(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int op1 = INSN2(14, 12);
@@ -2459,6 +2588,9 @@ static int dis_t2_branches_A_misc(struct arm_target *context, uint32_t insn, str
     } else if (op1 == 0 || op1 == 2) {
         if ((op & 0x38) == 0x38) {
             switch(op) {
+                case 58:
+                    isExit = dis_t2_change_processor_state_A_hints(context, insn, ir);
+                    break;
                 case 59:
                     isExit = dis_t2_misc_control_insn(context, insn, ir);
                     break;
@@ -2488,6 +2620,9 @@ static int dis_t2_data_processing_plain_binary_immediate(struct arm_target *cont
     int isExit = 0;
 
     switch(op) {
+        case 0:
+            isExit = dis_t2_add_adr_t4(context, insn, ir);
+            break;
         case 4:
             isExit = dis_t2_movw(context, insn, ir);
             break;
