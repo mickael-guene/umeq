@@ -1887,6 +1887,17 @@ static int dis_t1_data_processing(struct arm_target *context, uint32_t insn, str
                 result = ir->add_add_32(ir, op1, ir->add_add_32(ir, op2, c));
             }
             break;
+        case 6://sbc
+            {
+                struct irRegister *c = ir->add_and_32(ir,
+                                                      ir->add_shr_32(ir, read_cpsr(context, ir), mk_8(ir, 29)),
+                                                      mk_32(ir, 1));
+                result = ir->add_add_32(ir, op1, ir->add_add_32(ir, ir->add_xor_32(ir, op2, mk_32(ir, 0xffffffff)), c));
+            }
+            break;
+        case 7://ror
+            result = mk_ror_reg_32(ir, op1, op2);
+            break;
         case 9:
             result = ir->add_sub_32(ir,
                                     mk_32(ir, 0),

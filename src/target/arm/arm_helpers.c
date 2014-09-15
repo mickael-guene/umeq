@@ -361,11 +361,34 @@ uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, uint32_t
                 c = (calc < op1)?0x20000000:0;
             v = (((calc ^ op1) & (calc ^ op2)) >> 3) & 0x10000000;
             break;
+        case 6://sbc
+            calc = rn + ~op + c_in;
+            if (c_in)
+                c = (calc <= op1)?0x20000000:0;
+            else
+                c = (calc < op1)?0x20000000:0;
+            v = (((op1 ^ op2) & (op1 ^ calc)) >> 3) & 0x10000000;
+            break;
+        case 7://ror
+            op2 = op2 & 0xff;
+            if (op2 == 0) {
+                calc = op1;
+            } else if ((op2 & 0x1f) == 0) {
+                calc = op1;
+                c = (op1 >> 2) & 0x20000000;
+            } else {
+                op2 = op2 & 0x1f;
+                calc = (op1 >> op2) | (op1 << (32 - op2));
+                c = ((op1 >> (op2 - 1)) << 29) & 0x20000000;
+            }
+            break;
         case 8://tst
             calc = rn & op;
             break;
         case 9://rsb
-            calc = -op;
+            calc = -op2;
+            c = (0 >= op2)?0x20000000:0;
+            v = (((0 ^ op2) & (0 ^ calc)) >> 3) & 0x10000000;
             break;
         case 10://cmp
             calc = rn - op;
