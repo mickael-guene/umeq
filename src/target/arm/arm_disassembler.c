@@ -6,7 +6,7 @@
 #include "arm_helpers.h"
 #include "runtime.h"
 
-#define DUMP_STATE  1
+//#define DUMP_STATE  1
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
 
 /* sequence shortcut */

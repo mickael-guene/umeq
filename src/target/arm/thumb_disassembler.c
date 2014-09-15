@@ -6,7 +6,7 @@
 #include "arm_helpers.h"
 #include "runtime.h"
 
-#define DUMP_STATE  1
+//#define DUMP_STATE  1
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
 #define INSN1(msb, lsb) INSN(msb+16, lsb+16)
 #define INSN2(msb, lsb) INSN(msb, lsb)
@@ -719,10 +719,12 @@ static int dis_t1_lsr_immediate(struct arm_target *context, uint32_t insn, struc
     int opcode = INSN(13, 9);
     struct irRegister *result;
 
+    if (imm5 == 0)
+        imm5 += 32;
     result = ir->add_shr_32(ir, rm_reg, mk_8(ir, imm5));
     if (s) {
         write_sco(context, ir, mk_sco(context, ir,
-                                               mk_32(ir, 1/* shift mode */),
+                                               mk_32(ir, (1 << 5)/* shift mode */),
                                                rm_reg,
                                                mk_32(ir, imm5)));
     }
@@ -761,10 +763,12 @@ static int dis_t1_asr_immediate(struct arm_target *context, uint32_t insn, struc
     int opcode = INSN(13, 9);
     struct irRegister *result;
 
+    if (imm5 == 0)
+        imm5 += 32;
     result = ir->add_asr_32(ir, rm_reg, mk_8(ir, imm5));
     if (s) {
         write_sco(context, ir, mk_sco(context, ir,
-                                               mk_32(ir, 2/* shift mode */),
+                                               mk_32(ir, (2 << 5)/* shift mode */),
                                                rm_reg,
                                                mk_32(ir, imm5)));
     }
@@ -2125,6 +2129,15 @@ static int dis_t2_umull(struct arm_target *context, uint32_t insn, struct irInst
     return 0;
 }
 
+static int dis_t2_mrs(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN2(11, 8);
+
+    write_reg(context, ir, rd, read_cpsr(context, ir));
+
+    return 0;
+}
+
  /* pure disassembler */
 static int dis_t1_shift_A_add_A_substract_A_move_A_compare(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -2410,6 +2423,9 @@ static int dis_t2_branches_A_misc(struct arm_target *context, uint32_t insn, str
             switch(op) {
                 case 59:
                     isExit = dis_t2_misc_control_insn(context, insn, ir);
+                    break;
+                case 62 ... 63:
+                    isExit = dis_t2_mrs(context, insn, ir);
                     break;
                 default:
                     fatal("op = %d(0x%x)\n", op, op);
@@ -2956,10 +2972,10 @@ void disassemble_thumb(struct target *target, struct irInstructionAllocator *ir,
 
         context->pc = (uint32_t) (uint64_t)pc_ptr + 1;
         if ((*pc_ptr >> 11) == 0x1d || (*pc_ptr >> 11) == 0x1e || (*pc_ptr >> 11) == 0x1f) {
-            fprintf(stderr, "0x%lx => insn = 0x%04x%04x\n", pc, *pc_ptr, *(pc_ptr+1));
+            //fprintf(stderr, "0x%lx => insn = 0x%04x%04x\n", pc, *pc_ptr, *(pc_ptr+1));
             isExit = disassemble_thumb2_insn(context, (*pc_ptr++ << 16) | (*pc_ptr++), ir);
         } else {
-            fprintf(stderr, "0x%lx => insn = 0x%04x\n", pc, *pc_ptr);
+            //fprintf(stderr, "0x%lx => insn = 0x%04x\n", pc, *pc_ptr);
             isExit = disassemble_thumb1_insn(context, *pc_ptr++, ir);
         }
         dump_state(context, ir);

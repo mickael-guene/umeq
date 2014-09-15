@@ -304,6 +304,7 @@ uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, uint32_t
             break;
         case 2://lsl
             {
+                op2 = op2 & 0xff;
                 if (op2 == 0) {
                     calc = 0;
                 } else if (op2 < 32) {
@@ -316,8 +317,6 @@ uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, uint32_t
                     calc = 0;
                     c = 0;
                 }
-
-                calc = op1 << (op2 & 0xff);
             }
             break;
         case 8://tst
