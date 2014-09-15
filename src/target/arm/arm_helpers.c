@@ -319,6 +319,23 @@ uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, uint32_t
                 }
             }
             break;
+        case 3://lsr
+            {
+                op2 = op2 & 0xff;
+                if (op2 == 0) {
+                    calc = 0;
+                } else if (op2 < 32) {
+                    calc = op1 >> op2;
+                    c = ((op1 >> (op2 - 1)) << 29) & 0x20000000;
+                } else if (op2 == 32) {
+                    calc = 0;
+                    c = ((op1 >> (op2 - 1)) << 29) & 0x20000000;
+                } else {
+                    calc = 0;
+                    c = 0;
+                }
+            }
+            break;
         case 8://tst
             calc = rn & op;
             break;
