@@ -1874,6 +1874,11 @@ static int dis_t1_data_processing(struct arm_target *context, uint32_t insn, str
                                     op1,
                                     ir->add_32_to_8(ir, op2));
             break;
+        case 4://asr
+            result = ir->add_asr_32(ir,
+                                    op1,
+                                    ir->add_32_to_8(ir, op2));
+            break;
         case 9:
             result = ir->add_sub_32(ir,
                                     mk_32(ir, 0),

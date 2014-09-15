@@ -306,7 +306,7 @@ uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, uint32_t
             {
                 op2 = op2 & 0xff;
                 if (op2 == 0) {
-                    calc = 0;
+                    calc = op1;
                 } else if (op2 < 32) {
                     calc = op1 << op2;
                     c = ((op1 << (op2 - 1)) >> 2) & 0x20000000;
@@ -323,7 +323,7 @@ uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, uint32_t
             {
                 op2 = op2 & 0xff;
                 if (op2 == 0) {
-                    calc = 0;
+                    calc = op1;
                 } else if (op2 < 32) {
                     calc = op1 >> op2;
                     c = ((op1 >> (op2 - 1)) << 29) & 0x20000000;
@@ -333,6 +333,22 @@ uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, uint32_t
                 } else {
                     calc = 0;
                     c = 0;
+                }
+            }
+            break;
+        case 4://asr
+            {
+                int32_t ops = (int32_t) op1;
+
+                op2 = op2 & 0xff;
+                if (op2 == 0) {
+                    calc = op1;
+                } else if (op2 < 32) {
+                    calc = ops >> op2;
+                    c = ((ops >> (op2 - 1)) << 29) & 0x20000000;
+                } else {
+                    calc = ops >> 31;
+                    c = ((ops >> (32 - 1)) << 29) & 0x20000000;
                 }
             }
             break;
