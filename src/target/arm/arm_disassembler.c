@@ -1497,8 +1497,11 @@ static int dis_extra_load_store_insn(struct arm_target *context, uint32_t insn, 
                     else
                         isExit = dis_load_store_double_immediate_offset(context, insn, ir);
                     break;
+                case 5:
+                    isExit = dis_load_signed_halfword_byte_immediate_offset(context, insn, ir);
+                    break;
                 default:
-                    fatal("op1 = %d(0x%x)\n", op1 & 0x5, op1 & 0x5);
+                    fatal("insn = 0x%08x / op1 = %d(0x%x)\n", insn, op1 & 0x5, op1 & 0x5);
             }
             break;
         case 3:
