@@ -108,6 +108,25 @@ struct iovec_32 {
     uint32_t iov_len;
 };
 
+typedef struct {
+	int32_t	val[2];
+} __kernel_fsid_32_t;
+
+struct statfs_32 {
+	uint32_t f_type;
+	uint32_t f_bsize;
+	uint64_t f_blocks;
+	uint64_t f_bfree;
+	uint64_t f_bavail;
+	uint64_t f_files;
+	uint64_t f_ffree;
+	__kernel_fsid_32_t f_fsid;
+	uint32_t f_namelen;
+	uint32_t f_frsize;
+	uint32_t f_flags;
+	uint32_t f_spare[4];
+};
+
 #endif
 
 #ifdef __cplusplus

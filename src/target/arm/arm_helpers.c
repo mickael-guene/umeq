@@ -221,7 +221,7 @@ uint32_t thumb_t2_hlp_compute_sco(uint64_t context, uint32_t insn, uint32_t rm, 
             break;
         case 3:
             if (op == 0) {
-                assert(0 && "rrx");
+                sco = (rm << 29) & 0x20000000;
             } else
                 sco = ((rm >> (op - 1)) << 29) & 0x20000000;
             break;
@@ -504,6 +504,14 @@ uint32_t thumb_hlp_t2_modified_compute_next_flags(uint64_t context, uint32_t opc
         case 8://add / cmn
             calc = rn + op;
             c = (calc < op1)?0x20000000:0;
+            v = (((calc ^ op1) & (calc ^ op2)) >> 3) & 0x10000000;
+            break;
+        case 10://adc
+            calc = rn + op + c_in;
+            if (c_in)
+                c = (calc <= op1)?0x20000000:0;
+            else
+                c = (calc < op1)?0x20000000:0;
             v = (((calc ^ op1) & (calc ^ op2)) >> 3) & 0x10000000;
             break;
         case 11:
