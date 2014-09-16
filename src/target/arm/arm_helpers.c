@@ -203,18 +203,15 @@ uint32_t thumb_t2_hlp_compute_sco(uint64_t context, uint32_t insn, uint32_t rm, 
         case 0:
             if (op == 0) {
                 ;//nothing to do
-            } else if (op <= 32) {
-                sco = ((rm >> (op - 1)) << 29) & 0x20000000;
-            } else
-                sco = 0;
+            } else {
+                sco = ((rm << (op - 1)) >> 2) & 0x20000000;
+            }
             break;
         case 1:
             if (op == 0) //op is convert to 32
                 sco = ((rm >> (31)) << 29) & 0x20000000;
-            else if (op <= 32)
-                sco = ((rm >> (op - 1)) << 29) & 0x20000000;
             else
-                sco = 0;
+                sco = ((rm >> (op - 1)) << 29) & 0x20000000;
             break;
         case 2:
             if (op == 0)
@@ -223,7 +220,10 @@ uint32_t thumb_t2_hlp_compute_sco(uint64_t context, uint32_t insn, uint32_t rm, 
                 sco = ((rm >> (op - 1)) << 29) & 0x20000000;
             break;
         case 3:
-            assert(0);
+            if (op == 0) {
+                assert(0 && "rrx");
+            } else
+                sco = ((rm >> (op - 1)) << 29) & 0x20000000;
             break;
         default:
             assert(0);
