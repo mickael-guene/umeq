@@ -2663,7 +2663,7 @@ static int dis_t2_data_processing_modified_immediate(struct arm_target *context,
 
     op = mk_32(ir, imm32);
     if (s) {
-        if (imm32 >> 10) {
+        if (imm12 >> 10) {
              write_sco(context, ir, mk_32(ir, (imm32 >> 2) & 0x20000000));
         } else {
              write_sco(context, ir, ir->add_and_32(ir,
