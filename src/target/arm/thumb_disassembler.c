@@ -563,6 +563,16 @@ static int dis_t1_sxth(struct arm_target *context, uint32_t insn, struct irInstr
     return 0;
 }
 
+static int dis_t1_uxth(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rm = INSN(5, 3);
+    int rd = INSN(2, 0);
+
+    write_reg(context, ir, rd, ir->add_and_32(ir, read_reg(context, ir, rm), mk_32(ir, 0xffff)));
+
+    return 0;
+}
+
 static int dis_t1_uxtb(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rm = INSN(5, 3);
@@ -2269,6 +2279,38 @@ static int dis_t2_add_adr_t4(struct arm_target *context, uint32_t insn, struct i
     return isExit;
 }
 
+static int dis_t2_ldrb_register(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rt = INSN2(14, 12);
+    int rn = INSN1(3, 0);
+    int rm = INSN2(3, 0);
+    int imm2 = INSN2(5, 4);
+    struct irRegister *address;
+
+    assert(rt != 15);
+
+    address = ir->add_add_32(ir, read_reg(context, ir, rn),
+                                 ir->add_shl_32(ir, read_reg(context, ir, rm), mk_8(ir, imm2)));
+
+    write_reg(context, ir, rt, ir->add_8U_to_32(ir, ir->add_load_8(ir, address)));
+
+    return 0;
+}
+
+static int dis_t2_uxth(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN2(11, 8);
+    int rm = INSN2(3, 0);
+    int rotation = INSN2(5, 4) << 3;
+
+    write_reg(context, ir, rd,
+                           ir->add_and_32(ir,
+                                          mk_ror_imm_32(ir, read_reg(context, ir, rm), rotation),
+                                          mk_32(ir, 0xffff)));
+
+    return 0;
+}
+
  /* pure disassembler */
 static int dis_t1_shift_A_add_A_substract_A_move_A_compare(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -2331,6 +2373,9 @@ static int dis_t1_misc_16_bits(struct arm_target *context, uint32_t insn, struct
         case 16 ... 17:
             isExit = dis_t1_sxth(context, insn, ir);
             break;
+        case 20 ... 21:
+            isExit = dis_t1_uxth(context, insn, ir);
+            break; 
         case 22 ... 23:
             isExit = dis_t1_uxtb(context, insn, ir);
             break;
@@ -2771,7 +2816,7 @@ static int dis_t2_ldr_byte_A_hints(struct arm_target *context, uint32_t insn, st
             switch(op1) {
                 case 0:
                     if (op2 == 0) {
-                        assert(0 && "ldrb_register");
+                        isExit = dis_t2_ldrb_register(context, insn, ir);
                     } else if ((op2 & 0x3c) == 0x38) {
                         assert(0 && "ldrbt");
                     } else {
@@ -2906,6 +2951,7 @@ static int dis_t2_data_processing_register(struct arm_target *context, uint32_t 
     int isExit = 0;
     int op1 = INSN1(7, 4);
     int op2 = INSN2(7, 4);
+    int rn = INSN1(3, 0);
 
     if (op1 & 0x8) {
         if ((op2 & 0xc) == 0) {
@@ -2919,9 +2965,17 @@ static int dis_t2_data_processing_register(struct arm_target *context, uint32_t 
         }
     } else if (op2 == 0) {
         isExit = dis_t2_data_processing_register_shift(context, insn, ir);
-        //sign extend
     } else {
-        assert(0);
+        switch(op1) {
+            case 1:
+                if (rn = 15)
+                    isExit = dis_t2_uxth(context, insn, ir);
+                else
+                    assert(0);
+                break;
+            default:
+                fatal("op1 = %d(0x%x)\n", op1, op1);
+        }
     }
 
     return isExit;
