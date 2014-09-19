@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "jitter.h"
+#include "gdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,6 +16,7 @@ struct target {
     void (*disassemble)(struct target *target, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);
     uint32_t (*isLooping)(struct target *target);
     uint32_t (*getExitStatus)(struct target *target);
+    struct gdb *(*gdb)(struct target *target);
 };
 
 #endif

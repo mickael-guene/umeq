@@ -2519,9 +2519,22 @@ static int dis_t1_cond_branch_A_svc(struct arm_target *context, uint32_t insn, s
 static int disassemble_thumb1_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int inIt = inItBlock(context);
-    uint32_t opcode = INSN(15, 10);
+    uint32_t opcode;
     int isExit = 0;
+    int isBpReached = 0;
 
+    if (insn == 0xde01) {
+        struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+        isBpReached = 1;
+        write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc));
+        ir->add_call_void(ir, "arm_hlp_gdb_handle_breakpoint",
+                          mk_64(ir, (uint64_t) arm_hlp_gdb_handle_breakpoint),
+                          params);
+
+        insn = gdb_get_opcode(context->pc & ~1);
+    }
+    opcode = INSN(15, 10);
     if (inIt) {
         uint32_t cond = (context->disa_itstate >> 4);
         struct irRegister *params[4];
@@ -2581,7 +2594,12 @@ static int disassemble_thumb1_insn(struct arm_target *context, uint32_t insn, st
             fatal("insn = %x | opcode = %d(0x%x)\n", insn, opcode, opcode);
     }
 
-    return isExit;
+    if (isBpReached) {
+        write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc + 2));
+        ir->add_exit(ir, ir->add_mov_const_64(ir, context->pc + 2));
+    }
+
+    return isBpReached | isExit;
 }
 
 static int dis_t2_misc_control_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -3101,11 +3119,26 @@ static int dis_t2_coprocessor_insn(struct arm_target *context, uint32_t insn, st
 static int disassemble_thumb2_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int inIt = inItBlock(context);
-    int op1 = INSN1(12, 11);
-    int op2 = INSN1(10, 4);
-    int op = INSN2(15, 15);
+    int op1;
+    int op2;
+    int op;
     int isExit = 0;
+    int isBpReached = 0;
 
+    if (insn == 0xf0f700a0) {
+        struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+        isBpReached = 1;
+        write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc));
+        ir->add_call_void(ir, "arm_hlp_gdb_handle_breakpoint",
+                          mk_64(ir, (uint64_t) arm_hlp_gdb_handle_breakpoint),
+                          params);
+
+        insn = gdb_get_opcode(context->pc & ~1);
+    }
+    op1 = INSN1(12, 11);
+    op2 = INSN1(10, 4);
+    op = INSN2(15, 15);
     if (inIt) {
         uint32_t cond = (context->disa_itstate >> 4);
         struct irRegister *params[4];
@@ -3181,7 +3214,12 @@ static int disassemble_thumb2_insn(struct arm_target *context, uint32_t insn, st
             fatal("Unvalid value\n");
     }
 
-    return isExit;
+    if (isBpReached) {
+        write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc + 4));
+        ir->add_exit(ir, ir->add_mov_const_64(ir, context->pc + 4));
+    }
+
+    return isBpReached | isExit;
 }
 
 /* api */

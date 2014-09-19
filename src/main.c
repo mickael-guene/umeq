@@ -16,6 +16,8 @@
 #include "target.h"
 #include "be_x86_64.h"
 
+int isGdb = 0;
+
 /* FIXME: try to factorize loop_nocache and loop_cache */
 static int loop_nocache(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *parent_target)
 {
@@ -64,7 +66,9 @@ static int loop_nocache(uint32_t entry, uint32_t stack_entry, uint32_t signum, v
         int jitSize;
 
         resetJitter(handle);
-        target->disassemble(target, ir, currentPc, 1/*10*/);
+        if (isGdb && target->gdb(target)->isSingleStepping)
+            gdb_handle_breakpoint(target->gdb(target));
+        target->disassemble(target, ir, currentPc, (isGdb && target->gdb(target)->isSingleStepping)?1:1/*10*/);
         //displayIr(handle);
         jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
         if (jitSize > 0) {
@@ -158,7 +162,7 @@ static int loop_cache(uint32_t entry, uint32_t stack_entry, uint32_t signum, voi
 
 int loop(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *parent_target)
 {
-    if (signum)
+    if (signum || isGdb)
         return loop_nocache(entry, stack_entry, signum, parent_target);
     else
         return loop_cache(entry, stack_entry, signum, parent_target);
@@ -182,7 +186,10 @@ static int main(int argc, char **argv)
         These options must be set first.
     */
     while(argv[target_argv0_index]) {
-        if (strcmp("-E", argv[target_argv0_index]) == 0) {
+        if (strcmp("-g", argv[target_argv0_index]) == 0) {
+            isGdb = 1;
+            target_argv0_index++;
+        } else if (strcmp("-E", argv[target_argv0_index]) == 0) {
             additionnal_env[additionnal_env_index++] = argv[target_argv0_index + 1];
             target_argv0_index += 2;
         } else if (strcmp("-U", argv[target_argv0_index]) == 0) {
