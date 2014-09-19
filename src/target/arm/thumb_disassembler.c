@@ -954,10 +954,19 @@ static int dis_t1_mov_high_low_registers(struct arm_target *context, uint32_t in
 {
     int rd = (INSN(7, 7) << 3) + INSN(2, 0);
     int rm = INSN(6, 3);
+    int isExit = 0;
 
-    write_reg(context, ir, rd, read_reg(context, ir, rm));
+    if (rd == 15) {
+        struct irRegister *dst;
 
-    return 0;
+        dst = ir->add_or_32(ir, read_reg(context, ir, rm), mk_32(ir, 1));
+        write_reg(context, ir, 15, dst);
+        ir->add_exit(ir, ir->add_32U_to_64(ir, dst));
+        isExit = 1;
+    } else
+        write_reg(context, ir, rd, read_reg(context, ir, rm));
+
+    return isExit;
 }
 
 static int dis_t1_svc(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -2876,6 +2885,7 @@ static int dis_t2_ldr_halfword_A_unallocated_hints(struct arm_target *context, u
                         isExit = dis_t2_ldrh_register(context, insn, ir);
                     else
                         fatal("op1 = %d / op2 = %d(0x%x) / rn = %d\n", op1, op2, op2, rn);
+                    break;
                 case 1:
                     isExit = dis_t2_ldrh_t2(context, insn, ir);
                     break;
