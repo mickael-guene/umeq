@@ -2290,7 +2290,7 @@ static int dis_t2_add_adr_t4(struct arm_target *context, uint32_t insn, struct i
 
 static int dis_t2_ldrb_register(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    int rt = INSN2(14, 12);
+    int rt = INSN2(15, 12);
     int rn = INSN1(3, 0);
     int rm = INSN2(3, 0);
     int imm2 = INSN2(5, 4);
