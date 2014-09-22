@@ -15,6 +15,8 @@
 #include "syscall32_64.h"
 #include "runtime.h"
 
+extern int isGdb;
+
 int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5)
 {
     int res = ENOSYS;
@@ -49,7 +51,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_mmap,
                           (void *) g_2_h(p0),
                           (size_t) p1,
-                          (int) p2,
+                          (int) p2  | (isGdb?PROT_WRITE:0),
                           (int) (p3 | MAP_32BIT),
                           (int) p4,
                           (off_t) (p5 * 4096));
