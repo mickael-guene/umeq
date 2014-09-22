@@ -1051,6 +1051,38 @@ static int dis_strex(struct arm_target *context, uint32_t insn, struct irInstruc
     return 0;
 }
 
+static int dis_isb(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = NULL;
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "arm_hlp_memory_barrier",
+                           mk_64(ir, (uint64_t) arm_hlp_memory_barrier),
+                           params);
+
+    return 0;
+}
+
+static int dis_dsb(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = NULL;
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "arm_hlp_memory_barrier",
+                           mk_64(ir, (uint64_t) arm_hlp_memory_barrier),
+                           params);
+
+    return 0;
+}
+
 static int dis_dmb(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4];
@@ -1825,13 +1857,13 @@ static int dis_misc_A_memory_hints_A_adv_simd_insn(struct arm_target *context, u
                 assert(0 && "clrex");
                 break;
             case 4:
-                assert(0 && "dsb");
+                isExit = dis_dsb(context, insn, ir);
                 break;
             case 5:
                 isExit = dis_dmb(context, insn, ir);
                 break;
             case 6:
-                assert(0 && "isb");
+                isExit = dis_isb(context, insn, ir);
                 break;
             default:
                 assert(0);
