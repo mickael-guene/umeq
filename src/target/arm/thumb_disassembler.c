@@ -115,6 +115,16 @@ static void write_reg(struct arm_target *context, struct irInstructionAllocator 
     ir->add_write_context_32(ir, value, offsetof(struct arm_registers, r[index]));
 }
 
+static struct irRegister *read_reg_s(struct arm_target *context, struct irInstructionAllocator *ir, int index)
+{
+    return ir->add_read_context_32(ir, offsetof(struct arm_registers, e.s[index]));
+}
+
+static void write_reg_s(struct arm_target *context, struct irInstructionAllocator *ir, int index, struct irRegister *value)
+{
+    ir->add_write_context_32(ir, value, offsetof(struct arm_registers, e.s[index]));
+}
+
 static struct irRegister *read_cpsr(struct arm_target *context, struct irInstructionAllocator *ir)
 {
     return ir->add_read_context_32(ir, offsetof(struct arm_registers, cpsr));
@@ -2306,6 +2316,20 @@ static int dis_t2_ldrb_register(struct arm_target *context, uint32_t insn, struc
     return 0;
 }
 
+static int dis_t2_uxtb(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN2(11, 8);
+    int rm = INSN2(3, 0);
+    int rotation = INSN2(5, 4) << 3;
+
+    write_reg(context, ir, rd,
+                           ir->add_and_32(ir,
+                                          mk_ror_imm_32(ir, read_reg(context, ir, rm), rotation),
+                                          mk_32(ir, 0xff)));
+
+    return 0;
+}
+
 static int dis_t2_uxth(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rd = INSN2(11, 8);
@@ -3017,6 +3041,12 @@ static int dis_t2_data_processing_register(struct arm_target *context, uint32_t 
                 else
                     assert(0);
                 break;
+            case 5:
+                if (rn == 15)
+                    isExit = dis_t2_uxtb(context, insn, ir);
+                else
+                    assert(0);
+                break;
             default:
                 fatal("op1 = %d(0x%x)\n", op1, op1);
         }
@@ -3130,6 +3160,31 @@ static int dis_t2_extension_register_load_store(struct arm_target *context, uint
     return isExit;
 }
 
+static int dis_t2_64_bits_transfert_between_arm_and_extension(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int C = INSN2(8, 8);
+    int op = INSN2(7, 4);
+
+    if (C) {
+        int to_arm_registers = INSN1(4, 4);
+        int rt = INSN2(15, 12);
+        int rt2 = INSN1(3, 0);
+        int m = (INSN2(5, 5) << 4) | INSN2(3, 0);
+
+        if (to_arm_registers) {
+            write_reg(context, ir, rt, read_reg_s(context, ir, m * 2));
+            write_reg(context, ir, rt2, read_reg_s(context, ir, m * 2 + 1));
+        } else {
+            write_reg_s(context, ir, m * 2, read_reg(context, ir, rt));
+            write_reg_s(context, ir, m * 2 + 1, read_reg(context, ir, rt2));
+        }
+    } else {
+        fatal("C = %d / op = %d\n", C, op);
+    }
+
+    return 0;
+}
+
 static int dis_t2_coprocessor_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int isExit = 0;
@@ -3150,12 +3205,18 @@ static int dis_t2_coprocessor_insn(struct arm_target *context, uint32_t insn, st
                 }
             }
         } else {
-            assert(0);
+            if ((coproc & 0xe) == 0xa) {
+                assert(0);
+            } else {
+                assert(0);
+            }
         }
     } else {
         if ((coproc & 0xe) == 0xa) {
             if ((op1 & 0x30) == 0x10 || (op1 & 0x38) == 0x08 || (op1 & 0x3a) == 0x02) {
                 isExit = dis_t2_extension_register_load_store(context, insn, ir);
+            } else if ((op1 & 0x3e) == 0x4) {
+                isExit = dis_t2_64_bits_transfert_between_arm_and_extension(context, insn, ir);
             } else {
                 fatal("op1 = 0x%x\n", op1);
             }
