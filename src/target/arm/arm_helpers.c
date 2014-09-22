@@ -771,3 +771,22 @@ uint32_t arm_hlp_multiply_accumulate_signed_msb(uint64_t context, int32_t op1, i
 
     return (uint32_t) (res >> 32);
 }
+
+void hlp_dirty_vpush(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int isDouble = INSN(8, 8);
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int rn = 13;
+    int regss = INSN(7, 0);
+    uint32_t imm32 = INSN(7, 0) << 2;
+    uint32_t *address = (uint32_t *) g_2_h(regs->r[rn] - imm32);
+    int r;
+
+    assert(isDouble == 1 && ((regss & 1) == 0));
+    for(r = 0; r < regss; r++) {
+        *address++ = regs->e.s[d + r];
+    }
+
+    regs->r[rn] = regs->r[rn] - imm32;
+}

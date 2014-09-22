@@ -2320,6 +2320,22 @@ static int dis_t2_uxth(struct arm_target *context, uint32_t insn, struct irInstr
     return 0;
 }
 
+static int dis_t2_vpush(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_32(ir, "hlp_dirty_vpush",
+                        ir->add_mov_const_64(ir, (uint64_t) hlp_dirty_vpush),
+                        params);
+
+    return 0;
+}
+
  /* pure disassembler */
 static int dis_t1_shift_A_add_A_substract_A_move_A_compare(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -3097,13 +3113,30 @@ static int dis_t2_long_mult_A_long_mult_acc_A_div(struct arm_target *context, ui
     return isExit;
 }
 
+static int dis_t2_extension_register_load_store(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int isExit = 0;
+    int opcode = INSN1(8, 4);
+    int rn = INSN1(3, 0);
+
+    if ((opcode & 0x1b) == 0x12) {
+        if (rn == 13)
+            isExit = dis_t2_vpush(context, insn, ir);
+        else
+            assert(0);
+    } else
+        fatal("opcode = %d(0x%x)", opcode, opcode);
+
+    return isExit;
+}
+
 static int dis_t2_coprocessor_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int isExit = 0;
     int op1 = INSN1(9, 4);
     int op = INSN2(4, 4);
-    int coproc = INSN1(11, 8);
-    int rn = INSN2(3, 0);
+    int coproc = INSN2(11, 8);
+    int rn = INSN1(3, 0);
 
     if ((op1 & 0x30) == 0x20) {
         if (op) {
@@ -3120,7 +3153,15 @@ static int dis_t2_coprocessor_insn(struct arm_target *context, uint32_t insn, st
             assert(0);
         }
     } else {
-        fatal("op1 = 0x%x\n", op1);
+        if ((coproc & 0xe) == 0xa) {
+            if ((op1 & 0x30) == 0x10 || (op1 & 0x38) == 0x08 || (op1 & 0x3a) == 0x02) {
+                isExit = dis_t2_extension_register_load_store(context, insn, ir);
+            } else {
+                fatal("op1 = 0x%x\n", op1);
+            }
+        } else {
+            fatal("insn = 0x%08x / op1 = 0x%x\n", insn, op1);
+        }
     }
 
     return isExit;

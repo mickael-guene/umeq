@@ -21,6 +21,10 @@ struct arm_registers {
     uint32_t c13_tls2;
     uint32_t shifter_carry_out;
     uint32_t reg_itstate;
+    union {
+        uint64_t d[32];
+        uint32_t s[64];
+    } e;
 };
 
 struct arm_target {

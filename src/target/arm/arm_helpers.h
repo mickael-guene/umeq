@@ -10,6 +10,9 @@ extern "C" {
 #ifndef __ARM_HELPERS__
 #define __ARM_HELPERS__ 1
 
+#define g_2_h(ptr)  ((uint64_t)(ptr))
+#define h_2_g(ptr)  ((ptr))
+
 extern void arm_hlp_dump(uint64_t regs);
 extern void arm_hlp_dump_and_assert(uint64_t regs);
 extern void arm_hlp_gdb_handle_breakpoint(uint64_t regs);
@@ -38,6 +41,7 @@ extern uint32_t arm_hlp_multiply_accumulate_unsigned_msb(uint64_t context, uint3
 extern uint32_t arm_hlp_multiply_accumulate_signed_msb(uint64_t context, int32_t op1, int32_t op2, uint32_t rdhi, uint32_t rdlo);
 extern uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, uint32_t opcode, uint32_t rn, uint32_t op, uint32_t oldcpsr);
 extern uint32_t thumb_t2_hlp_compute_sco(uint64_t context, uint32_t insn, uint32_t rm, uint32_t op, uint32_t oldcpsr);
+extern void hlp_dirty_vpush(uint64_t regs, uint32_t insn);
 
 #endif
 
