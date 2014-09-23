@@ -1,3 +1,6 @@
+#set(CMAKE_C_FLAGS "-fno-stack-protector -O2 -g -fPIC")
+#set(CMAKE_CXX_FLAGS "-fno-stack-protector -O2 -g -fPIC")
+
 include_directories(jitter)
 include_directories(cache)
 include_directories(loader)

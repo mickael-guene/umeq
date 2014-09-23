@@ -183,6 +183,28 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_getpeername:
             res = syscall(SYS_getpeername, (int) p0, (struct sockaddr *) g_2_h(p1), (socklen_t *) g_2_h(p2));
             break;
+        case PR_vfork:
+            /* implement with fork to avoid sync problem but semantic is not fully preserved ... */
+            res = syscall(SYS_fork);
+            break;
+        case PR_getrusage:
+            res = getrusage_s3264(p0, p1);
+            break;
+        case PR_unlink:
+            res = syscall(SYS_unlink, (const char *) g_2_h(p0));
+            break;
+        case PR_umask:
+            res = syscall(SYS_umask, (mode_t) p0);
+            break;
+        case PR_chmod:
+            res = syscall(SYS_chmod, (const char *) g_2_h(p0), (mode_t) p1);
+            break;
+        case PR_fstatat64:
+            res = fstatat64_s3264(p0,p1,p2,p3);
+            break;
+        case PR_unlinkat:
+            res = syscall(SYS_unlinkat, (int) p0, (const char *) g_2_h(p1), (int) p2);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
