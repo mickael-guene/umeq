@@ -129,7 +129,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = ugetrlimit_s3264(p0,p1);
             break;
         case PR_dup2:
-            res = syscall(SYS_dup, (int)p0, (int)p1);
+            res = syscall(SYS_dup2, (int)p0, (int)p1);
             break;
         case PR_setpgid:
             res = syscall(SYS_setpgid, (pid_t)p0, (pid_t)p1);
