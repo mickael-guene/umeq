@@ -1523,6 +1523,9 @@ static int dis_extra_load_store_insn(struct arm_target *context, uint32_t insn, 
                 case 0:
                     isExit = dis_load_store_double_register_offset(context, insn, ir);
                     break;
+                 case 1:
+                    isExit = dis_load_signed_halfword_byte_register_offset(context, insn, ir);
+                    break;
                 case 4:
                     if (rn == 15)
                         isExit = dis_ldrd_literal(context, insn, ir);
