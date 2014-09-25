@@ -127,6 +127,24 @@ struct statfs_32 {
 	uint32_t f_spare[4];
 };
 
+struct flock64_32 {
+	uint16_t  l_type;
+	uint16_t  l_whence;
+	uint64_t l_start;
+	uint64_t l_len;
+	int  l_pid;
+};
+
+struct msghdr_32 {
+    uint32_t msg_name;
+    uint32_t msg_namelen;
+    uint32_t msg_iov;
+    uint32_t msg_iovlen;
+    uint32_t msg_control;
+    uint32_t msg_controllen;
+    uint32_t msg_flags;
+};
+
 #endif
 
 #ifdef __cplusplus

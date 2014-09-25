@@ -23,6 +23,9 @@ extern int prlimit64_s3264(uint32_t pid_p, uint32_t resource_p, uint32_t new_lim
 extern int writev_s3264(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p);
 extern int getrusage_s3264(uint32_t who_p, uint32_t usage_p);
 extern int fstatat64_s3264(uint32_t dirfd_p, uint32_t pathname_p, uint32_t buf_p, uint32_t flags_p);
+extern int newselect_s3264(uint32_t nfds_p, uint32_t readfds_p, uint32_t writefds_p, uint32_t exceptfds_p, uint32_t timeout_p);
+extern int recvmsg_s3264(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p);
+extern int utimes_s3264(uint32_t filename_p, uint32_t times_p);
 
 #endif
 

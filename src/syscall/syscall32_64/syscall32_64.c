@@ -228,6 +228,42 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_setreuid32:
             res = syscall(SYS_setreuid, (uid_t) p0, (uid_t) p1);
             break;
+        case PR_rename:
+            res = syscall(SYS_rename, (const char *) g_2_h(p0), (const char *) g_2_h(p1));
+            break;
+        case PR__newselect:
+            res = newselect_s3264(p0,p1,p2,p3,p4);
+            break;
+        case PR_bind:
+            res= syscall(SYS_bind, (int) p0, (const struct sockaddr *) g_2_h(p1), (socklen_t) p2);
+            break;
+        case PR_getsockname:
+            res = syscall(SYS_getsockname, (int) p0, (const struct sockaddr *) g_2_h(p1), (socklen_t) p2);
+            break;
+        case PR_sendto:
+            res = syscall(SYS_sendto, (int) p0, (const void *) g_2_h(p1), (size_t) p2, (int) p3, (const struct sockaddr *) g_2_h(p4), (socklen_t) p5);
+            break;
+        case PR_send:
+            res = syscall(SYS_sendto, (int) p0, (const void *) g_2_h(p1), (size_t) p2, (int) p3, 0, 0);
+            break;
+        case PR_recvmsg:
+            res = recvmsg_s3264(p0,p1,p2);
+            break;
+        case PR_recvfrom:
+            res = syscall(SYS_recvfrom, (int) p0, (void *) g_2_h(p1), (size_t) p2, (int) p3, (struct sockaddr *) g_2_h(p4), (socklen_t) p5);
+            break;
+        case PR_getsockopt:
+            res = syscall(SYS_getsockopt, (int) p0, (int) p1, (int) p2, (void *) g_2_h(p3), (socklen_t *) g_2_h(p4));
+            break;
+        case PR_utimes:
+            res = utimes_s3264(p0,p1);
+            break;
+        case PR_fchmod:
+            res = syscall(SYS_fchmod, (int) p0, (mode_t) p1);
+            break;
+        case PR_msync:
+            res = syscall(SYS_msync, (void *) g_2_h(p0), (size_t) p1, (int) p2);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
