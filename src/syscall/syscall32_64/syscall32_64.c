@@ -15,6 +15,7 @@
 #include "syscall32_64_private.h"
 #include "syscall32_64.h"
 #include "runtime.h"
+#include "cache.h"
 
 extern int isGdb;
 

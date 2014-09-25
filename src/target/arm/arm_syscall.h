@@ -15,6 +15,8 @@ extern int arm_brk(struct arm_target *context);
 extern int arm_open(struct arm_target *context);
 extern int arm_openat(struct arm_target *context);
 extern int arm_rt_sigaction(struct arm_target *context);
+extern int arm_clone(struct arm_target *context);
+extern int arm_ptrace(struct arm_target *context);
 
 #endif
 

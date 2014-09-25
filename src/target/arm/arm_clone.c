@@ -1,5 +1,6 @@
-#include <sys/syscall.h>
 #define _GNU_SOURCE
+#include <unistd.h>
+#include <sys/syscall.h>
 #include <sched.h>
 #include <assert.h>
 

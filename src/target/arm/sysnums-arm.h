@@ -337,4 +337,4 @@ static const Sysnum sysnums_arm[] = {
 	[ 377 ] = PR_process_vm_writev,
 };
 
-static const sysnums_arm_nb = sizeof(sysnums_arm) / sizeof(sysnums_arm[0]);
+static const int sysnums_arm_nb = sizeof(sysnums_arm) / sizeof(sysnums_arm[0]);

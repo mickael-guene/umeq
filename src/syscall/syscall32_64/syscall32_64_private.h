@@ -14,6 +14,15 @@ extern int clock_gettime_s3264(uint32_t clk_id_p, uint32_t tp_p);
 extern int ugetrlimit_s3264(uint32_t resource_p, uint32_t rlim_p);
 extern int futex_s3264(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32_t timeout_p, uint32_t uaddr2_p, uint32_t val3_p);
 extern int statfs64_s3264(uint32_t path_p, uint32_t dummy_p, uint32_t buf_p);
+extern int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p);
+extern int lstat64_s3264(uint32_t pathname_p, uint32_t buf_p);
+extern int gettimeofday_s3264(uint32_t tv_p, uint32_t tz_p);
+extern int wait4_s3264(uint32_t pid_p,uint32_t status_p,uint32_t options_p,uint32_t rusage_p);
+extern int execve_s3264(uint32_t filename_p,uint32_t argv_p,uint32_t envp_p);
+extern int prlimit64_s3264(uint32_t pid_p, uint32_t resource_p, uint32_t new_limit_p, uint32_t old_limit_p);
+extern int writev_s3264(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p);
+extern int getrusage_s3264(uint32_t who_p, uint32_t usage_p);
+extern int fstatat64_s3264(uint32_t dirfd_p, uint32_t pathname_p, uint32_t buf_p, uint32_t flags_p);
 
 #endif
 

@@ -42,6 +42,8 @@ static void *memoryPoolAlloc(struct memoryPool *pool, int size)
 static void *memoryPoolReset(struct memoryPool *pool)
 {
     pool->index = 0;
+
+    return NULL;
 }
 
 /* ir register allocator */
@@ -127,7 +129,7 @@ static struct irRegister *add_load_64(struct irInstructionAllocator *irAlloc, st
     return add_load(irAlloc, address, IR_LOAD_64, IR_REG_64);
 }
 
-static void *add_store(struct irInstructionAllocator *irAlloc, struct irRegister *src, struct irRegister *address, enum irInstructionType insnType)
+static void add_store(struct irInstructionAllocator *irAlloc, struct irRegister *src, struct irRegister *address, enum irInstructionType insnType)
 {
     struct jitter *jitter = container_of(irAlloc, struct jitter, irInstructionAllocator);
     struct memoryPool *pool = &jitter->instructionPoolAllocator;
@@ -734,8 +736,6 @@ static void displayInsn(struct irInstruction *insn)
         case IR_CALL_32:
         case IR_CALL_64:
             {
-                int i;
-
                 printf("call %s(", insn->u.call.name);
                 displayReg(insn->u.call.address);
                 printf("), [");

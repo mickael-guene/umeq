@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <assert.h>
+#include <unistd.h>
 
 FILE *stdin;
 FILE *stdout;

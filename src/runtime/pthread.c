@@ -1,5 +1,8 @@
-#include <pthread.h>
+#define _GNU_SOURCE
+#include <unistd.h>
 #include <sys/syscall.h>
+#include <pthread.h>
+#include <assert.h>
 
 #define FUTEX_WAIT		0
 #define FUTEX_WAKE		1
@@ -51,7 +54,7 @@
 	if (__builtin_constant_p (private) && (private) == LLL_PRIVATE)	      \
 	  __lll_lock_wait_private (__futex);				      \
 	else								      \
-	  __lll_lock_wait (__futex, private);				      \
+	  assert(0);/*lll_lock_wait (__futex, private);*/				      \
       }									      \
   }))
 #define lll_lock(futex, private) __lll_lock (&(futex), private)

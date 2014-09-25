@@ -1,3 +1,6 @@
+#define _GNU_SOURCE         /* See feature_test_macros(7) */
+#include <unistd.h>
+#include <sys/syscall.h>   /* For SYS_xxx definitions */
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <errno.h>
@@ -26,7 +29,7 @@ int ugetrlimit_s3264(uint32_t resource_p, uint32_t rlim_p)
 
 int prlimit64_s3264(uint32_t pid_p, uint32_t resource_p, uint32_t new_limit_p, uint32_t old_limit_p)
 {
-    int res;
+    int res = 0;
     pid_t pid = (pid_t) pid_p;
     int resource = (int) resource_p;
     struct rlimit64_32 *new_limit_guest = (struct rlimit64_32 *) g_2_h(new_limit_p);

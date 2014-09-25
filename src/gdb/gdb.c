@@ -101,39 +101,6 @@ static void gdb_send_reply(char *reply)
     gdb_send_packet(buf, len + 4);
 }
 
-static void gdb_read_registers(char *buf)
-{
-    int i ,j;
-    unsigned int val;
-
-
-    for(i=0;i<16;i++) {
-        for(j=0;j<4;j++) {
-            buf[0] = buf[1] = gdb_tohex(0);
-            buf += 2;
-        }
-    }
-    for(i=0;i<25;i++) {
-        for(j=0;j<4;j++) {
-            buf[0] = buf[1] = gdb_tohex(0);
-            buf += 2;
-        }
-    }
-
-    val = 0;//cpsr_read_noir(&ctx);
-    for(j=0;j<4;j++) {
-        unsigned int byte = (val >> (j * 8)) & 0xff;
-        unsigned int hnibble = (byte >> 4);
-        unsigned int lnibble = (byte & 0xf);
-
-        buf[1] = gdb_tohex(lnibble);
-        buf[0] = gdb_tohex(hnibble);
-
-        buf += 2;
-    }
-    *buf = '\0';
-}
-
 static void gdb_read_memory(char *buf, unsigned int addr, unsigned int len)
 {
     int i;

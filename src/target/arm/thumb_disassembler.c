@@ -5,6 +5,7 @@
 #include "arm_private.h"
 #include "arm_helpers.h"
 #include "runtime.h"
+#include "breakpoints.h"
 
 //#define DUMP_STATE  1
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
@@ -17,10 +18,10 @@ static int inItBlock(struct arm_target *context)
     return (context->disa_itstate & 0xf) != 0;
 }
 
-static int lastInItBlock(struct arm_target *context)
+/*static int lastInItBlock(struct arm_target *context)
 {
     return (context->disa_itstate & 0xf) == 0x8;
-}
+}*/
 
 static uint32_t nextItState(struct arm_target *context)
 {
@@ -76,14 +77,15 @@ static void dump_state(struct arm_target *context, struct irInstructionAllocator
                       param);
 #endif
 }
-static void dump_state_and_assert(struct arm_target *context, struct irInstructionAllocator *ir)
+
+/*static void dump_state_and_assert(struct arm_target *context, struct irInstructionAllocator *ir)
 {
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
 
     ir->add_call_void(ir, "arm_hlp_dump_and_assert",
                       ir->add_mov_const_64(ir, (uint64_t) arm_hlp_dump_and_assert),
                       param);
-}
+}*/
 
 static struct irRegister *mk_8(struct irInstructionAllocator *ir, uint8_t value)
 {
@@ -212,7 +214,7 @@ static int mk_data_processing_modified(struct arm_target *context, struct irInst
     int isExit = (rd == 15)?1:0;
     struct irRegister *op1 = read_reg(context, ir, rn);
     struct irRegister *result = NULL;
-    struct irRegister *nextCpsr;
+    struct irRegister *nextCpsr = NULL;
 
     if (s) {
         struct irRegister *params[4];
@@ -1456,7 +1458,7 @@ static int dis_t2_data_processing_register_shift(struct arm_target *context, uin
 
 static int dis_t1_itt_A_hints(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    int opa = INSN(7, 4);
+    //int opa = INSN(7, 4);
     int opb = INSN(3, 0);
 
     if (opb) {
@@ -1607,7 +1609,6 @@ static int dis_t2_str_imm12(struct arm_target *context, uint32_t insn, struct ir
 
 static int dis_t2_str_imm8(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    int isExit = 0;
     int size = INSN1(6, 5);
     int rn = INSN1(3, 0);
     int rt = INSN2(15, 12);
@@ -2692,7 +2693,7 @@ static int dis_t2_branches_A_misc(struct arm_target *context, uint32_t insn, str
 {
     int op1 = INSN2(14, 12);
     int op = INSN1(10, 4);
-    int op2 = INSN2(11, 8);
+    //int op2 = INSN2(11, 8);
     int isExit = 0;
 
     if (op1 == 5 || op1 == 7) {
@@ -3036,7 +3037,7 @@ static int dis_t2_data_processing_register(struct arm_target *context, uint32_t 
     } else {
         switch(op1) {
             case 1:
-                if (rn = 15)
+                if (rn == 15)
                     isExit = dis_t2_uxth(context, insn, ir);
                 else
                     assert(0);
@@ -3130,7 +3131,7 @@ static int dis_t2_long_mult_A_long_mult_acc_A_div(struct arm_target *context, ui
 {
     int isExit = 0;
     int op1 = INSN1(6, 4);
-    int op2 = INSN2(7, 4);
+    //int op2 = INSN2(7, 4);
 
     switch(op1) {
         case 2:
@@ -3191,7 +3192,7 @@ static int dis_t2_coprocessor_insn(struct arm_target *context, uint32_t insn, st
     int op1 = INSN1(9, 4);
     int op = INSN2(4, 4);
     int coproc = INSN2(11, 8);
-    int rn = INSN1(3, 0);
+    //int rn = INSN1(3, 0);
 
     if ((op1 & 0x30) == 0x20) {
         if (op) {
@@ -3350,7 +3351,8 @@ void disassemble_thumb(struct target *target, struct irInstructionAllocator *ir,
         context->pc = (uint32_t) (uint64_t)pc_ptr + 1;
         if ((*pc_ptr >> 11) == 0x1d || (*pc_ptr >> 11) == 0x1e || (*pc_ptr >> 11) == 0x1f) {
             //fprintf(stderr, "0x%lx => insn = 0x%04x%04x\n", pc, *pc_ptr, *(pc_ptr+1));
-            isExit = disassemble_thumb2_insn(context, (*pc_ptr++ << 16) | (*pc_ptr++), ir);
+            isExit = disassemble_thumb2_insn(context, (*pc_ptr << 16) | (*(pc_ptr+1)), ir);
+            pc_ptr += 2;
         } else {
             //fprintf(stderr, "0x%lx => insn = 0x%04x\n", pc, *pc_ptr);
             isExit = disassemble_thumb1_insn(context, *pc_ptr++, ir);

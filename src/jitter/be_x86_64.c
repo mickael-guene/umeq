@@ -131,6 +131,8 @@ static void *memoryPoolAlloc(struct memoryPool *pool, int size)
 static void *memoryPoolReset(struct memoryPool *pool)
 {
     pool->index = 0;
+
+    return NULL;
 }
 
 /* register allocation */
@@ -503,6 +505,7 @@ static int getFreeReg(int *freeRegList)
     assert(0);
 }
 
+#ifdef DEBUG_REG_ALLOC
 static void displayReg(struct x86Register *reg)
 {
     if (reg)
@@ -510,6 +513,7 @@ static void displayReg(struct x86Register *reg)
     else
         printf("NULL");
 }
+#endif
 
 static void allocateRegisters(struct inter *inter)
 {
@@ -872,8 +876,8 @@ static char *gen_move_reg_from_low(char *pos, int low_index, struct x86Register 
 
 static char *gen_exit(char *pos, struct x86Instruction *insn)
 {
-    char *pos_start_offset;
-    char *pos_patch;
+    char *pos_start_offset = 0;
+    char *pos_patch = NULL;
 
     if (insn->u.exit.pred) {
         //cmp pred with zero
@@ -1387,7 +1391,6 @@ static void reset(struct backend *backend)
 struct backend *createX86_64Backend(void *memory)
 {
     struct inter *inter;
-    int i;
 
     assert(BE_X86_64_CONTEXT_SIZE >= sizeof(*inter));
     inter = (struct inter *) memory;

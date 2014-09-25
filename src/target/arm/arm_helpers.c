@@ -21,6 +21,11 @@
 #define INSN2(msb, lsb) INSN(msb, lsb)
 //#define DUMP_STACK 1
 
+static int tkill(int pid, int sig)
+{
+    return syscall(SYS_tkill, (long) pid, (long) sig);
+}
+
 void arm_hlp_dump(uint64_t regs)
 {
     struct arm_target *context = container_of((void *) regs, struct arm_target, regs);

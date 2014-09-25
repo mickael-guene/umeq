@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+#include <unistd.h>
 #include <sys/syscall.h>
 #include <signal.h>
 #include <sys/utsname.h>

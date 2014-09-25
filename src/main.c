@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <errno.h>
+#include <string.h>
 
 #include "loader.h"
 #include "arm.h"
@@ -15,6 +16,7 @@
 #include "jitter.h"
 #include "target.h"
 #include "be_x86_64.h"
+#include "runtime.h"
 
 int isGdb = 0;
 
@@ -172,7 +174,7 @@ int loop(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *parent_tar
 }
 
 /* TODO: Remove limits on -E and -U options */
-static int main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     int target_argv0_index = 1;
     void *additionnal_env[16] = {NULL};

@@ -5,6 +5,8 @@
 #include "arm_private.h"
 #include "arm_helpers.h"
 #include "runtime.h"
+#include "cache.h"
+#include "breakpoints.h"
 
 //#define DUMP_STATE  1
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
@@ -20,6 +22,7 @@ static void dump_state(struct arm_target *context, struct irInstructionAllocator
                       param);
 #endif
 }
+/*
 static void dump_state_and_assert(struct arm_target *context, struct irInstructionAllocator *ir)
 {
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
@@ -28,6 +31,7 @@ static void dump_state_and_assert(struct arm_target *context, struct irInstructi
                       ir->add_mov_const_64(ir, (uint64_t) arm_hlp_dump_and_assert),
                       param);
 }
+*/
 
 static struct irRegister *mk_8(struct irInstructionAllocator *ir, uint8_t value)
 {
@@ -108,7 +112,7 @@ static int mk_data_processing(struct arm_target *context, struct irInstructionAl
     int s = INSN(20, 20);
     int rn = INSN(19, 16);
     int rd = INSN(15, 12);
-    struct irRegister *nextCpsr;
+    struct irRegister *nextCpsr = NULL;
     struct irRegister *op1 = read_reg(context, ir, rn);
     int isExit = (rd == 15)?1:0;
     struct irRegister *result = NULL;
@@ -375,7 +379,7 @@ static int dis_ldm_stm(struct arm_target *context, uint32_t insn, struct irInstr
     int bitNb = 0;
     int i;
     struct irRegister *start_address;
-    struct irRegister *rn_initial_value;
+    struct irRegister *rn_initial_value = NULL;
     int offset = 0;
     int isExit = 0;
     struct irRegister *newPc = NULL;
@@ -1813,7 +1817,7 @@ static int dis_media_insn(struct arm_target *context, uint32_t insn, struct irIn
 {
     int op1 = INSN(24, 20);
     int op2 = INSN(7, 5);
-    int rd = INSN(14, 12);
+    //int rd = INSN(14, 12);
     int rn = INSN(3, 0);
     int isExit = 0;
 
@@ -1891,7 +1895,7 @@ static int dis_misc_A_memory_hints_A_adv_simd_insn(struct arm_target *context, u
     int isExit = 0;
     int op1 = INSN(26, 20);
     int op2 = INSN(7, 4);
-    int op = INSN(16, 16);
+    //int op = INSN(16, 16);
 
     if (op1 == 0x57) {
         switch(op2) {
