@@ -78,6 +78,7 @@ int arm_ptrace(struct arm_target *context)
     	case PTRACE_CONT:
         case PTRACE_SETOPTIONS:
         case PTRACE_KILL:
+        case PTRACE_SYSCALL:
             /* not translated syscalls */
             res = syscall(SYS_ptrace, request, pid, addr, data);
             break;

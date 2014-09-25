@@ -1823,7 +1823,10 @@ static int dis_media_insn(struct arm_target *context, uint32_t insn, struct irIn
                 dis_bfi(context, insn, ir);
             break;
         case 30 ... 31:
-            isExit = dis_ubfx(context, insn, ir);
+            if (op1 == 31 && op2 == 7)
+                isExit = dis_gdb_breakpoint(context, insn, ir);
+            else
+                isExit = dis_ubfx(context, insn, ir);
             break;
         default:
             fatal("op1 = %d(0x%x)\n", op1, op1);
@@ -1925,8 +1928,8 @@ static int disassemble_insn(struct arm_target *context, uint32_t insn, struct ir
     int isExit = 0;
     int isBpReached = 0;
 
-    if (insn == 0xe7f001f0) {
-#ifdef GDBSERVER
+
+    if (insn == 0xe7f001f1) {
         struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
 
         isBpReached = 1;
@@ -1936,10 +1939,13 @@ static int disassemble_insn(struct arm_target *context, uint32_t insn, struct ir
                           params);
 
         insn = gdb_get_opcode(context->pc & ~1);
-#else
-        isExit = dis_gdb_breakpoint(context, insn, ir);
-#endif
     }
+
+#if 0
+    if (insn == 0xe7f001f0) {
+        isExit = dis_gdb_breakpoint(context, insn, ir);
+    }
+#endif
     cond = INSN(31, 28);
     /* if instruction is conditionnal then test condition */
     if (cond < 14) {

@@ -224,6 +224,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_madvise:
             res = syscall(SYS_madvise, (void *) g_2_h(p0), (size_t) p1, (int) p2);
             break;
+        case PR_setreuid32:
+            res = syscall(SYS_setreuid, (uid_t) p0, (uid_t) p1);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
