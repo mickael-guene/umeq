@@ -71,7 +71,7 @@ static int loop_nocache(uint32_t entry, uint32_t stack_entry, uint32_t signum, v
         resetJitter(handle);
         if (isGdb && target->gdb(target)->isSingleStepping)
             gdb_handle_breakpoint(target->gdb(target));
-        target->disassemble(target, ir, currentPc, (isGdb && target->gdb(target)->isSingleStepping)?1:1/*10*/);
+        target->disassemble(target, ir, currentPc, (isGdb && target->gdb(target)->isSingleStepping)?1:10/*10*/);
         //displayIr(handle);
         jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
         if (jitSize > 0) {
@@ -143,7 +143,7 @@ static int loop_cache(uint32_t entry, uint32_t stack_entry, uint32_t signum, voi
             int jitSize;
 
             resetJitter(handle);
-            target->disassemble(target, ir, currentPc, 1/*10*/);
+            target->disassemble(target, ir, currentPc, 10/*10*/);
             //displayIr(handle);
             jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
             if (jitSize > 0) {

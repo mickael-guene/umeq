@@ -909,6 +909,8 @@ static int dis_mrc(struct arm_target *context, uint32_t insn, struct irInstructi
 static int dis_mcr(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     assert(0);
+
+    return 0;
 }
 
 static int dis_load_store_halfword_register_offset(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1008,6 +1010,8 @@ static int dis_load_store_halfword_immediate_offset(struct arm_target *context, 
 static int dis_ldrh_literal(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     assert(0);
+
+    return 0;
 }
 
 static int dis_ldrex(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1318,6 +1322,8 @@ static int dis_load_signed_halfword_byte_register_offset(struct arm_target *cont
 static int dis_ldrd_literal(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     assert(0);
+
+    return 0;
 }
 
 static int dis_ubfx(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1469,6 +1475,8 @@ static int dis_gdb_breakpoint(struct arm_target *context, uint32_t insn, struct 
 static int dis_msr_imm_and_hints(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     assert(0);
+
+    return 0;
 }
 
 static int dis_sync_primitive(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1513,6 +1521,8 @@ static int dis_mult_and_mult_acc_insn(struct arm_target *context, uint32_t insn,
 static int dis_extra_load_store_unprivilege_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     assert(0);
+
+    return 0;
 }
 
 static int dis_extra_load_store_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1520,7 +1530,7 @@ static int dis_extra_load_store_insn(struct arm_target *context, uint32_t insn, 
     int op2 = INSN(6, 5);
     int op1 = INSN(24, 20);
     int rn = INSN(19, 16);
-    int isExit;
+    int isExit = 0;
 
     switch(op2) {
         case 1:
@@ -1587,6 +1597,8 @@ static int dis_extra_load_store_insn(struct arm_target *context, uint32_t insn, 
 static int dis_halfword_mult_and_mult_acc_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     assert(0);
+
+    return 0;
 }
 
 static int dis_misc_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1599,10 +1611,10 @@ static int dis_misc_insn(struct arm_target *context, uint32_t insn, struct irIns
     switch(op2) {
         case 0:
             if ((op & 1) == 0) {
-                dis_mrs(context, insn, ir);
+                isExit = dis_mrs(context, insn, ir);
             } else if(op == 1 && (op1 & 3) == 0) {
                 //msr
-                dis_msr_register(context, insn, ir);
+                isExit = dis_msr_register(context, insn, ir);
             } else {
                 assert(0 && "msr system in user code !!!!");
             }
@@ -1818,9 +1830,9 @@ static int dis_media_insn(struct arm_target *context, uint32_t insn, struct irIn
             break;
         case 28 ... 29:
             if (rn == 15)
-                dis_bfc(context, insn, ir);
+                isExit = dis_bfc(context, insn, ir);
             else
-                dis_bfi(context, insn, ir);
+                isExit = dis_bfi(context, insn, ir);
             break;
         case 30 ... 31:
             if (op1 == 31 && op2 == 7)
@@ -1851,7 +1863,7 @@ static int dis_system_call_and_coprocessor_insn(struct arm_target *context, uint
     int isExit = 0;
 
     if ((opt1 & 0x30) == 0x30) {
-        dis_swi(context, insn, ir);
+        isExit = dis_swi(context, insn, ir);
     } else if ((opt1 & 0x30) == 0x20) {
         if ((coproc & 0xe) == 0xa) {
             //advanced simd and vfp
@@ -1903,7 +1915,8 @@ static int dis_misc_A_memory_hints_A_adv_simd_insn(struct arm_target *context, u
     } else
         fatal("op1 = %d(0x%x)\n", op1, op1);
 
-    return isExit;}
+    return isExit;
+}
 
 static int dis_unconditional_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -1940,12 +1953,6 @@ static int disassemble_insn(struct arm_target *context, uint32_t insn, struct ir
 
         insn = gdb_get_opcode(context->pc & ~1);
     }
-
-#if 0
-    if (insn == 0xe7f001f0) {
-        isExit = dis_gdb_breakpoint(context, insn, ir);
-    }
-#endif
     cond = INSN(31, 28);
     /* if instruction is conditionnal then test condition */
     if (cond < 14) {
@@ -2061,7 +2068,8 @@ void disassemble_arm(struct target *target, struct irInstructionAllocator *ir, u
         } else if (context->pc == 0xffff0fe0) {
             isExit = vdso_get_tls(context, ir);
         } else {
-            isExit = disassemble_insn(context, *pc_ptr++, ir);
+            isExit = disassemble_insn(context, *pc_ptr, ir);
+            pc_ptr++;
         }
         dump_state(context, ir);
         if (isExit)
