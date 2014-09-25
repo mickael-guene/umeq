@@ -47,7 +47,7 @@ const static struct convertFlags armToX86FlagsTable[] = {
         {0400000,O_LARGEFILE},
 };
 
-static long armToX86Flags(int arm_flags)
+long armToX86Flags(int arm_flags)
 {
     long res = 0;
     int i;

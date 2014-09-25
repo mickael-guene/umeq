@@ -1,3 +1,6 @@
+#define _GNU_SOURCE         /* See feature_test_macros(7) */
+#include <unistd.h>
+#include <sys/syscall.h>
 #include <stdio.h>
 #include <assert.h>
 #include <stddef.h>
@@ -59,6 +62,14 @@ void arm_hlp_syscall(uint64_t regs)
                 context->isLooping = 0;
                 context->exitStatus = 0;
                 res = 0;
+                break;
+            case PR_ptrace:
+                res = arm_ptrace(context);
+                break;
+            case PR_pread64:
+                res = syscall(SYS_pread64, (int) context->regs.r[0], (void *) g_2_h(context->regs.r[1]),
+                                           (size_t) context->regs.r[2],
+                                           (off_t) (((unsigned long)context->regs.r[5] << 32) + (unsigned long) context->regs.r[4]));
                 break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);

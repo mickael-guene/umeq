@@ -1,6 +1,15 @@
 #include <stdio.h>
 #include <assert.h>
 #include <stddef.h>
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <stdio.h>
+#include <assert.h>
+#include <stddef.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <signal.h>
 
 #include "arm_private.h"
 #include "arm_helpers.h"
@@ -36,6 +45,16 @@ void arm_hlp_dump_and_assert(uint64_t regs)
 {
     arm_hlp_dump(regs);
     assert(0);
+}
+
+static pid_t gettid()
+{
+    return syscall(SYS_gettid);
+}
+
+void arm_gdb_breakpoint_instruction(uint64_t regs)
+{
+    tkill(gettid(), SIGILL);
 }
 
 void arm_hlp_gdb_handle_breakpoint(uint64_t regs)

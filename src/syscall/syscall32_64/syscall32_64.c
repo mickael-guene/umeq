@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <errno.h>
+#include <poll.h>
 
 /* MAP_32BIT */
 #include <sys/mman.h>
@@ -204,6 +205,24 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             break;
         case PR_unlinkat:
             res = syscall(SYS_unlinkat, (int) p0, (const char *) g_2_h(p1), (int) p2);
+            break;
+        case PR_socketpair:
+            res = syscall(SYS_socketpair, (int) p0, (int) p1, (int) p2, (int *) g_2_h(p3));
+            break;
+        case PR_poll:
+            res = syscall(SYS_poll, (struct pollfd *) g_2_h(p0), (nfds_t) p1, (int) p2);
+            break;
+        case PR_kill:
+            res = syscall(SYS_kill, (pid_t) p0, (int) p1);
+            break;
+        case PR_personality:
+            res = syscall(SYS_personality, (unsigned long) p0);
+            break;
+        case PR_rt_sigsuspend:
+            res = syscall(SYS_rt_sigsuspend, (const sigset_t *) g_2_h(p0));
+            break;
+        case PR_madvise:
+            res = syscall(SYS_madvise, (void *) g_2_h(p0), (size_t) p1, (int) p2);
             break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);

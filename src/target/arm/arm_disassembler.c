@@ -333,6 +333,15 @@ static struct irRegister *mk_mula_s_msb(struct arm_target *context, struct irIns
                            param);
 }
 
+static void mk_gdb_breakpoint_instruction(struct irInstructionAllocator *ir)
+{
+    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+
+    ir->add_call_32(ir, "arm_gdb_breakpoint_instruction",
+                        ir->add_mov_const_64(ir, (uint64_t) arm_gdb_breakpoint_instruction),
+                        param);
+}
+
 /* disassembler to ir */
  /**/
 
@@ -1441,6 +1450,21 @@ static int dis_msr_register(struct arm_target *context, uint32_t insn, struct ir
     return 0;
 }
 
+static int dis_gdb_breakpoint(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    //set pc to correct location before sending sigill signal
+    write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc));
+    //will send a SIGILL signal
+    mk_gdb_breakpoint_instruction(ir);
+
+    //clean caches since code has been modify to remove/insert breakpoints
+    cleanCaches(0,~0);
+    //reexecute same instructions since opcode has been updated by gdb
+    ir->add_exit(ir, ir->add_mov_const_64(ir, context->pc));
+
+    return 1;
+}
+
  /* pure disassembler */
 static int dis_msr_imm_and_hints(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -1902,6 +1926,7 @@ static int disassemble_insn(struct arm_target *context, uint32_t insn, struct ir
     int isBpReached = 0;
 
     if (insn == 0xe7f001f0) {
+#ifdef GDBSERVER
         struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
 
         isBpReached = 1;
@@ -1911,6 +1936,9 @@ static int disassemble_insn(struct arm_target *context, uint32_t insn, struct ir
                           params);
 
         insn = gdb_get_opcode(context->pc & ~1);
+#else
+        isExit = dis_gdb_breakpoint(context, insn, ir);
+#endif
     }
     cond = INSN(31, 28);
     /* if instruction is conditionnal then test condition */

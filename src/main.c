@@ -18,6 +18,11 @@
 
 int isGdb = 0;
 
+void proot_inform_exec()
+{
+    syscall((long) 313);
+}
+
 /* FIXME: try to factorize loop_nocache and loop_cache */
 static int loop_nocache(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *parent_target)
 {
@@ -59,8 +64,6 @@ static int loop_nocache(uint32_t entry, uint32_t stack_entry, uint32_t signum, v
     saved_prev_target = *prev_target;
     *prev_target = target;
     target->init(target, saved_prev_target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
-    //if (signum == 0 && parent_target == NULL)
-    //    proot_inform_exec();
 
     while(target->isLooping(target)) {
         int jitSize;
@@ -127,8 +130,8 @@ static int loop_cache(uint32_t entry, uint32_t stack_entry, uint32_t signum, voi
     *prev_target = target;
     target->init(target, saved_prev_target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
     cache = createCache(cacheMemory);
-    //if (signum == 0 && parent_target == NULL)
-    //    proot_inform_exec();
+    if (signum == 0 && parent_target == NULL)
+        proot_inform_exec();
 
     while(target->isLooping(target)) {
         void *cache_area;

@@ -9,6 +9,7 @@
 
 /* FIXME: Found a way to handle this */
 extern int x86ToArmFlags(long x86_flags);
+extern long armToX86Flags(int arm_flags);
 
 int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
 {
@@ -26,6 +27,9 @@ int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
         case F_GETFL:
             res = syscall(SYS_fcntl, fd, cmd);
             res = x86ToArmFlags(res);
+            break;
+        case F_SETFL:
+            res = syscall(SYS_fcntl, fd, cmd, armToX86Flags(opt_p));
             break;
         default:
             fatal("unsupported fnctl64 command %d\n", cmd);
