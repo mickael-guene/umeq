@@ -98,7 +98,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = stat64_s3264(p0,p1);
             break;
         case PR_rt_sigprocmask:
-            res = syscall(SYS_rt_sigprocmask, (int)p0, (const sigset_t *) g_2_h(p1), (sigset_t *) g_2_h(p2));
+            res = syscall(SYS_rt_sigprocmask, (int)p0, (const sigset_t *) g_2_h(p1), (sigset_t *) g_2_h(p2), (size_t) p3);
             break;
         case PR_getuid32:
             res = syscall(SYS_getuid);
@@ -220,7 +220,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_personality, (unsigned long) p0);
             break;
         case PR_rt_sigsuspend:
-            res = syscall(SYS_rt_sigsuspend, (const sigset_t *) g_2_h(p0));
+            res = syscall(SYS_rt_sigsuspend, (const sigset_t *) g_2_h(p0), (size_t) p1);
             break;
         case PR_madvise:
             res = syscall(SYS_madvise, (void *) g_2_h(p0), (size_t) p1, (int) p2);
