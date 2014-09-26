@@ -814,3 +814,37 @@ void hlp_dirty_vpush(uint64_t _regs, uint32_t insn)
 
     regs->r[rn] = regs->r[rn] - imm32;
 }
+
+static void qadd(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rm = INSN(3, 0);
+    int rn = INSN(19, 16);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int64_t unsat = (int64_t)(int32_t) regs->r[rm] + (int64_t)(int32_t) regs->r[rn];
+    uint32_t res;
+
+    if (unsat > 2147483647L) {
+        res = 0x7fffffff;
+        regs->cpsr |= 1 << 27;
+    } else if (unsat < -2147483648L) {
+        res = 0x80000000;
+        regs->cpsr |= 1 << 27;
+    } else
+        res = (uint32_t) unsat;
+
+    regs->r[rd] = res;
+}
+
+void arm_hlp_dirty_saturating(uint64_t regs, uint32_t insn)
+{
+    int op = INSN(22, 21);
+
+    switch(op) {
+        case 0:
+            qadd(regs, insn);
+            break;
+        default:
+            fatal("op = %d(0x%x)\n", op, op);
+    }
+}

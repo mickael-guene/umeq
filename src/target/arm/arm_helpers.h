@@ -43,6 +43,7 @@ extern uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, u
 extern uint32_t thumb_t2_hlp_compute_sco(uint64_t context, uint32_t insn, uint32_t rm, uint32_t op, uint32_t oldcpsr);
 extern void hlp_dirty_vpush(uint64_t regs, uint32_t insn);
 extern void arm_gdb_breakpoint_instruction(uint64_t regs);
+extern void arm_hlp_dirty_saturating(uint64_t regs, uint32_t insn);
 
 #endif
 

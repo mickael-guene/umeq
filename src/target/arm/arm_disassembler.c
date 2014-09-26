@@ -33,6 +33,17 @@ static void dump_state_and_assert(struct arm_target *context, struct irInstructi
 }
 */
 
+static uint32_t armExpandImm(int imm12)
+{
+    int shift_value = ((imm12 >> 8) & 0xf) * 2;
+    uint32_t unrotated = imm12 & 0xff;
+    uint32_t res;
+
+    res = (unrotated >> shift_value) | ( unrotated << (32 - shift_value));
+
+    return res;
+}
+
 static struct irRegister *mk_8(struct irInstructionAllocator *ir, uint8_t value)
 {
     return ir->add_mov_const_8(ir, value);
@@ -1488,12 +1499,73 @@ static int dis_gdb_breakpoint(struct arm_target *context, uint32_t insn, struct 
     return 1;
 }
 
+static int dis_pkh(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rn = INSN(19, 16);
+    int rd = INSN(15, 12);
+    int rm = INSN(3, 0);
+    int imm5 = INSN(11, 7);
+    int tb = INSN(6, 6);
+    struct irRegister *operand2;
+    struct irRegister *res;
+
+    if (tb)
+        operand2 = ir->add_asr_32(ir, read_reg(context, ir, rm), mk_8(ir, imm5?imm5:32));
+    else
+        operand2 = ir->add_shl_32(ir, read_reg(context, ir, rm), mk_8(ir, imm5));
+    if (tb)
+        res = ir->add_or_32(ir,
+                            ir->add_and_32(ir, read_reg(context, ir, rn), mk_32(ir, 0xffff0000)),
+                            ir->add_and_32(ir, operand2, mk_32(ir, 0x0000ffff)));
+    else
+        res = ir->add_or_32(ir,
+                            ir->add_and_32(ir, read_reg(context, ir, rn), mk_32(ir, 0x0000ffff)),
+                            ir->add_and_32(ir, operand2, mk_32(ir, 0xffff0000)));
+
+    write_reg(context, ir, rd, res);
+
+    return 0;
+}
+
+static int dis_msr_immediate(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int mask = INSN(19, 18);
+    int imm12 = INSN(11, 12);
+    uint32_t imm32 = armExpandImm(imm12);
+    uint32_t mask32 = 0;
+
+    if (mask & 1)
+        mask32 |= 0x000f0000;
+    if (mask & 2)
+        mask32 |= 0xf8000000;
+
+    write_cpsr(context, ir, ir->add_or_32(ir,
+                                          ir->add_and_32(ir, read_cpsr(context, ir), mk_32(ir, ~mask32)),
+                                          mk_32(ir, imm32 & mask32)));
+
+    return 0;
+}
+
  /* pure disassembler */
 static int dis_msr_imm_and_hints(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    assert(0);
+    int isExit = 0;
+    int op = INSN(22, 22);
+    int op1 = INSN(19, 16);
+    //int op2 = INSN(7, 0);
 
-    return 0;
+
+    assert(op == 0);
+
+    switch(op1) {
+        case 4: case 8: case 12:
+            isExit = dis_msr_immediate(context, insn, ir);
+            break;
+        default:
+            fatal("op1 = %d(0x%x)\n", op1, op1);
+    }
+
+    return isExit;
 }
 
 static int dis_sync_primitive(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1621,6 +1693,23 @@ static int dis_halfword_mult_and_mult_acc_insn(struct arm_target *context, uint3
     return 0;
 }
 
+static int dis_saturating_add_A_sub(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "arm_hlp_dirty_saturating",
+                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_dirty_saturating),
+                           params);
+
+    return 0;
+
+}
+
 static int dis_misc_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     uint32_t op = INSN(22,21);
@@ -1650,6 +1739,9 @@ static int dis_misc_insn(struct arm_target *context, uint32_t insn, struct irIns
         case 3:
             isExit = dis_blx(context, insn, ir);
             break;
+        case 5:
+            isExit = dis_saturating_add_A_sub(context, insn, ir);
+            break;
         default:
             assert(0);
     }
@@ -1665,6 +1757,12 @@ static int dis_packing_A_unpacking_A_saturation_A_reversal(struct arm_target *co
     int isExit = 0;
 
     switch(op1) {
+        case 0:
+            if ((op2 & 1) == 0) {
+                isExit = dis_pkh(context, insn, ir);
+            } else
+                fatal("op2 = %d(0x%x)\n", op2, op2);
+            break;
         case 3:
             if ((op2 & 1) == 0) {
                 //ssat
