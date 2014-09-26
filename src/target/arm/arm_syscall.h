@@ -17,6 +17,7 @@ extern int arm_openat(struct arm_target *context);
 extern int arm_rt_sigaction(struct arm_target *context);
 extern int arm_clone(struct arm_target *context);
 extern int arm_ptrace(struct arm_target *context);
+extern int arm_sigaltstack(struct arm_target *context);
 
 #endif
 

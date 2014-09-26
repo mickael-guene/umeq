@@ -166,3 +166,35 @@ int arm_rt_sigaction(struct arm_target *context)
 
 	return res;
 }
+
+/* FIXME : need to handle SS_ONSTACK case ? (EPERM) */
+int arm_sigaltstack(struct arm_target *context)
+{
+	uint32_t ss_p = context->regs.r[0];
+	uint32_t oss_p = context->regs.r[1];
+    stack_t_arm *ss_arm = (stack_t_arm *) g_2_h(ss_p);
+    stack_t_arm *oss_arm = (stack_t_arm *) g_2_h(oss_p);
+    int res = 0;
+
+    if (oss_p) {
+        oss_arm->ss_sp = ss.ss_sp;
+        oss_arm->ss_flags = ss.ss_flags;
+        oss_arm->ss_size = ss.ss_size;
+    }
+    if (ss_p) {
+        if (ss_arm->ss_flags == 0) {
+            if (ss_arm->ss_size < MINSTKSZ) {
+                res = -ENOMEM;
+            } else {
+                ss.ss_sp = ss_arm->ss_sp;
+                ss.ss_flags = ss_arm->ss_flags;
+                ss.ss_size = ss_arm->ss_size;
+            }
+        } else if (ss_arm->ss_flags == SS_DISABLE) {
+            ss.ss_flags = ss_arm->ss_flags;
+        } else
+            res = -EINVAL;
+    }
+
+    return res;
+}

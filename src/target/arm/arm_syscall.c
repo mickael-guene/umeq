@@ -81,6 +81,9 @@ void arm_hlp_syscall(uint64_t regs)
                                 (off64_t) (((unsigned long)context->regs.r[5] << 32) + (unsigned long)context->regs.r[4]),
                                 (unsigned int) context->regs.r[1]);
                 break;
+            case PR_sigaltstack:
+                res = arm_sigaltstack(context);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }
