@@ -32,6 +32,7 @@ extern int utimensat_s3264(uint32_t dirfd_p, uint32_t pathname_p, uint32_t times
 extern int nanosleep_s3264(uint32_t req_p, uint32_t rem_p);
 extern int sysinfo_s3264(uint32_t info_p);
 extern int clock_getres_s3264(uint32_t clk_id_p, uint32_t res_p);
+extern int getdents_s3264(uint32_t fd_p, uint32_t dirp_p, uint32_t count_p);
 
 #endif
 
