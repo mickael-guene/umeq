@@ -162,3 +162,32 @@ int statfs64_s3264(uint32_t path_p, uint32_t dummy_p, uint32_t buf_p)
 
     return res;
 }
+
+int statfs_s3264(uint32_t path_p, uint32_t buf_p)
+{
+    const char *path = (const char *) g_2_h(path_p);
+    struct statfs_32 *buf_guest = (struct statfs_32 *) g_2_h(buf_p);
+    struct statfs buf;
+    int res;
+
+     if (buf_p == 0 || buf_p == 0xffffffff)
+        res = -EFAULT;
+    else {
+        res = syscall(SYS_statfs, path, &buf);
+
+        buf_guest->f_type = buf.f_type;
+        buf_guest->f_bsize = buf.f_bsize;
+        buf_guest->f_blocks = buf.f_blocks;
+        buf_guest->f_bfree = buf.f_bfree;
+        buf_guest->f_bavail = buf.f_bavail;
+        buf_guest->f_files = buf.f_files;
+        buf_guest->f_ffree = buf.f_ffree;
+        buf_guest->f_fsid.val[0] = 0;
+        buf_guest->f_fsid.val[1] = 0;
+        buf_guest->f_namelen = buf.f_namelen;
+        buf_guest->f_frsize = buf.f_frsize;
+        buf_guest->f_flags = 0;
+    }
+
+    return res;
+}

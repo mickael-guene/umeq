@@ -264,6 +264,51 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_msync:
             res = syscall(SYS_msync, (void *) g_2_h(p0), (size_t) p1, (int) p2);
             break;
+        case PR_flock:
+            res = syscall(SYS_flock, (int) p0, (int) p1);
+            break;
+        case PR_chown32:
+            res = syscall(SYS_chown, (const char *) g_2_h(p0), (uid_t) p1, (gid_t) p2);
+            break;
+        case PR_statfs:
+            res = statfs_s3264(p0, p1);
+            break;
+        case PR_pselect6:
+            res = pselect6_s3264(p0,p1,p2,p3,p4,p5);
+            break;
+        case PR_setsid:
+            res = syscall(SYS_setsid);
+            break;
+        case PR_rmdir:
+            res = syscall(SYS_rmdir, (const char *) g_2_h(p0));
+            break;
+        case PR_mkdir:
+            res = syscall(SYS_mkdir, (const char *) g_2_h(p0), (mode_t) p1);
+            break;
+        case PR_mkdirat:
+            res = syscall(SYS_mkdirat, (int) p0, (const char *) g_2_h(p1), (mode_t) p2);
+            break;
+        case PR_utimensat:
+            res = utimensat_s3264(p0,p1,p2,p3);
+            break;
+        case PR_fchown32:
+            res = syscall(SYS_fchown, (int) p0, (uid_t) p1, (gid_t) p2);
+            break;
+        case PR_fchownat:
+            res = syscall(SYS_fchownat, (int) p0, (const char *) g_2_h(p1), (uid_t) p2, (gid_t) p3, (int) p4);
+            break;
+        case PR_link:
+            res = syscall(SYS_link, (const char *) g_2_h(p0), (const char *) g_2_h(p1));
+            break;
+        case PR_symlink:
+            res = syscall(SYS_symlink, (const char *) g_2_h(p0), (const char *) g_2_h(p1));
+            break;
+        case PR_lchown32:
+            res = syscall(SYS_lchown, (const char *) g_2_h(p0), (uid_t) p1, (gid_t) p2);
+            break;
+        case PR_nanosleep:
+            res = nanosleep_s3264(p0,p1);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }

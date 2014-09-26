@@ -75,6 +75,12 @@ void arm_hlp_syscall(uint64_t regs)
                 res = syscall(SYS_ftruncate, (int) context->regs.r[0],
                                              (off_t) (((unsigned long)context->regs.r[3] << 32) + (unsigned long)context->regs.r[2]));
                 break;
+            case PR_arm_sync_file_range:
+                res = syscall(SYS_sync_file_range, (int) context->regs.r[0],
+                                (off64_t) (((unsigned long)context->regs.r[3] << 32) + (unsigned long)context->regs.r[2]),
+                                (off64_t) (((unsigned long)context->regs.r[5] << 32) + (unsigned long)context->regs.r[4]),
+                                (unsigned int) context->regs.r[1]);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }

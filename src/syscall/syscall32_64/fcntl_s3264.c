@@ -18,11 +18,14 @@ int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
     int cmd = cmd_p;
 
     switch(cmd) {
+        case F_DUPFD:
+            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
+            break;
         case F_GETFD:
             res = syscall(SYS_fcntl, fd, cmd);
             break;
         case F_SETFD:
-            res = syscall(SYS_fcntl, fd, cmd, opt_p);
+            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
             break;
         case F_GETFL:
             res = syscall(SYS_fcntl, fd, cmd);
@@ -45,6 +48,23 @@ int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
                     lock.l_len = lock_guest->l_len;
                     lock.l_pid = lock_guest->l_pid;
                     res = syscall(SYS_fcntl, fd, F_SETLK, &lock);
+                }
+            }
+            break;
+        case 14://F_SETLKW64
+            {
+                struct flock64_32 *lock_guest = (struct flock64_32 *) g_2_h(opt_p);
+                struct flock lock;
+
+                if (opt_p == 0 || opt_p == 0xffffffff)
+                    res = -EFAULT;
+                else {
+                    lock.l_type = lock_guest->l_type;
+                    lock.l_whence = lock_guest->l_whence;
+                    lock.l_start = lock_guest->l_start;
+                    lock.l_len = lock_guest->l_len;
+                    lock.l_pid = lock_guest->l_pid;
+                    res = syscall(SYS_fcntl, fd, F_SETLKW, &lock);
                 }
             }
             break;

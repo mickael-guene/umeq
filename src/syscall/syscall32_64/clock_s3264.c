@@ -20,3 +20,25 @@ int clock_gettime_s3264(uint32_t clk_id_p, uint32_t tp_p)
 
 	return res;
 }
+
+int nanosleep_s3264(uint32_t req_p, uint32_t rem_p)
+{
+	struct timespec_32 *req_guest = (struct timespec_32 *) g_2_h(req_p);
+	struct timespec_32 *rem_guest = (struct timespec_32 *) g_2_h(rem_p);
+	struct timespec req;
+	struct timespec rem;
+	int res;
+
+	req.tv_sec = req_guest->tv_sec;
+	req.tv_nsec = req_guest->tv_nsec;
+
+	//do x86 syscall
+	res = syscall(SYS_nanosleep, &req, rem_p?&rem:NULL);
+
+	if (rem_guest) {
+		rem_guest->tv_sec = rem.tv_sec;
+		rem_guest->tv_nsec = rem.tv_nsec;
+	}
+
+	return res;
+}
