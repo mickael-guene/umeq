@@ -31,6 +31,7 @@ extern int pselect6_s3264(uint32_t nfds_p, uint32_t readfds_p, uint32_t writefds
 extern int utimensat_s3264(uint32_t dirfd_p, uint32_t pathname_p, uint32_t times_p, uint32_t flags_p);
 extern int nanosleep_s3264(uint32_t req_p, uint32_t rem_p);
 extern int sysinfo_s3264(uint32_t info_p);
+extern int clock_getres_s3264(uint32_t clk_id_p, uint32_t res_p);
 
 #endif
 

@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <errno.h>
 #include <poll.h>
+#include <sched.h>
 
 /* MAP_32BIT */
 #include <sys/mman.h>
@@ -314,6 +315,24 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             break;
         case PR_fchdir:
             res = syscall(SYS_fchdir, (int) p0);
+            break;
+        case PR_clock_getres:
+            res = clock_getres_s3264(p0,p1);
+            break;
+        case PR_recv:
+            res = syscall(SYS_recvfrom, (int) p0, (void *) g_2_h(p1), (size_t) p2, (int) p3, 0, 0);
+            break;
+        case PR_fchmodat:
+            res = syscall(SYS_fchmodat, (int) p0, (const char *) g_2_h(p1), (mode_t) p2, (int) p3);
+            break;
+        case PR_fsetxattr:
+            res = syscall(SYS_fsetxattr, (int) p0, (const char *) g_2_h(p1), (const void *) g_2_h(p2), (size_t) p3, (int) p4);
+            break;
+        case PR_getgroups32:
+            res = syscall(SYS_getgroups, (int) p0, (gid_t *) g_2_h(p1));
+            break;
+        case PR_sched_getaffinity:
+            res = syscall(SYS_sched_getaffinity, (pid_t) p0, (size_t) p1, (cpu_set_t *) g_2_h(p2));
             break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
