@@ -848,6 +848,19 @@ static int dis_mla(struct arm_target *context, uint32_t insn, struct irInstructi
     return 0;
 }
 
+static int dis_mls(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(19, 16);
+    int ra = INSN(15, 12);
+    int rm = INSN(11, 8);
+    int rn = INSN(3, 0);
+    struct irRegister *mul = mk_mul_u_lsb(context, ir, read_reg(context, ir, rn), read_reg(context, ir, rm));
+
+    write_reg(context, ir, rd, ir->add_sub_32(ir, read_reg(context, ir, ra), mul));
+
+    return 0;
+}
+
 static int dis_mlla(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int sign = INSN(22, 22);
@@ -1510,6 +1523,9 @@ static int dis_mult_and_mult_acc_insn(struct arm_target *context, uint32_t insn,
     switch(op) {
         case 0 ... 3:
             isExit = dis_mla(context, insn, ir);
+            break;
+        case 6:
+            isExit = dis_mls(context, insn, ir);
             break;
         case 8 ... 15:
             // sign/unsigned multiply accumulate or not long
