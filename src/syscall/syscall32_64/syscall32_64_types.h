@@ -127,6 +127,14 @@ struct statfs_32 {
 	uint32_t f_spare[4];
 };
 
+struct flock_32 {
+	uint16_t  l_type;
+	uint16_t  l_whence;
+	uint32_t l_start;
+	uint32_t l_len;
+	int  l_pid;
+};
+
 struct flock64_32 {
 	uint16_t  l_type;
 	uint16_t  l_whence;
@@ -158,6 +166,28 @@ struct sysinfo_32 {
     uint32_t totalhigh;
     uint32_t freehigh;
     uint32_t mem_unit;
+};
+
+struct itimerval_32 {
+   struct timeval_32 it_interval; /* next value */
+   struct timeval_32 it_value;    /* current value */
+};
+
+union sigval_32 {
+    uint32_t sival_int;
+    uint32_t sival_ptr;
+};
+
+struct sigevent_32 {
+    union sigval_32 sigev_value;
+    uint32_t sigev_signo;
+    uint32_t sigev_notify;
+    /* FIXME : union for SIGEV_THREAD+ SIGEV_THREAD_ID */
+};
+
+struct itimerspec_32 {
+    struct timespec_32 it_interval;  /* Timer interval */
+    struct timespec_32 it_value;     /* Initial expiration */
 };
 
 #endif

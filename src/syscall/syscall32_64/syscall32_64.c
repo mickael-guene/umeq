@@ -337,6 +337,45 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_getdents:
             res = getdents_s3264(p0,p1,p2);
             break;
+        case PR_setitimer:
+            res = setitimer_s3264(p0,p1,p2);
+            break;
+        case PR_fdatasync:
+            res = syscall(SYS_fdatasync, (int) p0);
+            break;
+        case PR_mknod:
+            res = syscall(SYS_mknod, (const char *) g_2_h(p0), (mode_t) p1, (dev_t) p2);
+            break;
+        case PR_timer_create:
+            res = timer_create_s3264(p0, p1, p2);
+            break;
+        case PR_fstatfs64:
+            res = fstatfs64_s3264(p0,p1,p2);
+            break;
+        case PR_inotify_init:
+            res = syscall(SYS_inotify_init);
+            break;
+        case PR_linkat:
+            res = syscall(SYS_linkat, (int) p0, (const char *) g_2_h(p1), (int) p2, (const char *) g_2_h(p3), (int) p4);
+            break;
+        case PR_getpriority:
+            res = syscall(SYS_getpriority, (int) p0, (id_t) p1);
+            break;
+        case PR_timer_settime:
+            res = timer_settime_s3264(p0,p1,p2,p3);
+            break;
+        case PR_inotify_add_watch:
+            res = syscall(SYS_inotify_add_watch, (int) p0, (const char *) g_2_h(p1), (uint32_t) p2);
+            break;
+        case PR_setpriority:
+            res = syscall(SYS_setpriority, (int) p0, (id_t) p1, (int) p2);
+            break;
+        case PR_prctl:
+            res = syscall(SYS_prctl, (int) p0, (unsigned long) p1, (unsigned long) p2, (unsigned long) p3, (unsigned long) p4);
+            break;
+        case PR_tgkill:
+            res = syscall(SYS_tgkill, (int) p0, (int) p1, (int) p2);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }

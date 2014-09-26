@@ -33,6 +33,10 @@ extern int nanosleep_s3264(uint32_t req_p, uint32_t rem_p);
 extern int sysinfo_s3264(uint32_t info_p);
 extern int clock_getres_s3264(uint32_t clk_id_p, uint32_t res_p);
 extern int getdents_s3264(uint32_t fd_p, uint32_t dirp_p, uint32_t count_p);
+extern int setitimer_s3264(uint32_t which_p, uint32_t new_value_p, uint32_t old_value_p);
+extern int timer_create_s3264(uint32_t clockid_p, uint32_t sevp_p, uint32_t timerid_p);
+extern int fstatfs64_s3264(uint32_t fd_p, uint32_t dummy_p, uint32_t buf_p);
+extern int timer_settime_s3264(uint32_t timerid_p, uint32_t flags_p, uint32_t new_value_p, uint32_t old_value_p);
 
 #endif
 
