@@ -1811,6 +1811,22 @@ static int dis_packing_A_unpacking_A_saturation_A_reversal(struct arm_target *co
     return isExit;
 }
 
+static int dis_signed_parallel(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "arm_hlp_signed_parallel",
+                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_signed_parallel),
+                           params);
+
+    return 0;
+}
+
 static int dis_unsigned_parallel(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4];
@@ -1937,6 +1953,9 @@ static int dis_media_insn(struct arm_target *context, uint32_t insn, struct irIn
 
 
     switch(op1) {
+        case 0 ... 3:
+            isExit = dis_signed_parallel(context, insn, ir);
+            break;
         case 4 ... 7:
             isExit = dis_unsigned_parallel(context, insn, ir);
             break;

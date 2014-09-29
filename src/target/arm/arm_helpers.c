@@ -657,6 +657,16 @@ static uint32_t unsignedSat8(int32_t i)
         return i;
 }
 
+static uint32_t signedSat16(int32_t i)
+{
+    if (i > 32767)
+        return 0x7fff;
+    else if (i < -32768)
+        return 0x8000;
+    else
+        return i & 0xffff;
+}
+
 static void uadd8(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -690,6 +700,21 @@ static void uqsub8(uint64_t _regs, int rd, int rn, int rm)
 static void uqsub8_a1(uint64_t _regs, uint32_t insn)
 {
     uqsub8(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void qadd16_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int32_t sum[2];
+    int i;
+
+    for(i = 0; i < 2; i++) {
+        sum[i] = (int32_t)(int16_t)((regs->r[rn] >> (i * 16)) & 0xffff) + (int32_t)(int16_t)((regs->r[rm] >> (i * 16)) & 0xffff);
+    }
+    regs->r[rd] = (signedSat16(sum[1]) << 16) | signedSat16(sum[0]);
 }
 
 void thumb_hlp_t2_unsigned_parallel(uint64_t regs, uint32_t insn)
@@ -729,6 +754,27 @@ void arm_hlp_unsigned_parallel(uint64_t regs, uint32_t insn)
         assert(0);
     } else
         assert(0);
+}
+
+void arm_hlp_signed_parallel(uint64_t regs, uint32_t insn)
+{
+    int op1 = INSN(21, 20);
+    int op2 = INSN(7, 5);
+
+    switch(op1) {
+        case 2:
+            //saturating
+            switch(op2) {
+                case 0:
+                    qadd16_a1(regs, insn);
+                    break;
+                default:
+                    fatal("op2 = %d(0x%x)\n", op2, op2);
+            }
+            break;
+        default:
+            fatal("op1 = %d(0x%x)\n", op1, op1);
+    }
 }
 
 uint32_t arm_hlp_sel(uint64_t context, uint32_t cpsr, uint32_t rn, uint32_t rm)
