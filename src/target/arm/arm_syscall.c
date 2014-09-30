@@ -22,6 +22,9 @@ void arm_hlp_syscall(uint64_t regs)
     Syshow how;
     int res = ENOSYS;
 
+    /* syscall entry sequence */
+    context->regs.is_in_syscall = 1;
+    syscall((long) 313, 0);
     /* translate syscall nb into neutral no */
     if (no == 0xf0005)
         no_neutral = PR_ARM_set_tls;
@@ -96,4 +99,9 @@ void arm_hlp_syscall(uint64_t regs)
     }
 
     context->regs.r[0] = res;
+    /* syscall exit sequence */
+    context->regs.is_in_syscall = 2;
+    syscall((long) 313, 1);
+    /* no more in syscall */
+    context->regs.is_in_syscall = 0;
 }

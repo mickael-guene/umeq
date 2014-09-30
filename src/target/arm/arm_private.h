@@ -21,6 +21,14 @@ struct arm_registers {
     uint32_t c13_tls2;
     uint32_t shifter_carry_out;
     uint32_t reg_itstate;
+    /* FIXME: move both field below to struct arm_target (need to have helpers to use tlsarea before) */
+    /* is_in_syscall : indicate if we are inside a syscall or not
+        0 : not inside a syscall
+        1 : inside syscall entry sequence
+        2 : inside syscall exit sequence
+    */
+    uint32_t is_in_syscall;
+    uint32_t dummy;
     union {
         uint64_t d[32];
         uint32_t s[64];

@@ -138,6 +138,7 @@ int arm_ptrace(struct arm_target *context)
                 unsigned long data_reg;
                 unsigned long data_long;
                 int i;
+                uint32_t is_in_syscall;
 
                 /* FIXME: Need rework with a framework to handle tlsarea usage */
                 res = syscall(SYS_ptrace, request, pid, addr, &user_regs);
@@ -149,6 +150,14 @@ int arm_ptrace(struct arm_target *context)
                 res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + 16 * 4, &data_reg);
                 user_regs_arm->uregs[16] = (unsigned int) data_reg;
                 user_regs_arm->uregs[17] = user_regs_arm->uregs[0];
+                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + 20 * 4, &data_reg);
+                is_in_syscall = (unsigned int) data_reg;
+                /* if we are in kernel then r12 is use as a syscall enter/exit flag */
+                if (is_in_syscall == 1) {
+                    user_regs_arm->uregs[12] = 0;
+                } else if (is_in_syscall == 2) {
+                    user_regs_arm->uregs[12] = 1;
+                }
 
                 res = 0;
             }
@@ -161,6 +170,8 @@ int arm_ptrace(struct arm_target *context)
             res = -EIO;
             break;
     }
+/*    if (request == PTRACE_SETOPTIONS)
+        fprintf(stderr, "(options)ptrace command : %d / 0x%x => res = %d\n", request, request, res);*/
 
     return res;
 }

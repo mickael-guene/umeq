@@ -1,3 +1,6 @@
+#define _GNU_SOURCE         /* See feature_test_macros(7) */
+#include <unistd.h>
+#include <sys/syscall.h>
 #include <stdio.h>
 #include <assert.h>
 #include <stddef.h>
@@ -36,6 +39,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.r[15] = (uint32_t) entry;
         context->regs.reg_itstate = 0;
         context->disa_itstate = 0;
+        context->regs.is_in_syscall = 0;
     } else if (param) {
         /* new thread */
         struct arm_target *parent_context = container_of(param, struct arm_target, target);
@@ -50,6 +54,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.reg_itstate = parent_context->regs.reg_itstate; //should be zero
         assert(context->regs.reg_itstate == 0);
         context->disa_itstate = 0;
+        context->regs.is_in_syscall = 0;
     } else if (stack_ptr) {
         /* main thread */
         for(i = 0; i < 15; i++)
@@ -60,6 +65,13 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->sp_init = (uint32_t) stack_ptr;
         context->regs.reg_itstate = 0;
         context->disa_itstate = 0;
+        /* syscall execve exit sequence */
+         /* this will be translated into sysexec exit */
+        context->regs.is_in_syscall = 2;
+        syscall((long) 313, 1);
+         /* this will be translated into SIGTRAP */
+        context->regs.is_in_syscall = 0;
+        syscall((long) 313, 2);
     } else {
         //fork;
         //nothing to do
