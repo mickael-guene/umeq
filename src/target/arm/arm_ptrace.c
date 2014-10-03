@@ -162,6 +162,21 @@ int arm_ptrace(struct arm_target *context)
                 res = 0;
             }
             break;
+        case 22:/*PTRACE_GET_THREAD_AREA*/
+            {
+                unsigned int *data_guest = (unsigned int *) g_2_h(data);
+                struct user_regs_struct user_regs;
+                unsigned long data_tls;
+                unsigned long data_long;
+
+                res = syscall(SYS_ptrace, (long) PTRACE_GETREGS, (long) pid, (long) addr, (long) &user_regs);
+                res = syscall(SYS_ptrace, (long) PTRACE_PEEKTEXT, (long) pid, (long) user_regs.fs_base + 8, (long) &data_long);
+                res = syscall(SYS_ptrace, (long) PTRACE_PEEKTEXT, (long) pid, (long) data_long + 17 * 4, (long) &data_tls);
+                *data_guest = data_tls;
+
+                res = 0;
+            }
+            break;
         case 29:/* PTRACE_GETHBPREGS */
             res = -EIO;
             break;

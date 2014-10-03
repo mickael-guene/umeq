@@ -37,6 +37,14 @@ extern int setitimer_s3264(uint32_t which_p, uint32_t new_value_p, uint32_t old_
 extern int timer_create_s3264(uint32_t clockid_p, uint32_t sevp_p, uint32_t timerid_p);
 extern int fstatfs64_s3264(uint32_t fd_p, uint32_t dummy_p, uint32_t buf_p);
 extern int timer_settime_s3264(uint32_t timerid_p, uint32_t flags_p, uint32_t new_value_p, uint32_t old_value_p);
+extern int fstatfs_s3264(uint32_t fd_p, uint32_t buf_p);
+extern int sendmsg_s3264(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p);
+extern int rt_sigtimedwait_s3264(uint32_t set_p, uint32_t info_p, uint32_t timeout_p);
+extern int shmat_s3264(uint32_t shmid_p, uint32_t shmaddr_p, uint32_t shmflg_p);
+extern int shmctl_s3264(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p);
+extern int semctl_s3264(uint32_t semid_p, uint32_t semnum_p, uint32_t cmd_p, uint32_t arg0_p, uint32_t arg1_p, uint32_t arg2_p);
+extern int semop_s3264(uint32_t semid_p, uint32_t sops_p, uint32_t nsops_p);
+extern int clock_nanosleep_s3264(uint32_t clock_id_p, uint32_t flags_p, uint32_t request_p, uint32_t remain_p);
 
 #endif
 

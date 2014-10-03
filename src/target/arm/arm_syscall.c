@@ -13,6 +13,7 @@
 #include "syscall32_64.h"
 #include "runtime.h"
 #include "arm_syscall.h"
+#include "cache.h"
 
 void arm_hlp_syscall(uint64_t regs)
 {
@@ -28,6 +29,8 @@ void arm_hlp_syscall(uint64_t regs)
     /* translate syscall nb into neutral no */
     if (no == 0xf0005)
         no_neutral = PR_ARM_set_tls;
+    else if (no == 0xf0002)
+        no_neutral = PR_ARM_cacheflush;
     else if (no >= sysnums_arm_nb)
         fatal("Out of range syscall number %d >= %d\n", no, sysnums_arm_nb);
     else
@@ -86,6 +89,9 @@ void arm_hlp_syscall(uint64_t regs)
                 break;
             case PR_sigaltstack:
                 res = arm_sigaltstack(context);
+                break;
+            case PR_ARM_cacheflush:
+                cleanCaches(0, ~0);
                 break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);

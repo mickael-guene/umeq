@@ -376,6 +376,81 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_tgkill:
             res = syscall(SYS_tgkill, (int) p0, (int) p1, (int) p2);
             break;
+        case PR_fstatfs:
+            res = fstatfs_s3264(p0,p1);
+            break;
+        case PR_getresuid32:
+            res = syscall(SYS_getresuid, (uid_t *) g_2_h(p0), (uid_t *) g_2_h(p1), (uid_t *) g_2_h(p2));
+            break;
+        case PR_getresgid32:
+            res = syscall(SYS_getresgid, (gid_t *) g_2_h(p0), (gid_t *) g_2_h(p1), (gid_t *) g_2_h(p2));
+            break;
+        case PR_sendmsg:
+            res = sendmsg_s3264(p0,p1,p2);
+            break;
+        case PR_gettid:
+            res = syscall(SYS_gettid);
+            break;
+        case PR_tkill:
+            res = syscall(SYS_tkill, (int) p0, (int) p1);
+            break;
+        case PR_shutdown:
+            res = syscall(SYS_shutdown, (int) p0, (int) p1);
+            break;
+        case PR_rt_sigtimedwait:
+            res = rt_sigtimedwait_s3264(p0,p1,p2);
+            break;
+        case PR_eventfd2:
+            res = syscall(SYS_eventfd2, (unsigned int) p0, (int) p1);
+            break;
+        case PR_pipe2:
+            res = syscall(SYS_pipe2, (int *) g_2_h(p0), (int) p1);
+            break;
+        case PR_shmget:
+            res = syscall(SYS_shmget, (key_t) p0, (size_t) p1, (int) p2);
+            break;
+        case PR_shmat:
+            res = shmat_s3264(p0,p1,p2);
+            break;
+        case PR_shmctl:
+            res = shmctl_s3264(p0,p1,p2);
+            break;
+        case PR_shmdt:
+            res = syscall(SYS_shmdt, (void *) g_2_h(p0));
+            break;
+        case PR_sched_yield:
+            res = syscall(SYS_sched_yield);
+            break;
+        case PR_inotify_init1:
+            res = syscall(SYS_inotify_init1, (int) p0);
+            break;
+        case PR_sched_get_priority_max:
+            res = syscall(SYS_sched_get_priority_max, (int) p0);
+            break;
+        case PR_sched_get_priority_min:
+            res = syscall(SYS_sched_get_priority_min, (int) p0);
+            break;
+        case PR_sched_setscheduler:
+            res = syscall(SYS_sched_setscheduler, (pid_t) p0, (int) p1, (const struct sched_param *) g_2_h(p2));
+            break;
+        case PR_semget:
+            res = syscall(SYS_semget, (key_t) p0, (int) p1, (int) p2);
+            break;
+        case PR_semctl:
+            res = semctl_s3264(p0, p1, p2, p3, p4, p5);
+            break;
+        case PR_semop:
+            res = semop_s3264(p0,p1,p2);
+            break;
+        case PR_mlock:
+            res = syscall(SYS_mlock, (const void *) g_2_h(p0), (size_t) p1);
+            break;
+        case PR_clock_nanosleep:
+            res = clock_nanosleep_s3264(p0,p1,p2,p3);
+            break;
+        case PR_inotify_rm_watch:
+            res = syscall(SYS_inotify_rm_watch, (int) p0, (int) p1);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }

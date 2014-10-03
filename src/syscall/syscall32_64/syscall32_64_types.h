@@ -10,7 +10,7 @@ extern "C" {
 #include <stdint.h>
 
 #define g_2_h(ptr)  ((uint64_t)(ptr))
-#define h_2_g(ptr)  ((ptr))
+#define h_2_g(ptr)  ((uint32_t)(uint64_t)(ptr))
 
 struct stat64_32 {
 	uint64_t	st_dev;
@@ -188,6 +188,96 @@ struct sigevent_32 {
 struct itimerspec_32 {
     struct timespec_32 it_interval;  /* Timer interval */
     struct timespec_32 it_value;     /* Initial expiration */
+};
+
+typedef struct siginfo_32 {
+    uint32_t si_signo;
+    uint32_t si_errno;
+    uint32_t si_code;
+    union {
+        uint32_t _pad[29];
+        /* kill */
+        struct {
+            uint32_t _si_pid;
+            uint32_t _si_uid;
+        } _kill;
+        /* POSIX.1b timers */
+        struct {
+            uint32_t _si_tid;
+            uint32_t _si_overrun;
+            union sigval_32 _si_sigval;
+        } _timer;
+        /* POSIX.1b signals */
+	    struct {
+	        uint32_t _si_pid;
+	        uint32_t _si_uid;
+	        union sigval_32 _si_sigval;
+	    } _rt;
+        /* SIGCHLD */
+	    struct {
+	        uint32_t _si_pid;
+	        uint32_t _si_uid;
+	        uint32_t _si_status;
+	        uint32_t _si_utime;
+	        uint32_t _si_stime;
+	    } _sigchld;
+        /* SIGILL, SIGFPE, SIGSEGV, SIGBUS */
+	    struct {
+	        uint32_t _si_addr;
+	    } _sigfault;
+        /* SIGPOLL */
+	    struct {
+	        uint32_t _si_band;
+	        uint32_t _si_fd;
+	    } _sigpoll;
+    } _sifields;
+} siginfo_t_32;
+
+struct ipc_perm_32 {
+    int32_t __key;
+    uint32_t uid;
+    uint32_t gid;
+    uint32_t cuid;
+    uint32_t cgid;
+    uint16_t mode;
+    uint16_t __pad1;
+    uint16_t __seq;
+    uint16_t __pad2;
+    uint32_t __unused1;
+    uint32_t __unused2;
+};
+
+struct shmid_ds_32 {
+	struct ipc_perm_32 shm_perm;
+	uint32_t shm_segsz;
+	int32_t shm_atime;
+    uint32_t __unused1;
+	int32_t shm_dtime;
+    uint32_t __unused2;
+	int32_t shm_ctime;
+    uint32_t __unused3;
+	int32_t shm_cpid;
+	int32_t shm_lpid;
+	uint32_t shm_nattch;
+    uint32_t __unused4;
+    uint32_t __unused5;
+};
+
+struct semid_ds_32 {
+    struct ipc_perm_32 sem_perm;  /* Ownership and permissions */
+    uint32_t sem_otime; /* Last semop time */
+    uint32_t __unused1;
+    uint32_t sem_ctime; /* Last change time */
+    uint32_t __unused2;
+    uint32_t sem_nsems; /* No. of semaphores in set */
+    uint32_t __unused3;
+    uint32_t __unused4;
+};
+
+struct sembuf_32 {
+    uint16_t sem_num;
+    int16_t sem_op;
+    int16_t sem_flg;
 };
 
 #endif
