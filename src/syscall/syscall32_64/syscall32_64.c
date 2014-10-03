@@ -451,6 +451,21 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_inotify_rm_watch:
             res = syscall(SYS_inotify_rm_watch, (int) p0, (int) p1);
             break;
+        case PR_fgetxattr:
+            res = syscall(SYS_fgetxattr, (int) p0, (const char *) g_2_h(p1), (void *) g_2_h(p2), (size_t) p3);
+            break;
+        case PR_times:
+            res = times_s3264(p0);
+            break;
+        case PR_symlinkat:
+            res = syscall(SYS_symlinkat, (const char *) g_2_h(p0), (int) p1, (const char *) g_2_h(p2));
+            break;
+        case PR_readlinkat:
+            res = syscall(SYS_readlinkat, (int) p0, (const char *) g_2_h(p1), (char *) g_2_h(p2), (size_t) p3);
+            break;
+        case PR_flistxattr:
+            res = syscall(SYS_flistxattr, (int) p0, (char *) g_2_h(p1), (size_t) p2);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }

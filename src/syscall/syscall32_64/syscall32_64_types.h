@@ -280,6 +280,13 @@ struct sembuf_32 {
     int16_t sem_flg;
 };
 
+struct tms_32 {
+    uint32_t tms_utime;
+    uint32_t tms_stime;
+    uint32_t tms_cutime;
+    uint32_t tms_cstime;
+};
+
 #endif
 
 #ifdef __cplusplus
