@@ -79,6 +79,7 @@ int arm_ptrace(struct arm_target *context)
         case PTRACE_SETOPTIONS:
         case PTRACE_KILL:
         case PTRACE_SYSCALL:
+        case PTRACE_DETACH:
             /* not translated syscalls */
             res = syscall(SYS_ptrace, request, pid, addr, data);
             break;
@@ -111,6 +112,23 @@ int arm_ptrace(struct arm_target *context)
                 data_host = (data_host & 0xffffffff00000000UL) | data;
                 res = syscall(SYS_ptrace, request, pid, addr, data_host);
                 //fprintf(stderr, "POKE: @0x%08x = 0x%08x => res = %d\n", addr, data, res);
+            }
+            break;
+        case PTRACE_POKEUSER:
+            {
+                struct user_regs_struct user_regs;
+                unsigned long data_long;
+                unsigned long data_host;
+
+                /* avoid poking too long ... */
+                assert(addr < 16 * 4);
+                /* FIXME: Need rework with a framework to handle tlsarea usage */
+                res = syscall(SYS_ptrace, request, pid, addr, &user_regs);
+                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+
+                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + addr, &data_host);
+                data_host = (data_host & 0xffffffff00000000UL) | data;
+                res = syscall(SYS_ptrace, PTRACE_POKETEXT, pid, data_long + addr, data_host);
             }
             break;
         case PTRACE_GETSIGINFO:
