@@ -179,6 +179,7 @@ int main(int argc, char **argv)
     void *entry;
     struct load_auxv_info auxv_info;
 
+    additionnal_env[additionnal_env_index++] = "OPENSSL_armcap=0";
     /* capture umeq arguments.
         This consist on -E, -U and -0 option of qemu.
         These options must be set first.
