@@ -9,18 +9,18 @@
 
 #include "arm_syscall.h"
 
-#define SA_RESTORER	0x04000000
-#define MINSTKSZ	2048
+#define SA_RESTORER 0x04000000
+#define MINSTKSZ    2048
 
 extern int loop(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *parent_target);
 
 extern void wrap_signal_restorer(void);
 /* This is the sigaction structure from the Linux 2.1.68 kernel.  */
 struct kernel_sigaction {
-	__sighandler_t k_sa_handler;
-	unsigned long sa_flags;
-	void (*sa_restorer) (void);
-	sigset_t sa_mask;
+    __sighandler_t k_sa_handler;
+    unsigned long sa_flags;
+    void (*sa_restorer) (void);
+    sigset_t sa_mask;
 };
 
 struct sigaction_arm {
@@ -53,28 +53,28 @@ typedef struct siginfo_arm {
             sigval_t_arm _si_sigval;
         } _timer;
         /* POSIX.1b signals */
-	    struct {
-	        uint32_t _si_pid;
-	        uint32_t _si_uid;
-	        sigval_t_arm _si_sigval;
-	    } _rt;
+        struct {
+            uint32_t _si_pid;
+            uint32_t _si_uid;
+            sigval_t_arm _si_sigval;
+        } _rt;
         /* SIGCHLD */
-	    struct {
-	        uint32_t _si_pid;
-	        uint32_t _si_uid;
-	        uint32_t _si_status;
-	        uint32_t _si_utime;
-	        uint32_t _si_stime;
-	    } _sigchld;
+        struct {
+            uint32_t _si_pid;
+            uint32_t _si_uid;
+            uint32_t _si_status;
+            uint32_t _si_utime;
+            uint32_t _si_stime;
+        } _sigchld;
         /* SIGILL, SIGFPE, SIGSEGV, SIGBUS */
-	    struct {
-	        uint32_t _si_addr;
-	    } _sigfault;
+        struct {
+            uint32_t _si_addr;
+        } _sigfault;
         /* SIGPOLL */
-	    struct {
-	        uint32_t _si_band;
-	        uint32_t _si_fd;
-	    } _sigpoll;
+        struct {
+            uint32_t _si_band;
+            uint32_t _si_fd;
+        } _sigpoll;
     } _sifields;
 } siginfo_t_arm;
 
@@ -113,65 +113,65 @@ void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
 /* signal syscall handling */
 int arm_rt_sigaction(struct arm_target *context)
 {
-	int res;
-	int signum = context->regs.r[0];
-	struct sigaction_arm *act_guest = (struct sigaction_arm *) g_2_h(context->regs.r[1]);
-	struct sigaction_arm *oldact_guest = (struct sigaction_arm *) g_2_h(context->regs.r[2]);
-	struct kernel_sigaction act;
-	struct kernel_sigaction oldact;
+    int res;
+    uint32_t signum_p = context->regs.r[0];
+    uint32_t act_p = context->regs.r[1];
+    uint32_t oldact_p = context->regs.r[2];
+    int signum = (int) signum_p;
+    struct sigaction_arm *act_guest = (struct sigaction_arm *) g_2_h(act_p);
+    struct sigaction_arm *oldact_guest = (struct sigaction_arm *) g_2_h(oldact_p);
+    struct kernel_sigaction act;
+    struct kernel_sigaction oldact;
 
     if (signum >= NSIG)
         res = -EINVAL;
     else {
-	    memset(&act, 0, sizeof(act));
-	    memset(&oldact, 0, sizeof(oldact));
-	    //translate structure
-	    if (h_2_g(act_guest)) {
-	        if (act_guest->_sa_handler == (long)SIG_ERR ||
-		        act_guest->_sa_handler == (long)SIG_DFL ||
-		        act_guest->_sa_handler == (long)SIG_IGN) {
-		        act.k_sa_handler = (__sighandler_t)(long) act_guest->_sa_handler;
-		        act.sa_mask.__val[0] = act_guest->sa_mask[0];
-	        } else {
-		        act.k_sa_handler = (act_guest->sa_flags | SA_SIGINFO)?(__sighandler_t)&wrap_signal_sigaction:&wrap_signal_handler;
-		        act.sa_mask.__val[0] = act_guest->sa_mask[0];
-		        act.sa_flags = act_guest->sa_flags | SA_RESTORER;
-		        act.sa_restorer = &wrap_signal_restorer;
-	        }
-	    }
+        memset(&act, 0, sizeof(act));
+        memset(&oldact, 0, sizeof(oldact));
+        //translate structure
+        if (act_p) {
+            if (act_guest->_sa_handler == (long)SIG_ERR ||
+                act_guest->_sa_handler == (long)SIG_DFL ||
+                act_guest->_sa_handler == (long)SIG_IGN) {
+                act.k_sa_handler = (__sighandler_t)(long) act_guest->_sa_handler;
+                act.sa_mask.__val[0] = act_guest->sa_mask[0];
+            } else {
+                act.k_sa_handler = (act_guest->sa_flags | SA_SIGINFO)?(__sighandler_t)&wrap_signal_sigaction:&wrap_signal_handler;
+                act.sa_mask.__val[0] = act_guest->sa_mask[0];
+                act.sa_flags = act_guest->sa_flags | SA_RESTORER;
+                act.sa_restorer = &wrap_signal_restorer;
+            }
+        }
 
-	    if (h_2_g(oldact_guest)) {
-		    oldact_guest->_sa_handler = guest_signals_handler[signum];
-	    }
+        if (oldact_p) {
+            oldact_guest->_sa_handler = guest_signals_handler[signum];
+        }
 
-	    //QUESTION : since setting guest handler and host handler is not atomic here is a problem ?
-	    //           if yes then this syscall must be redirecting towards proot (but is all threads stopped
-	    //			  when we are ptracing a process ?)
-	    //setup guest syscall handler
-	    if (h_2_g(act_guest))
-		    guest_signals_handler[signum] = act_guest->_sa_handler;
+        //QUESTION : since setting guest handler and host handler is not atomic here is a problem ?
+        //           if yes then this syscall must be redirecting towards proot (but is all threads stopped
+        //            when we are ptracing a process ?)
+        //setup guest syscall handler
+        if (act_p)
+            guest_signals_handler[signum] = act_guest->_sa_handler;
 
-	    res = syscall(SYS_rt_sigaction,(long) signum,
-								      (long) act_guest?&act:NULL,
-								      (long) oldact_guest?&oldact:NULL,
-								      (long) _NSIG / 8);
+        res = syscall(SYS_rt_sigaction, signum, act_p?&act:NULL, oldact_p?&oldact:NULL, _NSIG / 8);
 
-	    if (h_2_g(oldact_guest)) {
-		    //TODO : add guest restorer support
-		    oldact_guest->sa_flags = oldact.sa_flags & ~SA_RESTORER;
-		    oldact_guest->sa_mask[0] = oldact.sa_mask.__val[0];
-		    oldact_guest->sa_restorer = (long)NULL;
-	    }
+        if (oldact_p) {
+            //TODO : add guest restorer support
+            oldact_guest->sa_flags = oldact.sa_flags & ~SA_RESTORER;
+            oldact_guest->sa_mask[0] = oldact.sa_mask.__val[0];
+            oldact_guest->sa_restorer = (long)NULL;
+        }
     }
 
-	return res;
+    return res;
 }
 
 /* FIXME : need to handle SS_ONSTACK case ? (EPERM) */
 int arm_sigaltstack(struct arm_target *context)
 {
-	uint32_t ss_p = context->regs.r[0];
-	uint32_t oss_p = context->regs.r[1];
+    uint32_t ss_p = context->regs.r[0];
+    uint32_t oss_p = context->regs.r[1];
     stack_t_arm *ss_arm = (stack_t_arm *) g_2_h(ss_p);
     stack_t_arm *oss_arm = (stack_t_arm *) g_2_h(oss_p);
     int res = 0;

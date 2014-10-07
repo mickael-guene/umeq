@@ -17,9 +17,9 @@ int gettimeofday_s3264(uint32_t tv_p, uint32_t tz_p)
     if (tv_p == 0xffffffff)
         res = -EFAULT;
     else {
-        res = syscall(SYS_gettimeofday, &tv, tz);
+        res = syscall(SYS_gettimeofday, tv_p?&tv:NULL, tz_p?tz:NULL);
 
-        if (tv_guest) {
+        if (tv_p) {
             tv_guest->tv_sec = tv.tv_sec;
             tv_guest->tv_usec = tv.tv_usec;
         }

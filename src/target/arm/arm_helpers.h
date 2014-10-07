@@ -10,8 +10,7 @@ extern "C" {
 #ifndef __ARM_HELPERS__
 #define __ARM_HELPERS__ 1
 
-#define g_2_h(ptr)  ((uint64_t)(ptr))
-#define h_2_g(ptr)  ((ptr))
+#include "target32.h"
 
 extern void arm_hlp_dump(uint64_t regs);
 extern void arm_hlp_dump_and_assert(uint64_t regs);

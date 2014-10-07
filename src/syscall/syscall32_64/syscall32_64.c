@@ -8,9 +8,6 @@
 #include <poll.h>
 #include <sched.h>
 
-/* MAP_32BIT */
-#include <sys/mman.h>
-
 #include "sysnum.h"
 #include "syscall32_64_types.h"
 #include "syscall32_64_private.h"
@@ -49,30 +46,15 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_fstat64:
             res = fstat64_s3264(p0, p1);
             break;
-        case PR_mmap2:
-            /* FIXME: 4096 make it not portable ... keep it here for the moment since mmap need reworks to bypass mmap_min_addr */
-            res = syscall(SYS_mmap,
-                          (void *) g_2_h(p0),
-                          (size_t) p1,
-                          (int) p2  | (isGdb?PROT_WRITE:0),
-                          (int) (p3 | MAP_32BIT),
-                          (int) p4,
-                          (off_t) (p5 * 4096));
-            /* Need to clean cache since old code can be in cache in the same area */
-            cleanCaches(0, ~0);
-            break;
         case PR_mprotect:
             res = syscall(SYS_mprotect, (void *) g_2_h(p0), (size_t) p1, (int) p2);
-            break;
-        case PR_munmap:
-            res = syscall(SYS_munmap, (void *) g_2_h(p0), (size_t) p1);
             break;
         case PR_fcntl64:
             res = fnctl64_s3264(p0,p1,p2);
             break;
         case PR_ioctl:
             /* FIXME: need specific version to offset param according to ioctl */
-            res = syscall(SYS_ioctl, (int) p0, (unsigned long) p1, p2, p3, p4, p5);
+            res = syscall(SYS_ioctl, (int) p0, (unsigned long) p1, (char *) g_2_h(p2));
             break;
         case PR_getdents64:
             res = getdents64_s3264(p0,p1,p2);
@@ -99,7 +81,8 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = stat64_s3264(p0,p1);
             break;
         case PR_rt_sigprocmask:
-            res = syscall(SYS_rt_sigprocmask, (int)p0, (const sigset_t *) g_2_h(p1), (sigset_t *) g_2_h(p2), (size_t) p3);
+            res = syscall(SYS_rt_sigprocmask, (int)p0, p1?(const sigset_t *) g_2_h(p1):NULL,
+                                              p2?(sigset_t *) g_2_h(p2):NULL, (size_t) p3);
             break;
         case PR_getuid32:
             res = syscall(SYS_getuid);
@@ -239,7 +222,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res= syscall(SYS_bind, (int) p0, (const struct sockaddr *) g_2_h(p1), (socklen_t) p2);
             break;
         case PR_getsockname:
-            res = syscall(SYS_getsockname, (int) p0, (const struct sockaddr *) g_2_h(p1), (socklen_t) p2);
+            res = syscall(SYS_getsockname, (int) p0, (const struct sockaddr *) g_2_h(p1), (socklen_t *) g_2_h(p2));
             break;
         case PR_sendto:
             res = syscall(SYS_sendto, (int) p0, (const void *) g_2_h(p1), (size_t) p2, (int) p3, (const struct sockaddr *) g_2_h(p4), (socklen_t) p5);
@@ -251,10 +234,12 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = recvmsg_s3264(p0,p1,p2);
             break;
         case PR_recvfrom:
-            res = syscall(SYS_recvfrom, (int) p0, (void *) g_2_h(p1), (size_t) p2, (int) p3, (struct sockaddr *) g_2_h(p4), (socklen_t) p5);
+            res = syscall(SYS_recvfrom, (int) p0, (void *) g_2_h(p1), (size_t) p2, (int) p3,
+                                        p4?(struct sockaddr *) g_2_h(p4):NULL, (socklen_t) p5);
             break;
         case PR_getsockopt:
-            res = syscall(SYS_getsockopt, (int) p0, (int) p1, (int) p2, (void *) g_2_h(p3), (socklen_t *) g_2_h(p4));
+            res = syscall(SYS_getsockopt, (int) p0, (int) p1, (int) p2,
+                                          p3?(void *) g_2_h(p3):NULL, p4?(socklen_t *) g_2_h(p4):NULL);
             break;
         case PR_utimes:
             res = utimes_s3264(p0,p1);

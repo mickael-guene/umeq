@@ -31,7 +31,8 @@ int newselect_s3264(uint32_t nfds_p, uint32_t readfds_p, uint32_t writefds_p, ui
         timeout.tv_usec = timeout_guest->tv_usec;
     };
 
-    res = syscall(SYS_select, nfds, readfds, writefds, exceptfds, timeout_p?&timeout:NULL);
+    res = syscall(SYS_select, nfds, readfds_p?readfds:NULL, writefds_p?writefds:NULL,
+                  exceptfds_p?exceptfds:NULL, timeout_p?&timeout:NULL);
 
     if (timeout_p) {
         timeout_guest->tv_sec = timeout.tv_sec;
@@ -61,7 +62,8 @@ int pselect6_s3264(uint32_t nfds_p, uint32_t readfds_p, uint32_t writefds_p, uin
 
     data.ss = (const sigset_t *) g_2_h(data_guest->ss);
     data.ss_len = data_guest->ss_len;
-    res = syscall(SYS_pselect6, nfds, readfds, writefds, exceptfds, timeout_p?&timeout:NULL, &data);
+    res = syscall(SYS_pselect6, nfds, readfds_p?readfds:NULL, writefds_p?writefds:NULL,
+                  exceptfds_p?exceptfds:NULL, timeout_p?&timeout:NULL, &data);
 
     if (timeout_p) {
         timeout_guest->tv_sec = timeout.tv_sec;

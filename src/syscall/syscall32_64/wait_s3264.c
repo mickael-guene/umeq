@@ -19,7 +19,7 @@ int wait4_s3264(uint32_t pid_p,uint32_t status_p,uint32_t options_p,uint32_t rus
     struct rusage_32 *rusage_guest = (struct rusage_32 *) g_2_h(rusage_p);
     struct rusage rusage;
 
-    res = syscall(SYS_wait4, pid, status, options, rusage_p?&rusage:NULL);
+    res = syscall(SYS_wait4, pid, status_p?status:NULL, options, rusage_p?&rusage:NULL);
     if (rusage_p) {
         rusage_guest->ru_utime.tv_sec = rusage.ru_utime.tv_sec;
         rusage_guest->ru_utime.tv_usec = rusage.ru_utime.tv_usec;

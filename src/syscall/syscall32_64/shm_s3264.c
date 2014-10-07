@@ -6,6 +6,7 @@
 #include <sys/shm.h>
 #include <sys/sem.h>
 #include <sys/mman.h>
+#include <errno.h>
 
 #include "syscall32_64_types.h"
 #include "syscall32_64_private.h"
@@ -23,12 +24,15 @@ int shmat_s3264(uint32_t shmid_p, uint32_t shmaddr_p, uint32_t shmflg_p)
 
     if (shmaddr_p == 0) {
         struct shmid_ds shm_info;
+        guest_ptr mmap_res;
 
         res = shmctl(shmid, IPC_STAT, &shm_info);
         if (res < 0)
             return res;
-        /* FIXME : error code */
-        shmaddr = mmap(NULL, shm_info.shm_segsz, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
+        mmap_res = mmap_guest(0, shm_info.shm_segsz, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (mmap_res == -1)
+            return -ENOMEM;
+        shmaddr = g_2_h(mmap_res);
     }
 
     res2 = (void *) syscall(SYS_shmat, shmid, shmaddr, shmflg|SHM_REMAP);

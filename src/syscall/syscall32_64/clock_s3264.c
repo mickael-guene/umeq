@@ -51,7 +51,7 @@ int nanosleep_s3264(uint32_t req_p, uint32_t rem_p)
     //do x86 syscall
     res = syscall(SYS_nanosleep, &req, rem_p?&rem:NULL);
 
-    if (rem_guest) {
+    if (rem_p) {
         rem_guest->tv_sec = rem.tv_sec;
         rem_guest->tv_nsec = rem.tv_nsec;
     }

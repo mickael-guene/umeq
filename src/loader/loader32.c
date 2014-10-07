@@ -14,11 +14,11 @@
 #define DL_LOAD_ADDR                    0x40000000
 
 unsigned int startbrk;
-static void *load_AT_PHDR_init = 0;
+static guest_ptr load_AT_PHDR_init = 0;
 
-static void *getEntry(int fd, Elf32_Ehdr *hdr);
+static guest_ptr getEntry(int fd, Elf32_Ehdr *hdr);
 static int getSegment(int fd, Elf32_Ehdr *hdr, int idx, Elf32_Phdr *segment);
-static int mapSegment(int fd, Elf32_Phdr *segment, struct load_auxv_info *auxv_info, int is_dl);
+static int mapSegment(int fd, Elf32_Phdr *segment, struct load_auxv_info_32 *auxv_info, int is_dl);
 static int elfToMapProtection(uint32_t flags);
 static void unmapSegment(int fd, Elf32_Phdr *segment);
 static void dl_copy_dl_name(int fd, Elf32_Phdr *segment, char *name);
@@ -34,15 +34,6 @@ static void dl_copy_dl_name(int fd, Elf32_Phdr *segment, char *name);
     return NULL in case of error
 */
 
-/*
-struct load_auxv_info {
-    void *load_AT_PHDR; // Program headers for program
-    unsigned int load_AT_PHENT; // Size of program header entry
-    unsigned int load_AT_PHNUM; // Number of program headers
-    void *load_AT_ENTRY; // Entry point of program
-};
-*/
-
 int foo(const char *file)
 {
     int fd;
@@ -51,12 +42,12 @@ int foo(const char *file)
     return fd;
 }
 
-void *load32(const char *file, struct load_auxv_info *auxv_info)
+guest_ptr load32(const char *file, struct load_auxv_info_32 *auxv_info)
 {
     Elf32_Ehdr elf_header;
     Elf32_Phdr segment;
-    void *dl_entry = 0;
-    void *entry = 0;
+    guest_ptr dl_entry = 0;
+    guest_ptr entry = 0;
     int fd;
     int i = 0;
     int is_dl = 0;
@@ -70,7 +61,7 @@ void *load32(const char *file, struct load_auxv_info *auxv_info)
         goto end;
     is_dl = (elf_header.e_type == ET_DYN)?1:0;
 
-    load_AT_PHDR_init = (void *)(long) elf_header.e_phoff;
+    load_AT_PHDR_init = elf_header.e_phoff;
     auxv_info->load_AT_PHENT = elf_header.e_phentsize;
     auxv_info->load_AT_PHNUM = elf_header.e_phnum;
     auxv_info->load_AT_ENTRY = entry;
@@ -84,7 +75,7 @@ void *load32(const char *file, struct load_auxv_info *auxv_info)
                 }
             } else if (segment.p_type == PT_INTERP) {
                 char dl_name[256];
-                struct load_auxv_info dl_auxv_info;
+                struct load_auxv_info_32 dl_auxv_info;
 
                 dl_copy_dl_name(fd, &segment, dl_name);
                 dl_entry = load32(dl_name, &dl_auxv_info);
@@ -139,44 +130,44 @@ static int elfToMapProtection(uint32_t flags)
 
 static void unmapSegment(int fd, Elf32_Phdr *segment)
 {
-    munmap((void *)(long) segment->p_vaddr, segment->p_memsz);
+    munmap_guest(segment->p_vaddr, segment->p_memsz);
 }
 
-static int mapSegment(int fd, Elf32_Phdr *segment, struct load_auxv_info *auxv_info, int is_dl)
+static int mapSegment(int fd, Elf32_Phdr *segment, struct load_auxv_info_32 *auxv_info, int is_dl)
 {
     if (is_dl)
         segment->p_vaddr += DL_LOAD_ADDR;
 
     int status = 0;
-    long vaddr = segment->p_vaddr & ~PAGE_MASK;
-    long offset = segment->p_offset & ~PAGE_MASK;
-    long padding = segment->p_vaddr & PAGE_MASK;
-    void *mapFileResult;
+    uint32_t vaddr = segment->p_vaddr & ~PAGE_MASK;
+    uint32_t offset = segment->p_offset & ~PAGE_MASK;
+    uint32_t padding = segment->p_vaddr & PAGE_MASK;
+    guest_ptr mapFileResult;
 
     // TODO : perhaps need to check it's entirely into this map segment and
     // not completely sure calculation is ok
     // adjust load_AT_PHDR
-    if ((long)load_AT_PHDR_init >= segment->p_offset &&
-        (long)load_AT_PHDR_init < segment->p_offset + segment->p_memsz) {
-        auxv_info->load_AT_PHDR = (void *)((long)load_AT_PHDR_init + segment->p_vaddr - segment->p_offset);
+    if (load_AT_PHDR_init >= segment->p_offset &&
+        load_AT_PHDR_init < segment->p_offset + segment->p_memsz) {
+        auxv_info->load_AT_PHDR = load_AT_PHDR_init + segment->p_vaddr - segment->p_offset;
     }
 
     /* mapping and clearing bss if needed */
-    mapFileResult = mmap_guest((void *)vaddr, segment->p_filesz + padding, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED, fd, offset);
-    if (mapFileResult == (void *)vaddr) {
-        long zeroAddr = segment->p_vaddr + segment->p_filesz;
-        long zeroAddrAlignedOnNextPage = (zeroAddr + PAGE_SIZE - 1) & ~PAGE_MASK;
-        long zeroAddrSize = segment->p_memsz - segment->p_filesz;
-        long zeroAddrMapSize = zeroAddrSize - (zeroAddrAlignedOnNextPage - zeroAddr);
-        char *zeroAddrBuffer = (char *) zeroAddr;
+    mapFileResult = mmap_guest(vaddr, segment->p_filesz + padding, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED, fd, offset);
+    if (mapFileResult == vaddr) {
+        uint32_t zeroAddr = segment->p_vaddr + segment->p_filesz;
+        uint32_t zeroAddrAlignedOnNextPage = (zeroAddr + PAGE_SIZE - 1) & ~PAGE_MASK;
+        uint32_t zeroAddrSize = segment->p_memsz - segment->p_filesz;
+        int32_t zeroAddrMapSize = zeroAddrSize - (zeroAddrAlignedOnNextPage - zeroAddr);
+        char *zeroAddrBuffer = (char *) g_2_h(zeroAddr);
 
         if (!is_dl)
             startbrk = segment->p_vaddr + segment->p_memsz;
         if (zeroAddrSize) {
             /* need to map more memory for bss ? */
             if (zeroAddrMapSize > 0) {
-                mapFileResult = mmap_guest((void *)zeroAddrAlignedOnNextPage, zeroAddrMapSize, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
-                if (mapFileResult != (void *)zeroAddrAlignedOnNextPage)
+                mapFileResult = mmap_guest(zeroAddrAlignedOnNextPage, zeroAddrMapSize, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
+                if (mapFileResult != zeroAddrAlignedOnNextPage)
                     goto exit;
             }
             /* clear bss */
@@ -184,7 +175,7 @@ static int mapSegment(int fd, Elf32_Phdr *segment, struct load_auxv_info *auxv_i
                 *zeroAddrBuffer++ = 0;
             // clear memory until end of page
             if (elfToMapProtection(segment->p_flags) & PROT_WRITE) {
-                while((long)zeroAddrBuffer % PAGE_SIZE != 0)
+                while((long) zeroAddrBuffer % PAGE_SIZE != 0)
                     *zeroAddrBuffer++ = 0;
             }
             status = 1;
@@ -212,9 +203,9 @@ static int getSegment(int fd, Elf32_Ehdr *hdr, int idx, Elf32_Phdr *segment)
     return status;
 }
 
-static void *getEntry(int fd, Elf32_Ehdr *hdr)
+static guest_ptr getEntry(int fd, Elf32_Ehdr *hdr)
 {
-    void *entry = 0;
+    guest_ptr entry = 0;
 
     if (read(fd, hdr, sizeof(*hdr)) == sizeof(*hdr)) {
         /* check it's an elf file */
@@ -227,7 +218,7 @@ static void *getEntry(int fd, Elf32_Ehdr *hdr)
                 hdr->e_ident[EI_DATA] == ELFDATA2LSB &&
                 (hdr->e_type == ET_EXEC || hdr->e_type == ET_DYN) &&
                 hdr->e_machine == EM_ARM) {
-                    entry = (void *)(long) ((hdr->e_type == ET_DYN)?hdr->e_entry+DL_LOAD_ADDR:hdr->e_entry);
+                    entry = ((hdr->e_type == ET_DYN)?hdr->e_entry+DL_LOAD_ADDR:hdr->e_entry);
             }
         }
     }

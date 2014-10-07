@@ -20,6 +20,11 @@ int execve_s3264(uint32_t filename_p,uint32_t argv_p,uint32_t envp_p)
     char **envp;
     int index = 0;
 
+    /* FIXME: do we really need to support this ? */
+    /* Manual say 'On Linux, argv and envp can be specified as NULL' */
+    assert(argv_p != 0);
+    assert(envp_p != 0);
+
     argv = &ptr[index];
     while(*argv_guest != 0) {
         ptr[index++] = (char *) g_2_h(*argv_guest);

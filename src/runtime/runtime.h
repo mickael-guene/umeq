@@ -19,9 +19,6 @@ do { \
 fatal_internal(__VA_ARGS__); \
 assert(0); \
 } while(0)
-extern void *mmap_guest(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
-
-
 
 #endif
 

@@ -12,6 +12,7 @@
 
 #include "arm_private.h"
 #include "arm_syscall.h"
+#include "runtime.h"
 
 /* FIXME: cleanup and try to merge to 32 => 64 syscall stuff */
 
@@ -81,11 +82,12 @@ static pid_t gettid()
 
 static int open_proc_self_auxv()
 {
+    static uint32_t cnt = 0;
     char tmpName[1024];
     int fd;
 
-    sprintf(tmpName, "/tmp/umeq-open.%d", gettid());
-    fd = open(tmpName, O_CREAT, S_IRUSR|S_IWUSR);
+    sprintf(tmpName, "/tmp/umeq-open-proc-self-auxv.%d-%d", gettid(), cnt++);
+    fd = open(tmpName, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
 
     if (fd >= 0) {
         unlink(tmpName);
@@ -94,6 +96,119 @@ static int open_proc_self_auxv()
     }
 
     return fd;
+}
+
+static int getline_internal(char *line, int max_length, int fd)
+{
+    char c;
+    int i = 0;
+
+    while(i<max_length - 1 && read(fd, &c, 1) > 0) {
+        line[i++] = c;
+        if (c == '\n')
+            break;
+    }
+    line[i] = '\0';
+
+    return i==0?-1:i;
+}
+
+int conv_hex_to_int(int c)
+{
+    int res;
+
+    switch(c) {
+        case 48 ... 57:
+            res = c - 48;
+            break;
+        case 97 ... 102:
+            res = c - 97 + 10;
+            break;
+        case 65 ... 70:
+            res = c - 65 + 10;
+            break;
+        default:
+            fatal("invalid char %c\n", c);
+    }
+
+    return res;
+}
+
+static char *split_line(char *line, uint64_t *start_addr_p, uint64_t *end_addr_p)
+{
+    uint64_t start_addr = 0;
+    uint64_t end_addr = 0;
+    unsigned char c;
+    int i = 0;
+    int len = strlen(line);
+    int is_in_start_addr = 1;
+    char *res = NULL;
+
+    while(i < len) {
+        c = line[i++];
+        if (is_in_start_addr) {
+            if (c == '-') {
+                is_in_start_addr = 0;
+            } else {
+                start_addr = start_addr * 16 + conv_hex_to_int(c);
+            }
+        } else {
+            if (c == ' ') {
+                res = &line[i];
+                break;
+            } else {
+                end_addr = end_addr * 16 + conv_hex_to_int(c);
+            }
+        }
+    }
+
+    *start_addr_p = start_addr;
+    *end_addr_p = end_addr;
+
+    return res;
+}
+
+static void write_offset_proc_self_maps(int fd_orig, int fd_res)
+{
+    char line[512];
+    char *line_with_remove_addresses;
+    uint64_t start_addr;
+    uint64_t end_addr;
+
+    while (getline_internal(line, sizeof(line), fd_orig) != -1) {
+        line_with_remove_addresses = split_line(line, &start_addr, &end_addr);
+        if ((start_addr >= mmap_offset) && (start_addr < mmap_offset + 4 * 1024 * 1024 * 1024UL)) {
+            char new_line[512];
+            guest_ptr start_addr_guest = h_2_g(start_addr);
+            guest_ptr end_addr_guest = h_2_g(end_addr);
+
+            sprintf(new_line, "%08x-%08x %s", start_addr_guest, end_addr_guest, line_with_remove_addresses);
+            write(fd_res, new_line, strlen(new_line));
+        }
+    }
+    lseek(fd_res, 0, SEEK_SET);
+}
+
+static int open_proc_self_maps()
+{
+    static uint32_t cnt = 0;
+    char tmpName[1024];
+    int fd_res;
+    int fd_proc_self_maps;
+
+    fd_proc_self_maps = open("/proc/self/maps", O_RDONLY);
+    if (fd_proc_self_maps >= 0) {
+        sprintf(tmpName, "/tmp/umeq-open-proc-self-maps.%d-%d", gettid(), cnt++);
+        fd_res = open(tmpName, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
+
+        if (fd_res >= 0) {
+            unlink(tmpName);
+            write_offset_proc_self_maps(fd_proc_self_maps, fd_res);
+        }
+    } else
+        fd_res = fd_proc_self_maps;
+
+    return fd_res;
 }
 
 int arm_open(struct arm_target *context)
@@ -105,6 +220,8 @@ int arm_open(struct arm_target *context)
 
     if (strcmp(pathname, "/proc/self/auxv") == 0)
         res = open_proc_self_auxv();
+    else if (strcmp(pathname, "/proc/self/maps") == 0)
+        res = open_proc_self_maps();
     else if (strncmp(pathname, "/proc/", strlen("/proc/")) == 0 && strncmp(pathname + strlen(pathname) - 5, "/auxv", strlen("/auxv")) == 0)
         res = -EACCES;
     else

@@ -3,12 +3,6 @@
 #include <sys/syscall.h>
 #include <sys/mman.h>
 
-/* FIXME : This will allow to offset guest memory map */
-void *mmap_guest(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
-{
-    return (void *) syscall((long) SYS_mmap, (long) addr, (long) length, (long) prot, (long) flags, (long) fd, (long) offset);
-}
-
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
     return (void *) syscall((long) SYS_mmap, (long) addr, (long) length, (long) prot, (long) flags, (long) fd, (long) offset);

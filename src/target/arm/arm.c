@@ -28,7 +28,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
                                       0xeafffffd};//b svc
 
         sp = (prev_context->regs.r[13] - 4 * 16 - sizeof(return_code)) & ~7;
-        for(i = 0, dst = (unsigned int *)(long)sp;i < sizeof(return_code)/sizeof(return_code[0]); i++)
+        for(i = 0, dst = (unsigned int *)g_2_h(sp);i < sizeof(return_code)/sizeof(return_code[0]); i++)
             *dst++ = return_code[i];
         context->regs.c13_tls2 = prev_context->regs.c13_tls2;
         context->regs.r[0] = signum;
@@ -40,6 +40,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.reg_itstate = 0;
         context->disa_itstate = 0;
         context->regs.is_in_syscall = 0;
+        context->is_in_signal = 1;
     } else if (param) {
         /* new thread */
         struct arm_target *parent_context = container_of(param, struct arm_target, target);
@@ -55,6 +56,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         assert(context->regs.reg_itstate == 0);
         context->disa_itstate = 0;
         context->regs.is_in_syscall = 0;
+        context->is_in_signal = 0;
     } else if (stack_ptr) {
         /* main thread */
         for(i = 0; i < 15; i++)
@@ -65,6 +67,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->sp_init = (uint32_t) stack_ptr;
         context->regs.reg_itstate = 0;
         context->disa_itstate = 0;
+        context->is_in_signal = 0;
         /* syscall execve exit sequence */
          /* this will be translated into sysexec exit */
         context->regs.is_in_syscall = 2;

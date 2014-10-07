@@ -12,9 +12,9 @@
 int arm_uname(struct arm_target *context)
 {
     int res;
-    struct utsname *buf = (struct utsname *)(long) context->regs.r[0];
+    struct utsname *buf = (struct utsname *) g_2_h(context->regs.r[0]);
 
-    res = syscall(SYS_uname, (long) buf);
+    res = syscall(SYS_uname, buf);
     strcpy(buf->machine, "armv7l");
 
     return res;

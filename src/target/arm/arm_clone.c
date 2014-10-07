@@ -35,11 +35,11 @@ static int clone_thread_arm(struct arm_target *context)
         //copy arm context onto stack
         memcpy(stack, context, sizeof(struct arm_target));
         //clone
-        res = clone_asm(SYS_clone, (long) context->regs.r[0],
-                                (long)stack,
-                                (long) context->regs.r[2],//ptid
-                                (long) context->regs.r[4],//ctid
-                                (long) NULL); //host will not have tls area, target tls area will be set later using r[3] content
+        res = clone_asm(SYS_clone, (unsigned long) context->regs.r[0],
+                                    stack,
+                                    context->regs.r[2]?g_2_h(context->regs.r[2]):NULL,//ptid
+                                    context->regs.r[4]?g_2_h(context->regs.r[4]):NULL,//ctid
+                                    NULL); //host will not have tls area, target tls area will be set later using r[3] content
         // only parent return here
     }
 
@@ -56,11 +56,11 @@ static int clone_fork_arm(struct arm_target *context)
 {
     /* just do the syscall */
     int res = syscall(SYS_clone,
-                        (long) context->regs.r[0],
-                        (long) context->regs.r[1],
-                        (long) context->regs.r[2],
-                        (long) context->regs.r[4],
-                        (long) context->regs.r[3]);
+                        (unsigned long) context->regs.r[0],
+                        context->regs.r[1]?g_2_h(context->regs.r[1]):NULL,
+                        context->regs.r[2]?g_2_h(context->regs.r[2]):NULL,
+                        context->regs.r[4]?g_2_h(context->regs.r[4]):NULL,
+                        context->regs.r[3]?g_2_h(context->regs.r[3]):NULL);
 
     return res;
 }

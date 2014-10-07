@@ -94,6 +94,14 @@ static void write_sco(struct arm_target *context, struct irInstructionAllocator 
     ir->add_write_context_32(ir, value, offsetof(struct arm_registers, shifter_carry_out));
 }
 
+static struct irRegister *mk_address(struct irInstructionAllocator *ir, struct irRegister *address)
+{
+    if (mmap_offset)
+        return ir->add_add_64(ir, ir->add_32U_to_64(ir, address), ir->add_mov_const_64(ir, mmap_offset));
+    else
+        return address;
+}
+
 static struct irRegister *address_register_offset(struct arm_target *context, struct irInstructionAllocator *ir, int index, int offset)
 {
     struct irRegister *res;
@@ -423,13 +431,13 @@ static int dis_ldm_stm(struct arm_target *context, uint32_t insn, struct irInstr
             if ((reglist >> i) & 1) {
                 write_reg(context, ir, i,
                           ir->add_load_32(ir,
-                                          ir->add_add_32(ir, start_address, mk_32(ir, offset))));
+                                          mk_address(ir, ir->add_add_32(ir, start_address, mk_32(ir, offset)))));
                 offset += 4;
             }
         }
         if ((reglist >> 15) & 1) {
             //pc will be update => block exit
-            newPc = ir->add_load_32(ir, ir->add_add_32(ir, start_address, mk_32(ir, offset)));
+            newPc = ir->add_load_32(ir, mk_address(ir, ir->add_add_32(ir, start_address, mk_32(ir, offset))));
 
             write_reg(context, ir, 15, newPc);
             isExit = 1;
@@ -438,7 +446,7 @@ static int dis_ldm_stm(struct arm_target *context, uint32_t insn, struct irInstr
         for(i=0;i<16;i++) {
             if ((reglist >> i) & 1) {
                 ir->add_store_32(ir, read_reg(context, ir, i),
-                                 ir->add_add_32(ir, start_address, mk_32(ir, offset)));
+                                 mk_address(ir, ir->add_add_32(ir, start_address, mk_32(ir, offset))));
                 offset += 4;
             }
         }
@@ -537,15 +545,15 @@ static int dis_load_store_word_and_unsigned_byte_imm_offset(struct arm_target *c
     if (l == 1) {
         //load
         if (b)
-            write_reg(context, ir, rd, ir->add_8U_to_32(ir, ir->add_load_8(ir, address)));
+            write_reg(context, ir, rd, ir->add_8U_to_32(ir, ir->add_load_8(ir, mk_address(ir, address))));
         else
-            write_reg(context, ir, rd, ir->add_load_32(ir, address));
+            write_reg(context, ir, rd, ir->add_load_32(ir, mk_address(ir, address)));
     } else {
         //store
         if (b)
-            ir->add_store_8(ir, ir->add_32_to_8(ir, read_reg(context, ir, rd)), address);
+            ir->add_store_8(ir, ir->add_32_to_8(ir, read_reg(context, ir, rd)), mk_address(ir, address));
         else
-            ir->add_store_32(ir, read_reg(context, ir, rd), address);
+            ir->add_store_32(ir, read_reg(context, ir, rd), mk_address(ir, address));
     }
     /* rn write back if needed */
     if (p && w) {
@@ -631,15 +639,15 @@ static int dis_load_store_word_and_unsigned_byte_register_offset(struct arm_targ
     if (l == 1) {
         //load
         if (b)
-            write_reg(context, ir, rd, ir->add_8U_to_32(ir, ir->add_load_8(ir, address)));
+            write_reg(context, ir, rd, ir->add_8U_to_32(ir, ir->add_load_8(ir, mk_address(ir, address))));
         else
-            write_reg(context, ir, rd, ir->add_load_32(ir, address));
+            write_reg(context, ir, rd, ir->add_load_32(ir, mk_address(ir, address)));
     } else {
         //store
         if (b)
-            ir->add_store_8(ir, ir->add_32_to_8(ir, read_reg(context, ir, rd)), address);
+            ir->add_store_8(ir, ir->add_32_to_8(ir, read_reg(context, ir, rd)), mk_address(ir, address));
         else
-            ir->add_store_32(ir, read_reg(context, ir, rd), address);
+            ir->add_store_32(ir, read_reg(context, ir, rd), mk_address(ir, address));
     }
     /* rn write back if needed */
     if (p && w) {
@@ -971,9 +979,9 @@ static int dis_load_store_halfword_register_offset(struct arm_target *context, u
     }
     /* make load/store */
     if (l == 1) {
-        write_reg(context, ir, rd, ir->add_16U_to_32(ir, ir->add_load_16(ir, address)));
+        write_reg(context, ir, rd, ir->add_16U_to_32(ir, ir->add_load_16(ir, mk_address(ir, address))));
     } else {
-        ir->add_store_16(ir, ir->add_32_to_16(ir, read_reg(context, ir, rd)), address);
+        ir->add_store_16(ir, ir->add_32_to_16(ir, read_reg(context, ir, rd)), mk_address(ir, address));
     }
     /* write-back if needed */
     if (p && w) {
@@ -1016,9 +1024,9 @@ static int dis_load_store_halfword_immediate_offset(struct arm_target *context, 
     }
     /* make load/store */
     if (l == 1) {
-        write_reg(context, ir, rd, ir->add_16U_to_32(ir, ir->add_load_16(ir, address)));
+        write_reg(context, ir, rd, ir->add_16U_to_32(ir, ir->add_load_16(ir, mk_address(ir, address))));
     } else {
-        ir->add_store_16(ir, ir->add_32_to_16(ir, read_reg(context, ir, rd)), address);
+        ir->add_store_16(ir, ir->add_32_to_16(ir, read_reg(context, ir, rd)), mk_address(ir, address));
     }
     /* write-back if needed */
     if (p && w) {
@@ -1179,11 +1187,11 @@ static int dis_load_store_double_immediate_offset(struct arm_target *context, ui
     }
     /* make load/store */
     if (l == 1) {
-        write_reg(context, ir, rd, ir->add_load_32(ir, address));
-        write_reg(context, ir, rd + 1, ir->add_load_32(ir, ir->add_add_32(ir, address, mk_32(ir, 4))));
+        write_reg(context, ir, rd, ir->add_load_32(ir, mk_address(ir, address)));
+        write_reg(context, ir, rd + 1, ir->add_load_32(ir, mk_address(ir, ir->add_add_32(ir, address, mk_32(ir, 4)))));
     } else {
-        ir->add_store_32(ir, read_reg(context, ir, rd), address);
-        ir->add_store_32(ir, read_reg(context, ir, rd + 1), ir->add_add_32(ir, address, mk_32(ir, 4)));
+        ir->add_store_32(ir, read_reg(context, ir, rd), mk_address(ir, address));
+        ir->add_store_32(ir, read_reg(context, ir, rd + 1), mk_address(ir, ir->add_add_32(ir, address, mk_32(ir, 4))));
     }
     /* write-back if needed */
     if (p && w) {
@@ -1231,11 +1239,11 @@ static int dis_load_store_double_register_offset(struct arm_target *context, uin
     }
     /* make load/store */
     if (l == 1) {
-        write_reg(context, ir, rd, ir->add_load_32(ir, address));
-        write_reg(context, ir, rd + 1, ir->add_load_32(ir, ir->add_add_32(ir, address, mk_32(ir, 4))));
+        write_reg(context, ir, rd, ir->add_load_32(ir, mk_address(ir, address)));
+        write_reg(context, ir, rd + 1, ir->add_load_32(ir, mk_address(ir, ir->add_add_32(ir, address, mk_32(ir, 4)))));
     } else {
-        ir->add_store_32(ir, read_reg(context, ir, rd), address);
-        ir->add_store_32(ir, read_reg(context, ir, rd + 1), ir->add_add_32(ir, address, mk_32(ir, 4)));
+        ir->add_store_32(ir, read_reg(context, ir, rd), mk_address(ir, address));
+        ir->add_store_32(ir, read_reg(context, ir, rd + 1), mk_address(ir, ir->add_add_32(ir, address, mk_32(ir, 4))));
     }
     /* write-back if needed */
     if (p && w) {
@@ -1278,9 +1286,9 @@ static int dis_load_signed_halfword_byte_immediate_offset(struct arm_target *con
     }
     /* make load */
     if (isHalfWord)
-        write_reg(context, ir, rd, ir->add_16S_to_32(ir, ir->add_load_16(ir, address)));
+        write_reg(context, ir, rd, ir->add_16S_to_32(ir, ir->add_load_16(ir, mk_address(ir, address))));
     else
-        write_reg(context, ir, rd, ir->add_8S_to_32(ir, ir->add_load_8(ir, address)));
+        write_reg(context, ir, rd, ir->add_8S_to_32(ir, ir->add_load_8(ir, mk_address(ir, address))));
     /* write-back if needed */
     if (p && w) {
         //pre-indexed
@@ -1326,9 +1334,9 @@ static int dis_load_signed_halfword_byte_register_offset(struct arm_target *cont
     }
     /* make load */
     if (isHalfWord)
-        write_reg(context, ir, rd, ir->add_16S_to_32(ir, ir->add_load_16(ir, address)));
+        write_reg(context, ir, rd, ir->add_16S_to_32(ir, ir->add_load_16(ir, mk_address(ir, address))));
     else
-        write_reg(context, ir, rd, ir->add_8S_to_32(ir, ir->add_load_8(ir, address)));
+        write_reg(context, ir, rd, ir->add_8S_to_32(ir, ir->add_load_8(ir, mk_address(ir, address))));
     /* write-back if needed */
     if (p && w) {
         //pre-indexed
@@ -2193,11 +2201,11 @@ void disassemble_arm(struct target *target, struct irInstructionAllocator *ir, u
     struct arm_target *context = container_of(target, struct arm_target, target);
     int i;
     int isExit; //unconditionnal exit
-    uint32_t *pc_ptr = (uint32_t *) pc;
+    uint32_t *pc_ptr = (uint32_t *) g_2_h(pc);
 
     assert((pc & 3) == 0);
     for(i = 0; i < maxInsn; i++) {
-        context->pc = (uint32_t) (uint64_t)pc_ptr;
+        context->pc = h_2_g(pc_ptr);
         if (context->pc == 0xffff0fc0) {
             isExit = vdso_cmpxchg(context, ir);
         } else if (context->pc == 0xffff0fa0) {

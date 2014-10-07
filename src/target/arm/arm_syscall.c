@@ -42,6 +42,15 @@ void arm_hlp_syscall(uint64_t regs)
                                             context->regs.r[3], context->regs.r[4], context->regs.r[5]);
     } else if (how == HOW_custom_implementation) {
         switch(no_neutral) {
+            case PR_mmap:
+                res = arm_mmap(context);
+                break;
+            case PR_mmap2:
+                res = arm_mmap2(context);
+                break;
+            case PR_munmap:
+                res = arm_munmap(context);
+                break;
             case PR_open:
                 res = arm_open(context);
                 break;

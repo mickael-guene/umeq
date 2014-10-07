@@ -7,8 +7,7 @@ extern "C" {
 #ifndef __ARM_SYSCALL__
 #define __ARM_SYSCALL__ 1
 
-#define g_2_h(ptr)  ((uint64_t)(ptr))
-#define h_2_g(ptr)  ((ptr))
+#include "target32.h"
 
 extern int arm_uname(struct arm_target *context);
 extern int arm_brk(struct arm_target *context);
@@ -18,6 +17,9 @@ extern int arm_rt_sigaction(struct arm_target *context);
 extern int arm_clone(struct arm_target *context);
 extern int arm_ptrace(struct arm_target *context);
 extern int arm_sigaltstack(struct arm_target *context);
+extern int arm_mmap(struct arm_target *context);
+extern int arm_mmap2(struct arm_target *context);
+extern int arm_munmap(struct arm_target *context);
 
 #endif
 

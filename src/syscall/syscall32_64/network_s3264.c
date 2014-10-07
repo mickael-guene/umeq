@@ -20,7 +20,7 @@ int recvmsg_s3264(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
 
     assert(msg_guest->msg_iovlen <= 16);
 
-    msg.msg_name = (void *) g_2_h(msg_guest->msg_name);
+    msg.msg_name = msg_guest->msg_name?(void *) g_2_h(msg_guest->msg_name):NULL;
     msg.msg_namelen = msg_guest->msg_namelen;
     for(i = 0; i < msg_guest->msg_iovlen; i++) {
         struct iovec_32 *iovec_guest = (struct iovec_32 *) g_2_h(msg_guest->msg_iov + sizeof(struct iovec_32) * i);
@@ -51,7 +51,7 @@ int sendmsg_s3264(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
 
     assert(msg_guest->msg_iovlen <= 16);
 
-    msg.msg_name = (void *) g_2_h(msg_guest->msg_name);
+    msg.msg_name = msg_guest->msg_name?(void *) g_2_h(msg_guest->msg_name):NULL;
     msg.msg_namelen = msg_guest->msg_namelen;
     for(i = 0; i < msg_guest->msg_iovlen; i++) {
         struct iovec_32 *iovec_guest = (struct iovec_32 *) g_2_h(msg_guest->msg_iov + sizeof(struct iovec_32) * i);

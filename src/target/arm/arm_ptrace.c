@@ -97,8 +97,9 @@ int arm_ptrace(struct arm_target *context)
             {
                 unsigned long data_host;
                 unsigned int *data_guest = (unsigned int *) g_2_h(data);
+                void *addr_host = g_2_h(addr);
 
-                res = syscall(SYS_ptrace, request, pid, addr, &data_host);
+                res = syscall(SYS_ptrace, request, pid, addr_host, &data_host);
                 //fprintf(stderr, "PEEK: @0x%08x => res = %d\n", addr, res);
                 *data_guest = data_host;
             }
@@ -107,10 +108,11 @@ int arm_ptrace(struct arm_target *context)
         case PTRACE_POKEDATA:
             {
                 unsigned long data_host;
+                void *addr_host = g_2_h(addr);
 
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, addr, &data_host);
+                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, addr_host, &data_host);
                 data_host = (data_host & 0xffffffff00000000UL) | data;
-                res = syscall(SYS_ptrace, request, pid, addr, data_host);
+                res = syscall(SYS_ptrace, request, pid, addr_host, data_host);
                 //fprintf(stderr, "POKE: @0x%08x = 0x%08x => res = %d\n", addr, data, res);
             }
             break;
@@ -203,8 +205,6 @@ int arm_ptrace(struct arm_target *context)
             res = -EIO;
             break;
     }
-/*    if (request == PTRACE_SETOPTIONS)
-        fprintf(stderr, "(options)ptrace command : %d / 0x%x => res = %d\n", request, request, res);*/
 
     return res;
 }

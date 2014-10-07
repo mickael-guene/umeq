@@ -74,7 +74,7 @@ void arm_hlp_vdso_cmpxchg(uint64_t _regs)
     struct arm_registers *regs = (struct arm_registers *) _regs;
     uint32_t oldval = regs->r[0];
     uint32_t newval = regs->r[1];
-    uint32_t *address = (uint32_t *) (uint64_t)regs->r[2];
+    uint32_t *address = (uint32_t *) g_2_h(regs->r[2]);
 
     if (__sync_bool_compare_and_swap(address, oldval, newval)) {
         regs->r[0] = 0;
@@ -614,7 +614,7 @@ uint32_t arm_hlp_ldrex(uint64_t regs, uint32_t address, uint32_t size_access)
 
     switch(size_access) {
         case 4:
-            context->exclusive_value = (uint64_t) *((uint32_t *)(uint64_t) address);
+            context->exclusive_value = (uint64_t) *((uint32_t *)g_2_h(address));
             break;
         default:
             fatal("size_access %d unsupported\n", size_access);
@@ -630,7 +630,7 @@ uint32_t arm_hlp_strex(uint64_t regs, uint32_t address, uint32_t size_access, ui
 
     switch(size_access) {
         case 4:
-            if (__sync_bool_compare_and_swap((uint32_t *)(uint64_t) address, (uint32_t)context->exclusive_value, value))
+            if (__sync_bool_compare_and_swap((uint32_t *) g_2_h(address), (uint32_t)context->exclusive_value, value))
                 res = 0;
             else
                 res = 1;

@@ -9,9 +9,6 @@ extern "C" {
 #include <sys/types.h>
 #include <stdint.h>
 
-#define g_2_h(ptr)  ((uint64_t)(ptr))
-#define h_2_g(ptr)  ((uint32_t)(uint64_t)(ptr))
-
 struct stat64_32 {
 	uint64_t	st_dev;
 	uint8_t   __pad0[4];

@@ -5,6 +5,8 @@ extern "C" {
 #ifndef __SYSCALL32_64_PRIVATE__
 #define __SYSCALL32_64_PRIVATE__ 1
 
+#include "target32.h"
+
 extern int stat64_s3264(uint32_t pathname_p, uint32_t buf_p);
 extern int fstat64_s3264(uint32_t fd, uint32_t buf);
 extern int fstat64_s3264(uint32_t fd_p, uint32_t buf_p);

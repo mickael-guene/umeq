@@ -176,8 +176,8 @@ int main(int argc, char **argv)
     int additionnal_env_index = 0;
     int unset_env_index = 0;
     int res = 0;
-    void *entry;
-    struct load_auxv_info auxv_info;
+    guest_ptr entry;
+    struct load_auxv_info_32 auxv_info;
 
     additionnal_env[additionnal_env_index++] = "OPENSSL_armcap=0";
     /* capture umeq arguments.
@@ -205,8 +205,9 @@ int main(int argc, char **argv)
 
     /* load program in memory */
     entry = arm_load_program(argv[target_argv0_index], &auxv_info);
+    arm_setup_brk();
     if (entry) {
-        void *stack_entry = arm_allocate_and_populate_stack(argc - target_argv0_index, argv + target_argv0_index, &auxv_info, additionnal_env, unset_env, target_argv0);
+        guest_ptr stack_entry = arm_allocate_and_populate_stack(argc - target_argv0_index, argv + target_argv0_index, &auxv_info, additionnal_env, unset_env, target_argv0);
         loop((uint64_t) entry, (uint64_t) stack_entry, 0, NULL);
     } else {
         info("Unable to open %s\n", argv[target_argv0_index]);

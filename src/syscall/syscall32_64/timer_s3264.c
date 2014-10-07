@@ -22,21 +22,25 @@ int timer_create_s3264(uint32_t clockid_p, uint32_t sevp_p, uint32_t timerid_p)
 	timer_t *timerid = (timer_t *) g_2_h(timerid_p);
 	struct sigevent evp;
 
-    switch(sevp_guest->sigev_notify) {
-        case SIGEV_NONE:
-            evp.sigev_notify = SIGEV_NONE;
-            break;
-        case SIGEV_SIGNAL:
-            evp.sigev_notify = SIGEV_SIGNAL;
-            evp.sigev_signo = sevp_guest->sigev_signo;
-            evp.sigev_value.sival_ptr = (void *) g_2_h(sevp_guest->sigev_value.sival_ptr);
-            break;
-        default:
-            /* FIXME : add SIGEV_THREAD + SIGEV_THREAD_ID support */
-            assert(0);
+    if (sevp_p) {
+        switch(sevp_guest->sigev_notify) {
+            case SIGEV_NONE:
+                evp.sigev_notify = SIGEV_NONE;
+                break;
+            case SIGEV_SIGNAL:
+                evp.sigev_notify = SIGEV_SIGNAL;
+                evp.sigev_signo = sevp_guest->sigev_signo;
+                /* FIXME: need to check kernel since doc is not clear which union part is use */
+                //evp.sigev_value.sival_ptr = (void *) g_2_h(sevp_guest->sigev_value.sival_ptr);
+                evp.sigev_value.sival_int = sevp_guest->sigev_value.sival_int;
+                break;
+            default:
+                /* FIXME : add SIGEV_THREAD + SIGEV_THREAD_ID support */
+                assert(0);
+        }
     }
 
-    res = syscall(SYS_timer_create, clockid, &evp, timerid);
+    res = syscall(SYS_timer_create, clockid, sevp_p?&evp:NULL, timerid);
 
     return res;
 }
