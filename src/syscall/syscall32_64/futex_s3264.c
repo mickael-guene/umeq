@@ -26,9 +26,12 @@ int futex_s3264(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32_t timeou
     if (cmd == FUTEX_REQUEUE || cmd == FUTEX_CMP_REQUEUE ||
         cmd == FUTEX_CMP_REQUEUE_PI || cmd == FUTEX_WAKE_OP) {
         syscall_timeout = timeout_p;
+    } else if (cmd == FUTEX_WAKE) {
+        /* in this case timeout argument is not use and can take any value */
+        syscall_timeout = timeout_p;
     } else if (timeout_p) {
         timeout.tv_sec = timeout_guest->tv_sec;
-        timeout.tv_nsec = timeout_guest->tv_nsec; 
+        timeout.tv_nsec = timeout_guest->tv_nsec;
     }
 
     res = syscall(SYS_futex, uaddr, op, val, syscall_timeout, uaddr2, val3);
