@@ -42,6 +42,11 @@ static long mremap_syscall(void *old_address, size_t old_size, size_t new_size, 
     return syscall(SYS_mremap, old_address, old_size, new_size, flags, new_address);
 }
 
+static long mmap_syscall(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
+{
+    return syscall(SYS_mmap, addr, length, prot, flags, fd, offset);
+}
+
 static int is_syscall_error(long res)
 {
     if (res < 0 && res > -4096)
@@ -54,8 +59,8 @@ static int is_syscall_error(long res)
 static void allocate_more_desc()
 {
     int i;
-    struct vma_desc *descs = (struct vma_desc *) mmap(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    assert(descs != MAP_FAILED);
+    struct vma_desc *descs = (struct vma_desc *) mmap_syscall(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    assert(is_syscall_error((long) descs) == 0);
     for(i = 0; i < DESC_PER_PAGE; i++)
         LIST_INSERT_HEAD(&free_vma_list, &descs[i], entries);
 }
@@ -192,6 +197,7 @@ static void insert_area(uint32_t start_addr, uint32_t end_addr, enum vma_type ty
     }
 }
 
+#if 0
 static void dump_vma_list()
 {
     struct vma_desc *desc;
@@ -203,6 +209,7 @@ static void dump_vma_list()
             fprintf(stderr, "[0x%08x:0x%08x[ : VMA_UNMAP\n", desc->start_addr, desc->end_addr);
     }
 }
+#endif
 
 /* insert a new map area [start_addr, end_addr[. address are page align */
 static void insert_map_area(uint32_t start_addr, uint32_t end_addr)
@@ -277,20 +284,15 @@ static uint32_t find_vma_with_hint(uint32_t length, uint32_t hint_addr)
 static void arm_mmap_init()
 {
     struct vma_desc *desc;
-    uint64_t mmap_offset2;
 
     /* map 4 Gbytes of memory which is process user space */
 #if 0
     mmap_offset = 0;
 #else
-    mmap_offset = (uint64_t) mmap((void *) (5 * 1024 * 1024 * 1024UL), 1 * 1024 * 1024 * 1024, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-    assert(mmap_offset != (uint64_t) MAP_FAILED);
-    mmap_offset2 = (uint64_t) mmap((void *) (mmap_offset + 1 * 1024 * 1024 * 1024), 1 * 1024 * 1024 * 1024, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-    assert(mmap_offset2 != (uint64_t) MAP_FAILED);
-    mmap_offset2 = (uint64_t) mmap((void *) (mmap_offset2 + 1 * 1024 * 1024 * 1024), 1 * 1024 * 1024 * 1024, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-    assert(mmap_offset2 != (uint64_t) MAP_FAILED);
-    mmap_offset2 = (uint64_t) mmap((void *) (mmap_offset2 + 1 * 1024 * 1024 * 1024), 1 * 1024 * 1024 * 1024, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-    assert(mmap_offset2 != (uint64_t) MAP_FAILED);
+    /* map at fix address since this make ptrace emulation easier */
+    mmap_offset = (uint64_t) mmap_syscall((void *) (5 * 1024 * 1024 * 1024UL), 4 * 1024 * 1024 * 1024UL,
+                                          PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+    assert(is_syscall_error(mmap_offset) == 0);
 #endif
     /* init vma_list */
     desc = arm_get_free_desc();
@@ -307,7 +309,7 @@ static void arm_mmap_init()
 static int internal_mmap(uint32_t addr_p, uint32_t length_p, uint32_t prot_p,
                          uint32_t flags_p, uint32_t fd_p, uint32_t offset_p)
 {
-    void *res;
+    long res;
 
     if (!is_init)
         arm_mmap_init();
@@ -332,10 +334,10 @@ static int internal_mmap(uint32_t addr_p, uint32_t length_p, uint32_t prot_p,
             insert_map_area(start_addr, end_addr);
         }
 
-        res = mmap(addr, length, prot, flags, fd, offset);
+        res = mmap_syscall(addr, length, prot, flags, fd, offset);
     }
 
-    return res == MAP_FAILED?-1:(int)(long)h_2_g(res);
+    return is_syscall_error(res)?res:h_2_g(res);
 }
 
 static int internal_munmap(uint32_t addr_p, uint32_t length_p)
