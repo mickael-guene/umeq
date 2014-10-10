@@ -28,6 +28,7 @@ int utimes_s3264(uint32_t filename_p, uint32_t times_p)
 	return res;
 }
 
+/* if pathname is NULL, then the call modifies the timestamps of the file referred to by the file descriptor dirfd */
 int utimensat_s3264(uint32_t dirfd_p, uint32_t pathname_p, uint32_t times_p, uint32_t flags_p)
 {
     int res;
@@ -44,7 +45,7 @@ int utimensat_s3264(uint32_t dirfd_p, uint32_t pathname_p, uint32_t times_p, uin
         times[1].tv_nsec = times_guest[1].tv_nsec;
     }
 
-    res = syscall(SYS_utimensat, dirfd, pathname, (times_p?times:NULL), flags);
+    res = syscall(SYS_utimensat, dirfd, pathname_p?pathname:NULL, (times_p?times:NULL), flags);
 
     return res;
 }
