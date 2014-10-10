@@ -20,6 +20,7 @@ extern int arm_sigaltstack(struct arm_target *context);
 extern int arm_mmap(struct arm_target *context);
 extern int arm_mmap2(struct arm_target *context);
 extern int arm_munmap(struct arm_target *context);
+extern int arm_mremap(struct arm_target *context);
 
 #endif
 

@@ -1,7 +1,11 @@
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <sys/syscall.h>
 #include <sys/queue.h>
 #include <sys/mman.h>
 #include <assert.h>
 #include <pthread.h>
+#include <errno.h>
 
 #include "arm_private.h"
 #include "arm_syscall.h"
@@ -32,6 +36,19 @@ static int is_init = 0;
 static struct vma_head free_vma_list = LIST_HEAD_INITIALIZER(free_vma_list);
 static struct vma_head vma_list = LIST_HEAD_INITIALIZER(vma_list);
 static pthread_mutex_t ll_big_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static long mremap_syscall(void *old_address, size_t old_size, size_t new_size, int flags, void *new_address)
+{
+    return syscall(SYS_mremap, old_address, old_size, new_size, flags, new_address);
+}
+
+static int is_syscall_error(long res)
+{
+    if (res < 0 && res > -4096)
+        return 1;
+    else
+        return 0;
+}
 
 /* this fucntion allocate a new bunch of free descriptors and add them to free_vma_list */
 static void allocate_more_desc()
@@ -199,6 +216,24 @@ static void insert_unmap_area(uint32_t start_addr, uint32_t end_addr)
     insert_area(start_addr, end_addr, VMA_UNMAP);
 }
 
+/* testing if an area is unmap */
+static uint32_t is_area_unmap(uint32_t start_addr, uint32_t end_addr)
+{
+    struct vma_desc *owner;
+    int res = 0;
+
+    start_addr = PAGE_ALIGN_DOWN(start_addr);
+    end_addr = PAGE_ALIGN_UP(end_addr);
+    owner = find_address_owner(start_addr);
+
+    if (owner->type == VMA_UNMAP && end_addr <= owner->end_addr)
+        res = 1;
+    else
+        res = 0;
+
+    return res;
+}
+
 /* find an unallocated of length bytes */
 static uint32_t find_vma_with_hint(uint32_t length, uint32_t hint_addr)
 {
@@ -322,6 +357,80 @@ static int internal_munmap(uint32_t addr_p, uint32_t length_p)
     return res;
 }
 
+/* FIXME: this one need testing .... */
+static int internal_mremap(uint32_t old_addr_p, uint32_t old_size_p, uint32_t new_size_p,
+                           uint32_t flags_p, uint32_t new_addr_p)
+{
+    int res = -ENOMEM;
+    long res_host;
+
+    if (!is_init)
+        arm_mmap_init();
+    {
+        void *old_addr = (void *) g_2_h(old_addr_p);
+        size_t old_size = (size_t) old_size_p;
+        size_t new_size = (size_t) new_size_p;
+        int flags = (int) flags_p;
+        void *new_addr = (void *) g_2_h(new_addr_p);
+        uint32_t old_size_align_p = PAGE_ALIGN_UP(old_size_p);
+        uint32_t new_size_align_p = PAGE_ALIGN_UP(new_size_p);
+
+        if (flags & MREMAP_FIXED) {
+            /* user request that we move mapping to new_addr */
+            uint32_t start_addr = new_addr_p;
+            uint32_t end_addr = PAGE_ALIGN_UP(new_addr_p + new_size_p);
+
+            res_host = mremap_syscall(old_addr, old_size, new_size, flags, new_addr);
+            if (!is_syscall_error(res_host)) {
+                insert_map_area(start_addr, end_addr);
+                res = new_addr_p;
+            } else
+                res = res_host;
+        } else {
+            if (new_size_align_p <= old_size_align_p) {
+                //we shrink so we are sure to success and the kernel will not move segment
+                res_host = mremap_syscall(old_addr, old_size, new_size, flags, new_addr);
+                if (!is_syscall_error(res_host)) {
+                    if (old_size_align_p != new_size_align_p) {
+                        insert_unmap_area(old_addr_p + new_size_align_p, old_addr_p + old_size_align_p);
+                    }
+                    res = old_addr_p;
+                } else
+                    res = res_host;
+            } else {
+                //need to grow
+                if (is_area_unmap(old_addr_p + old_size_align_p, old_addr_p + new_size_align_p)) {
+                    /* be sure to remove MREMAP_MAYMOVE so following syscall either success with old addr or fail */
+                    res_host = mremap_syscall(old_addr, old_size, new_size, (flags & ~MREMAP_MAYMOVE), new_addr);
+                    if (!is_syscall_error(res_host)) {
+                        insert_map_area(old_addr_p + old_size_align_p, old_addr_p + new_size_align_p);
+                        res = old_addr_p;
+                    } else
+                        res = res_host;
+                } else if (flags & MREMAP_MAYMOVE) {
+                    //we need to move ....
+                    uint32_t new_possible_addr_p = find_vma_with_hint(new_size_p, 0);
+                    if (new_possible_addr_p) {
+                        void * new_possible_addr = (void *) g_2_h(new_possible_addr_p);
+
+                        res_host = mremap_syscall(old_addr, old_size, new_size, (flags | MREMAP_FIXED), new_possible_addr);
+                        if (!is_syscall_error(res_host)) {
+                            res = new_possible_addr_p;
+                        } else {
+                            insert_unmap_area(new_possible_addr_p, new_possible_addr_p + new_size_align_p);
+                            res = res_host;
+                        }
+                    } else
+                        res = -ENOMEM;
+                } else
+                    res = -ENOMEM;
+            }
+        }
+    }
+
+    return res;
+}
+
 /* public interface */
 uint64_t mmap_offset = 0;
 
@@ -361,6 +470,20 @@ int arm_munmap(struct arm_target *context)
     assert(context->is_in_signal == 0);
     pthread_mutex_lock(&ll_big_mutex);
     res = internal_munmap(context->regs.r[0], context->regs.r[1]);
+    pthread_mutex_unlock(&ll_big_mutex);
+
+    return res;
+}
+
+/* emulate mremap syscall */
+int arm_mremap(struct arm_target *context)
+{
+    int res;
+
+    assert(context->is_in_signal == 0);
+    pthread_mutex_lock(&ll_big_mutex);
+    res = internal_mremap(context->regs.r[0], context->regs.r[1], context->regs.r[2],
+                          context->regs.r[3], context->regs.r[4]);
     pthread_mutex_unlock(&ll_big_mutex);
 
     return res;

@@ -102,6 +102,9 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_ARM_cacheflush:
                 cleanCaches(0, ~0);
                 break;
+            case PR_mremap:
+                res = arm_mremap(context);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }
