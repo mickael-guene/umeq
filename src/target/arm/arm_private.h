@@ -50,6 +50,7 @@ struct arm_target {
 
 extern void disassemble_arm(struct target *target, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);
 extern void disassemble_thumb(struct target *target, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);
+extern void arm_setup_brk(void);
 
 #endif
 

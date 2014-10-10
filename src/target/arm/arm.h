@@ -18,9 +18,8 @@ struct target *getArmTarget(armContext);
 void *getArmContext(armContext);
 
 /* FIXME: not good to have this stuff here ..... */
-guest_ptr arm_load_program(const char *file, struct load_auxv_info_32 *auxv_info);
-guest_ptr arm_allocate_and_populate_stack(int argc, char **argv, struct load_auxv_info_32 *auxv_info, void **additionnal_env, void **unset_env, void *target_argv0);
-void arm_setup_brk(void);
+void arm_load_image(int argc, char **argv, void **additionnal_env, void **unset_env, void *target_argv0,
+                    uint64_t *entry, uint64_t *stack);
 
 #endif
 

@@ -7,6 +7,7 @@
 
 #include "arm.h"
 #include "runtime.h"
+#include "arm_private.h"
 
 void *auxv_start = NULL;
 void *auxv_end = NULL;
@@ -223,16 +224,44 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
     return stack - string_area_size - pointer_area_size;
 }
 
-/* public api */
-guest_ptr arm_load_program(const char *file, struct load_auxv_info_32 *auxv_info)
+static guest_ptr arm_load_program(const char *file, struct load_auxv_info_32 *auxv_info)
 {
-    return load32(file, auxv_info);
+    guest_ptr res;
+
+    res = load32(file, auxv_info);
+    arm_setup_brk();
+
+    return res;
 }
 
-guest_ptr arm_allocate_and_populate_stack(int argc, char **argv, struct load_auxv_info_32 *auxv_info, void **additionnal_env, void **unset_env, void *target_argv0)
+static guest_ptr arm_allocate_and_populate_stack(int argc, char **argv, struct load_auxv_info_32 *auxv_info, void **additionnal_env, void **unset_env, void *target_argv0)
 {
     guest_ptr emulated_stack = allocate_stack();
 
     map_vdso_version();
     return populate_emulated_stack(emulated_stack, argc, argv, auxv_info, additionnal_env, unset_env, target_argv0);;
+}
+
+/* public api */
+void arm_load_image(int argc, char **argv, void **additionnal_env, void **unset_env, void *target_argv0,
+                    uint64_t *entry, uint64_t *stack)
+{
+    struct load_auxv_info_32 auxv_info;
+
+    *entry = arm_load_program(argv[0], &auxv_info);
+    if (*entry) {
+        void *additionnal_env_copy[17] = {NULL};
+        int i = 0;
+
+        /* copy additionnal_env to add "OPENSSL_armcap=0" */
+        while (additionnal_env[i] != NULL) {
+            additionnal_env_copy[i] = additionnal_env[i];
+            i++;
+        }
+        additionnal_env_copy[i++] = "OPENSSL_armcap=0";
+        assert(i < 17);
+
+        arm_setup_brk();
+        *stack = arm_allocate_and_populate_stack(argc, argv, &auxv_info, additionnal_env_copy, unset_env, target_argv0);
+    }
 }

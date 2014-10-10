@@ -176,10 +176,9 @@ int main(int argc, char **argv)
     int additionnal_env_index = 0;
     int unset_env_index = 0;
     int res = 0;
-    guest_ptr entry;
-    struct load_auxv_info_32 auxv_info;
+    uint64_t entry = 0;
+    uint64_t stack;
 
-    additionnal_env[additionnal_env_index++] = "OPENSSL_armcap=0";
     /* capture umeq arguments.
         This consist on -E, -U and -0 option of qemu.
         These options must be set first.
@@ -204,11 +203,10 @@ int main(int argc, char **argv)
     assert(unset_env_index < 16);
 
     /* load program in memory */
-    entry = arm_load_program(argv[target_argv0_index], &auxv_info);
-    arm_setup_brk();
+    arm_load_image(argc - target_argv0_index, argv + target_argv0_index,
+                   additionnal_env, unset_env, target_argv0, &entry, &stack);
     if (entry) {
-        guest_ptr stack_entry = arm_allocate_and_populate_stack(argc - target_argv0_index, argv + target_argv0_index, &auxv_info, additionnal_env, unset_env, target_argv0);
-        loop((uint64_t) entry, (uint64_t) stack_entry, 0, NULL);
+        loop(entry, stack, 0, NULL);
     } else {
         info("Unable to open %s\n", argv[target_argv0_index]);
         res = -ENOEXEC;
