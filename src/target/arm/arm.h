@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include "loader.h"
 
+#include "umeq.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -10,16 +12,7 @@ extern "C" {
 
 #define ARM_CONTEXT_SIZE     (4096)
 
-typedef void *armContext;
-
-armContext createArmContext(void *memory);
-void deleteArmContext(armContext);
-struct target *getArmTarget(armContext);
-void *getArmContext(armContext);
-
-/* FIXME: not good to have this stuff here ..... */
-void arm_load_image(int argc, char **argv, void **additionnal_env, void **unset_env, void *target_argv0,
-                    uint64_t *entry, uint64_t *stack);
+extern struct target_arch arm_arch;
 
 #endif
 

@@ -17,24 +17,27 @@
 #include "target.h"
 #include "be_x86_64.h"
 #include "runtime.h"
+#include "umeq.h"
 
 int isGdb = 0;
+
+struct target_arch *current_target_arch = NULL;
 
 /* FIXME: try to factorize loop_nocache and loop_cache */
 static int loop_nocache(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *parent_target)
 {
     struct target **prev_target;
     jitContext handle;
-    armContext armHandle;
+    void *targetHandle;
     struct irInstructionAllocator *ir;
     struct backend *backend;
     char jitBuffer[16 * 1024];
     char beX86_64Memory[BE_X86_64_CONTEXT_SIZE];
-    char jitterMemory[JITTER_CONTEXT_SIZE];
-    char armTargetMemory[ARM_CONTEXT_SIZE];
+    char *jitterMemory = alloca(JITTER_CONTEXT_SIZE);
+    char *context_memory = alloca(current_target_arch->get_context_size());
     struct target *target;
-    void *arm_context;
-    void *prev_arm_context;
+    void *target_runtime;
+    void *prev_target_runtime;
     uint64_t currentPc = entry;
     struct target *saved_prev_target;
     unsigned long tlsarea[16];
@@ -52,11 +55,11 @@ static int loop_nocache(uint32_t entry, uint32_t stack_entry, uint32_t signum, v
     backend = createX86_64Backend(beX86_64Memory);
     handle = createJitter(jitterMemory, backend);
     ir = getIrInstructionAllocator(handle);
-    armHandle = createArmContext(armTargetMemory);
-    target = getArmTarget(armHandle);
-    arm_context = getArmContext(armHandle);
-    prev_arm_context = (void *) tlsarea[1];
-    tlsarea[1] = (unsigned long) arm_context;
+    targetHandle = current_target_arch->create_target_context(context_memory);
+    target = current_target_arch->get_target_structure(targetHandle);
+    target_runtime = current_target_arch->get_target_runtime(targetHandle);
+    prev_target_runtime = (void *) tlsarea[1];
+    tlsarea[1] = (unsigned long) target_runtime;
 
     saved_prev_target = *prev_target;
     *prev_target = target;
@@ -72,14 +75,14 @@ static int loop_nocache(uint32_t entry, uint32_t stack_entry, uint32_t signum, v
         //displayIr(handle);
         jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
         if (jitSize > 0) {
-            currentPc = backend->execute(jitBuffer, (uint64_t) arm_context);
+            currentPc = backend->execute(jitBuffer, (uint64_t) target_runtime);
         } else
             assert(0);
     }
 
     /* restore previous tls context */
     *prev_target = saved_prev_target;
-    tlsarea[1] = (unsigned long) prev_arm_context;
+    tlsarea[1] = (unsigned long) prev_target_runtime;
 
     return target->getExitStatus(target);
 }
@@ -88,16 +91,16 @@ static int loop_cache(uint32_t entry, uint32_t stack_entry, uint32_t signum, voi
 {
     struct target **prev_target;
     jitContext handle;
-    armContext armHandle;
+    void *targetHandle;
     struct irInstructionAllocator *ir;
     struct backend *backend;
     char jitBuffer[16 * 1024];
     char beX86_64Memory[BE_X86_64_CONTEXT_SIZE];
-    char jitterMemory[JITTER_CONTEXT_SIZE];
-    char armTargetMemory[ARM_CONTEXT_SIZE];
+    char *jitterMemory = alloca(JITTER_CONTEXT_SIZE);
+    char *context_memory = alloca(current_target_arch->get_context_size());
     struct target *target;
-    void *arm_context;
-    void *prev_arm_context;
+    void *target_runtime;
+    void *prev_target_runtime;
     uint64_t currentPc = entry;
     struct target *saved_prev_target;
     char cacheMemory[CACHE_SIZE];
@@ -117,11 +120,11 @@ static int loop_cache(uint32_t entry, uint32_t stack_entry, uint32_t signum, voi
     backend = createX86_64Backend(beX86_64Memory);
     handle = createJitter(jitterMemory, backend);
     ir = getIrInstructionAllocator(handle);
-    armHandle = createArmContext(armTargetMemory);
-    target = getArmTarget(armHandle);
-    arm_context = getArmContext(armHandle);
-    prev_arm_context = (void *) tlsarea[1];
-    tlsarea[1] = (unsigned long) arm_context;
+    targetHandle = current_target_arch->create_target_context(context_memory);
+    target = current_target_arch->get_target_structure(targetHandle);
+    target_runtime = current_target_arch->get_target_runtime(targetHandle);
+    prev_target_runtime = (void *) tlsarea[1];
+    tlsarea[1] = (unsigned long) target_runtime;
 
     saved_prev_target = *prev_target;
     *prev_target = target;
@@ -133,7 +136,7 @@ static int loop_cache(uint32_t entry, uint32_t stack_entry, uint32_t signum, voi
 
         cache_area = cache->lookup(cache, currentPc);
         if (cache_area) {
-            currentPc = backend->execute(cache_area, (uint64_t) arm_context);
+            currentPc = backend->execute(cache_area, (uint64_t) target_runtime);
         } else {
             int jitSize;
 
@@ -143,7 +146,7 @@ static int loop_cache(uint32_t entry, uint32_t stack_entry, uint32_t signum, voi
             jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
             if (jitSize > 0) {
                 cache->append(cache, currentPc, jitBuffer, jitSize);
-                currentPc = backend->execute(jitBuffer, (uint64_t) arm_context);
+                currentPc = backend->execute(jitBuffer, (uint64_t) target_runtime);
             } else
                 assert(0);
         }
@@ -153,7 +156,7 @@ static int loop_cache(uint32_t entry, uint32_t stack_entry, uint32_t signum, voi
 
     /* restore previous tls context */
     *prev_target = saved_prev_target;
-    tlsarea[1] = (unsigned long) prev_arm_context;
+    tlsarea[1] = (unsigned long) prev_target_runtime;
 
     return target->getExitStatus(target);
 }
@@ -179,6 +182,7 @@ int main(int argc, char **argv)
     uint64_t entry = 0;
     uint64_t stack;
 
+    current_target_arch = &arm_arch;
     /* capture umeq arguments.
         This consist on -E, -U and -0 option of qemu.
         These options must be set first.
@@ -203,8 +207,8 @@ int main(int argc, char **argv)
     assert(unset_env_index < 16);
 
     /* load program in memory */
-    arm_load_image(argc - target_argv0_index, argv + target_argv0_index,
-                   additionnal_env, unset_env, target_argv0, &entry, &stack);
+    current_target_arch->loader(argc - target_argv0_index, argv + target_argv0_index,
+                                additionnal_env, unset_env, target_argv0, &entry, &stack);
     if (entry) {
         loop(entry, stack, 0, NULL);
     } else {

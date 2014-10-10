@@ -10,6 +10,7 @@ include_directories(target/arm)
 include_directories(syscall)
 include_directories(syscall/syscall32_64)
 include_directories(gdb)
+include_directories(.)
 
 add_subdirectory(jitter)
 add_subdirectory(cache)

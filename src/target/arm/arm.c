@@ -9,6 +9,7 @@
 #include "arm.h"
 #include "arm_private.h"
 
+typedef void *armContext;
 
 /* backend implementation */
 static void init(struct target *target, struct target *prev_target, uint64_t entry, uint64_t stack_ptr, uint32_t signum, void *param)
@@ -157,8 +158,12 @@ static void gdb_read_registers(struct gdb *gdb, char *buf)
     *buf = '\0';
 }
 
-/* api */
-armContext createArmContext(void *memory)
+static int getArmContextSize()
+{
+    return ARM_CONTEXT_SIZE;
+}
+
+static armContext createArmContext(void *memory)
 {
     struct arm_target *context;
 
@@ -180,21 +185,31 @@ armContext createArmContext(void *memory)
     return (armContext) context;
 }
 
-void deleteArmContext(armContext handle)
+static void deleteArmContext(armContext handle)
 {
     ;
 }
 
-struct target *getArmTarget(armContext handle)
+static struct target *getArmTarget(armContext handle)
 {
     struct arm_target *context = (struct arm_target *) handle;
 
     return &context->target;
 }
 
-void *getArmContext(armContext handle)
+static void *getArmContext(armContext handle)
 {
     struct arm_target *context = (struct arm_target *) handle;
 
     return &context->regs;
 }
+
+/* api */
+struct target_arch arm_arch = {
+    arm_load_image,
+    getArmContextSize,
+    createArmContext,
+    deleteArmContext,
+    getArmTarget,
+    getArmContext
+};
