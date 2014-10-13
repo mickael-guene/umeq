@@ -18,6 +18,7 @@ extern "C" {
 struct arm64_registers {
     uint64_t r[32];
     uint64_t pc;
+    uint32_t nzcv;
     uint32_t is_in_syscall;
 };
 

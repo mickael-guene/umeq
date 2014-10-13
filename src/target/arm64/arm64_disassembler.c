@@ -59,7 +59,7 @@ static void write_x(struct irInstructionAllocator *ir, int index, struct irRegis
 static struct irRegister *read_w(struct irInstructionAllocator *ir, int index, int is_zero)
 {
     if (index == 31 && is_zero)
-        return mk_64(ir, 0);
+        return mk_32(ir, 0);
     else
         return ir->add_read_context_32(ir, offsetof(struct arm64_registers, r[index]));
 }
@@ -85,6 +85,16 @@ static void write_pc(struct irInstructionAllocator *ir,struct irRegister *value)
     ir->add_write_context_64(ir, value, offsetof(struct arm64_registers, pc));
 }
 
+static struct irRegister *read_nzcv(struct irInstructionAllocator *ir)
+{
+    return ir->add_read_context_32(ir, offsetof(struct arm64_registers, nzcv));
+}
+
+static void write_nzcv(struct irInstructionAllocator *ir, struct irRegister *value)
+{
+    ir->add_write_context_32(ir, value, offsetof(struct arm64_registers, nzcv));
+}
+
 static struct irRegister *mk_ror_imm_64(struct irInstructionAllocator *ir, struct irRegister *op, int rotation)
 {
     return ir->add_or_64(ir,
@@ -97,6 +107,40 @@ static struct irRegister *mk_ror_imm_32(struct irInstructionAllocator *ir, struc
     return ir->add_or_64(ir,
                          ir->add_shr_32(ir, op, mk_8(ir, rotation)),
                          ir->add_shl_32(ir, op, mk_8(ir, 32-rotation)));
+}
+
+static struct irRegister *mk_next_nzcv_64(struct irInstructionAllocator *ir, enum ops ops, struct irRegister *op1, struct irRegister *op2)
+{
+        struct irRegister *params[4];
+        struct irRegister *nextCpsr;
+
+        params[0] = mk_32(ir, ops);
+        params[1] = op1;
+        params[2] = op2;
+        params[3] = read_nzcv(ir);
+
+        nextCpsr = ir->add_call_32(ir, "arm64_hlp_compute_next_nzcv_64",
+                                   ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_compute_next_nzcv_64),
+                                   params);
+
+        return nextCpsr;
+}
+
+static struct irRegister *mk_next_nzcv_32(struct irInstructionAllocator *ir, enum ops ops, struct irRegister *op1, struct irRegister *op2)
+{
+        struct irRegister *params[4];
+        struct irRegister *nextCpsr;
+
+        params[0] = mk_32(ir, ops);
+        params[1] = op1;
+        params[2] = op2;
+        params[3] = read_nzcv(ir);
+
+        nextCpsr = ir->add_call_32(ir, "arm64_hlp_compute_next_nzcv_32",
+                                   ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_compute_next_nzcv_32),
+                                   params);
+
+        return nextCpsr;
 }
 
 /* op code generation */
@@ -159,23 +203,40 @@ static int dis_add_sub_immediate_insn(struct arm64_target *context, uint32_t ins
     int rn = INSN(9, 5);
     int rd = INSN(4, 0);
     struct irRegister *res;
+    struct irRegister *op1;
+    struct irRegister *op2;
 
-    assert(S == 0);
     assert(shift != 2 && shift != 3);
     if (shift == 1)
         imm12 = imm12 << 12;
 
+    /* prepare ops */
+    if (is_64) {
+        op1 = read_x(ir, rn, SP_REG);
+        op2 = mk_64(ir, imm12);
+    } else {
+        op1 = read_w(ir, rn, SP_REG);
+        op2 = mk_32(ir, imm12);
+    }
+
     /* do the ops */
     if (is_sub) {
         if (is_64)
-            res = ir->add_sub_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, imm12));
+            res = ir->add_sub_64(ir, op1, op2);
         else
-            res = ir->add_sub_32(ir, read_w(ir, rn, SP_REG), mk_32(ir, imm12));
+            res = ir->add_sub_32(ir, op1, op2);
     } else {
         if (is_64)
-            res = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, imm12));
+            res = ir->add_add_64(ir, op1, op2);
         else
-            res = ir->add_add_32(ir, read_w(ir, rn, SP_REG), mk_32(ir, imm12));
+            res = ir->add_add_32(ir, op1, op2);
+    }
+    /* update flags */
+    if (S) {
+        if (is_64)
+            write_nzcv(ir, mk_next_nzcv_64(ir, is_sub?OPS_SUB:OPS_ADD, op1, op2));
+        else
+            write_nzcv(ir, mk_next_nzcv_32(ir, is_sub?OPS_SUB:OPS_ADD, op1, op2));
     }
 
     /* write reg */
@@ -340,6 +401,36 @@ static int dis_ret(struct arm64_target *context, uint32_t insn, struct irInstruc
     ret = read_x(ir, rn, ZERO_REG);
     write_pc(ir, ret);
     ir->add_exit(ir, ret);
+
+    return 1;
+}
+
+static int dis_conditionnal_branch_immediate_insn(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int cond = INSN(3,0);
+    int64_t imm19 = INSN(23, 5) << 2;
+    struct irRegister *params[4];
+    struct irRegister *pred;
+
+    imm19 = (imm19 << 43) >> 43;
+
+
+    params[0] = mk_32(ir, cond);
+    params[1] = read_nzcv(ir);
+    params[2] = NULL;
+    params[3] = NULL;
+
+    /* compute predicate to know if we SKIP insn */
+    pred = ir->add_call_32(ir, "arm64_hlp_compute_flags_pred",
+                           mk_64(ir, (uint64_t) arm64_hlp_compute_flags_pred),
+                           params);
+    dump_state(context, ir);
+    /* if condition don't hold then skip insn */
+    write_pc(ir, mk_64(ir, context->pc + 4));
+    ir->add_exit_cond(ir, mk_64(ir, context->pc + 4), pred);
+    /* if condition hold then exexute insn */
+    write_pc(ir, mk_64(ir, context->pc + imm19));
+    ir->add_exit(ir, mk_64(ir, context->pc + imm19));
 
     return 1;
 }
@@ -648,7 +739,7 @@ static int dis_branch_A_exception_A_system_insn(struct arm64_target *context, ui
                         isExit = dis_exception_insn(context, insn, ir);
                 }
             } else {
-                fatal("conditionnal_branch_immediate\n");
+                isExit = dis_conditionnal_branch_immediate_insn(context, insn, ir);
             }
             break;
         default:
