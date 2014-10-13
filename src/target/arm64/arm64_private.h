@@ -18,6 +18,7 @@ extern "C" {
 struct arm64_registers {
     uint64_t r[32];
     uint64_t pc;
+    uint32_t is_in_syscall;
 };
 
 struct arm64_target {
@@ -31,6 +32,7 @@ struct arm64_target {
 
 extern void arm64_load_image(int argc, char **argv, void **additionnal_env, void **unset_env, void *target_argv0, uint64_t *entry, uint64_t *stack);
 extern void disassemble_arm64(struct target *target, struct irInstructionAllocator *ir, uint64_t pc, int maxInsn);
+extern void arm64_hlp_syscall(uint64_t regs);
 
 #endif
 

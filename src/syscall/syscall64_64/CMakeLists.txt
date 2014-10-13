@@ -1,0 +1,1 @@
+add_library (syscall64_64 syscall64_64.c)
