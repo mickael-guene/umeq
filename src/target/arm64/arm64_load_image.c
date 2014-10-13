@@ -1,30 +1,13 @@
-#include <stdio.h>
-#include <assert.h>
-#include <stddef.h>
 #include <sys/mman.h>
 #include <elf.h>
 #include <string.h>
 
-#include "arm.h"
+#include "arm64.h"
 #include "runtime.h"
-#include "arm_private.h"
+#include "arm64_private.h"
 
-void *auxv_start = NULL;
-void *auxv_end = NULL;
-
-static void map_vdso_version()
-{
-    guest_ptr res;
-
-    res = mmap_guest(0xffff0000, 4*1024, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE | MAP_FIXED, -1, 0);
-    if (res == 0xffff0000) {
-        //write kuser_helper_version
-        *((uint32_t *) g_2_h(0xffff0ffc)) = 5;
-        //remove write access
-        mprotect((void *)g_2_h(0xffff0000), 4*1024, PROT_READ);
-    } else
-        assert(0);
-}
+void *auxv64_start = NULL;
+void *auxv64_end = NULL;
 
 static int strcmp_env(char *s1, char *s2)
 {
@@ -48,17 +31,7 @@ static int is_environment_variable_copy(char *current, void **additionnal_env, v
     return 1;
 }
 
-static guest_ptr allocate_stack()
-{
-    if (mmap_guest(0x70000000, 4 * 1024 * 1024,
-        PROT_EXEC | PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN | MAP_FIXED,
-        -1, 0) == 0x70000000) {
-        return (0x70000000 + 4 * 1024 * 1024);
-    } else
-        assert(0);
-}
-
-static void compute_emulated_stack_space(int argc, char **argv, struct load_auxv_info_32 *auxv_info, void **additionnal_env,
+static void compute_emulated_stack_space(int argc, char **argv, struct load_auxv_info_64 *auxv_info, void **additionnal_env,
                                          void **unset_env, void *target_argv0, int *string_area_size, int *pointer_area_size)
 {
     void **pos = (void **) &argv[0];
@@ -128,33 +101,33 @@ static void compute_emulated_stack_space(int argc, char **argv, struct load_auxv
     *string_area_size = (*string_area_size + 4096) & ~0xfff;
 }
 
-static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv, struct load_auxv_info_32 *auxv_info,
+static guest64_ptr populate_emulated_stack(guest64_ptr stack, int argc, char **argv, struct load_auxv_info_64 *auxv_info,
                                          void **additionnal_env, void **unset_env, void *target_argv0)
 {
-    uint32_t *ptr_area;
-    guest_ptr str_area;
-    Elf32_auxv_t *auxv_target;
+    uint64_t *ptr_area;
+    guest64_ptr str_area;
+    Elf64_auxv_t *auxv_target;
     void **pos = (void **) &argv[0];
     Elf64_auxv_t *auxv;
     int string_area_size;
     int pointer_area_size;
 
     compute_emulated_stack_space(argc, argv, auxv_info, additionnal_env, unset_env, target_argv0, &string_area_size, &pointer_area_size);
-    ptr_area = (uint32_t *) g_2_h(stack - string_area_size - pointer_area_size);
+    ptr_area = (uint64_t *) g_2_h_64(stack - string_area_size - pointer_area_size);
     str_area = stack - string_area_size;
     /* setup argument number */
     *ptr_area++ = argc;
     /* special handling of first argument */
     if (target_argv0) {
         *ptr_area++ = str_area;
-        strcpy(g_2_h(str_area), target_argv0);
+        strcpy(g_2_h_64(str_area), target_argv0);
         str_area += strlen(target_argv0) + 1;
         pos++;
     }
     /* setup argument */
     while(*pos != NULL) {
-        *ptr_area++ = (uint32_t)(uint64_t) str_area;
-        strcpy(g_2_h(str_area), *pos);
+        *ptr_area++ = (uint64_t) str_area;
+        strcpy(g_2_h_64(str_area), *pos);
         str_area += strlen(*pos) + 1;
         pos++;
     }
@@ -163,15 +136,15 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
     /* setup env */
     while(*pos != NULL) {
         if (is_environment_variable_copy(*pos, additionnal_env, unset_env)) {
-            *ptr_area++ = (uint32_t)(uint64_t) str_area;
-            strcpy(g_2_h(str_area), *pos);
+            *ptr_area++ = (uint64_t) str_area;
+            strcpy(g_2_h_64(str_area), *pos);
             str_area += strlen(*pos) + 1;
         }
         pos++;
     }
     while(*additionnal_env != NULL) {
-        *ptr_area++ = (uint32_t)(uint64_t) str_area;
-        strcpy(g_2_h(str_area), *additionnal_env);
+        *ptr_area++ = (uint32_t) str_area;
+        strcpy(g_2_h_64(str_area), *additionnal_env);
         str_area += strlen(*additionnal_env) + 1;
         additionnal_env++;
     }
@@ -179,13 +152,13 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
     pos++;
     /* auxv stuff */
     auxv = (Elf64_auxv_t *) pos;
-    auxv_target = (Elf32_auxv_t *) ptr_area;
-    auxv_start = (void *) auxv_target;
+    auxv_target = (Elf64_auxv_t *) ptr_area;
+    auxv64_start = (void *) auxv_target;
     while(auxv->a_type != AT_NULL) {
         auxv_target->a_type = auxv->a_type;
         switch(auxv->a_type) {
             case AT_RANDOM:
-                auxv_target->a_un.a_val = (uint32_t) ((uint64_t)stack - string_area_size - pointer_area_size);
+                auxv_target->a_un.a_val = ((uint64_t)stack - string_area_size - pointer_area_size);
                 auxv_target++;
                 break;
             // below list auxv we simply copy
@@ -205,7 +178,7 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
     }
     // add loading info
     auxv_target->a_type = AT_PHDR;
-    auxv_target->a_un.a_val = (unsigned int)(long) auxv_info->load_AT_PHDR;
+    auxv_target->a_un.a_val = auxv_info->load_AT_PHDR;
     auxv_target++;
     auxv_target->a_type = AT_PHENT;
     auxv_target->a_un.a_val = auxv_info->load_AT_PHENT;
@@ -214,53 +187,51 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
     auxv_target->a_un.a_val = auxv_info->load_AT_PHNUM;
     auxv_target++;
     auxv_target->a_type = AT_ENTRY;
-    auxv_target->a_un.a_val = (unsigned int)(long) auxv_info->load_AT_ENTRY;
+    auxv_target->a_un.a_val = auxv_info->load_AT_ENTRY;
     auxv_target++;
     // end of auxv
     auxv_target->a_type = AT_NULL;
     auxv_target++;
-    auxv_end = (void *) auxv_target;
+    auxv64_end = (void *) auxv_target;
 
     return stack - string_area_size - pointer_area_size;
 }
 
-static guest_ptr arm_load_program(const char *file, struct load_auxv_info_32 *auxv_info)
+static guest64_ptr arm64_load_program(const char *file, struct load_auxv_info_64 *auxv_info)
 {
-    guest_ptr res;
+    guest64_ptr res;
 
-    res = load32(file, auxv_info);
+    res = load64(file, auxv_info);
 
     return res;
 }
 
-static guest_ptr arm_allocate_and_populate_stack(int argc, char **argv, struct load_auxv_info_32 *auxv_info, void **additionnal_env, void **unset_env, void *target_argv0)
+static guest64_ptr allocate_stack()
 {
-    guest_ptr emulated_stack = allocate_stack();
+    if (mmap64_guest(0x70000000, 4 * 1024 * 1024,
+        PROT_EXEC | PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN | MAP_FIXED,
+        -1, 0) == 0x70000000) {
+        return (0x70000000 + 4 * 1024 * 1024);
+    } else
+        assert(0);
+}
 
-    map_vdso_version();
+static guest64_ptr arm64_allocate_and_populate_stack(int argc, char **argv, struct load_auxv_info_64 *auxv_info, void **additionnal_env, void **unset_env, void *target_argv0)
+{
+    guest64_ptr emulated_stack = allocate_stack();
+
     return populate_emulated_stack(emulated_stack, argc, argv, auxv_info, additionnal_env, unset_env, target_argv0);;
 }
 
 /* public api */
-void arm_load_image(int argc, char **argv, void **additionnal_env, void **unset_env, void *target_argv0,
+void arm64_load_image(int argc, char **argv, void **additionnal_env, void **unset_env, void *target_argv0,
                     uint64_t *entry, uint64_t *stack)
 {
-    struct load_auxv_info_32 auxv_info;
+    struct load_auxv_info_64 auxv_info;
 
-    *entry = arm_load_program(argv[0], &auxv_info);
+    *entry = arm64_load_program(argv[0], &auxv_info);
     if (*entry) {
-        void *additionnal_env_copy[17] = {NULL};
-        int i = 0;
-
-        /* copy additionnal_env to add "OPENSSL_armcap=0" */
-        while (additionnal_env[i] != NULL) {
-            additionnal_env_copy[i] = additionnal_env[i];
-            i++;
-        }
-        additionnal_env_copy[i++] = "OPENSSL_armcap=0";
-        assert(i < 17);
-
-        arm_setup_brk();
-        *stack = arm_allocate_and_populate_stack(argc, argv, &auxv_info, additionnal_env_copy, unset_env, target_argv0);
+        //arm_setup_brk();
+        *stack = arm64_allocate_and_populate_stack(argc, argv, &auxv_info, additionnal_env, unset_env, target_argv0);
     }
 }

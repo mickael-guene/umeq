@@ -1,1 +1,1 @@
-add_library(loader loader32.c)
+add_library(loader loader32.c loader64.c)

@@ -9,6 +9,8 @@
 #include "arm.h"
 #include "arm_private.h"
 
+#define ARM_CONTEXT_SIZE     (4096)
+
 typedef void *armContext;
 
 /* backend implementation */

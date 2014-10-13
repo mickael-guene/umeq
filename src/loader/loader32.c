@@ -34,14 +34,6 @@ static void dl_copy_dl_name(int fd, Elf32_Phdr *segment, char *name);
     return NULL in case of error
 */
 
-int foo(const char *file)
-{
-    int fd;
-    fd = open(file, O_RDONLY);
-
-    return fd;
-}
-
 guest_ptr load32(const char *file, struct load_auxv_info_32 *auxv_info)
 {
     Elf32_Ehdr elf_header;
@@ -122,6 +114,7 @@ static int elfToMapProtection(uint32_t flags)
     if (flags & PF_R)
         prot |= PROT_READ;
 
+    /* FIXME:  */
     if (1/*isdebug*/)
         prot |= PROT_WRITE;
 

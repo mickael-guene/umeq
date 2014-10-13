@@ -12,6 +12,7 @@
 
 #include "loader.h"
 #include "arm.h"
+#include "arm64.h"
 #include "cache.h"
 #include "jitter.h"
 #include "target.h"
@@ -182,7 +183,8 @@ int main(int argc, char **argv)
     uint64_t entry = 0;
     uint64_t stack;
 
-    current_target_arch = &arm_arch;
+    //current_target_arch = &arm_arch;
+    current_target_arch = &arm64_arch;
     /* capture umeq arguments.
         This consist on -E, -U and -0 option of qemu.
         These options must be set first.
