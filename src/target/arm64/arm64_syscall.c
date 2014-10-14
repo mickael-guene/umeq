@@ -9,6 +9,7 @@
 #include "hownums-arm64.h"
 #include "runtime.h"
 #include "syscall64_64.h"
+#include "arm64_syscall.h"
 
 void arm64_hlp_syscall(uint64_t regs)
 {
@@ -16,7 +17,7 @@ void arm64_hlp_syscall(uint64_t regs)
     uint32_t no = context->regs.r[8];
     Sysnum no_neutral;
     Syshow how;
-    int res = ENOSYS;
+    long res = ENOSYS;
 
     /* syscall entry sequence */
     context->regs.is_in_syscall = 1;
@@ -34,6 +35,12 @@ void arm64_hlp_syscall(uint64_t regs)
                                             context->regs.r[3], context->regs.r[4], context->regs.r[5]);
     } else if (how == HOW_custom_implementation) {
         switch(no_neutral) {
+            case PR_uname:
+                res = arm64_uname(context);
+                break;
+            case PR_brk:
+                res = arm64_brk(context);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }

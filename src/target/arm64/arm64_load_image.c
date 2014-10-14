@@ -231,7 +231,7 @@ void arm64_load_image(int argc, char **argv, void **additionnal_env, void **unse
 
     *entry = arm64_load_program(argv[0], &auxv_info);
     if (*entry) {
-        //arm_setup_brk();
+        arm64_setup_brk();
         *stack = arm64_allocate_and_populate_stack(argc, argv, &auxv_info, additionnal_env, unset_env, target_argv0);
     }
 }

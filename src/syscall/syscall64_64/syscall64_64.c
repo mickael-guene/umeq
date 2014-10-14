@@ -8,9 +8,9 @@
 #include "syscall64_64_private.h"
 #include "runtime.h"
 
-int syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, uint64_t p5)
+long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, uint64_t p5)
 {
-    int res = ENOSYS;
+    long res = ENOSYS;
 
     switch(no) {
         case PR_write:
@@ -18,6 +18,9 @@ int syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, 
             break;
         case PR_exit:
             res = syscall(SYS_exit, (int)p0);
+            break;
+        case PR_readlinkat:
+            res = syscall(SYS_readlinkat, (int) p0, (const char *) g_2_h_64(p1), (char *) g_2_h_64(p2), (size_t) p3);
             break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);

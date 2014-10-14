@@ -31,6 +31,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
             context->regs.r[i] = 0;
        	context->regs.r[31] = stack_ptr;
        	context->regs.pc = entry;
+        context->regs.tpidr_el0 = 0;
         context->regs.nzcv = 0;
         context->sp_init = stack_ptr;
         context->pc = entry;
