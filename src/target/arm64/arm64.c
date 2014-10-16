@@ -27,8 +27,10 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
     } else if (param) {
         fatal("Implement me\n");
     } else if (stack_ptr) {
-        for(i = 0; i < 32; i++)
+        for(i = 0; i < 32; i++) {
             context->regs.r[i] = 0;
+            context->regs.v[i].v128 = 0;
+        }
        	context->regs.r[31] = stack_ptr;
        	context->regs.pc = entry;
         context->regs.tpidr_el0 = 0;

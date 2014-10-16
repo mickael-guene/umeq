@@ -22,6 +22,12 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_readlinkat:
             res = syscall(SYS_readlinkat, (int) p0, (const char *) g_2_h_64(p1), (char *) g_2_h_64(p2), (size_t) p3);
             break;
+        case PR_faccessat:
+            res = syscall(SYS_faccessat, (int) p0, (const char *) g_2_h_64(p1), (int) p2, (int) p3);
+            break;
+        case PR_exit_group:
+            res = syscall(SYS_exit_group, (int)p0);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }

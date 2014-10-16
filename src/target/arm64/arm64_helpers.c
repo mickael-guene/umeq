@@ -55,6 +55,9 @@ uint32_t arm64_hlp_compute_next_nzcv_32(uint64_t context, uint32_t opcode, uint3
             c = (op1 >= op2)?0x20000000:0;
             v = (((op1 ^ op2) & (op1 ^ calc)) >> 3) & 0x10000000;
             break;
+        case OPS_LOGICAL:
+            calc = op1;
+            break;
         default:
             fatal("ops = %d\n", ops);
     }
@@ -97,7 +100,7 @@ uint32_t arm64_hlp_compute_next_nzcv_64(uint64_t context, uint32_t opcode, uint6
             fatal("ops = %d\n", ops);
     }
 
-    n = (calc & 0x80000000);
+    n = (calc & 0x8000000000000000UL) >> 32;
     z = (calc == 0)?0x40000000:0;
 
     return n|z|c|v|(oldnzcv&0x0fffffff);
@@ -229,4 +232,77 @@ uint64_t arm64_hlp_umul_lsb_64(uint64_t context, uint64_t op1, uint64_t op2)
 uint32_t arm64_hlp_umul_lsb_32(uint64_t context, uint32_t op1, uint32_t op2)
 {
     return op1 * op2;
+}
+
+uint64_t arm64_hlp_umul_msb_64(uint64_t context, uint64_t op1, uint64_t op2)
+{
+    __uint128_t res = op1 * op2;
+
+    return (uint64_t) (res >> 64);
+}
+
+/* FIXME: ldrex / strex implementation below is not sematically correct. It's subject
+          to the ABBA problem which is not the case of ldrex/strex hardware implementation
+ */
+uint64_t arm64_hlp_ldaxr(uint64_t regs, uint64_t address, uint32_t size_access)
+{
+    struct arm64_target *context = container_of((void *) regs, struct arm64_target, regs);
+
+    switch(size_access) {
+        case 3://64 bits
+            context->exclusive_value = (uint64_t) *((uint64_t *)g_2_h_64(address));
+            break;
+        case 2://32 bits
+            context->exclusive_value = (uint32_t) *((uint32_t *)g_2_h_64(address));
+            break;
+        default:
+            fatal("size_access %d unsupported\n", size_access);
+    }
+    __sync_synchronize();
+
+    return context->exclusive_value;
+}
+
+uint32_t arm64_hlp_stxr(uint64_t regs, uint64_t address, uint32_t size_access, uint64_t value)
+{
+    struct arm64_target *context = container_of((void *) regs, struct arm64_target, regs);
+    uint32_t res = 0;
+
+    switch(size_access) {
+        case 3:
+            if (__sync_bool_compare_and_swap((uint64_t *) g_2_h_64(address), (uint64_t)context->exclusive_value, (uint64_t)value))
+                res = 0;
+            else
+                res = 1;
+            break;
+        case 2:
+            if (__sync_bool_compare_and_swap((uint32_t *) g_2_h_64(address), (uint32_t)context->exclusive_value, (uint32_t)value))
+                res = 0;
+            else
+                res = 1;
+            break;
+        default:
+            fatal("size_access %d unsupported\n", size_access);
+    }
+
+    return res;
+}
+
+uint64_t arm64_hlp_clz(uint64_t context, uint64_t rn, uint32_t start_index)
+{
+    uint64_t res = 0;
+    int i;
+
+    for(i = start_index; i >= 0; i--) {
+        if ((rn >> i) & 1)
+            break;
+        res++;
+    }
+
+    return res;
+}
+
+void arm64_hlp_memory_barrier(uint64_t regs)
+{
+    __sync_synchronize();
 }
