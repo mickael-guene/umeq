@@ -113,12 +113,32 @@ static struct irRegister *read_d(struct irInstructionAllocator *ir, int index)
 
 static void write_s(struct irInstructionAllocator *ir, int index, struct irRegister *value)
 {
-    ir->add_write_context_32(ir, value, offsetof(struct arm64_registers, v[index].s));
+    ir->add_write_context_64(ir, ir->add_32U_to_64(ir, value), offsetof(struct arm64_registers, v[index].d));
 }
 
 static struct irRegister *read_s(struct irInstructionAllocator *ir, int index)
 {
     return ir->add_read_context_32(ir, offsetof(struct arm64_registers, v[index].s));
+}
+
+static void write_h(struct irInstructionAllocator *ir, int index, struct irRegister *value)
+{
+    ir->add_write_context_64(ir, ir->add_16U_to_64(ir, value), offsetof(struct arm64_registers, v[index].d));
+}
+
+static struct irRegister *read_h(struct irInstructionAllocator *ir, int index)
+{
+    return ir->add_read_context_16(ir, offsetof(struct arm64_registers, v[index].s));
+}
+
+static void write_b(struct irInstructionAllocator *ir, int index, struct irRegister *value)
+{
+    ir->add_write_context_64(ir, ir->add_8U_to_64(ir, value), offsetof(struct arm64_registers, v[index].d));
+}
+
+static struct irRegister *read_b(struct irInstructionAllocator *ir, int index)
+{
+    return ir->add_read_context_8(ir, offsetof(struct arm64_registers, v[index].s));
 }
 
 static void write_pc(struct irInstructionAllocator *ir,struct irRegister *value)
@@ -905,11 +925,10 @@ static int dis_cbz(struct arm64_target *context, uint32_t insn, struct irInstruc
     return dis_cbz_A_cbnz(context, insn, ir);
 }
 
-static int dis_ccmp_A_ccmn(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+static int dis_ccmp_A_ccmn(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir, struct irRegister *op2)
 {
     int is_64 = INSN(31,31);
     int op = INSN(30,30);
-    int imm5 = INSN(20,16);
     int cond = INSN(15,12);
     int rn = INSN(9,5);
     int nzcv = INSN(4,0);
@@ -932,7 +951,7 @@ static int dis_ccmp_A_ccmn(struct arm64_target *context, uint32_t insn, struct i
     if (is_64) {
         params[0] = mk_32(ir, op?OPS_SUB:OPS_ADD);
         params[1] = read_x(ir, rn, ZERO_REG);
-        params[2] = mk_64(ir, imm5);
+        params[2] = op2;
         params[3] = read_nzcv(ir);
         res_true = ir->add_call_32(ir, "arm64_hlp_compute_next_nzcv_64",
                                mk_64(ir, (uint64_t) arm64_hlp_compute_next_nzcv_64),
@@ -940,7 +959,7 @@ static int dis_ccmp_A_ccmn(struct arm64_target *context, uint32_t insn, struct i
     } else {
         params[0] = mk_32(ir, op?OPS_SUB:OPS_ADD);
         params[1] = read_w(ir, rn, ZERO_REG);
-        params[2] = mk_32(ir, imm5);
+        params[2] = op2;
         params[3] = read_nzcv(ir);
         res_true = ir->add_call_32(ir, "arm64_hlp_compute_next_nzcv_32",
                                mk_64(ir, (uint64_t) arm64_hlp_compute_next_nzcv_32),
@@ -958,6 +977,28 @@ static int dis_ccmp_A_ccmn(struct arm64_target *context, uint32_t insn, struct i
     write_nzcv(ir, res);
 
     return 0;
+}
+
+static int dis_ccmp_A_ccmn_immediate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int is_64 = INSN(31,31);
+    int imm5 = INSN(20,16);
+    struct irRegister *op2;
+
+    op2 = is_64?mk_64(ir, imm5):mk_32(ir, imm5);
+
+    return dis_ccmp_A_ccmn(context, insn, ir, op2);
+}
+
+static int dis_ccmp_A_ccmn_register(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int is_64 = INSN(31,31);
+    int rm = INSN(20,16);
+    struct irRegister *op2;
+
+    op2 = is_64?read_x(ir, rm, ZERO_REG):read_w(ir, rm, ZERO_REG);
+
+    return dis_ccmp_A_ccmn(context, insn, ir, op2);
 }
 
 static int dis_cond_select(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir, struct irRegister *op2)
@@ -1115,7 +1156,62 @@ static int dis_load_store_register_unsigned_offset(struct arm64_target *context,
 
 static int dis_load_store_register_unsigned_offset_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    assert(0);
+    int size = (INSN(23,23) << 2) | INSN(31,30);
+    int is_load = INSN(22,22);
+    int imm12 = INSN(21, 10);
+    int rn = INSN(9, 5);
+    int rt = INSN(4, 0);
+    struct irRegister *address;
+
+    /* compute address */
+    address = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, imm12 << size));
+
+    /* do load store */
+    if (is_load) {
+        switch(size) {
+            case 0:
+                write_b(ir, rt, ir->add_load_8(ir, address));
+                break;
+            case 1:
+                write_h(ir, rt, ir->add_load_16(ir, address));
+                break;
+            case 2:
+                write_s(ir, rt, ir->add_load_32(ir, address));
+                break;
+            case 3:
+                write_d(ir, rt, ir->add_load_64(ir, address));
+                break;
+            case 4:
+                write_v_lsb(ir, rt, ir->add_load_64(ir, address));
+                write_v_msb(ir, rt, ir->add_load_64(ir, ir->add_add_64(ir, address, mk_64(ir, 8))));
+                break;
+            default:
+                fatal("size = %d\n", size);
+        }
+    } else {
+        switch(size) {
+            case 0:
+                ir->add_store_8(ir, read_b(ir, rt), address);
+                break;
+            case 1:
+                ir->add_store_16(ir, read_h(ir, rt), address);
+                break;
+            case 2:
+                ir->add_store_32(ir, read_s(ir, rt), address);
+                break;
+            case 3:
+                ir->add_store_64(ir, read_d(ir, rt), address);
+                break;
+            case 4:
+                ir->add_store_64(ir, read_v_lsb(ir, rt), address);
+                ir->add_store_64(ir, read_v_msb(ir, rt), ir->add_add_64(ir, address, mk_64(ir, 8)));
+                break;
+            default:
+                fatal("size = %d\n", size);
+        }
+    }
+
+    return 0;
 }
 
 static int dis_load_store_register_unscaled_immediate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1494,7 +1590,23 @@ static int dis_madd(struct arm64_target *context, uint32_t insn, struct irInstru
     return 0;
 }
 
-typedef unsigned int uint128_t __attribute__((mode(TI)));
+static int dis_umaddl(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(4,0);
+    int ra = INSN(14,10);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    struct irRegister *mult;
+    struct irRegister *res;
+
+    mult = mk_mul_u_lsb_64(ir,
+                           ir->add_32U_to_64(ir, read_w(ir, rn, ZERO_REG)),
+                           ir->add_32U_to_64(ir, read_w(ir, rm, ZERO_REG)));
+    res = ir->add_add_64(ir, read_x(ir, ra, ZERO_REG), mult);
+    write_x(ir, rd, res, ZERO_REG);
+
+    return 0;
+}
 
 static int dis_umulh(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -1896,6 +2008,9 @@ static int dis_data_processing_3_source(struct arm64_target *context, uint32_t i
         case 0:
             isExit = dis_madd(context, insn, ir);
             break;
+        case 10:
+            isExit = dis_umaddl(context, insn, ir);
+            break;
         case 12:
             isExit = dis_umulh(context, insn, ir);
             break;
@@ -1920,9 +2035,9 @@ static int dis_data_processing_register_insn(struct arm64_target *context, uint3
                     break;
                 case 2:
                     if (INSN(11,11))
-                        isExit = dis_ccmp_A_ccmn(context, insn, ir);
+                        isExit = dis_ccmp_A_ccmn_immediate(context, insn, ir);
                     else
-                        fatal("cond_compare_register\n");
+                        isExit = dis_ccmp_A_ccmn_register(context, insn, ir);
                     break;
                 case 4:
                     isExit = dis_conditional_select(context, insn, ir);

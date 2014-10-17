@@ -11,6 +11,7 @@ extern "C" {
 
 long arm64_uname(struct arm64_target *context);
 long arm64_brk(struct arm64_target *context);
+long arm64_openat(struct arm64_target *context);
 
 #endif
 
