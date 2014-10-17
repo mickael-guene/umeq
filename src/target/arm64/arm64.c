@@ -63,9 +63,58 @@ static uint32_t getExitStatus(struct target *target)
     return context->exitStatus;
 }
 
+/* gdb stuff */
 static struct gdb *gdb(struct target *target)
 {
-    fatal("Implement me: gdb\n");
+    struct arm64_target *context = container_of(target, struct arm64_target, target);
+
+    return &context->gdb;
+}
+
+static void gdb_read_registers(struct gdb *gdb, char *buf)
+{
+    struct arm64_target *context = container_of(gdb, struct arm64_target, gdb);
+    int i ,j;
+    unsigned long val;
+    uint32_t pc = context->regs.pc;
+
+    for(i=0;i<32;i++) {
+        val = context->regs.r[i];
+        for(j=0;j<8;j++) {
+            unsigned int byte = (val >> (j * 8)) & 0xff;
+            unsigned int hnibble = (byte >> 4);
+            unsigned int lnibble = (byte & 0xf);
+
+            buf[1] = gdb_tohex(lnibble);
+            buf[0] = gdb_tohex(hnibble);
+
+            buf += 2;
+        }
+    }
+    val = context->regs.pc;
+    for(j=0;j<8;j++) {
+        unsigned int byte = (val >> (j * 8)) & 0xff;
+        unsigned int hnibble = (byte >> 4);
+        unsigned int lnibble = (byte & 0xf);
+
+        buf[1] = gdb_tohex(lnibble);
+        buf[0] = gdb_tohex(hnibble);
+
+        buf += 2;
+    }
+    val = context->regs.nzcv;
+    for(j=0;j<8;j++) {
+        unsigned int byte = (val >> (j * 8)) & 0xff;
+        unsigned int hnibble = (byte >> 4);
+        unsigned int lnibble = (byte & 0xf);
+
+        buf[1] = gdb_tohex(lnibble);
+        buf[0] = gdb_tohex(hnibble);
+
+        buf += 2;
+    }
+
+    *buf = '\0';
 }
 
 /* context handling code */
@@ -86,6 +135,11 @@ static arm64Context createArm64Context(void *memory)
         context->target.isLooping = isLooping;
         context->target.getExitStatus = getExitStatus;
         context->target.gdb = gdb;
+        context->gdb.state = GDB_STATE_SYNCHRO;
+        context->gdb.commandPos = 0;
+        context->gdb.isContinue = 0;
+        context->gdb.isSingleStepping = 1;
+        context->gdb.read_registers = gdb_read_registers;
     }
 
     return (arm64Context) context;

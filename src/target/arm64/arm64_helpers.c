@@ -29,6 +29,13 @@ void arm64_hlp_dump(uint64_t regs)
 #endif
 }
 
+void arm64_hlp_gdb_handle_breakpoint(uint64_t regs)
+{
+    struct arm64_target *context = container_of((void *) regs, struct arm64_target, regs);
+
+    gdb_handle_breakpoint(&context->gdb);
+}
+
 uint32_t arm64_hlp_compute_next_nzcv_32(uint64_t context, uint32_t opcode, uint32_t op1, uint32_t op2, uint32_t oldnzcv)
 {
     int n, z, c, v;
