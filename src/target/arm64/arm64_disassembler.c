@@ -570,7 +570,7 @@ static int dis_add_sub_extended_register_insn(struct arm64_target *context, uint
 
 static int dis_adrp(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    int64_t imm = (INSN(23, 5) << 14) + (INSN(30, 29) << 12);
+    int64_t imm = ((int64_t)INSN(23, 5) << 14) + (INSN(30, 29) << 12UL);
     int rd = INSN(4, 0);
 
     imm = (imm << 31) >> 31;
@@ -1318,9 +1318,9 @@ static int dis_logical_immediate(struct arm64_target *context, uint32_t insn, st
     }
 
     if (is_64)
-        write_x(ir, rd, res, SP_REG);
+        write_x(ir, rd, res, is_setflags?ZERO_REG:SP_REG);
     else
-        write_w(ir, rd, ir->add_64_to_32(ir, res), SP_REG);
+        write_w(ir, rd, ir->add_64_to_32(ir, res), is_setflags?ZERO_REG:SP_REG);
 
     return 0;
 }
