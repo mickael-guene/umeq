@@ -64,6 +64,16 @@ uint32_t arm64_hlp_compute_next_nzcv_32(uint64_t context, uint32_t opcode, uint3
             break;
         case OPS_LOGICAL:
             calc = op1;
+            c = 0;
+            v = 0;
+            break;
+        case OPS_ADC:
+            calc = op1 + op2 + c_in;
+            if (c_in)
+                c = (calc <= op1)?0x20000000:0;
+            else
+                c = (calc < op1)?0x20000000:0;
+            v = (((calc ^ op1) & (calc ^ op2)) >> 3) & 0x10000000;
             break;
         default:
             fatal("ops = %d\n", ops);
@@ -97,6 +107,16 @@ uint32_t arm64_hlp_compute_next_nzcv_64(uint64_t context, uint32_t opcode, uint6
             break;
         case OPS_LOGICAL:
             calc = op1;
+            c = 0;
+            v = 0;
+            break;
+        case OPS_ADC:
+            calc = op1 + op2 + c_in;
+            if (c_in)
+                c = (calc <= op1)?0x20000000:0;
+            else
+                c = (calc < op1)?0x20000000:0;
+            v = (((calc ^ op1) & (calc ^ op2)) >> 35) & 0x10000000;
             break;
         default:
             fprintf(stderr, "context = 0x%016lx\n", context);
@@ -150,11 +170,14 @@ uint32_t arm64_hlp_compute_flags_pred(uint64_t context, uint32_t cond, uint32_t 
                 pred = ((z == 0) && (n == v))?1:0;
             }
             break;
+        case 7://ALWAYS true
+            pred = 1;
+            break;
         default:
             assert(0);
     }
     //invert cond
-    if (cond&1)
+    if (cond&1 && cond != 15)
         pred = 1 - pred;
 
     return pred;
@@ -231,6 +254,20 @@ uint32_t arm64_hlp_udiv_32(uint64_t context, uint32_t op1, uint32_t op2)
     return 0;
 }
 
+int64_t arm64_hlp_sdiv_64(uint64_t context, int64_t op1, int64_t op2)
+{
+    if (op2)
+        return op1/op2;
+    return 0;
+}
+
+int32_t arm64_hlp_sdiv_32(uint64_t context, int32_t op1, int32_t op2)
+{
+    if (op2)
+        return op1/op2;
+    return 0;
+}
+
 uint64_t arm64_hlp_umul_lsb_64(uint64_t context, uint64_t op1, uint64_t op2)
 {
     return op1 * op2;
@@ -243,9 +280,21 @@ uint32_t arm64_hlp_umul_lsb_32(uint64_t context, uint32_t op1, uint32_t op2)
 
 uint64_t arm64_hlp_umul_msb_64(uint64_t context, uint64_t op1, uint64_t op2)
 {
-    __uint128_t res = op1 * op2;
+    __uint128_t res = (__uint128_t)op1 * (__uint128_t)op2;
 
     return (uint64_t) (res >> 64);
+}
+
+int64_t arm64_hlp_smul_msb_64(uint64_t context, int64_t op1, int64_t op2)
+{
+    __int128_t res = (__int128_t)op1 * (__int128_t)op2;
+
+    return (int64_t) (res >> 64);
+}
+
+int64_t arm64_hlp_smul_lsb_64(uint64_t context, int64_t op1, int64_t op2)
+{
+    return op1 * op2;
 }
 
 /* FIXME: ldrex / strex implementation below is not sematically correct. It's subject
@@ -295,6 +344,14 @@ uint32_t arm64_hlp_stxr(uint64_t regs, uint64_t address, uint32_t size_access, u
     return res;
 }
 
+/* FIXME: not correct => should use compare_and_swap to swap atomically value */
+void arm64_hlp_clrex(uint64_t regs)
+{
+    struct arm64_target *context = container_of((void *) regs, struct arm64_target, regs);
+
+    context->exclusive_value = ~~context->exclusive_value;
+}
+
 uint64_t arm64_hlp_clz(uint64_t context, uint64_t rn, uint32_t start_index)
 {
     uint64_t res = 0;
@@ -302,6 +359,21 @@ uint64_t arm64_hlp_clz(uint64_t context, uint64_t rn, uint32_t start_index)
 
     for(i = start_index; i >= 0; i--) {
         if ((rn >> i) & 1)
+            break;
+        res++;
+    }
+
+    return res;
+}
+
+uint64_t arm64_hlp_cls(uint64_t context, uint64_t rn, uint32_t start_index)
+{
+    uint64_t res = 0;
+    int i;
+    int sign = (rn >> start_index) & 1;
+
+    for(i = start_index - 1; i >= 0; i--) {
+        if (((rn >> i) & 1) != sign)
             break;
         res++;
     }

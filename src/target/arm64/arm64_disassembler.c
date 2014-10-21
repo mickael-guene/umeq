@@ -166,7 +166,7 @@ static struct irRegister *mk_ror_imm_64(struct irInstructionAllocator *ir, struc
 
 static struct irRegister *mk_ror_imm_32(struct irInstructionAllocator *ir, struct irRegister *op, int rotation)
 {
-    return ir->add_or_64(ir,
+    return ir->add_or_32(ir,
                          ir->add_shr_32(ir, op, mk_8(ir, rotation)),
                          ir->add_shl_32(ir, op, mk_8(ir, 32-rotation)));
 }
@@ -323,6 +323,24 @@ static struct irRegister *mk_mul_u_msb_64(struct irInstructionAllocator *ir, str
 
     return ir->add_call_64(ir, "arm64_hlp_umul_msb_64",
                            ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_umul_msb_64),
+                           param);
+}
+
+static struct irRegister *mk_mul_s_msb_64(struct irInstructionAllocator *ir, struct irRegister *op1, struct irRegister *op2)
+{
+    struct irRegister *param[4] = {op1, op2, NULL, NULL};
+
+    return ir->add_call_64(ir, "arm64_hlp_smul_msb_64",
+                           ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_smul_msb_64),
+                           param);
+}
+
+static struct irRegister *mk_mul_s_lsb_64(struct irInstructionAllocator *ir, struct irRegister *op1, struct irRegister *op2)
+{
+    struct irRegister *param[4] = {op1, op2, NULL, NULL};
+
+    return ir->add_call_64(ir, "arm64_hlp_smul_lsb_64",
+                           ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_smul_lsb_64),
                            param);
 }
 
@@ -732,7 +750,7 @@ static int dis_logical_shifted_register(struct arm64_target *context, uint32_t i
             if (is_64)
                 op2 = mk_ror_imm_64(ir, read_x(ir, rm, ZERO_REG), imm6);
             else
-                op2 = ir->add_32U_to_64(ir, mk_ror_imm_32(ir, read_x(ir, rm, ZERO_REG), imm6));
+                op2 = ir->add_32U_to_64(ir, mk_ror_imm_32(ir, read_w(ir, rm, ZERO_REG), imm6));
             break;
     }
 
@@ -1064,8 +1082,10 @@ static int dis_cond_select(struct arm64_target *context, uint32_t insn, struct i
 
 static int dis_csneg(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    assert(0);
-    return 0;
+    int rm = INSN(20,16);
+
+    return dis_cond_select(context, insn, ir,
+                           ir->add_sub_64(ir, mk_64(ir, 0UL), read_x(ir, rm, ZERO_REG)));
 }
 
 static int dis_csinv(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1477,6 +1497,30 @@ static int dis_bitfield_insn(struct arm64_target *context, uint32_t insn, struct
     return isExit;
 }
 
+static int dis_extr(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int is_64 = INSN(31,31);
+    int imms = INSN(15,10);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    struct irRegister *res;
+
+    if (is_64) {
+        res = ir->add_or_64(ir,
+                            ir->add_shr_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imms)),
+                            ir->add_shl_64(ir, read_x(ir, rn, ZERO_REG), mk_8(ir, 64 - imms)));
+        write_x(ir, rd, res, ZERO_REG);
+    } else {
+        res = ir->add_or_32(ir,
+                            ir->add_shr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imms)),
+                            ir->add_shl_32(ir, read_w(ir, rn, ZERO_REG), mk_8(ir, 32 - imms)));
+        write_w(ir, rd, res, ZERO_REG);
+    }
+
+    return 0;
+}
+
 static int dis_udiv(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int is_64 = INSN(31,31);
@@ -1504,6 +1548,40 @@ static int dis_udiv(struct arm64_target *context, uint32_t insn, struct irInstru
 
         res = ir->add_call_32(ir, "arm64_hlp_udiv_32",
                                ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_udiv_32),
+                               params);
+        write_w(ir, rd, res, ZERO_REG);
+    }
+
+    return 0;
+}
+
+static int dis_sdiv(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int is_64 = INSN(31,31);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    struct irRegister *params[4];
+    struct irRegister *res;
+
+    if (is_64) {
+        params[0] = read_x(ir, rn, ZERO_REG);
+        params[1] = read_x(ir, rm, ZERO_REG);
+        params[2] = NULL;
+        params[3] = NULL;
+
+        res = ir->add_call_32(ir, "arm64_hlp_sdiv_64",
+                               ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_sdiv_64),
+                               params);
+        write_x(ir, rd, res, ZERO_REG);
+    } else {
+        params[0] = read_w(ir, rn, ZERO_REG);
+        params[1] = read_w(ir, rm, ZERO_REG);
+        params[2] = NULL;
+        params[3] = NULL;
+
+        res = ir->add_call_32(ir, "arm64_hlp_sdiv_32",
+                               ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_sdiv_32),
                                params);
         write_w(ir, rd, res, ZERO_REG);
     }
@@ -1586,6 +1664,41 @@ static int dis_asrv(struct arm64_target *context, uint32_t insn, struct irInstru
                                              ir->add_and_64(ir,
                                                             read_x(ir, rm, ZERO_REG),
                                                             mk_64(ir, mask))));
+        write_w(ir, rd, res, ZERO_REG);
+    }
+
+    return 0;
+}
+
+static int dis_rorv(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int is_64 = INSN(31,31);
+    int rm = INSN(20,16);
+    int rn = INSN(9,5);
+    int rd = INSN(4,0);
+    struct irRegister *res;
+    int mask = is_64?0x3f:0x1f;
+    int sub = mask + 1;
+    struct irRegister *rotation1;
+    struct irRegister *rotation2;
+    struct irRegister *rn_reg;
+
+    /* compute rotation value */
+    rotation1 = ir->add_64_to_8(ir, ir->add_and_64(ir, read_x(ir, rm, ZERO_REG), mk_64(ir, mask)));
+    rotation2 = ir->add_sub_8(ir , mk_8(ir, sub), rotation1);
+
+    /* rotate */
+    if (is_64) {
+        rn_reg = read_x(ir, rn, ZERO_REG);
+        res = ir->add_or_64(ir,
+                            ir->add_shr_64(ir, rn_reg, rotation1),
+                            ir->add_shl_64(ir, rn_reg, rotation2));
+        write_x(ir, rd, res, ZERO_REG);
+    } else {
+        rn_reg = read_w(ir, rn, ZERO_REG);
+        res = ir->add_or_32(ir,
+                            ir->add_shr_32(ir, rn_reg, rotation1),
+                            ir->add_shl_32(ir, rn_reg, rotation2));
         write_w(ir, rd, res, ZERO_REG);
     }
 
@@ -1678,6 +1791,55 @@ static int dis_msub(struct arm64_target *context, uint32_t insn, struct irInstru
     return 0;
 }
 
+static int dis_smaddl(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(4,0);
+    int ra = INSN(14,10);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    struct irRegister *mult;
+    struct irRegister *res;
+
+    mult = mk_mul_s_lsb_64(ir,
+                           ir->add_32S_to_64(ir, read_w(ir, rn, ZERO_REG)),
+                           ir->add_32S_to_64(ir, read_w(ir, rm, ZERO_REG)));
+    res = ir->add_add_64(ir, read_x(ir, ra, ZERO_REG), mult);
+    write_x(ir, rd, res, ZERO_REG);
+
+    return 0;
+}
+
+static int dis_smsubl(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(4,0);
+    int ra = INSN(14,10);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    struct irRegister *mult;
+    struct irRegister *res;
+
+    mult = mk_mul_s_lsb_64(ir,
+                           ir->add_32S_to_64(ir, read_w(ir, rn, ZERO_REG)),
+                           ir->add_32S_to_64(ir, read_w(ir, rm, ZERO_REG)));
+    res = ir->add_sub_64(ir, read_x(ir, ra, ZERO_REG), mult);
+    write_x(ir, rd, res, ZERO_REG);
+
+    return 0;
+}
+
+static int dis_smulh(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rm = INSN(20,16);
+    int rn = INSN(9,5);
+    int rd = INSN(4,0);
+
+    write_x(ir, rd,
+                mk_mul_s_msb_64(ir, read_x(ir, rn, ZERO_REG), read_x(ir, rm, ZERO_REG)),
+                ZERO_REG);
+
+    return 0;
+}
+
 static int dis_umaddl(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rd = INSN(4,0);
@@ -1691,6 +1853,24 @@ static int dis_umaddl(struct arm64_target *context, uint32_t insn, struct irInst
                            ir->add_32U_to_64(ir, read_w(ir, rn, ZERO_REG)),
                            ir->add_32U_to_64(ir, read_w(ir, rm, ZERO_REG)));
     res = ir->add_add_64(ir, read_x(ir, ra, ZERO_REG), mult);
+    write_x(ir, rd, res, ZERO_REG);
+
+    return 0;
+}
+
+static int dis_umsubl(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(4,0);
+    int ra = INSN(14,10);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    struct irRegister *mult;
+    struct irRegister *res;
+
+    mult = mk_mul_u_lsb_64(ir,
+                           ir->add_32U_to_64(ir, read_w(ir, rn, ZERO_REG)),
+                           ir->add_32U_to_64(ir, read_w(ir, rm, ZERO_REG)));
+    res = ir->add_sub_64(ir, read_x(ir, ra, ZERO_REG), mult);
     write_x(ir, rd, res, ZERO_REG);
 
     return 0;
@@ -1720,7 +1900,11 @@ static int dis_msr_register(struct arm64_target *context, uint32_t insn, struct 
 
     if (op0 == 3 && op1 == 3 && crn == 0xd && crm == 0 && op2 == 2) {
         ir->add_write_context_64(ir, read_x(ir, rt, ZERO_REG), offsetof(struct arm64_registers, tpidr_el0));
+    } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 2 && op2 == 0) {
+        write_nzcv(ir, read_w(ir, rt, ZERO_REG));
     } else {
+        fprintf(stderr, "op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\n", op0, op1, crn, crm, op2);
+        fprintf(stderr, "pc = 0x%016lx\n", context->pc);
         assert(0);
     }
 
@@ -1741,6 +1925,8 @@ static int dis_mrs_register(struct arm64_target *context, uint32_t insn, struct 
     } else if (op0 == 3 && op1 == 3 && crn == 0x0 && crm == 0 && op2 == 7) {
         //dczid_el0. We declare instruction is prohibited
         write_x(ir, rt, mk_64(ir, (1 << 4) | 7 ), ZERO_REG);
+    } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 2 && op2 == 0) {
+        write_x(ir, rt, ir->add_32U_to_64(ir, read_nzcv(ir)), ZERO_REG);
     } else {
         fprintf(stderr, "op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\n", op0, op1, crn, crm, op2);
         fprintf(stderr, "pc = 0x%016lx\n", context->pc);
@@ -1854,38 +2040,119 @@ static int dis_rbit(struct arm64_target *context, uint32_t insn, struct irInstru
         return dis_rbit_32(context, insn, ir);
 }
 
-static int dis_rev_64(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+static int dis_rev16(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
+    int is_64 = INSN(31,31);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    struct irRegister *rn_reg;
+    struct irRegister *res;
+
+    if (is_64) {
+        rn_reg = read_x(ir, rn, ZERO_REG);
+        res    = ir->add_or_64(ir,
+                               ir->add_shl_64(ir,
+                                              ir->add_and_64(ir, rn_reg, mk_64(ir, 0x00ff00ff00ff00ffUL)),
+                                              mk_8(ir, 8)),
+                               ir->add_shr_64(ir,
+                                              ir->add_and_64(ir, rn_reg, mk_64(ir, 0xff00ff00ff00ff00UL)),
+                                              mk_8(ir, 8)));
+        write_x(ir, rd, res, ZERO_REG);
+    } else {
+        rn_reg = read_w(ir, rn, ZERO_REG);
+        res    = ir->add_or_32(ir,
+                               ir->add_shl_32(ir,
+                                              ir->add_and_32(ir, rn_reg, mk_32(ir, 0x00ff00ff)),
+                                              mk_8(ir, 8)),
+                               ir->add_shr_32(ir,
+                                              ir->add_and_32(ir, rn_reg, mk_32(ir, 0xff00ff00)),
+                                              mk_8(ir, 8)));
+        write_w(ir, rd, res, ZERO_REG);
+    }
+
+    return 0;
+}
+
+static int dis_rev32(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    struct irRegister *rn_reg;
+    struct irRegister *res;
+    struct irRegister *phase1;
+
+    rn_reg = read_x(ir, rn, ZERO_REG);
+    phase1 = ir->add_or_64(ir,
+                           ir->add_shl_64(ir,
+                                          ir->add_and_64(ir, rn_reg, mk_64(ir, 0x0000ffff0000ffffUL)),
+                                          mk_8(ir, 16)),
+                           ir->add_shr_64(ir,
+                                          ir->add_and_64(ir, rn_reg, mk_64(ir, 0xffff0000ffff0000UL)),
+                                          mk_8(ir, 16)));
+    res    = ir->add_or_64(ir,
+                           ir->add_shl_64(ir,
+                                          ir->add_and_64(ir, phase1, mk_64(ir, 0x00ff00ff00ff00ffUL)),
+                                          mk_8(ir, 8)),
+                           ir->add_shr_64(ir,
+                                          ir->add_and_64(ir, phase1, mk_64(ir, 0xff00ff00ff00ff00UL)),
+                                          mk_8(ir, 8)));
+    write_x(ir, rd, res, ZERO_REG);
+
+    return 0;
+}
+
+static int dis_rev(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int is_64 = INSN(31,31);
     int rn = INSN(9,5);
     int rd = INSN(4,0);
     struct irRegister *phase1;
     struct irRegister *phase2;
     struct irRegister *res;
-    struct irRegister *rn_reg = read_x(ir, rn, ZERO_REG);
+    struct irRegister *rn_reg;
 
-    phase1 = ir->add_or_64(ir,
-                           ir->add_shl_64(ir,
-                                          ir->add_and_64(ir, rn_reg, mk_64(ir, 0x00000000ffffffffUL)),
-                                          mk_8(ir, 32)),
-                           ir->add_shr_64(ir,
-                                          ir->add_and_64(ir, rn_reg, mk_64(ir, 0xffffffff00000000UL)),
-                                          mk_8(ir, 32)));
-    phase2 = ir->add_or_64(ir,
-                           ir->add_shl_64(ir,
-                                          ir->add_and_64(ir, phase1, mk_64(ir, 0x0000ffff0000ffffUL)),
-                                          mk_8(ir, 16)),
-                           ir->add_shr_64(ir,
-                                          ir->add_and_64(ir, phase1, mk_64(ir, 0xffff0000ffff0000UL)),
-                                          mk_8(ir, 16)));
-    res    = ir->add_or_64(ir,
-                           ir->add_shl_64(ir,
-                                          ir->add_and_64(ir, phase2, mk_64(ir, 0x00ff00ff00ff00ffUL)),
-                                          mk_8(ir, 8)),
-                           ir->add_shr_64(ir,
-                                          ir->add_and_64(ir, phase2, mk_64(ir, 0xff00ff00ff00ff00UL)),
-                                          mk_8(ir, 8)));
-
-    write_x(ir, rd, res, ZERO_REG);
+    if (is_64) {
+        rn_reg = read_x(ir, rn, ZERO_REG);
+        phase1 = ir->add_or_64(ir,
+                               ir->add_shl_64(ir,
+                                              ir->add_and_64(ir, rn_reg, mk_64(ir, 0x00000000ffffffffUL)),
+                                              mk_8(ir, 32)),
+                               ir->add_shr_64(ir,
+                                              ir->add_and_64(ir, rn_reg, mk_64(ir, 0xffffffff00000000UL)),
+                                              mk_8(ir, 32)));
+        phase2 = ir->add_or_64(ir,
+                               ir->add_shl_64(ir,
+                                              ir->add_and_64(ir, phase1, mk_64(ir, 0x0000ffff0000ffffUL)),
+                                              mk_8(ir, 16)),
+                               ir->add_shr_64(ir,
+                                              ir->add_and_64(ir, phase1, mk_64(ir, 0xffff0000ffff0000UL)),
+                                              mk_8(ir, 16)));
+        res    = ir->add_or_64(ir,
+                               ir->add_shl_64(ir,
+                                              ir->add_and_64(ir, phase2, mk_64(ir, 0x00ff00ff00ff00ffUL)),
+                                              mk_8(ir, 8)),
+                               ir->add_shr_64(ir,
+                                              ir->add_and_64(ir, phase2, mk_64(ir, 0xff00ff00ff00ff00UL)),
+                                              mk_8(ir, 8)));
+        write_x(ir, rd, res, ZERO_REG);
+    } else {
+        rn_reg = read_w(ir, rn, ZERO_REG);
+        phase1 = ir->add_or_32(ir,
+                               ir->add_shl_32(ir,
+                                              ir->add_and_32(ir, rn_reg, mk_32(ir, 0x0000ffff)),
+                                              mk_8(ir, 16)),
+                               ir->add_shr_32(ir,
+                                              ir->add_and_32(ir, rn_reg, mk_32(ir, 0xffff0000)),
+                                              mk_8(ir, 16)));
+        res    = ir->add_or_32(ir,
+                               ir->add_shl_32(ir,
+                                              ir->add_and_32(ir, phase1, mk_32(ir, 0x00ff00ff)),
+                                              mk_8(ir, 8)),
+                               ir->add_shr_32(ir,
+                                              ir->add_and_32(ir, phase1, mk_32(ir, 0xff00ff00)),
+                                              mk_8(ir, 8)));
+        write_w(ir, rd, res, ZERO_REG);
+    }
 
     return 0;
 }
@@ -1916,7 +2183,81 @@ static int dis_clz(struct arm64_target *context, uint32_t insn, struct irInstruc
     return 0;
 }
 
+static int dis_cls(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int is_64 = INSN(31,31);
+    int rn = INSN(9,5);
+    int rd = INSN(4,0);
+    struct irRegister *params[4];
+    struct irRegister *res;
+
+    params[0] = read_x(ir, rn, ZERO_REG);
+    params[1] = mk_32(ir, is_64?63:31);
+    params[2] = NULL;
+    params[3] = NULL;
+
+
+    res = ir->add_call_64(ir, "arm64_hlp_cls",
+                             mk_64(ir, (uint64_t) arm64_hlp_cls),
+                             params);
+
+    if (is_64)
+        write_x(ir, rd, res, ZERO_REG);
+    else
+        write_w(ir, rd, ir->add_64_to_32(ir, res), ZERO_REG);
+
+    return 0;
+}
+
+static int dis_clrex(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = NULL;
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "arm64_hlp_clrex",
+                           mk_64(ir, (uint64_t) arm64_hlp_clrex),
+                           params);
+
+    return 0;
+}
+
+static int dis_dsb(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = NULL;
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "arm64_hlp_memory_barrier",
+                           mk_64(ir, (uint64_t) arm64_hlp_memory_barrier),
+                           params);
+
+    return 0;
+}
+
 static int dis_dmb(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = NULL;
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "arm64_hlp_memory_barrier",
+                           mk_64(ir, (uint64_t) arm64_hlp_memory_barrier),
+                           params);
+
+    return 0;
+}
+
+static int dis_isb(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4];
 
@@ -2156,6 +2497,65 @@ static int dis_load_store_single_structure_post_index(struct arm64_target *conte
     return 0;
 }
 
+static int dis_add_substract_with_carry(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int is_64 = INSN(31,31);
+    int is_sub = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int S = INSN(29,29);
+    struct irRegister *carry;
+    struct irRegister *op1;
+    struct irRegister *op2;
+    struct irRegister *op2_inverted;
+    struct irRegister *res;
+
+    /* got carry */
+    carry = ir->add_and_32(ir,
+                           ir->add_shr_32(ir, read_nzcv(ir), mk_8(ir, 29)),
+                           mk_32(ir, 1));
+
+    /* compute res */
+    if (is_64) {
+        op1 = read_x(ir, rn, ZERO_REG);
+        op2 = read_x(ir, rm, ZERO_REG);
+        if (is_sub)
+            op2_inverted = ir->add_xor_64(ir, op2, mk_64(ir, ~0UL));
+        else
+            op2_inverted = op2;
+        res = ir->add_add_64(ir,
+                             ir->add_add_64(ir, op1, op2_inverted),
+                             ir->add_32U_to_64(ir, carry));
+    } else {
+        op1 = read_w(ir, rn, ZERO_REG);
+        op2 = read_w(ir, rm, ZERO_REG);
+        if (is_sub)
+            op2_inverted = ir->add_xor_32(ir, op2, mk_32(ir, ~0));
+        else
+            op2_inverted = op2;
+        res = ir->add_add_32(ir,
+                             ir->add_add_32(ir, op1, op2_inverted),
+                             carry);
+    }
+
+    /* set flags */
+    if (S) {
+        if (is_64)
+            write_nzcv(ir, mk_next_nzcv_64(ir, OPS_ADC, op1, op2_inverted));
+        else
+            write_nzcv(ir, mk_next_nzcv_32(ir, OPS_ADC, op1, op2_inverted));
+    }
+
+    /* write res */
+    if (is_64)
+        write_x(ir, rd, res, ZERO_REG);
+    else
+        write_w(ir, rd, res, ZERO_REG);
+
+    return 0;
+}
+
 /* disassemblers */
 static int dis_load_store_exclusive(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -2319,7 +2719,7 @@ static int dis_data_processing_immediate_insn(struct arm64_target *context, uint
             isExit = dis_bitfield_insn(context, insn, ir);
             break;
         case 7:
-            fatal("extract\n");
+            isExit = dis_extr(context, insn, ir);
             break;
     }
 
@@ -2350,6 +2750,7 @@ static int dis_conditional_select(struct arm64_target *context, uint32_t insn, s
 
 static int dis_data_processing_1_source(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
+    int is_64 = INSN(31,31);
     int isExit = 0;
     int opcode = INSN(15,10);
 
@@ -2357,11 +2758,23 @@ static int dis_data_processing_1_source(struct arm64_target *context, uint32_t i
         case 0://rbit
             isExit = dis_rbit(context, insn, ir);
             break;
+        case 1://rev16
+            isExit = dis_rev16(context, insn, ir);
+            break;
+        case 2://rev
+            if (is_64)
+                isExit = dis_rev32(context, insn, ir);
+            else
+                isExit = dis_rev(context, insn, ir);
+            break;
         case 3://rev
-            isExit = dis_rev_64(context, insn, ir);
+            isExit = dis_rev(context, insn, ir);
             break;
         case 4://clz
             isExit = dis_clz(context, insn, ir);
+            break;
+        case 5://cls
+            isExit = dis_cls(context, insn, ir);
             break;
         default:
             fatal("opcode = %d(%x)\n", opcode, opcode);
@@ -2379,6 +2792,9 @@ static int dis_data_processing_2_source(struct arm64_target *context, uint32_t i
         case 2:
             isExit = dis_udiv(context, insn, ir);
             break;
+        case 3:
+            isExit = dis_sdiv(context, insn, ir);
+            break;
         case 8:
             isExit = dis_lslv(context, insn, ir);
             break;
@@ -2387,6 +2803,9 @@ static int dis_data_processing_2_source(struct arm64_target *context, uint32_t i
             break;
         case 10:
             isExit = dis_asrv(context, insn, ir);
+            break;
+        case 11:
+            isExit = dis_rorv(context, insn, ir);
             break;
         default:
             fatal("opcode = %d(0x%x)\n", opcode, opcode);
@@ -2407,8 +2826,20 @@ static int dis_data_processing_3_source(struct arm64_target *context, uint32_t i
         case 1:
             isExit = dis_msub(context, insn, ir);
             break;
+        case 2:
+            isExit = dis_smaddl(context, insn, ir);
+            break;
+        case 3:
+            isExit = dis_smsubl(context, insn, ir);
+            break;
+        case 4:
+            isExit = dis_smulh(context, insn, ir);
+            break;
         case 10:
             isExit = dis_umaddl(context, insn, ir);
+            break;
+        case 11:
+            isExit = dis_umsubl(context, insn, ir);
             break;
         case 12:
             isExit = dis_umulh(context, insn, ir);
@@ -2430,7 +2861,7 @@ static int dis_data_processing_register_insn(struct arm64_target *context, uint3
         } else {
             switch(INSN(23,21)) {
                 case 0:
-                    fatal("add_sub_with_carry\n");
+                    isExit = dis_add_substract_with_carry(context, insn, ir);
                     break;
                 case 2:
                     if (INSN(11,11))
@@ -2519,8 +2950,17 @@ static int dis_system(struct arm64_target *context, uint32_t insn, struct irInst
             case 0:
                 if (crn == 3) {
                     switch(op2) {
+                        case 2:
+                            isExit = dis_clrex(context, insn, ir);
+                            break;
+                        case 4:
+                            isExit = dis_dsb(context, insn, ir);
+                            break;
                         case 5:
                             isExit = dis_dmb(context, insn, ir);
+                            break;
+                        case 6:
+                            isExit = dis_isb(context, insn, ir);
                             break;
                         default:
                             fatal("op2 = %d\n", op2);
