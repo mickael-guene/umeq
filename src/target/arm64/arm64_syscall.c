@@ -44,6 +44,9 @@ void arm64_hlp_syscall(uint64_t regs)
             case PR_openat:
                 res = arm64_openat(context);
                 break;
+            case PR_fstat:
+                res = arm64_fstat(context);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }

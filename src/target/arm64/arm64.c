@@ -103,7 +103,7 @@ static void gdb_read_registers(struct gdb *gdb, char *buf)
         buf += 2;
     }
     val = context->regs.nzcv;
-    for(j=0;j<8;j++) {
+    for(j=0;j<4;j++) {
         unsigned int byte = (val >> (j * 8)) & 0xff;
         unsigned int hnibble = (byte >> 4);
         unsigned int lnibble = (byte & 0xf);
@@ -112,6 +112,31 @@ static void gdb_read_registers(struct gdb *gdb, char *buf)
         buf[0] = gdb_tohex(hnibble);
 
         buf += 2;
+    }
+
+    for(i=0;i<12;i++) {
+        val = context->regs.v[i].v.lsb;
+        for(j=0;j<8;j++) {
+            unsigned int byte = (val >> (j * 8)) & 0xff;
+            unsigned int hnibble = (byte >> 4);
+            unsigned int lnibble = (byte & 0xf);
+
+            buf[1] = gdb_tohex(lnibble);
+            buf[0] = gdb_tohex(hnibble);
+
+            buf += 2;
+        }
+        val = context->regs.v[i].v.msb;
+        for(j=0;j<8;j++) {
+            unsigned int byte = (val >> (j * 8)) & 0xff;
+            unsigned int hnibble = (byte >> 4);
+            unsigned int lnibble = (byte & 0xf);
+
+            buf[1] = gdb_tohex(lnibble);
+            buf[0] = gdb_tohex(hnibble);
+
+            buf += 2;
+        }
     }
 
     *buf = '\0';

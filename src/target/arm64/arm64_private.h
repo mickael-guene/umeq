@@ -19,12 +19,12 @@ union simd_register {
     __uint128_t v128;
     struct {
         uint64_t lsb;
-        uint32_t msb;
+        uint64_t msb;
     } v;
-    uint64_t d;
-    uint32_t s;
-    uint16_t h;
-    uint8_t b;
+    uint64_t d[2];
+    uint32_t s[4];
+    uint16_t h[8];
+    uint8_t b[16];
 };
 
 struct arm64_registers {

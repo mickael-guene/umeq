@@ -166,7 +166,7 @@ uint64_t arm64_hlp_compute_bitfield(uint64_t context, uint32_t insn, uint64_t rn
   uint64_t res;
   int is64 = INSN(31,31);
   int reg_size = is64 ? 64 : 32;
-  int64_t reg_mask = is64 ? ~0 : 0xffffffff;
+  int64_t reg_mask = is64 ? ~0UL : 0xffffffff;
   int64_t R = INSN(21,16);
   int64_t S = INSN(15,10);
   int64_t diff = S - R;
@@ -206,7 +206,7 @@ uint64_t arm64_hlp_compute_bitfield(uint64_t context, uint32_t insn, uint64_t rn
   int64_t dst = inzero ? 0 : rd;
   int64_t src = rn;
   // Rotate source bitfield into place.
-  int64_t result = ((int64_t)(src) >> R) | (src << (reg_size - R));
+  int64_t result = ((uint64_t)(src) >> R) | (src << (reg_size - R));
   // Determine the sign extension.
   int64_t topbits = ((1L << (reg_size - diff - 1)) - 1) << (diff + 1);
   int64_t signbits = extend && ((src >> S) & 1) ? topbits : 0;

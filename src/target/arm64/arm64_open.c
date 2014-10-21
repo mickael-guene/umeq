@@ -8,7 +8,6 @@
 #include "arm64_private.h"
 #include "arm64_syscall.h"
 
-#include <stdio.h>
 /* FIXME: /proc ?? */
 long arm64_openat(struct arm64_target *context)
 {
@@ -18,7 +17,6 @@ long arm64_openat(struct arm64_target *context)
     long flags = (long) context->regs.r[2];
     int mode = context->regs.r[3];
 
-    fprintf(stderr, "%s\n", pathname);
     res = syscall(SYS_openat, dirfd, pathname, flags, mode);
 
     return res;

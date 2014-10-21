@@ -4,6 +4,7 @@
 #include "arm64_private.h"
 #include "runtime.h"
 #include "arm64_helpers.h"
+#include "arm64_helpers_simd.h"
 #include "breakpoints.h"
 
 #define ZERO_REG    1
@@ -103,42 +104,42 @@ static struct irRegister *read_v_msb(struct irInstructionAllocator *ir, int inde
 
 static void write_d(struct irInstructionAllocator *ir, int index, struct irRegister *value)
 {
-    ir->add_write_context_64(ir, value, offsetof(struct arm64_registers, v[index].d));
+    ir->add_write_context_64(ir, value, offsetof(struct arm64_registers, v[index].d[0]));
 }
 
 static struct irRegister *read_d(struct irInstructionAllocator *ir, int index)
 {
-    return ir->add_read_context_64(ir, offsetof(struct arm64_registers, v[index].d));
+    return ir->add_read_context_64(ir, offsetof(struct arm64_registers, v[index].d[0]));
 }
 
 static void write_s(struct irInstructionAllocator *ir, int index, struct irRegister *value)
 {
-    ir->add_write_context_64(ir, ir->add_32U_to_64(ir, value), offsetof(struct arm64_registers, v[index].d));
+    ir->add_write_context_64(ir, ir->add_32U_to_64(ir, value), offsetof(struct arm64_registers, v[index].d[0]));
 }
 
 static struct irRegister *read_s(struct irInstructionAllocator *ir, int index)
 {
-    return ir->add_read_context_32(ir, offsetof(struct arm64_registers, v[index].s));
+    return ir->add_read_context_32(ir, offsetof(struct arm64_registers, v[index].s[0]));
 }
 
 static void write_h(struct irInstructionAllocator *ir, int index, struct irRegister *value)
 {
-    ir->add_write_context_64(ir, ir->add_16U_to_64(ir, value), offsetof(struct arm64_registers, v[index].d));
+    ir->add_write_context_64(ir, ir->add_16U_to_64(ir, value), offsetof(struct arm64_registers, v[index].d[0]));
 }
 
 static struct irRegister *read_h(struct irInstructionAllocator *ir, int index)
 {
-    return ir->add_read_context_16(ir, offsetof(struct arm64_registers, v[index].s));
+    return ir->add_read_context_16(ir, offsetof(struct arm64_registers, v[index].h[0]));
 }
 
 static void write_b(struct irInstructionAllocator *ir, int index, struct irRegister *value)
 {
-    ir->add_write_context_64(ir, ir->add_8U_to_64(ir, value), offsetof(struct arm64_registers, v[index].d));
+    ir->add_write_context_64(ir, ir->add_8U_to_64(ir, value), offsetof(struct arm64_registers, v[index].d[0]));
 }
 
 static struct irRegister *read_b(struct irInstructionAllocator *ir, int index)
 {
-    return ir->add_read_context_8(ir, offsetof(struct arm64_registers, v[index].s));
+    return ir->add_read_context_8(ir, offsetof(struct arm64_registers, v[index].b[0]));
 }
 
 static void write_pc(struct irInstructionAllocator *ir,struct irRegister *value)
@@ -683,7 +684,7 @@ static int dis_logical_shifted_register(struct arm64_target *context, uint32_t i
     int is_setflags = 0;
     struct irRegister *res;
     struct irRegister *op2;
-    struct irRegister *res_not_inverted;
+    struct irRegister *op2_inverted;
 
     /* compute op2 */
     switch(shift) {
@@ -707,28 +708,28 @@ static int dis_logical_shifted_register(struct arm64_target *context, uint32_t i
             break;
     }
 
+    if (n)
+        op2_inverted = ir->add_xor_64(ir, op2, mk_64(ir, ~0UL));
+    else
+        op2_inverted = op2;
+
     /* do the op */
     switch(opc) {
         case 3:
             is_setflags = 1;
             //fallthrought
         case 0://and
-            res_not_inverted = ir->add_and_64(ir, read_x(ir, rn, ZERO_REG), op2);
+            res = ir->add_and_64(ir, read_x(ir, rn, ZERO_REG), op2_inverted);
             break;
         case 1://orr
-            res_not_inverted = ir->add_or_64(ir, read_x(ir, rn, ZERO_REG), op2);
+            res = ir->add_or_64(ir, read_x(ir, rn, ZERO_REG), op2_inverted);
             break;
         case 2://eor
-            res_not_inverted = ir->add_xor_64(ir, read_x(ir, rn, ZERO_REG), op2);
+            res = ir->add_xor_64(ir, read_x(ir, rn, ZERO_REG), op2_inverted);
             break;
         default:
             fatal("opc = %d\n", opc);
     }
-    /* invert */
-    if (n)
-        res = ir->add_xor_64(ir, res_not_inverted, mk_64(ir, ~0UL));
-    else
-        res = res_not_inverted;
 
     /* update nzcv if needed */
     if (is_setflags) {
@@ -1590,6 +1591,35 @@ static int dis_madd(struct arm64_target *context, uint32_t insn, struct irInstru
     return 0;
 }
 
+static int dis_msub(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int is_64 = INSN(31,31);
+    int rd = INSN(4,0);
+    int ra = INSN(14,10);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+
+    if (is_64) {
+        write_x(ir, rd,
+                ir->add_sub_64(ir,
+                               read_x(ir, ra, ZERO_REG),
+                               mk_mul_u_lsb_64(ir,
+                                               read_x(ir, rn, ZERO_REG),
+                                               read_x(ir, rm, ZERO_REG))),
+                ZERO_REG);
+    } else {
+        write_w(ir, rd,
+                ir->add_sub_32(ir,
+                               read_w(ir, ra, ZERO_REG),
+                               mk_mul_u_lsb_32(ir,
+                                               read_w(ir, rn, ZERO_REG),
+                                               read_w(ir, rm, ZERO_REG))),
+                ZERO_REG);
+    }
+
+    return 0;
+}
+
 static int dis_umaddl(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rd = INSN(4,0);
@@ -1703,6 +1733,64 @@ static int dis_store_exclusive(struct arm64_target *context, uint32_t insn, stru
     return 0;
 }
 
+static int dis_rbit_64(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    struct irRegister *x[7];
+    uint64_t c[] = {0x5555555555555555, 0x3333333333333333,
+                    0x0F0F0F0F0F0F0F0F, 0x00FF00FF00FF00FF,
+                    0x0000FFFF0000FFFF, 0x00000000FFFFFFFF};
+    int i;
+
+    x[0] = read_x(ir, rn, ZERO_REG);
+    for(i = 0; i < 6; i++) {
+        x[i+1] = ir->add_or_64(ir,
+                               ir->add_shl_64(ir,
+                                              ir->add_and_64(ir,x[i], mk_64(ir, c[i])),
+                                              mk_8(ir, 1 << i)),
+                               ir->add_shr_64(ir,
+                                              ir->add_and_64(ir,x[i], mk_64(ir, ~c[i])),
+                                              mk_8(ir, 1 << i)));
+    }
+    write_x(ir, rd, x[6], ZERO_REG);
+
+    return 0;
+}
+
+static int dis_rbit_32(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    struct irRegister *w[6];
+    uint32_t c[] = {0x55555555, 0x33333333,
+                    0x0F0F0F0F, 0x00FF00FF,
+                    0x0000FFFF};
+    int i;
+
+    w[0] = read_w(ir, rn, ZERO_REG);
+    for(i = 0; i < 5; i++) {
+        w[i+1] = ir->add_or_32(ir,
+                               ir->add_shl_32(ir,
+                                              ir->add_and_32(ir,w[i], mk_32(ir, c[i])),
+                                              mk_8(ir, 1 << i)),
+                               ir->add_shr_32(ir,
+                                              ir->add_and_32(ir,w[i], mk_32(ir, ~c[i])),
+                                              mk_8(ir, 1 << i)));
+    }
+    write_w(ir, rd, w[5], ZERO_REG);
+
+    return 0;
+}
+
+static int dis_rbit(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    if (INSN(31,31))
+        return dis_rbit_64(context, insn, ir);
+    else
+        return dis_rbit_32(context, insn, ir);
+}
+
 static int dis_rev_64(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rn = INSN(9,5);
@@ -1781,6 +1869,230 @@ static int dis_dmb(struct arm64_target *context, uint32_t insn, struct irInstruc
     return 0;
 }
 
+static int dis_fmov(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int sf = INSN(31,31);
+    int type = INSN(23,22);
+    int rmode = INSN(20,19);
+    int opcode = INSN(18,16);
+    int rn = INSN(9,5);
+    int rd = INSN(4,0);
+
+    if (sf == 0 && type == 0 && rmode == 0 && opcode == 7) {
+        //fmov Sd, Wn
+        write_s(ir, rd, read_w(ir, rn, ZERO_REG));
+    } else if (sf == 0 && type == 0 && rmode == 0 && opcode == 6) {
+        //fmov Wd, Sn
+        write_w(ir, rd, read_s(ir, rn), ZERO_REG);
+    } else if (sf == 1 && type == 1 && rmode == 0 && opcode == 7) {
+        //fmov Dd, Xn
+        write_d(ir, rd, read_x(ir, rn, ZERO_REG));
+    } else if (sf == 1 && type == 1 && rmode == 0 && opcode == 6) {
+        //fmov Xd, Dn
+        write_x(ir, rd, read_d(ir, rn), ZERO_REG);
+    } else
+        fatal("sf=%d / type=%d / rmode=%d / opcode=%d\n", sf, type, rmode, opcode);
+
+    return 0;
+}
+
+static int dis_umov(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int q_imm5 = (INSN(30,30) << 5) | INSN(20,16);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int index;
+    struct irRegister *res;
+
+    if (q_imm5 & 1) {
+        index = q_imm5 >> 1;
+        res = ir->add_8U_to_64(ir, ir->add_read_context_8(ir, offsetof(struct arm64_registers, v[rn].b[index])));
+    } else if (q_imm5 & 2) {
+        index = q_imm5 >> 2;
+        res = ir->add_16U_to_64(ir, ir->add_read_context_16(ir, offsetof(struct arm64_registers, v[rn].h[index])));
+    } else if (q_imm5 & 4) {
+        index = q_imm5 >> 3;
+        res = ir->add_32U_to_64(ir, ir->add_read_context_32(ir, offsetof(struct arm64_registers, v[rn].s[index])));
+    } else if (q_imm5 & 8) {
+        index = (q_imm5 >> 4) & 1;
+        res = ir->add_read_context_64(ir, offsetof(struct arm64_registers, v[rn].d[index]));
+    } else
+        assert(0);
+    write_x(ir, rd, res, ZERO_REG);
+
+    return 0;
+}
+
+static int dis_dup_general(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_simd_dup_general",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_simd_dup_general),
+                           params);
+
+    return 0;
+}
+
+static int dis_add_simd_vector(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_add_simd_vector",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_add_simd_vector),
+                           params);
+
+    return 0;
+}
+
+static int dis_cmpeq_simd_vector(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_cmpeq_simd_vector",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_cmpeq_simd_vector),
+                           params);
+
+    return 0;
+}
+
+static int dis_cmpeq_register_simd_vector(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_cmpeq_register_simd_vector",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_cmpeq_register_simd_vector),
+                           params);
+
+    return 0;
+}
+
+static int dis_orr_register_simd_vector(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_orr_register_simd_vector",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_orr_register_simd_vector),
+                           params);
+
+    return 0;
+}
+
+static int dis_and_simd_vector(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_and_simd_vector",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_and_simd_vector),
+                           params);
+
+    return 0;
+}
+
+static int dis_addp_simd_vector(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_addp_simd_vector",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_addp_simd_vector),
+                           params);
+
+    return 0;
+}
+
+static int dis_load_multiple_structure(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir, struct irRegister *address)
+{
+    int q = INSN(30,30);
+    int opcode = INSN(15,12);
+    int rt = INSN(4,0);
+    int res = 0;
+
+    if (opcode & 2) {
+        //ld1
+        int i;
+        int nb;
+        switch(opcode) {
+            case 7: nb = 1; break;
+            case 10: nb = 2; break;
+            case 6: nb = 3; break;
+            case 2: nb = 4; break;
+            default: assert(0);
+        }
+        for(i = 0; i < nb; i++) {
+            write_v_lsb(ir, (rt + i) % 32, ir->add_load_64(ir, ir->add_add_64(ir, address, mk_64(ir, i * (q?16:8)))));
+            if (q)
+                write_v_msb(ir, (rt + i) % 32, ir->add_load_64(ir, ir->add_add_64(ir, address, mk_64(ir, i * 16 + 8))));
+        }
+        res = 8 * (1 + q) * nb;
+    } else {
+        //ldn
+        assert(0);
+    }
+
+    return res;
+}
+
+static int dis_store_multiple_structure(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir, struct irRegister *address)
+{
+    assert(0);
+    return 0;
+}
+
+static int dis_load_store_multiple_structure(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    assert(0);
+    return 0;
+}
+
+static int dis_load_store_multiple_structure_post_index(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int l = INSN(22,22);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    struct irRegister *address;
+    int offset;
+
+    address = read_x(ir, rn, SP_REG);
+    if (l)
+        offset = dis_load_multiple_structure(context, insn, ir, address);
+    else
+        offset = dis_store_multiple_structure(context, insn, ir, address);
+
+    //writeback
+    if (rm == 31)
+        write_x(ir, rn, ir->add_add_64(ir, address, mk_64(ir, offset)), SP_REG);
+    else
+        write_x(ir, rn, ir->add_add_64(ir, address, read_x(ir, rm, ZERO_REG)), SP_REG);
+
+    return 0;
+}
+
+static int dis_load_store_single_structure(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    assert(0);
+    return 0;
+}
+
+static int dis_load_store_single_structure_post_index(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    assert(0);
+    return 0;
+}
+
 /* disassemblers */
 static int dis_load_store_exclusive(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -1810,7 +2122,22 @@ static int dis_load_store_insn(struct arm64_target *context, uint32_t insn, stru
             if (INSN(28, 24) == 0x08) {
                 isExit = dis_load_store_exclusive(context, insn, ir);
             } else {
-                fatal("advanced_simd_load_store\n");
+                int op_24__23 = INSN(24, 23);
+
+                switch(op_24__23) {
+                    case 0:
+                        isExit = dis_load_store_multiple_structure(context, insn, ir);
+                        break;
+                    case 1:
+                        isExit = dis_load_store_multiple_structure_post_index(context, insn, ir);
+                        break;
+                    case 2:
+                        isExit = dis_load_store_single_structure(context, insn, ir);
+                        break;
+                    case 3:
+                        isExit = dis_load_store_single_structure_post_index(context, insn, ir);
+                        break;
+                }
             }
             break;
         case 1:
@@ -1964,6 +2291,9 @@ static int dis_data_processing_1_source(struct arm64_target *context, uint32_t i
     int opcode = INSN(15,10);
 
     switch(opcode) {
+        case 0://rbit
+            isExit = dis_rbit(context, insn, ir);
+            break;
         case 3://rev
             isExit = dis_rev_64(context, insn, ir);
             break;
@@ -2007,6 +2337,9 @@ static int dis_data_processing_3_source(struct arm64_target *context, uint32_t i
     switch(op31_o0) {
         case 0:
             isExit = dis_madd(context, insn, ir);
+            break;
+        case 1:
+            isExit = dis_msub(context, insn, ir);
             break;
         case 10:
             isExit = dis_umaddl(context, insn, ir);
@@ -2126,8 +2459,10 @@ static int dis_system(struct arm64_target *context, uint32_t insn, struct irInst
                         default:
                             fatal("op2 = %d\n", op2);
                     }
+                } else if (crn == 2) {
+                    ;//hints are handled like nop
                 } else
-                    fatal("crn = %d\n", crn);
+                    fatal("pc = 0x%016lx / crn = %d\n", context->pc, crn);
                 break;
             case 2 ...3:
                 isExit = dis_msr_register(context, insn, ir);
@@ -2179,6 +2514,212 @@ static int dis_branch_A_exception_A_system_insn(struct arm64_target *context, ui
     return isExit;
 }
 
+static int dis_conversion_between_floating_point_and_integer_insn(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int isExit = 0;
+    int sf = INSN(31,31);
+    int type = INSN(23,22);
+    int rmode = INSN(20,19);
+    int opcode = INSN(18,16);
+
+    if (sf == 0 && type == 0 && rmode == 0 && opcode == 7) {
+        isExit = dis_fmov(context, insn, ir);
+    } else if (sf == 0 && type == 0 && rmode == 0 && opcode == 6) {
+         isExit = dis_fmov(context, insn, ir);
+    } else if (sf == 1 && type == 1 && rmode == 0 && opcode == 7) {
+         isExit = dis_fmov(context, insn, ir);
+    } else if (sf == 1 && type == 1 && rmode == 0 && opcode == 6) {
+         isExit = dis_fmov(context, insn, ir);
+    } else
+        fatal("pc = 0x%016lx / sf=%d / type=%d / rmode=%d / opcode=%d\n", context->pc, sf, type, rmode, opcode);
+
+    return isExit;
+}
+
+static int dis_advanced_simd_copy(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int isExit = 0;
+    int op = INSN(29,29);
+    int imm4 = INSN(14,11);
+
+    if (op) {
+        //ins_element
+        assert(0);
+    } else {
+        switch(imm4) {
+            case 1:
+                isExit = dis_dup_general(context, insn, ir);
+                break;
+            case 7:
+                isExit = dis_umov(context, insn, ir);
+                break;
+            default:
+                fatal("imm4 = %d\n", imm4);
+        }
+    }
+
+    return isExit;
+}
+
+static int dis_advanced_simd_three_same(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int isExit = 0;
+    int u = INSN(29,29);
+    int size = INSN(23,22);
+    int opcode = INSN(15,11);
+
+    switch(opcode) {
+        case 3:
+            if (u)
+                assert(0);
+            else {
+                if (size == 2)
+                    dis_orr_register_simd_vector(context, insn, ir);
+                else if (size == 0)
+                    dis_and_simd_vector(context, insn, ir);
+                else
+                    fatal("pc = 0x%016lx / size = %d\n", context->pc, size);
+            }
+            break;
+        case 16:
+            if (u)
+                assert(0);//sub
+            else
+                isExit = dis_add_simd_vector(context, insn, ir);
+            break;
+        case 17:
+            if (u)
+                isExit = dis_cmpeq_register_simd_vector(context, insn, ir);
+            else
+                assert(0);
+            break;
+        case 23:
+            if (u)
+                assert(0);
+            else
+                isExit = dis_addp_simd_vector(context, insn, ir);
+            break;
+        default:
+            fatal("opcode = %d(0x%x) / u=%d\n", opcode, opcode, u);
+    }
+
+    return isExit;
+}
+
+static int dis_advanced_simd_two_reg_misc(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int isExit = 0;
+    int u = INSN(29,29);
+    int size = INSN(23,22);
+    int opcode = INSN(16,12);
+
+    switch(opcode) {
+        case 9:
+            if (u)
+                assert(0);
+            else
+                isExit = dis_cmpeq_simd_vector(context, insn, ir);
+            break;
+        default:
+            fatal("opcode = %d(0x%x)\n", opcode, opcode);
+    }
+
+    return isExit;
+}
+
+static int dis_advanced_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int isExit = 0;
+
+    if (INSN(28,28) == 0) {
+        if (INSN(24, 24) == 0) {
+            if (INSN(10, 10) == 0) {
+                if (INSN(21, 21) == 0) {
+                    if (INSN(29,29) == 0) {
+                        if(INSN(11,11) == 0) {
+                            assert(0 && "decodeTlbTbx");
+                        } else {
+                            assert(0 && "decodeZipUzpTrn");
+                        }
+                    } else {
+                        assert(0 && "decodeAdvSIMDExt");
+                    }
+                } else { //INSN(21, 21) == 1
+                    if (INSN(11, 11) == 0) {
+                        assert(0 && "decodeAdvSIMDThreeDifferent");
+                    } else { //INSN(11, 11) == 1
+                        if (INSN(20, 20) == 0) {
+                            isExit = dis_advanced_simd_two_reg_misc(context, insn, ir);
+                        } else { //INSN(20, 20) == 1
+                            assert(0 && "decodeAdvSIMDAccrossLanes");
+                        }
+                    }
+                }
+            } else { //INSN(10,10) == 1
+                if (INSN(21, 21) == 0) {
+                    isExit = dis_advanced_simd_copy(context, insn, ir);
+                } else {
+                    isExit = dis_advanced_simd_three_same(context, insn, ir);
+                }
+            }
+        } else { //INSN(24,24) == 1
+            fatal("pc = 0x%016lx / insn=0x%08x\n", context->pc, insn);
+        }
+    } else { //INSN(28,28) == 1
+        fatal("pc = 0x%016lx / insn=0x%08x\n", context->pc, insn);
+    }
+
+    return isExit;
+}
+
+static int dis_data_processing_simd_insn(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int isExit = 0;
+
+    if (INSN(28,28)) {
+        if (INSN(30,30)) {
+            isExit = dis_advanced_simd(context, insn, ir);
+        } else {
+            if (INSN(24,24)) {
+                //floating_point_data_processing_3_source
+                assert(0);
+            } else {
+                if (INSN(21,21)) {
+                    switch(INSN(11,10)) {
+                        case 0:
+                            if (INSN(12,12)) {
+                                assert(0);//floating_point_immediate
+                            } else if (INSN(13,13)) {
+                                assert(0);//floating_point_compare
+                            } else if (INSN(14,14)) {
+                                assert(0);//floating_point_data_processing_1_source
+                            } else {
+                                isExit = dis_conversion_between_floating_point_and_integer_insn(context, insn, ir);
+                            }
+                            break;
+                        case 1:
+                            assert(0);//floating_point_conditional_compare
+                            break;
+                        case 2:
+                            assert(0);//floating_point_data_processing_2_source
+                            break;
+                        case 3:
+                            assert(0);//floating_point_conditional_select
+                            break;
+                    }
+                } else {
+                    //conversion_between_floating_point_and_fixed_point
+                    assert(0);
+                }
+            }
+        }
+    } else {
+        isExit = dis_advanced_simd(context, insn, ir);
+    }
+
+    return isExit;
+}
+
 static int disassemble_insn(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int isExit = 0;
@@ -2208,11 +2749,9 @@ static int disassemble_insn(struct arm64_target *context, uint32_t insn, struct 
     } else if (INSN(27, 25) == 5) {
         isExit = dis_data_processing_register_insn(context, insn, ir);
     } else if (INSN(28, 25) == 7) {
-        //data_processing_simd_and_fpu
-        fatal("data_processing_simd_and_fpu\n");
+        isExit = dis_data_processing_simd_insn(context, insn, ir);
     } else if (INSN(28, 25) == 15) {
-        //data_processing_simd_and_fpu
-        fatal("data_processing_simd_and_fpu\n");
+        isExit = dis_data_processing_simd_insn(context, insn, ir);
     } else
         fatal("Unknow insn = 0x%08x\n", insn);
 
