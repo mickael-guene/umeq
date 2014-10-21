@@ -401,7 +401,7 @@ static int dis_load_store_pair_post_indexed(struct arm64_target *context, uint32
     return dis_load_store_pair(context, insn, ir);
 }
 
-static int dis_load_store_pair_offset_simd_vfp(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+static int dis_load_store_pair_simd_vfp(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int opc = INSN(31,30);
     int is_load = INSN(22, 22);
@@ -412,11 +412,16 @@ static int dis_load_store_pair_offset_simd_vfp(struct arm64_target *context, uin
     struct irRegister *address1;
     struct irRegister *address2;
     int64_t offset;
+    int is_wb = INSN(23,23);
+    int is_not_postindex = INSN(24,24);
 
     /* compute address */
     offset = ((imm7 << 57) >> 57);
     offset = offset << (2 + opc);
-    address1 = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, offset));
+    if (is_not_postindex)
+        address1 = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, offset));
+    else
+        address1 = read_x(ir, rn, SP_REG);
     address2 = ir->add_add_64(ir, address1, mk_64(ir, 4 << opc));
 
     /* read write reg */
@@ -456,7 +461,30 @@ static int dis_load_store_pair_offset_simd_vfp(struct arm64_target *context, uin
             assert(0);
     }
 
+    /* write back */
+    if (is_wb) {
+        if (is_not_postindex)
+            write_x(ir, rn, address1, SP_REG);
+        else
+            write_x(ir, rn, ir->add_add_64(ir, address1, mk_64(ir, offset)), SP_REG);
+    }
+
     return 0;
+}
+
+static int dis_load_store_pair_pre_indexed_simd_vfp(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    return dis_load_store_pair_simd_vfp(context, insn, ir);
+}
+
+static int dis_load_store_pair_offset_simd_vfp(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    return dis_load_store_pair_simd_vfp(context, insn, ir);
+}
+
+static int dis_load_store_pair_post_indexed_simd_vfp(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    return dis_load_store_pair_simd_vfp(context, insn, ir);
 }
 
 static int dis_add_sub(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir,
@@ -1534,6 +1562,36 @@ static int dis_lsrv(struct arm64_target *context, uint32_t insn, struct irInstru
     return 0;
 }
 
+static int dis_asrv(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int is_64 = INSN(31,31);
+    int rm = INSN(20,16);
+    int rn = INSN(9,5);
+    int rd = INSN(4,0);
+    struct irRegister *res;
+    int mask = is_64?0x3f:0x1f;
+
+    if (is_64) {
+        res = ir->add_asr_64(ir,
+                             read_x(ir, rn, ZERO_REG),
+                             ir->add_64_to_8(ir,
+                                             ir->add_and_64(ir,
+                                                            read_x(ir, rm, ZERO_REG),
+                                                            mk_64(ir, mask))));
+        write_x(ir, rd, res, ZERO_REG);
+    } else {
+        res = ir->add_asr_32(ir,
+                             read_w(ir, rn, ZERO_REG),
+                             ir->add_64_to_8(ir,
+                                             ir->add_and_64(ir,
+                                                            read_x(ir, rm, ZERO_REG),
+                                                            mk_64(ir, mask))));
+        write_w(ir, rd, res, ZERO_REG);
+    }
+
+    return 0;
+}
+
 static int dis_tbz_A_tbnz(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int bit_pos = (INSN(31,31) << 5) | INSN(23,19);
@@ -1680,7 +1738,12 @@ static int dis_mrs_register(struct arm64_target *context, uint32_t insn, struct 
 
     if (op0 == 3 && op1 == 3 && crn == 0xd && crm == 0 && op2 == 2) {
         write_x(ir, rt, ir->add_read_context_64(ir, offsetof(struct arm64_registers, tpidr_el0)), ZERO_REG);
+    } else if (op0 == 3 && op1 == 3 && crn == 0x0 && crm == 0 && op2 == 7) {
+        //dczid_el0. We declare instruction is prohibited
+        write_x(ir, rt, mk_64(ir, (1 << 4) | 7 ), ZERO_REG);
     } else {
+        fprintf(stderr, "op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\n", op0, op1, crn, crm, op2);
+        fprintf(stderr, "pc = 0x%016lx\n", context->pc);
         assert(0);
     }
 
@@ -2156,7 +2219,7 @@ static int dis_load_store_insn(struct arm64_target *context, uint32_t insn, stru
                         break;
                     case 1:
                         if (INSN(26, 26))
-                            fatal("load_store_register_pair_post_indexed_simd_vfp\n");
+                            isExit = dis_load_store_pair_post_indexed_simd_vfp(context, insn, ir);
                         else
                             isExit = dis_load_store_pair_post_indexed(context, insn, ir);
                         break;
@@ -2168,7 +2231,7 @@ static int dis_load_store_insn(struct arm64_target *context, uint32_t insn, stru
                         break;
                     case 3:
                         if (INSN(26, 26))
-                            fatal("load_store_register_pair_pre_indexed_simd_vfp\n");
+                            isExit = dis_load_store_pair_pre_indexed_simd_vfp(context, insn, ir);
                         else
                             isExit = dis_load_store_pair_pre_indexed(context, insn, ir);
                         break; 
@@ -2321,6 +2384,9 @@ static int dis_data_processing_2_source(struct arm64_target *context, uint32_t i
             break;
         case 9:
             isExit = dis_lsrv(context, insn, ir);
+            break;
+        case 10:
+            isExit = dis_asrv(context, insn, ir);
             break;
         default:
             fatal("opcode = %d(0x%x)\n", opcode, opcode);

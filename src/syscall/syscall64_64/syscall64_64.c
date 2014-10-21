@@ -34,6 +34,15 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_mmap:
             res = syscall(SYS_mmap, (void *) g_2_h_64(p0), (size_t) p1, (int) p2, (int) p3, (int) p4, (off_t) p5);
             break;
+        case PR_read:
+            res = syscall(SYS_read, (int) p0, (void *) g_2_h_64(p1), (size_t) p2);
+            break;
+        case PR_mprotect:
+            res = syscall(SYS_mprotect, (void *) g_2_h_64(p0), (size_t) p1, (int) p2);
+            break;
+        case PR_munmap:
+            res = syscall(SYS_munmap, (void *) g_2_h_64(p0), (size_t) p1);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }
