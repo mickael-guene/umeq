@@ -25,7 +25,7 @@ int isGdb = 0;
 struct target_arch *current_target_arch = NULL;
 
 /* FIXME: try to factorize loop_nocache and loop_cache */
-static int loop_nocache(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *parent_target)
+static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target)
 {
     struct target **prev_target;
     jitContext handle;
@@ -88,7 +88,7 @@ static int loop_nocache(uint32_t entry, uint32_t stack_entry, uint32_t signum, v
     return target->getExitStatus(target);
 }
 
-static int loop_cache(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *parent_target)
+static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target)
 {
     struct target **prev_target;
     jitContext handle;
@@ -162,7 +162,7 @@ static int loop_cache(uint32_t entry, uint32_t stack_entry, uint32_t signum, voi
     return target->getExitStatus(target);
 }
 
-int loop(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *parent_target)
+int loop(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target)
 {
     if (signum || isGdb)
         return loop_nocache(entry, stack_entry, signum, parent_target);

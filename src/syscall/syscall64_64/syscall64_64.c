@@ -43,6 +43,30 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_munmap:
             res = syscall(SYS_munmap, (void *) g_2_h_64(p0), (size_t) p1);
             break;
+        case PR_set_tid_address:
+            res = syscall(SYS_set_tid_address, (int *) g_2_h_64(p0));
+            break;
+        case PR_set_robust_list:
+            /* FIXME: implement this correctly */
+            res = -EPERM;
+            break;
+        case PR_rt_sigprocmask:
+            res = syscall(SYS_rt_sigprocmask, (int)p0, p1?(const sigset_t *) g_2_h_64(p1):NULL,
+                                              p2?(sigset_t *) g_2_h_64(p2):NULL, (size_t) p3);
+            break;
+        case PR_getrlimit:
+            res = syscall(SYS_getrlimit, (int) p0, (struct rlimit *) g_2_h_64(p1));
+            break;
+        case PR_statfs:
+            res = syscall(SYS_statfs, (const char *) g_2_h_64(p0), (struct statfs *) g_2_h_64(p1));
+            break;
+        case PR_ioctl:
+            /* FIXME: need specific version to offset param according to ioctl */
+            res = syscall(SYS_ioctl, (int) p0, (unsigned long) p1, (char *) g_2_h_64(p2));
+            break;
+        case PR_getdents64:
+            res = syscall(SYS_getdents64, (unsigned int) p0, (struct linux_dirent *) g_2_h_64(p1), (unsigned int) p2);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }

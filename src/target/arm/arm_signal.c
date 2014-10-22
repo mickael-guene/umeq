@@ -14,7 +14,7 @@
 #define SA_RESTORER 0x04000000
 #define MINSTKSZ    2048
 
-extern int loop(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *parent_target);
+extern int loop(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target);
 
 extern void wrap_signal_restorer(void);
 /* This is the sigaction structure from the Linux 2.1.68 kernel.  */
