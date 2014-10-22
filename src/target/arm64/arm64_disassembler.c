@@ -344,6 +344,15 @@ static struct irRegister *mk_mul_s_lsb_64(struct irInstructionAllocator *ir, str
                            param);
 }
 
+static void mk_barrier(struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    ir->add_call_void(ir, "arm64_hlp_memory_barrier",
+                           mk_64(ir, (uint64_t) arm64_hlp_memory_barrier),
+                           params);
+}
+
 /* op code generation */
 static int dis_load_store_pair(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -1956,7 +1965,43 @@ static int dis_load_aquire_exclusive(struct arm64_target *context, uint32_t insn
     write_x(ir, rt, result, ZERO_REG);
 
     return 0;
+}
 
+static int dis_load_aquire_exclusive_pair(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "arm64_hlp_ldaxp_dirty",
+                           mk_64(ir, (uint64_t) arm64_hlp_ldaxp_dirty),
+                           params);
+
+    return 0;
+}
+
+static int dis_load_aquire(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int size = INSN(31,30);
+    int rt = INSN(4,0);
+    int rn = INSN(9,5);
+
+    if (size == 3) {
+        write_x(ir, rt, ir->add_load_64(ir, read_x(ir, rn, SP_REG)), ZERO_REG);
+    } else if (size == 2) {
+        write_w(ir, rt, ir->add_load_32(ir, read_x(ir, rn, SP_REG)), ZERO_REG);
+    } else if (size == 1) {
+        write_x(ir, rt, ir->add_16U_to_64(ir, ir->add_load_16(ir, read_x(ir, rn, SP_REG))), ZERO_REG);
+    } else {
+        write_x(ir, rt, ir->add_8U_to_64(ir, ir->add_load_8(ir, read_x(ir, rn, SP_REG))), ZERO_REG);
+    }
+
+    mk_barrier(ir);
+
+    return 0;
 }
 
 static int dis_store_exclusive(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -2227,48 +2272,21 @@ static int dis_clrex(struct arm64_target *context, uint32_t insn, struct irInstr
 
 static int dis_dsb(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    struct irRegister *params[4];
-
-    params[0] = NULL;
-    params[1] = NULL;
-    params[2] = NULL;
-    params[3] = NULL;
-
-    ir->add_call_void(ir, "arm64_hlp_memory_barrier",
-                           mk_64(ir, (uint64_t) arm64_hlp_memory_barrier),
-                           params);
+    mk_barrier(ir);
 
     return 0;
 }
 
 static int dis_dmb(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    struct irRegister *params[4];
-
-    params[0] = NULL;
-    params[1] = NULL;
-    params[2] = NULL;
-    params[3] = NULL;
-
-    ir->add_call_void(ir, "arm64_hlp_memory_barrier",
-                           mk_64(ir, (uint64_t) arm64_hlp_memory_barrier),
-                           params);
+    mk_barrier(ir);
 
     return 0;
 }
 
 static int dis_isb(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    struct irRegister *params[4];
-
-    params[0] = NULL;
-    params[1] = NULL;
-    params[2] = NULL;
-    params[3] = NULL;
-
-    ir->add_call_void(ir, "arm64_hlp_memory_barrier",
-                           mk_64(ir, (uint64_t) arm64_hlp_memory_barrier),
-                           params);
+    mk_barrier(ir);
 
     return 0;
 }
@@ -2567,10 +2585,14 @@ static int dis_load_store_exclusive(struct arm64_target *context, uint32_t insn,
 
     if (o0 == 1 && o1 == 0 && o2 == 0 && l == 1) {
         isExit = dis_load_aquire_exclusive(context, insn, ir);
+    } else if (o0 == 1 && o1 == 1 && o2 == 0 && l == 1) {
+        isExit = dis_load_aquire_exclusive_pair(context, insn, ir);
+    } else if (o0 == 1 &&  o1 == 0 && o2 == 1 && l == 1) {
+        isExit = dis_load_aquire(context, insn, ir);
     } else if (o0 == 0 && o1 == 0 && o2 == 0 && l == 0) {
         isExit = dis_store_exclusive(context, insn, ir);
     } else
-        fatal("o0=%d / o1=%d / o2=%d\n", o0, o1, o2);
+        fatal("o0=%d / o1=%d / o2=%d / l =%d\n", o0, o1, o2, l);
 
     return isExit;
 }

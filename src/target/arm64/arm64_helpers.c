@@ -311,12 +311,47 @@ uint64_t arm64_hlp_ldaxr(uint64_t regs, uint64_t address, uint32_t size_access)
         case 2://32 bits
             context->exclusive_value = (uint32_t) *((uint32_t *)g_2_h_64(address));
             break;
+        case 1://16 bits
+            context->exclusive_value = (uint16_t) *((uint16_t *)g_2_h_64(address));
+            break;
+        case 0://8 bits
+            context->exclusive_value = (uint8_t) *((uint8_t *)g_2_h_64(address));
+            break;
         default:
             fatal("size_access %d unsupported\n", size_access);
     }
     __sync_synchronize();
 
     return context->exclusive_value;
+}
+
+void arm64_hlp_ldaxp_dirty(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_target *context = container_of((void *) _regs, struct arm64_target, regs);
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+
+    int size = INSN(31, 30);
+    int rn = INSN(9, 5);
+    int rt = INSN(4, 0);
+    int rt2 = INSN(14, 10);
+    uint64_t address = regs->r[rn];
+
+    if (size == 3) {
+        context->exclusive_value = (__uint128_t) *((__uint128_t *) g_2_h_64(address));
+        if (rt != 31)
+            regs->r[rt] = (uint64_t) context->exclusive_value;
+        if (rt2 != 31)
+            regs->r[rt2] = (uint64_t) (context->exclusive_value >> 64);
+    } else if (size == 2) {
+        context->exclusive_value = (uint64_t) *((uint64_t *) g_2_h_64(address));
+        if (rt != 31)
+            regs->r[rt] = (uint32_t) context->exclusive_value;
+        if (rt2 != 31)
+            regs->r[rt2] = (uint32_t) (context->exclusive_value >> 32);
+    } else
+        assert(0);
+
+    __sync_synchronize();
 }
 
 uint32_t arm64_hlp_stxr(uint64_t regs, uint64_t address, uint32_t size_access, uint64_t value)
