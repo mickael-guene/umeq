@@ -10,23 +10,50 @@ long arm64_fstat(struct arm64_target *context)
 {
     long res;
     int fd = (int) context->regs.r[0];
-    struct stat_arm64 *stat_guest = (struct stat_arm64 *) g_2_h_64(context->regs.r[1]);
+    struct stat_arm64 *buf_guest = (struct stat_arm64 *) g_2_h_64(context->regs.r[1]);
     struct stat buf;
 
     res = syscall(SYS_fstat, fd, &buf);
-    stat_guest->st_dev = buf.st_dev;
-    stat_guest->st_ino = buf.st_ino;
-    stat_guest->st_mode = buf.st_mode;
-    stat_guest->st_nlink = buf.st_nlink;
-    stat_guest->st_uid = buf.st_uid;
-    stat_guest->st_gid = buf.st_gid;
-    stat_guest->st_rdev = buf.st_rdev;
-    stat_guest->st_size = buf.st_size;
-    stat_guest->st_blksize = buf.st_blksize;
-    stat_guest->st_blocks = buf.st_blocks;
-    stat_guest->st_atim = buf.st_atim;
-    stat_guest->st_mtim = buf.st_mtim;
-    stat_guest->st_ctim = buf.st_ctim;
+    buf_guest->st_dev = buf.st_dev;
+    buf_guest->st_ino = buf.st_ino;
+    buf_guest->st_mode = buf.st_mode;
+    buf_guest->st_nlink = buf.st_nlink;
+    buf_guest->st_uid = buf.st_uid;
+    buf_guest->st_gid = buf.st_gid;
+    buf_guest->st_rdev = buf.st_rdev;
+    buf_guest->st_size = buf.st_size;
+    buf_guest->st_blksize = buf.st_blksize;
+    buf_guest->st_blocks = buf.st_blocks;
+    buf_guest->st_atim = buf.st_atim;
+    buf_guest->st_mtim = buf.st_mtim;
+    buf_guest->st_ctim = buf.st_ctim;
+
+    return res;
+}
+
+long arm64_fstatat64(struct arm64_target *context)
+{
+    long res;
+    int dirfd = (int) context->regs.r[0];
+    char *pathname = (char *) g_2_h_64(context->regs.r[1]);
+    struct stat_arm64 *buf_guest = (struct stat_arm64 *) g_2_h_64(context->regs.r[2]);
+    int flags = (int) context->regs.r[3];
+    struct stat buf;
+
+    res = syscall(SYS_newfstatat, dirfd, pathname, &buf, flags);
+    buf_guest->st_dev = buf.st_dev;
+    buf_guest->st_ino = buf.st_ino;
+    buf_guest->st_mode = buf.st_mode;
+    buf_guest->st_nlink = buf.st_nlink;
+    buf_guest->st_uid = buf.st_uid;
+    buf_guest->st_gid = buf.st_gid;
+    buf_guest->st_rdev = buf.st_rdev;
+    buf_guest->st_size = buf.st_size;
+    buf_guest->st_blksize = buf.st_blksize;
+    buf_guest->st_blocks = buf.st_blocks;
+    buf_guest->st_atim = buf.st_atim;
+    buf_guest->st_mtim = buf.st_mtim;
+    buf_guest->st_ctim = buf.st_ctim;
 
     return res;
 }

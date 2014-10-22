@@ -14,6 +14,7 @@ extern long arm64_brk(struct arm64_target *context);
 extern long arm64_openat(struct arm64_target *context);
 extern long arm64_fstat(struct arm64_target *context);
 extern long arm64_rt_sigaction(struct arm64_target *context);
+extern long arm64_fstatat64(struct arm64_target *context);
 
 #endif
 

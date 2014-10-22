@@ -50,6 +50,9 @@ void arm64_hlp_syscall(uint64_t regs)
             case PR_rt_sigaction:
                 res = arm64_rt_sigaction(context);
                 break;
+            case PR_fstatat64:
+                res = arm64_fstatat64(context);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }
