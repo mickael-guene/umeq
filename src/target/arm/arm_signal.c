@@ -97,15 +97,15 @@ void wrap_signal_handler(int signum)
 /* FIXME: Use of mmap/munmap here need to be rework */
 void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
 {
-    siginfo_t_arm *siginfo_arm = mmap(NULL, sizeof(siginfo_t_arm), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
+    guest_ptr siginfo_guest = mmap_guest(0, sizeof(siginfo_t_arm), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS , -1, 0);
+    siginfo_t_arm *siginfo_arm = (siginfo_t_arm *) g_2_h(siginfo_guest);
 
     if (siginfo_arm) {
         siginfo_arm->si_signo = siginfo->si_signo;
         siginfo_arm->si_errno = siginfo->si_errno;
         siginfo_arm->si_code = siginfo->si_code;
         /* FIXME : fill in files according to case */
-
-        loop(guest_signals_handler[signum], ss.ss_flags?0:ss.ss_sp, signum, siginfo_arm);
+        loop(guest_signals_handler[signum], ss.ss_flags?0:ss.ss_sp, signum, (void *)(uint64_t) siginfo_guest);
         munmap(siginfo_arm, sizeof(siginfo_t_arm));
     }
 }
