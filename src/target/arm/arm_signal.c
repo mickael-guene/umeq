@@ -6,8 +6,10 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <sys/syscall.h>
+#include <assert.h>
 
 #include "arm_syscall.h"
+#include "runtime.h"
 
 #define SA_RESTORER 0x04000000
 #define MINSTKSZ    2048
@@ -104,7 +106,49 @@ void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
         siginfo_arm->si_signo = siginfo->si_signo;
         siginfo_arm->si_errno = siginfo->si_errno;
         siginfo_arm->si_code = siginfo->si_code;
-        /* FIXME : fill in files according to case */
+        switch(siginfo->si_code) {
+            case SI_USER:
+            case SI_TKILL:
+                siginfo_arm->_sifields._rt._si_pid = siginfo->si_pid;
+                siginfo_arm->_sifields._rt._si_uid = siginfo->si_uid;
+                break;
+            case SI_KERNEL:
+                if (signum == SIGPOLL) {
+                    siginfo_arm->_sifields._sigpoll._si_band = siginfo->si_band;
+                    siginfo_arm->_sifields._sigpoll._si_fd = siginfo->si_fd;
+                } else if (signum == SIGCHLD) {
+                    siginfo_arm->_sifields._sigchld._si_pid = siginfo->si_pid;
+                    siginfo_arm->_sifields._sigchld._si_uid = siginfo->si_uid;
+                    siginfo_arm->_sifields._sigchld._si_status = siginfo->si_status;
+                    siginfo_arm->_sifields._sigchld._si_utime = siginfo->si_utime;
+                    siginfo_arm->_sifields._sigchld._si_stime = siginfo->si_stime;
+                } else {
+                    siginfo_arm->_sifields._sigfault._si_addr = h_2_g(siginfo->si_addr);
+                }
+                break;
+            case SI_QUEUE:
+                siginfo_arm->_sifields._rt._si_pid = siginfo->si_pid;
+                siginfo_arm->_sifields._rt._si_uid = siginfo->si_uid;
+                siginfo_arm->_sifields._rt._si_sigval.sival_int = siginfo->si_int;
+                siginfo_arm->_sifields._rt._si_sigval.sival_ptr = (uint64_t) siginfo->si_ptr;
+                break;
+            case SI_TIMER:
+                siginfo_arm->_sifields._timer._si_tid = siginfo->si_timerid;
+                siginfo_arm->_sifields._timer._si_overrun = siginfo->si_overrun;
+                siginfo_arm->_sifields._timer._si_sigval.sival_int = siginfo->si_int;
+                siginfo_arm->_sifields._timer._si_sigval.sival_ptr = (uint64_t) siginfo->si_ptr;
+                break;
+            case SI_MESGQ:
+                siginfo_arm->_sifields._rt._si_sigval.sival_int = siginfo->si_int;
+                siginfo_arm->_sifields._rt._si_sigval.sival_ptr = (uint64_t) siginfo->si_ptr;
+                break;
+            case SI_SIGIO:
+            case SI_ASYNCIO:
+                assert(0);
+                break;
+            default:
+                fatal("si_code %d not yet implemented, signum = %d\n", siginfo->si_code, signum);
+        }
         loop(guest_signals_handler[signum], ss.ss_flags?0:ss.ss_sp, signum, (void *)(uint64_t) siginfo_guest);
         munmap(siginfo_arm, sizeof(siginfo_t_arm));
     }
