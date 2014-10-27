@@ -136,7 +136,7 @@ int arm_rt_sigaction(struct arm_target *context)
                 act.k_sa_handler = (__sighandler_t)(long) act_guest->_sa_handler;
                 act.sa_mask.__val[0] = act_guest->sa_mask[0];
             } else {
-                act.k_sa_handler = (act_guest->sa_flags | SA_SIGINFO)?(__sighandler_t)&wrap_signal_sigaction:&wrap_signal_handler;
+                act.k_sa_handler = (act_guest->sa_flags & SA_SIGINFO)?(__sighandler_t)&wrap_signal_sigaction:&wrap_signal_handler;
                 act.sa_mask.__val[0] = act_guest->sa_mask[0];
                 act.sa_flags = act_guest->sa_flags | SA_RESTORER;
                 act.sa_restorer = &wrap_signal_restorer;
