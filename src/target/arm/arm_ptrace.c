@@ -125,7 +125,7 @@ int arm_ptrace(struct arm_target *context)
                 /* avoid poking too long ... */
                 assert(addr < 16 * 4);
                 /* FIXME: Need rework with a framework to handle tlsarea usage */
-                res = syscall(SYS_ptrace, request, pid, addr, &user_regs);
+                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
                 res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
 
                 res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + addr, &data_host);
