@@ -53,6 +53,9 @@ void arm64_hlp_syscall(uint64_t regs)
             case PR_fstatat64:
                 res = arm64_fstatat64(context);
                 break;
+            case PR_clone:
+                res = arm64_clone(context);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }
