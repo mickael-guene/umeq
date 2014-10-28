@@ -1,1 +1,1 @@
-add_library (syscall64_64 syscall64_64.c fcntl_s6464.c)
+add_library (syscall64_64 syscall64_64.c fcntl_s6464.c execve_s6464.c)
