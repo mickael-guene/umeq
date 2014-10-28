@@ -124,6 +124,24 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_gettimeofday:
             res = syscall(SYS_gettimeofday, (struct timeval *) g_2_h_64(p0), (struct timezone *) g_2_h_64(p1));
             break;
+        case PR_getppid:
+            res = syscall(SYS_getppid);
+            break;
+        case PR_getpgid:
+            res = syscall(SYS_getpgid, (pid_t) p0);
+            break;
+        case PR_dup:
+            res = syscall(SYS_dup, (int)p0);
+            break;
+        case PR_fcntl:
+            res = fcntl_s6464(p0,p1,p2);
+            break;
+        case PR_setpgid:
+            res = syscall(SYS_setpgid, (pid_t)p0, (pid_t)p1);
+            break;
+        case PR_pipe2:
+            res = syscall(SYS_pipe2, (int *) g_2_h_64(p0), (int) p1);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }

@@ -9,6 +9,7 @@
 #include <assert.h>
 
 #include "arm64_syscall.h"
+#include "runtime.h"
 
 #define SA_RESTORER 0x04000000
 
@@ -24,7 +25,7 @@ struct kernel_sigaction {
 
 struct sigaction_arm64 {
     uint64_t _sa_handler;
-	uint64_t sa_mask[16];
+    uint64_t sa_mask[16];
     uint32_t sa_flags;
     uint64_t sa_restorer;
 };
@@ -90,31 +91,74 @@ static stack_t_arm64 ss = {0, SS_DISABLE, 0};
 /* signal wrapper functions */
 void wrap_signal_handler(int signum)
 {
-	assert(0);
+    assert(0);
     loop(guest_signals_handler[signum], ss.ss_flags?0:ss.ss_sp, signum, NULL);
 }
 
 /* FIXME: Use of mmap/munmap here need to be rework */
 void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
 {
-	assert(0);
-    siginfo_t_arm64 *siginfo_arm64 = mmap(NULL, sizeof(siginfo_t_arm64), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    assert(0);
+    guest64_ptr siginfo_guest = mmap64_guest(0, sizeof(siginfo_t_arm64), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS , -1, 0);
+    siginfo_t_arm64 *siginfo_arm64 = (siginfo_t_arm64 *) g_2_h_64(siginfo_guest);
 
     if (siginfo_arm64) {
         siginfo_arm64->si_signo = siginfo->si_signo;
         siginfo_arm64->si_errno = siginfo->si_errno;
         siginfo_arm64->si_code = siginfo->si_code;
-        /* FIXME : fill in files according to case */
+        switch(siginfo->si_code) {
+            case SI_USER:
+            case SI_TKILL:
+                siginfo_arm64->_sifields._rt._si_pid = siginfo->si_pid;
+                siginfo_arm64->_sifields._rt._si_uid = siginfo->si_uid;
+                break;
+            case SI_KERNEL:
+                if (signum == SIGPOLL) {
+                    siginfo_arm64->_sifields._sigpoll._si_band = siginfo->si_band;
+                    siginfo_arm64->_sifields._sigpoll._si_fd = siginfo->si_fd;
+                } else if (signum == SIGCHLD) {
+                    siginfo_arm64->_sifields._sigchld._si_pid = siginfo->si_pid;
+                    siginfo_arm64->_sifields._sigchld._si_uid = siginfo->si_uid;
+                    siginfo_arm64->_sifields._sigchld._si_status = siginfo->si_status;
+                    siginfo_arm64->_sifields._sigchld._si_utime = siginfo->si_utime;
+                    siginfo_arm64->_sifields._sigchld._si_stime = siginfo->si_stime;
+                } else {
+                    siginfo_arm64->_sifields._sigfault._si_addr = h_2_g_64(siginfo->si_addr);
+                }
+                break;
+            case SI_QUEUE:
+                siginfo_arm64->_sifields._rt._si_pid = siginfo->si_pid;
+                siginfo_arm64->_sifields._rt._si_uid = siginfo->si_uid;
+                siginfo_arm64->_sifields._rt._si_sigval.sival_int = siginfo->si_int;
+                siginfo_arm64->_sifields._rt._si_sigval.sival_ptr = (uint64_t) siginfo->si_ptr;
+                break;
+            case SI_TIMER:
+                siginfo_arm64->_sifields._timer._si_tid = siginfo->si_timerid;
+                siginfo_arm64->_sifields._timer._si_overrun = siginfo->si_overrun;
+                siginfo_arm64->_sifields._timer._si_sigval.sival_int = siginfo->si_int;
+                siginfo_arm64->_sifields._timer._si_sigval.sival_ptr = (uint64_t) siginfo->si_ptr;
+                break;
+            case SI_MESGQ:
+                siginfo_arm64->_sifields._rt._si_sigval.sival_int = siginfo->si_int;
+                siginfo_arm64->_sifields._rt._si_sigval.sival_ptr = (uint64_t) siginfo->si_ptr;
+                break;
+            case SI_SIGIO:
+            case SI_ASYNCIO:
+                assert(0);
+                break;
+            default:
+                fatal("si_code %d not yet implemented, signum = %d\n", siginfo->si_code, signum);
+        }
 
-        loop(guest_signals_handler[signum], ss.ss_flags?0:ss.ss_sp, signum, siginfo_arm64);
-        munmap(siginfo_arm64, sizeof(siginfo_arm64));
+        loop(guest_signals_handler[signum], ss.ss_flags?0:ss.ss_sp, signum, (void *)siginfo_guest);
+        munmap64_guest(siginfo_guest, sizeof(siginfo_arm64));
     }
 }
 
 /* signal syscall handling */
 long arm64_rt_sigaction(struct arm64_target *context)
 {
-	long res;
+    long res;
     uint64_t signum_p = context->regs.r[0];
     uint64_t act_p = context->regs.r[1];
     uint64_t oldact_p = context->regs.r[2];
@@ -137,7 +181,7 @@ long arm64_rt_sigaction(struct arm64_target *context)
                 act.k_sa_handler = (__sighandler_t)(long) act_guest->_sa_handler;
                 act.sa_mask.__val[0] = act_guest->sa_mask[0];
             } else {
-                act.k_sa_handler = (act_guest->sa_flags | SA_SIGINFO)?(__sighandler_t)&wrap_signal_sigaction:&wrap_signal_handler;
+                act.k_sa_handler = (act_guest->sa_flags & SA_SIGINFO)?(__sighandler_t)&wrap_signal_sigaction:&wrap_signal_handler;
                 act.sa_mask.__val[0] = act_guest->sa_mask[0];
                 act.sa_flags = act_guest->sa_flags | SA_RESTORER;
                 act.sa_restorer = &wrap_signal_restorer;
@@ -165,5 +209,5 @@ long arm64_rt_sigaction(struct arm64_target *context)
         }
     }
 
-	return res;
+    return res;
 }

@@ -353,6 +353,55 @@ static void mk_barrier(struct irInstructionAllocator *ir)
                            params);
 }
 
+static uint64_t simd_immediate(int op, int cmode, int imm8_p)
+{
+    uint64_t imm8 = imm8_p;
+    uint64_t imm64 = 0;
+
+    switch(cmode >> 1) {
+    case 0:
+        imm64 = (imm8 << 32) | (imm8 << 0);
+        break;
+    case 1:
+        imm64 = (imm8 << 40) | (imm8 << 8);
+        break;
+    case 2:
+        imm64 = (imm8 << 48) | (imm8 << 16);
+        break;
+    case 3:
+        imm64 = (imm8 << 56) | (imm8 << 24);
+        break;
+    case 4:
+        imm64 = (imm8 << 48) | (imm8 << 32) | (imm8 << 16) | (imm8 << 0);
+        break;
+    case 5:
+        imm64 = (imm8 << 56) | (imm8 << 40) | (imm8 << 24) | (imm8 << 8);
+        break;
+    case 6:
+        if (cmode & 1)
+            imm64 = (imm8 << 48) | (0xffffUL << 32) | (imm8 << 16) | 0xffff;
+        else
+            imm64 = (imm8 << 40) | (0xffUL << 32) | (imm8 << 8) | 0xff;
+        break;
+    case 7:
+        if ((cmode & 1) == 0 && op == 0) {
+            imm64 = (imm8 << 56) | (imm8 << 48) | (imm8 << 40) | (imm8 << 32) | (imm8 << 24) |  (imm8 << 16) | (imm8 << 8) | (imm8 << 0);
+        } else if ((cmode & 1) == 0 && op == 1) {
+            int i;
+
+            for(i=0;i<8;i++)
+                imm64 |= (imm8&(1<<i))?(0xffUL << (8*i)):0;
+        } else {
+            fatal("cmode0 = %d / op = %d\n", (cmode & 1), op);
+        }
+        break;
+    default:
+        assert(0);
+    }
+
+    return imm64;
+}
+
 /* op code generation */
 static int dis_load_store_pair(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -1449,7 +1498,35 @@ static int dis_load_store_register_immediate_pre_indexed_simd(struct arm64_targe
 
 static int dis_load_register_literal_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    assert(0);
+    int opc = INSN(31,30);
+    int64_t imm19 = INSN(23,5);
+    int rt = INSN(4,0);
+    struct irRegister *address;
+
+    imm19 = (imm19 << 45) >> 43;
+    /* compute address */
+    address = mk_64(ir, context->pc + imm19);
+
+    switch(opc) {
+        case 0:
+            write_s(ir, rt, ir->add_load_32(ir, address));
+            break;
+        case 1:
+            write_d(ir, rt, ir->add_load_64(ir, address));
+            break;
+        case 2:
+            {
+                struct irRegister *address2 = mk_64(ir, context->pc + imm19 + 8);
+
+                write_v_lsb(ir, rt, ir->add_load_64(ir, address));
+                write_v_msb(ir, rt, ir->add_load_64(ir, address2));
+            }
+            break;
+        default:
+            assert(0);
+    }
+
+    return 0;
 }
 
 static uint64_t rotateRight(uint64_t value, int rotate, int width)
@@ -2471,6 +2548,9 @@ static int dis_fmov(struct arm64_target *context, uint32_t insn, struct irInstru
     } else if (sf == 1 && type == 1 && rmode == 0 && opcode == 6) {
         //fmov Xd, Dn
         write_x(ir, rd, read_d(ir, rn), ZERO_REG);
+    } else if (sf == 1 && type == 2 && rmode == 1 && opcode == 6) {
+        //fmod Xd, Vn.D[1]
+        write_x(ir, rd, read_v_msb(ir, rn), ZERO_REG);
     } else
         fatal("sf=%d / type=%d / rmode=%d / opcode=%d\n", sf, type, rmode, opcode);
 
@@ -2729,6 +2809,30 @@ static int dis_add_substract_with_carry(struct arm64_target *context, uint32_t i
         write_x(ir, rd, res, ZERO_REG);
     else
         write_w(ir, rd, res, ZERO_REG);
+
+    return 0;
+}
+
+static int dis_mvni(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    assert(0);
+    return 0;
+}
+
+static int dis_movi(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(30, 30);
+    int op = INSN(29, 29);
+    int imm8 = (INSN(18,16) << 5) + INSN(9,5);
+    int cmode = INSN(15,12);
+    int rd = INSN(4, 0);
+    struct irRegister *imm64 = mk_64(ir, simd_immediate(op, cmode, imm8));
+
+    if (Q) {
+        write_v_msb(ir, rd, imm64);
+        write_v_lsb(ir, rd, imm64);
+    } else
+        write_d(ir, rd, imm64);
 
     return 0;
 }
@@ -3232,6 +3336,8 @@ static int dis_conversion_between_floating_point_and_integer_insn(struct arm64_t
          isExit = dis_fmov(context, insn, ir);
     } else if (sf == 1 && type == 1 && rmode == 0 && opcode == 6) {
          isExit = dis_fmov(context, insn, ir);
+    } else if (sf == 1 && type == 2 && rmode == 1 && opcode == 6) {
+         isExit = dis_fmov(context, insn, ir);
     } else
         fatal("pc = 0x%016lx / sf=%d / type=%d / rmode=%d / opcode=%d\n", context->pc, sf, type, rmode, opcode);
 
@@ -3308,6 +3414,31 @@ static int dis_advanced_simd_three_same(struct arm64_target *context, uint32_t i
     return isExit;
 }
 
+static int dis_advanced_simd_modified_immediate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int isExit = 0;
+    int cmode = INSN(15, 12);
+    int op = INSN(29, 29);
+
+    switch(cmode) {
+            case 0: case 2: case 4: case 6:
+            case 8: case 10:
+            case 12 ... 13:
+                if (op)
+                    isExit = dis_mvni(context, insn, ir);
+                else
+                    isExit = dis_movi(context, insn, ir);
+                break;
+            case 14:
+                isExit = dis_movi(context, insn, ir);
+                break;
+        default:
+            fatal("cmode = %d(0x%x)\n", cmode, cmode);
+    }
+
+    return isExit;
+}
+
 static int dis_advanced_simd_two_reg_misc(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int isExit = 0;
@@ -3365,7 +3496,17 @@ static int dis_advanced_simd(struct arm64_target *context, uint32_t insn, struct
                 }
             }
         } else { //INSN(24,24) == 1
-            fatal("pc = 0x%016lx / insn=0x%08x\n", context->pc, insn);
+            if (INSN(10,10) == 0) {
+                //decodeAdvSIMDVectorXIndexedElement
+                fatal("pc = 0x%016lx / insn=0x%08x\n", context->pc, insn);
+            } else { //INSN(10,10) == 1
+                if (INSN(22,19) == 0) {
+                    isExit = dis_advanced_simd_modified_immediate(context, insn, ir);
+                } else {
+                    //decodeAdvSIMDShiftByImmediate
+                    fatal("pc = 0x%016lx / insn=0x%08x\n", context->pc, insn);
+                }
+            }
         }
     } else { //INSN(28,28) == 1
         fatal("pc = 0x%016lx / insn=0x%08x\n", context->pc, insn);
