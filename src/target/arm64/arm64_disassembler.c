@@ -413,6 +413,46 @@ static int dis_load_store_pair(struct arm64_target *context, uint32_t insn, stru
     return 0;
 }
 
+static int dis_load_store_no_allocate_pair_offset(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int is_64 = INSN(31, 31);
+    int is_load = INSN(22, 22);
+    int64_t imm7 = INSN(21, 15);
+    int rt2 = INSN(14, 10);
+    int rn = INSN(9, 5);
+    int rt = INSN(4, 0);
+    struct irRegister *address1;
+    struct irRegister *address2;
+    int64_t offset;
+
+    /* compute address */
+    offset = ((imm7 << 57) >> 57);
+    offset = offset << (2 + is_64);
+    address1 = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, offset));
+    address2 = ir->add_add_64(ir, address1, mk_64(ir, is_64?8:4));
+
+    /* read write reg */
+    if (is_load) {
+        if (is_64) {
+            write_x(ir, rt, ir->add_load_64(ir, address1), ZERO_REG);
+            write_x(ir, rt2, ir->add_load_64(ir, address2), ZERO_REG);
+        } else {
+            write_w(ir, rt, ir->add_load_32(ir, address1), ZERO_REG);
+            write_w(ir, rt2, ir->add_load_32(ir, address2), ZERO_REG);
+        }
+    } else {
+        if (is_64) {
+            ir->add_store_64(ir, read_x(ir, rt, ZERO_REG), address1);
+            ir->add_store_64(ir, read_x(ir, rt2, ZERO_REG), address2);
+        } else {
+            ir->add_store_32(ir, read_w(ir, rt, ZERO_REG), address1);
+            ir->add_store_32(ir, read_w(ir, rt2, ZERO_REG), address2);
+        }
+    }
+
+    return 0;
+}
+
 static int dis_load_store_pair_pre_indexed(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     return dis_load_store_pair(context, insn, ir);
@@ -1372,6 +1412,11 @@ static int dis_load_store_register_register_offset(struct arm64_target *context,
 static int dis_load_store_register_register_offset_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     assert(0);
+}
+
+static int dis_load_store_register_unprivileged(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    return dis_load_store_register_unscaled_immediate(context, insn, ir);
 }
 
 static int dis_load_store_register_immediate_pre_indexed(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -2637,7 +2682,10 @@ static int dis_load_store_insn(struct arm64_target *context, uint32_t insn, stru
 
                 switch(op_24__23) {
                     case 0:
-                        fatal("load_store_no_allocate_pair\n");
+                        if (INSN(26, 26))
+                            assert(0 && "dis_load_store_no_allocate_pair_offset_simd_vfp");
+                        else
+                            isExit = dis_load_store_no_allocate_pair_offset(context, insn, ir);
                         break;
                     case 1:
                         if (INSN(26, 26))
@@ -2687,7 +2735,7 @@ static int dis_load_store_insn(struct arm64_target *context, uint32_t insn, stru
                             else
                                 isExit = dis_load_store_register_register_offset(context, insn, ir);
                         } else {
-                            fatal("load_store_register_unprivileged\n");
+                            isExit = dis_load_store_register_unprivileged(context, insn, ir);
                         }
                         break;
                     case 3:
