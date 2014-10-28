@@ -96,7 +96,10 @@ void wrap_signal_handler(int signum)
     loop(guest_signals_handler[signum], ss.ss_flags?0:ss.ss_sp, signum, NULL);
 }
 
-/* FIXME: Use of mmap/munmap here need to be rework */
+/* FIXME: BUG: Avoid usage of mmap_guest/munmap_guest since we can deadlock if we were already inside
+   mmap_guest/munmap_guest when signal is generated. Solution is to allocate this structure from
+   parent guest stack.
+ */
 void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
 {
     guest_ptr siginfo_guest = mmap_guest(0, sizeof(siginfo_t_arm), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS , -1, 0);
@@ -150,7 +153,7 @@ void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
                 fatal("si_code %d not yet implemented, signum = %d\n", siginfo->si_code, signum);
         }
         loop(guest_signals_handler[signum], ss.ss_flags?0:ss.ss_sp, signum, (void *)(uint64_t) siginfo_guest);
-        munmap(siginfo_arm, sizeof(siginfo_t_arm));
+        munmap_guest(siginfo_guest, sizeof(siginfo_t_arm));
     }
 }
 
