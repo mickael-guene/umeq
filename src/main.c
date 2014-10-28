@@ -23,11 +23,15 @@
 int isGdb = 0;
 
 struct target_arch *current_target_arch = NULL;
+struct tls_context {
+    struct target *target;
+    void *target_runtime;
+};
+
 
 /* FIXME: try to factorize loop_nocache and loop_cache */
 static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target)
 {
-    struct target **prev_target;
     jitContext handle;
     void *targetHandle;
     struct irInstructionAllocator *ir;
@@ -38,34 +42,34 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     char *context_memory = alloca(current_target_arch->get_context_size());
     struct target *target;
     void *target_runtime;
-    void *prev_target_runtime;
     uint64_t currentPc = entry;
-    struct target *saved_prev_target;
-    unsigned long tlsarea[16];
     unsigned long tlsareaAddress;
+    struct tls_context parent_tls_context;
+    struct tls_context *current_tls_context;
 
     /* setup tls area if not yet set */
     syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
     if (!tlsareaAddress) {
-        syscall(SYS_arch_prctl, ARCH_SET_FS, tlsarea);
-        tlsareaAddress = (unsigned long) tlsarea;
+        syscall(SYS_arch_prctl, ARCH_SET_FS, alloca(sizeof(struct tls_context)));
+        syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
+        assert(tlsareaAddress != 0);
     }
+    current_tls_context =  (struct tls_context *) tlsareaAddress;
 
-    /* prev_target point to tlsarea */
-    prev_target = (struct target **) tlsareaAddress;
+    /* allocate jitter and target context */
     backend = createX86_64Backend(beX86_64Memory);
     handle = createJitter(jitterMemory, backend);
     ir = getIrInstructionAllocator(handle);
     targetHandle = current_target_arch->create_target_context(context_memory);
     target = current_target_arch->get_target_structure(targetHandle);
     target_runtime = current_target_arch->get_target_runtime(targetHandle);
-    prev_target_runtime = (void *) tlsarea[1];
-    tlsarea[1] = (unsigned long) target_runtime;
-
-    saved_prev_target = *prev_target;
-    *prev_target = target;
-    target->init(target, saved_prev_target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
-
+    /* save parent tls context content and setup current one */
+    parent_tls_context = *current_tls_context;
+    current_tls_context->target = target;
+    current_tls_context->target_runtime = target_runtime;
+    /* init target */
+    target->init(target, parent_tls_context.target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
+    /* enter main loop */
     while(target->isLooping(target)) {
         int jitSize;
 
@@ -80,17 +84,14 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
         } else
             assert(0);
     }
-
-    /* restore previous tls context */
-    *prev_target = saved_prev_target;
-    tlsarea[1] = (unsigned long) prev_target_runtime;
+    /* restore parent tls context */
+    *current_tls_context = parent_tls_context;
 
     return target->getExitStatus(target);
 }
 
 static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target)
 {
-    struct target **prev_target;
     jitContext handle;
     void *targetHandle;
     struct irInstructionAllocator *ir;
@@ -101,35 +102,35 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     char *context_memory = alloca(current_target_arch->get_context_size());
     struct target *target;
     void *target_runtime;
-    void *prev_target_runtime;
     uint64_t currentPc = entry;
-    struct target *saved_prev_target;
-    char cacheMemory[CACHE_SIZE];
-    struct cache *cache = NULL;
-    unsigned long tlsarea[16];
     unsigned long tlsareaAddress;
+    struct tls_context parent_tls_context;
+    struct tls_context *current_tls_context;
+    struct cache *cache = NULL;
+    char cacheMemory[CACHE_SIZE];
 
     /* setup tls area if not yet set */
     syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
     if (!tlsareaAddress) {
-        syscall(SYS_arch_prctl, ARCH_SET_FS, tlsarea);
-        tlsareaAddress = (unsigned long) tlsarea;
+        syscall(SYS_arch_prctl, ARCH_SET_FS, alloca(sizeof(struct tls_context)));
+        syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
+        assert(tlsareaAddress != 0);
     }
+    current_tls_context =  (struct tls_context *) tlsareaAddress;
 
-    /* prev_target point to tlsarea */
-    prev_target = (struct target **) tlsareaAddress;
+    /* allocate jitter and target context */
     backend = createX86_64Backend(beX86_64Memory);
     handle = createJitter(jitterMemory, backend);
     ir = getIrInstructionAllocator(handle);
     targetHandle = current_target_arch->create_target_context(context_memory);
     target = current_target_arch->get_target_structure(targetHandle);
     target_runtime = current_target_arch->get_target_runtime(targetHandle);
-    prev_target_runtime = (void *) tlsarea[1];
-    tlsarea[1] = (unsigned long) target_runtime;
-
-    saved_prev_target = *prev_target;
-    *prev_target = target;
-    target->init(target, saved_prev_target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
+    /* save parent tls context content and setup current one */
+    parent_tls_context = *current_tls_context;
+    current_tls_context->target = target;
+    current_tls_context->target_runtime = target_runtime;
+    /* init target */
+    target->init(target, parent_tls_context.target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
     cache = createCache(cacheMemory);
 
     while(target->isLooping(target)) {
@@ -152,12 +153,9 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
                 assert(0);
         }
     }
-
     removeCache(cache);
-
-    /* restore previous tls context */
-    *prev_target = saved_prev_target;
-    tlsarea[1] = (unsigned long) prev_target_runtime;
+    /* restore parent tls context */
+    *current_tls_context = parent_tls_context;
 
     return target->getExitStatus(target);
 }
