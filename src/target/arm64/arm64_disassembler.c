@@ -1990,6 +1990,28 @@ static int dis_mrs_register(struct arm64_target *context, uint32_t insn, struct 
     return 0;
 }
 
+static int dis_load_exclusive(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int size = INSN(31,30);
+    int rt = INSN(4,0);
+    int rn = INSN(9,5);
+    struct irRegister *params[4];
+    struct irRegister *result;
+
+    params[0] = read_x(ir, rn, SP_REG);
+    params[1] = mk_32(ir, size);
+    params[2] = NULL;
+    params[3] = NULL;
+
+    result = ir->add_call_64(ir, "arm64_hlp_ldxr",
+                             mk_64(ir, (uint64_t) arm64_hlp_ldxr),
+                             params);
+
+    write_x(ir, rt, result, ZERO_REG);
+
+    return 0;
+}
+
 static int dis_load_aquire_exclusive(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int size = INSN(31,30);
@@ -2028,6 +2050,22 @@ static int dis_load_aquire_exclusive_pair(struct arm64_target *context, uint32_t
     return 0;
 }
 
+static int dis_load_exclusive_pair(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "arm64_hlp_ldxp_dirty",
+                           mk_64(ir, (uint64_t) arm64_hlp_ldxp_dirty),
+                           params);
+
+    return 0;
+}
+
 static int dis_load_aquire(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int size = INSN(31,30);
@@ -2049,6 +2087,27 @@ static int dis_load_aquire(struct arm64_target *context, uint32_t insn, struct i
     return 0;
 }
 
+static int dis_store_release(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int size = INSN(31,30);
+    int rt = INSN(4,0);
+    int rn = INSN(9,5);
+
+    mk_barrier(ir);
+
+    if (size == 3) {
+        ir->add_store_64(ir, read_x(ir, rt, ZERO_REG), read_x(ir, rn, SP_REG));
+    } else if (size == 2) {
+        ir->add_store_32(ir, read_w(ir, rt, ZERO_REG), read_x(ir, rn, SP_REG));
+    } else if (size == 1) {
+        ir->add_store_16(ir, ir->add_64_to_16(ir, read_x(ir, rt, ZERO_REG)), read_x(ir, rn, SP_REG));
+    } else {
+        ir->add_store_8(ir, ir->add_64_to_8(ir, read_x(ir, rt, ZERO_REG)), read_x(ir, rn, SP_REG));
+    }
+
+    return 0;
+}
+
 static int dis_store_exclusive(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int size = INSN(31,30);
@@ -2065,6 +2124,61 @@ static int dis_store_exclusive(struct arm64_target *context, uint32_t insn, stru
 
     result = ir->add_call_32(ir, "arm64_hlp_stxr",
                              mk_64(ir, (uint64_t) arm64_hlp_stxr),
+                             params);
+
+    write_w(ir, rs, result, ZERO_REG);
+
+    return 0;
+}
+
+static int dis_store_exclusive_pair(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "arm64_hlp_stxp_dirty",
+                           mk_64(ir, (uint64_t) arm64_hlp_stxp_dirty),
+                           params);
+
+    return 0;
+}
+
+static int dis_store_release_exclusive_pair(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "arm64_hlp_stlxp_dirty",
+                           mk_64(ir, (uint64_t) arm64_hlp_stlxp_dirty),
+                           params);
+
+    return 0;
+}
+
+static int dis_store_release_exclusive(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int size = INSN(31,30);
+    int rs = INSN(20,16);
+    int rt = INSN(4,0);
+    int rn = INSN(9,5);
+    struct irRegister *params[4];
+    struct irRegister *result;
+
+    params[0] = read_x(ir, rn, SP_REG);
+    params[1] = mk_32(ir, size);
+    params[2] = read_x(ir, rt, SP_REG);
+    params[3] = NULL;
+
+    result = ir->add_call_32(ir, "arm64_hlp_stlxr",
+                             mk_64(ir, (uint64_t) arm64_hlp_stlxr),
                              params);
 
     write_w(ir, rs, result, ZERO_REG);
@@ -2625,19 +2739,31 @@ static int dis_load_store_exclusive(struct arm64_target *context, uint32_t insn,
     int isExit = 0;
     int o2 = INSN(23,23);
     int o1 = INSN(21,21);
-    int o0 = INSN(20,20);
+    int o0 = INSN(15,15);
     int l = INSN(22,22);
 
     if (o0 == 1 && o1 == 0 && o2 == 0 && l == 1) {
         isExit = dis_load_aquire_exclusive(context, insn, ir);
     } else if (o0 == 1 && o1 == 1 && o2 == 0 && l == 1) {
         isExit = dis_load_aquire_exclusive_pair(context, insn, ir);
+    } else if (o0 == 0 && o1 == 1 && o2 == 0 && l == 1) {
+        isExit = dis_load_exclusive_pair(context, insn, ir);
     } else if (o0 == 1 &&  o1 == 0 && o2 == 1 && l == 1) {
         isExit = dis_load_aquire(context, insn, ir);
+    } else if (o0 == 0 &&  o1 == 0 && o2 == 0 && l == 1) {
+        isExit = dis_load_exclusive(context, insn, ir);
     } else if (o0 == 0 && o1 == 0 && o2 == 0 && l == 0) {
         isExit = dis_store_exclusive(context, insn, ir);
+    } else if (o0 == 1 && o1 == 0 && o2 == 0 && l == 0) {
+        isExit = dis_store_release_exclusive(context, insn, ir);
+    } else if (o0 == 1 &&  o1 == 0 && o2 == 1 && l == 0) {
+        isExit = dis_store_release(context, insn, ir);
+    } else if (o0 == 0 &&  o1 == 1 && o2 == 0 && l == 0) {
+        isExit = dis_store_exclusive_pair(context, insn, ir);
+    } else if (o0 == 1 &&  o1 == 1 && o2 == 0 && l == 0) {
+        isExit = dis_store_release_exclusive_pair(context, insn, ir);
     } else
-        fatal("o0=%d / o1=%d / o2=%d / l =%d\n", o0, o1, o2, l);
+        fatal("pc = 0x%08x / o0=%d / o1=%d / o2=%d / l =%d\n", context->pc, o0, o1, o2, l);
 
     return isExit;
 }

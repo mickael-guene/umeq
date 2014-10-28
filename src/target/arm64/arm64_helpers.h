@@ -32,6 +32,7 @@ extern int32_t arm64_hlp_sdiv_32(uint64_t context, int32_t op1, int32_t op2);
 extern uint64_t arm64_hlp_umul_lsb_64(uint64_t context, uint64_t op1, uint64_t op2);
 extern uint32_t arm64_hlp_umul_lsb_32(uint64_t context, uint32_t op1, uint32_t op2);
 extern int64_t arm64_hlp_smul_lsb_64(uint64_t context, int64_t op1, int64_t op2);
+extern uint64_t arm64_hlp_ldxr(uint64_t regs, uint64_t address, uint32_t size_access);
 extern uint64_t arm64_hlp_ldaxr(uint64_t regs, uint64_t address, uint32_t size_access);
 extern uint32_t arm64_hlp_stxr(uint64_t regs, uint64_t address, uint32_t size_access, uint64_t value);
 extern uint64_t arm64_hlp_clz(uint64_t context, uint64_t rn, uint32_t start_index);
@@ -40,7 +41,11 @@ extern int64_t arm64_hlp_smul_msb_64(uint64_t context, int64_t op1, int64_t op2)
 extern void arm64_hlp_memory_barrier(uint64_t regs);
 extern void arm64_hlp_clrex(uint64_t regs);
 extern uint64_t arm64_hlp_cls(uint64_t context, uint64_t rn, uint32_t start_index);
+extern void arm64_hlp_ldxp_dirty(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_ldaxp_dirty(uint64_t _regs, uint32_t insn);
+extern uint32_t arm64_hlp_stlxr(uint64_t regs, uint64_t address, uint32_t size_access, uint64_t value);
+extern void arm64_hlp_stxp_dirty(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_stlxp_dirty(uint64_t _regs, uint32_t insn);
 
 #endif
 

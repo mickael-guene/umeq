@@ -300,7 +300,7 @@ int64_t arm64_hlp_smul_lsb_64(uint64_t context, int64_t op1, int64_t op2)
 /* FIXME: ldrex / strex implementation below is not sematically correct. It's subject
           to the ABBA problem which is not the case of ldrex/strex hardware implementation
  */
-uint64_t arm64_hlp_ldaxr(uint64_t regs, uint64_t address, uint32_t size_access)
+uint64_t arm64_hlp_ldxr(uint64_t regs, uint64_t address, uint32_t size_access)
 {
     struct arm64_target *context = container_of((void *) regs, struct arm64_target, regs);
 
@@ -320,12 +320,21 @@ uint64_t arm64_hlp_ldaxr(uint64_t regs, uint64_t address, uint32_t size_access)
         default:
             fatal("size_access %d unsupported\n", size_access);
     }
-    __sync_synchronize();
 
     return context->exclusive_value;
 }
 
-void arm64_hlp_ldaxp_dirty(uint64_t _regs, uint32_t insn)
+uint64_t arm64_hlp_ldaxr(uint64_t regs, uint64_t address, uint32_t size_access)
+{
+    uint64_t res;
+
+    res = arm64_hlp_ldxr(regs, address, size_access);
+    __sync_synchronize();
+
+    return res;
+}
+
+void arm64_hlp_ldxp_dirty(uint64_t _regs, uint32_t insn)
 {
     struct arm64_target *context = container_of((void *) _regs, struct arm64_target, regs);
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -350,8 +359,72 @@ void arm64_hlp_ldaxp_dirty(uint64_t _regs, uint32_t insn)
             regs->r[rt2] = (uint32_t) (context->exclusive_value >> 32);
     } else
         assert(0);
+}
 
+void arm64_hlp_ldaxp_dirty(uint64_t _regs, uint32_t insn)
+{
+    arm64_hlp_ldxp_dirty(_regs, insn);
     __sync_synchronize();
+}
+
+void arm64_hlp_stxp_dirty(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_target *context = container_of((void *) _regs, struct arm64_target, regs);
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+
+    int size_access = INSN(31, 30);
+    int rn = INSN(9, 5);
+    int rt = INSN(4, 0);
+    int rt2 = INSN(14, 10);
+    int rs = INSN(20, 16);
+    uint64_t address = regs->r[rn];
+    uint64_t res = 0;
+
+    switch(size_access) {
+        case 3:
+            {
+#if 0
+                //FIXME: need to implement __sync_bool_compare_and_swap_16
+                __uint128_t value = ((__uint128_t)regs->r[rt2] << 64) | regs->r[rt];
+                if (__sync_bool_compare_and_swap((__uint128_t *) g_2_h_64(address), (__uint128_t)context->exclusive_value, (__uint128_t)value))
+                    res = 0;
+                else
+                    res = 1;
+#else
+                /* FIXME: not atomic ..... */
+                if (__sync_bool_compare_and_swap((uint64_t *) g_2_h_64(address), (uint64_t)context->exclusive_value, regs->r[rt])) {
+                    if (__sync_bool_compare_and_swap((uint64_t *) g_2_h_64(address + 8), (uint64_t)(context->exclusive_value >> 64), regs->r[rt2])) {
+                        res = 0;
+                    } else {
+                        /* restore lsb ... */
+                        res = 1;
+                        context->exclusive_value = ((context->exclusive_value >> 64) << 64) | regs->r[rt];
+                    }
+                } else
+                    res = 1;
+#endif
+            }
+            break;
+        case 2:
+            {
+                uint64_t value = (regs->r[rt2] << 32) | (regs->r[rt] & 0xffffffff);
+
+                if (__sync_bool_compare_and_swap((uint64_t *) g_2_h_64(address), (uint64_t)context->exclusive_value, (uint64_t)value))
+                    res = 0;
+                else
+                    res = 1;
+                break;
+            }
+        default:
+            fatal("size_access %d unsupported\n", size_access);
+    }
+    regs->r[rs] = res;
+}
+
+void arm64_hlp_stlxp_dirty(uint64_t _regs, uint32_t insn)
+{
+    __sync_synchronize();
+    arm64_hlp_stxp_dirty(_regs, insn);
 }
 
 uint32_t arm64_hlp_stxr(uint64_t regs, uint64_t address, uint32_t size_access, uint64_t value)
@@ -372,11 +445,29 @@ uint32_t arm64_hlp_stxr(uint64_t regs, uint64_t address, uint32_t size_access, u
             else
                 res = 1;
             break;
+        case 1:
+            if (__sync_bool_compare_and_swap((uint16_t *) g_2_h_64(address), (uint16_t)context->exclusive_value, (uint16_t)value))
+                res = 0;
+            else
+                res = 1;
+            break;
+        case 0:
+            if (__sync_bool_compare_and_swap((uint8_t *) g_2_h_64(address), (uint8_t)context->exclusive_value, (uint8_t)value))
+                res = 0;
+            else
+                res = 1;
+            break;
         default:
             fatal("size_access %d unsupported\n", size_access);
     }
 
     return res;
+}
+
+uint32_t arm64_hlp_stlxr(uint64_t regs, uint64_t address, uint32_t size_access, uint64_t value)
+{
+    __sync_synchronize();
+    return arm64_hlp_stxr(regs, address, size_access, value);
 }
 
 /* FIXME: not correct => should use compare_and_swap to swap atomically value */
