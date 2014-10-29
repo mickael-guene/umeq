@@ -2557,6 +2557,20 @@ static int dis_fmov(struct arm64_target *context, uint32_t insn, struct irInstru
     return 0;
 }
 
+static int dis_fmov_register(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int is_d = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+
+    if (is_d)
+        write_d(ir, rd, read_d(ir, rn));
+    else
+        write_s(ir, rd, read_s(ir, rn));
+
+    return 0;
+}
+
 static int dis_umov(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int q_imm5 = (INSN(30,30) << 5) | INSN(20,16);
@@ -3320,6 +3334,22 @@ static int dis_branch_A_exception_A_system_insn(struct arm64_target *context, ui
     return isExit;
 }
 
+static int dis_floating_point_data_processing_1_source(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int isExit = 0;
+    int opcode = INSN(20,15);
+
+    switch(opcode) {
+        case 0:
+            isExit = dis_fmov_register(context, insn, ir);
+            break;
+        default:
+            fatal("opcode = %d(0x%x)\n", opcode, opcode);
+    }
+
+    return isExit;
+}
+
 static int dis_conversion_between_floating_point_and_integer_insn(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int isExit = 0;
@@ -3535,7 +3565,7 @@ static int dis_data_processing_simd_insn(struct arm64_target *context, uint32_t 
                             } else if (INSN(13,13)) {
                                 assert(0);//floating_point_compare
                             } else if (INSN(14,14)) {
-                                assert(0);//floating_point_data_processing_1_source
+                                isExit = dis_floating_point_data_processing_1_source(context, insn, ir);
                             } else {
                                 isExit = dis_conversion_between_floating_point_and_integer_insn(context, insn, ir);
                             }
