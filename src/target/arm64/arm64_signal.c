@@ -25,9 +25,9 @@ struct kernel_sigaction {
 
 struct sigaction_arm64 {
     uint64_t _sa_handler;
-    uint64_t sa_mask[16];
-    uint32_t sa_flags;
+    uint64_t sa_flags;
     uint64_t sa_restorer;
+    uint64_t sa_mask[0];
 };
 
 typedef struct stack_arm64 {
@@ -97,7 +97,6 @@ void wrap_signal_handler(int signum)
 /* FIXME: Use of mmap/munmap here need to be rework */
 void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
 {
-    assert(0);
     guest64_ptr siginfo_guest = mmap64_guest(0, sizeof(siginfo_t_arm64), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS , -1, 0);
     siginfo_t_arm64 *siginfo_arm64 = (siginfo_t_arm64 *) g_2_h_64(siginfo_guest);
 
