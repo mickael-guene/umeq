@@ -19,6 +19,16 @@ extern void arm64_hlp_dirty_cmpeq_register_simd_vector(uint64_t _regs, uint32_t 
 extern void arm64_hlp_dirty_orr_register_simd_vector(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_addp_simd_vector(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_and_simd_vector(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_shl_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_scvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_floating_point_compare_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_floating_point_immediate_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_floating_point_conditional_select_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_fcvtzs_scalar_integer_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_floating_point_data_processing_3_source_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_ucvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd(uint64_t _regs, uint32_t insn);
 
 #endif
 

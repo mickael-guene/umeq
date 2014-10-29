@@ -1279,40 +1279,8 @@ static void dis_load_store_register(struct arm64_target *context, uint32_t insn,
     }
 }
 
-static int dis_load_store_register_unsigned_offset(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+static void dis_load_store_register_simd(struct irInstructionAllocator *ir, int is_load, int size, int rt, struct irRegister *address)
 {
-    int size = INSN(31,30);
-    int opc = INSN(23,22);
-    int imm12 = INSN(21, 10);
-    int rn = INSN(9, 5);
-    int rt = INSN(4, 0);
-    struct irRegister *address;
-
-    /* prfm is translated into nop */
-    if (size == 3 && opc == 2)
-        return 0;
-
-    /* compute address */
-    address = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, imm12 << size));
-
-    /* do load store */
-    dis_load_store_register(context, insn, ir, size, opc, rt, address);
-
-    return 0;
-}
-
-static int dis_load_store_register_unsigned_offset_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    int size = (INSN(23,23) << 2) | INSN(31,30);
-    int is_load = INSN(22,22);
-    int imm12 = INSN(21, 10);
-    int rn = INSN(9, 5);
-    int rt = INSN(4, 0);
-    struct irRegister *address;
-
-    /* compute address */
-    address = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, imm12 << size));
-
     /* do load store */
     if (is_load) {
         switch(size) {
@@ -1357,6 +1325,44 @@ static int dis_load_store_register_unsigned_offset_simd(struct arm64_target *con
                 fatal("size = %d\n", size);
         }
     }
+}
+
+static int dis_load_store_register_unsigned_offset(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int size = INSN(31,30);
+    int opc = INSN(23,22);
+    int imm12 = INSN(21, 10);
+    int rn = INSN(9, 5);
+    int rt = INSN(4, 0);
+    struct irRegister *address;
+
+    /* prfm is translated into nop */
+    if (size == 3 && opc == 2)
+        return 0;
+
+    /* compute address */
+    address = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, imm12 << size));
+
+    /* do load store */
+    dis_load_store_register(context, insn, ir, size, opc, rt, address);
+
+    return 0;
+}
+
+static int dis_load_store_register_unsigned_offset_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int size = (INSN(23,23) << 2) | INSN(31,30);
+    int is_load = INSN(22,22);
+    int imm12 = INSN(21, 10);
+    int rn = INSN(9, 5);
+    int rt = INSN(4, 0);
+    struct irRegister *address;
+
+    /* compute address */
+    address = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, imm12 << size));
+
+    /* do load store */
+    dis_load_store_register_simd(ir, is_load, size, rt, address);
 
     return 0;
 }
@@ -1387,7 +1393,20 @@ static int dis_load_store_register_unscaled_immediate(struct arm64_target *conte
 
 static int dis_load_store_register_unscaled_immediate_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    assert(0);
+    int size = (INSN(23,23) << 2) | INSN(31,30);
+    int is_load = INSN(22,22);
+    int rn = INSN(9, 5);
+    int rt = INSN(4, 0);
+    int64_t imm9 = INSN(20, 12);
+    struct irRegister *address;
+
+    imm9 = (imm9 << 55) >> 55;
+    /* compute address */
+    address = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, imm9));
+    /* do load store */
+    dis_load_store_register_simd(ir, is_load, size, rt, address);
+
+    return 0;
 }
 
 static int dis_load_store_register_immediate_post_indexed(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1415,7 +1434,25 @@ static int dis_load_store_register_immediate_post_indexed(struct arm64_target *c
 
 static int dis_load_store_register_immediate_post_indexed_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    assert(0);
+    int size = (INSN(23,23) << 2) | INSN(31,30);
+    int is_load = INSN(22,22);
+    int rn = INSN(9, 5);
+    int rt = INSN(4, 0);
+    int64_t imm9 = INSN(20, 12);
+    struct irRegister *address;
+
+    imm9 = (imm9 << 55) >> 55;
+
+    /* compute address */
+    address = read_x(ir, rn, SP_REG);
+
+    /* do load store */
+    dis_load_store_register_simd(ir, is_load, size, rt, address);
+
+    /* write back rn */
+    write_x(ir, rn, ir->add_add_64(ir, address, mk_64(ir, imm9)), SP_REG);
+
+    return 0;
 }
 
 static int dis_load_store_register_register_offset(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1460,7 +1497,38 @@ static int dis_load_store_register_register_offset(struct arm64_target *context,
 
 static int dis_load_store_register_register_offset_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    assert(0);
+    int size = (INSN(23,23) << 2) | INSN(31,30);
+    int is_load = INSN(22,22);
+    int rn = INSN(9, 5);
+    int rt = INSN(4, 0);
+    int rm = INSN(20,16);
+    int option = INSN(15,13);
+    int S = INSN(12,12);
+    struct irRegister *offset_not_scale;
+    struct irRegister *offset;
+    struct irRegister *address;
+
+    /* compute address */
+    if (option == 3 || option == 7) {
+        offset_not_scale = read_x(ir, rm, ZERO_REG);
+    } else if (option == 2) {
+        offset_not_scale = ir->add_32U_to_64(ir, read_w(ir, rm, ZERO_REG));
+    } else if (option == 6) {
+        offset_not_scale = ir->add_32S_to_64(ir, read_w(ir, rm, ZERO_REG));
+    } else
+        assert(0);
+    if (S && size) {
+        offset = ir->add_shl_64(ir, offset_not_scale, mk_8(ir, size));
+    } else {
+        offset = offset_not_scale;
+    }
+
+    address = ir->add_add_64(ir, read_x(ir, rn, SP_REG), offset);
+
+    /* do load store */
+    dis_load_store_register_simd(ir, is_load, size, rt, address);
+
+    return 0;
 }
 
 static int dis_load_store_register_unprivileged(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -2851,6 +2919,136 @@ static int dis_movi(struct arm64_target *context, uint32_t insn, struct irInstru
     return 0;
 }
 
+static int dis_shl(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_shl_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_shl_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_scvtf_scalar_integer(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_scvtf_scalar_integer_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_scvtf_scalar_integer_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_ucvtf_scalar_integer(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_ucvtf_scalar_integer_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_ucvtf_scalar_integer_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_fcvtzs_scalar_integer(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_fcvtzs_scalar_integer_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_fcvtzs_scalar_integer_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_floating_point_data_processing_3_source(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_floating_point_data_processing_3_source_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_floating_point_data_processing_3_source_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_floating_point_immediate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_floating_point_immediate_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_floating_point_immediate_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_floating_point_compare(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_floating_point_compare_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_floating_point_compare_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_floating_point_data_processing_2_source(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_floating_point_data_processing_2_source_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_floating_point_data_processing_2_source_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_floating_point_conditional_select(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_floating_point_conditional_select_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_floating_point_conditional_select_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_advanced_simd_shift_by_immediate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd),
+                           params);
+
+    return 0;
+}
+
 /* disassemblers */
 static int dis_load_store_exclusive(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -3368,6 +3566,16 @@ static int dis_conversion_between_floating_point_and_integer_insn(struct arm64_t
          isExit = dis_fmov(context, insn, ir);
     } else if (sf == 1 && type == 2 && rmode == 1 && opcode == 6) {
          isExit = dis_fmov(context, insn, ir);
+    } else if (sf == 1 && type == 1 && rmode == 0 && opcode == 2) {
+        isExit = dis_scvtf_scalar_integer(context, insn, ir);
+    } else if (sf == 0 && type == 1 && rmode == 0 && opcode == 2) {
+        isExit = dis_scvtf_scalar_integer(context, insn, ir);
+    } else if (sf == 0 && type == 0 && rmode == 0 && opcode == 2) {
+        isExit = dis_scvtf_scalar_integer(context, insn, ir);
+    } else if (sf == 0 && type == 1 && rmode == 3 && opcode == 0) {
+        isExit = dis_fcvtzs_scalar_integer(context, insn, ir);
+    } else if (sf == 1 && type == 0 && rmode == 0 && opcode == 3) {
+        isExit = dis_ucvtf_scalar_integer(context, insn, ir);
     } else
         fatal("pc = 0x%016lx / sf=%d / type=%d / rmode=%d / opcode=%d\n", context->pc, sf, type, rmode, opcode);
 
@@ -3490,6 +3698,22 @@ static int dis_advanced_simd_two_reg_misc(struct arm64_target *context, uint32_t
     return isExit;
 }
 
+static int dis_advanced_simd_scalar_shift_by_immediate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int isExit = 0;
+    int opcode = INSN(15,11);
+
+    switch(opcode) {
+        case 10:
+            isExit = dis_shl(context, insn, ir);
+            break;
+        default:
+            fatal("opcode = %d(0x%x)\n", opcode, opcode);
+    }
+
+    return isExit;
+}
+
 static int dis_advanced_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int isExit = 0;
@@ -3533,13 +3757,41 @@ static int dis_advanced_simd(struct arm64_target *context, uint32_t insn, struct
                 if (INSN(22,19) == 0) {
                     isExit = dis_advanced_simd_modified_immediate(context, insn, ir);
                 } else {
-                    //decodeAdvSIMDShiftByImmediate
-                    fatal("pc = 0x%016lx / insn=0x%08x\n", context->pc, insn);
+                    isExit = dis_advanced_simd_shift_by_immediate(context, insn, ir);
                 }
             }
         }
     } else { //INSN(28,28) == 1
-        fatal("pc = 0x%016lx / insn=0x%08x\n", context->pc, insn);
+        if (INSN(24, 24) == 0) {
+            if (INSN(10, 10) == 0) {
+                if (INSN(11, 11) == 0) {
+                    assert(0); //decodeAdvSIMDScalarThreeDifferent(insn, dres);
+                } else { //INSN(11, 11) == 1
+                    if (INSN(20, 20) == 0) {
+                        assert(0); //decodeAdvSIMDScalarTwoRegMisc(insn, dres);
+                    } else { //INSN(20, 20) == 1
+                        assert(0); //decodeAdvSIMDScalarPairWise(insn, dres);
+                    }
+                }
+            } else { //INSN(10, 10) == 1
+                if (INSN(21, 21) == 0) {
+                    assert(0); //decodeAdvSIMDScalarCopy(insn, dres);
+                } else {
+                    assert(0); //decodeAdvSIMDScalarThreeSame(insn, dres);
+                }
+            }
+        } else { //INSN(24, 24) == 1
+            if (INSN(30,30) == 0) {
+                assert(0); //floating point data processing 3 source
+            }   else { //INSN(30,30) == 1
+                if (INSN(10,10) == 0) {
+                    assert(0); //decodeAdvSIMDScalarXIndexedElement
+                } else { //INSN(10,10) == 1
+                    isExit = dis_advanced_simd_scalar_shift_by_immediate(context, insn, ir);
+                }
+            }
+        }
+        //fatal("pc = 0x%016lx / insn=0x%08x\n", context->pc, insn);
     }
 
     return isExit;
@@ -3554,16 +3806,15 @@ static int dis_data_processing_simd_insn(struct arm64_target *context, uint32_t 
             isExit = dis_advanced_simd(context, insn, ir);
         } else {
             if (INSN(24,24)) {
-                //floating_point_data_processing_3_source
-                assert(0);
+                isExit = dis_floating_point_data_processing_3_source(context, insn, ir);
             } else {
                 if (INSN(21,21)) {
                     switch(INSN(11,10)) {
                         case 0:
                             if (INSN(12,12)) {
-                                assert(0);//floating_point_immediate
+                                isExit = dis_floating_point_immediate(context, insn, ir);
                             } else if (INSN(13,13)) {
-                                assert(0);//floating_point_compare
+                                isExit = dis_floating_point_compare(context, insn, ir);
                             } else if (INSN(14,14)) {
                                 isExit = dis_floating_point_data_processing_1_source(context, insn, ir);
                             } else {
@@ -3574,10 +3825,10 @@ static int dis_data_processing_simd_insn(struct arm64_target *context, uint32_t 
                             assert(0);//floating_point_conditional_compare
                             break;
                         case 2:
-                            assert(0);//floating_point_data_processing_2_source
+                            isExit = dis_floating_point_data_processing_2_source(context, insn, ir);
                             break;
                         case 3:
-                            assert(0);//floating_point_conditional_select
+                            isExit = dis_floating_point_conditional_select(context, insn, ir);
                             break;
                     }
                 } else {

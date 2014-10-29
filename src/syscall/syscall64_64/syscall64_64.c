@@ -148,6 +148,18 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_wait4:
             res = syscall(SYS_wait4, (pid_t) p0, (int *) g_2_h_64(p1), (int) p2, (struct rusage *) g_2_h_64(p3));
             break;
+        case PR_getrusage:
+            res = syscall(SYS_getrusage, (int) p0, (struct rusage *) g_2_h_64(p1));
+            break;
+        case PR_unlinkat:
+            res = syscall(SYS_unlinkat, (int) p0, (char *) g_2_h_64(p1), (int) p2);
+            break;
+        case PR_umask:
+            res = syscall(SYS_umask, (mode_t) p0);
+            break;
+        case PR_fchmodat:
+            res = syscall(SYS_fchmodat, (int) p0, (char *) g_2_h_64(p1), (mode_t) p2, (int) p3);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }

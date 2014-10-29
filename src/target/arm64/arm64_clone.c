@@ -15,8 +15,9 @@ static long clone_thread_arm64(struct arm64_target *context)
 
 static long clone_vfork_arm64(struct arm64_target *context)
 {
-    assert(0);
-    return -1;
+    /* implement with fork to avoid sync problem but semantic is not fully preserved ... */
+
+    return syscall(SYS_fork);
 }
 
 static long clone_fork_arm64(struct arm64_target *context)

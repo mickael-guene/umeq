@@ -25,6 +25,8 @@ union simd_register {
     uint32_t s[4];
     uint16_t h[8];
     uint8_t b[16];
+    double df[2];
+    float sf[4];
 };
 
 struct arm64_registers {
