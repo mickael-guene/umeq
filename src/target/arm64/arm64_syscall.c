@@ -56,6 +56,11 @@ void arm64_hlp_syscall(uint64_t regs)
             case PR_clone:
                 res = arm64_clone(context);
                 break;
+            case PR_rt_sigreturn:
+                context->isLooping = 0;
+                context->exitStatus = 0;
+                res = 0;
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }
