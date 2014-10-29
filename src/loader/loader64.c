@@ -17,7 +17,7 @@
 guest64_ptr startbrk_64;
 static guest64_ptr load_AT_PHDR_init = 0;
 
-static guest64_ptr getEntry(int fd, Elf64_Ehdr *hdr)
+static guest64_ptr getEntry(int fd, Elf64_Ehdr *hdr, int is_dl)
 {
     guest64_ptr entry = 0;
 
@@ -32,7 +32,12 @@ static guest64_ptr getEntry(int fd, Elf64_Ehdr *hdr)
                 hdr->e_ident[EI_DATA] == ELFDATA2LSB &&
                 (hdr->e_type == ET_EXEC || hdr->e_type == ET_DYN) &&
                 hdr->e_machine == EM_AARCH64) {
-                    entry = ((hdr->e_type == ET_DYN)?hdr->e_entry+DL_LOAD_ADDR:hdr->e_entry);
+                    if (is_dl)
+                        entry = hdr->e_entry+DL_LOAD_ADDR;
+                    else if (hdr->e_type == ET_DYN)
+                        entry = hdr->e_entry+DL_SHARE_ADDR;
+                    else
+                        entry = hdr->e_entry;
             }
         }
     }
@@ -157,7 +162,7 @@ static guest64_ptr load64_internal(const char *file, struct load_auxv_info_64 *a
     if (fd <= 0)
         goto end;
     /* first read header and extrace entry point */
-    entry = getEntry(fd, &elf_header);
+    entry = getEntry(fd, &elf_header, is_dl);
     if (entry == 0)
         goto end;
     is_share_object = (elf_header.e_type == ET_DYN)?1:0;
