@@ -12,6 +12,7 @@
 #define PAGE_SIZE                       4096
 #define PAGE_MASK                       (PAGE_SIZE - 1)
 #define DL_LOAD_ADDR                    0x40000000
+#define DL_SHARE_ADDR                   0x00400000
 
 guest64_ptr startbrk_64;
 static guest64_ptr load_AT_PHDR_init = 0;
@@ -73,10 +74,12 @@ static int elfToMapProtection(uint32_t flags)
     return prot;
 }
 
-static int mapSegment(int fd, Elf64_Phdr *segment, struct load_auxv_info_64 *auxv_info, int is_dl)
+static int mapSegment(int fd, Elf64_Phdr *segment, struct load_auxv_info_64 *auxv_info, int is_dl, int is_share_object)
 {
     if (is_dl)
         segment->p_vaddr += DL_LOAD_ADDR;
+    else if (is_share_object)
+        segment->p_vaddr += DL_SHARE_ADDR;
 
     int status = 0;
     uint64_t vaddr = segment->p_vaddr & ~PAGE_MASK;
@@ -140,8 +143,7 @@ static void dl_copy_dl_name(int fd, Elf64_Phdr *segment, char *name)
     }
 }
 
-/* public api */
-guest64_ptr load64(const char *file, struct load_auxv_info_64 *auxv_info)
+static guest64_ptr load64_internal(const char *file, struct load_auxv_info_64 *auxv_info, int is_dl)
 {
     Elf64_Ehdr elf_header;
     Elf64_Phdr segment;
@@ -149,7 +151,7 @@ guest64_ptr load64(const char *file, struct load_auxv_info_64 *auxv_info)
     guest64_ptr entry = 0;
     int fd;
     int i = 0;
-    int is_dl = 0;
+    int is_share_object;
 
     fd = open(file, O_RDONLY);
     if (fd <= 0)
@@ -158,7 +160,7 @@ guest64_ptr load64(const char *file, struct load_auxv_info_64 *auxv_info)
     entry = getEntry(fd, &elf_header);
     if (entry == 0)
         goto end;
-    is_dl = (elf_header.e_type == ET_DYN)?1:0;
+    is_share_object = (elf_header.e_type == ET_DYN)?1:0;
 
     load_AT_PHDR_init = elf_header.e_phoff;
     auxv_info->load_AT_PHENT = elf_header.e_phentsize;
@@ -168,7 +170,7 @@ guest64_ptr load64(const char *file, struct load_auxv_info_64 *auxv_info)
     for(i=0; i< elf_header.e_phnum; i++) {
         if (getSegment(fd, &elf_header, i, &segment)) {
             if (segment.p_type == PT_LOAD) {
-                if (!mapSegment(fd, &segment, auxv_info, is_dl)) {
+                if (!mapSegment(fd, &segment, auxv_info, is_dl, is_share_object)) {
                     entry = 0;
                     goto end;
                 }
@@ -177,7 +179,11 @@ guest64_ptr load64(const char *file, struct load_auxv_info_64 *auxv_info)
                 struct load_auxv_info_64 dl_auxv_info;
 
                 dl_copy_dl_name(fd, &segment, dl_name);
-                dl_entry = load64(dl_name, &dl_auxv_info);
+                dl_entry = load64_internal(dl_name, &dl_auxv_info, 1);
+                if (!dl_entry) {
+                    entry = 0;
+                    goto end;
+                }
             }
         } else {
             entry = 0;
@@ -199,5 +205,11 @@ end:
     if (fd > 0)
         close(fd);
 
-    return dl_entry?dl_entry:entry;
+    return entry?(dl_entry?dl_entry:entry):0;
+}
+
+/* public api */
+guest64_ptr load64(const char *file, struct load_auxv_info_64 *auxv_info)
+{
+    return load64_internal(file, auxv_info, 0);
 }
