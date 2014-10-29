@@ -145,6 +145,9 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_execve:
             res = execve_s6464(p0,p1,p2);
             break;
+        case PR_wait4:
+            res = syscall(SYS_wait4, (pid_t) p0, (int *) g_2_h_64(p1), (int) p2, (struct rusage *) g_2_h_64(p3));
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }

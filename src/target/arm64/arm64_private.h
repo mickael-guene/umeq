@@ -43,6 +43,7 @@ struct arm64_target {
     uint64_t sp_init;
     uint32_t isLooping;
     uint32_t exitStatus;
+    uint32_t is_in_signal;
     __uint128_t exclusive_value;
     struct gdb gdb;
 };

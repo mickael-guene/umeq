@@ -91,7 +91,6 @@ static stack_t_arm64 ss = {0, SS_DISABLE, 0};
 /* signal wrapper functions */
 void wrap_signal_handler(int signum)
 {
-    assert(0);
     loop(guest_signals_handler[signum], ss.ss_flags?0:ss.ss_sp, signum, NULL);
 }
 

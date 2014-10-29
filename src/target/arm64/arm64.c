@@ -23,10 +23,38 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
 
     context-> isLooping = 1;
     if (signum) {
-        fatal("Implement me\n");
+        /* new signal frame */
+        uint32_t *dst;
+        uint64_t sp;
+        unsigned int return_code[] = {0xd2801168, //1: mov     x8, #139
+                                      0xd4000001, //svc     0x00000000
+                                      0xd503201f, //nop
+                                      0x17fffffd};//b 1b
+
+        /* write sigreturn sequence on stack */
+        sp = (prev_context->regs.r[31] - 4 * 16 - sizeof(return_code)) & ~7;
+        for(i = 0, dst = (unsigned int *)g_2_h_64(sp);i < sizeof(return_code)/sizeof(return_code[0]); i++)
+            *dst++ = return_code[i];
+        /* setup context */
+        for(i = 0; i < 32; i++) {
+            context->regs.r[i] = 0;
+            context->regs.v[i].v128 = 0;
+        }
+        context->regs.r[0] = signum;
+        context->regs.r[1] = (uint32_t)(long) param; /* siginfo_t * */
+        context->regs.r[2] = 0; /* void * */
+        context->regs.r[30] = sp;
+        context->regs.r[31] = sp;
+        context->regs.pc = entry;
+        context->regs.tpidr_el0 = prev_context->regs.tpidr_el0;
+        context->regs.nzcv = 0;
+        context->pc = entry;
+        context->regs.is_in_syscall = 0;
+        context->is_in_signal = 1;
     } else if (param) {
         fatal("Implement me\n");
     } else if (stack_ptr) {
+        /* main thread */
         for(i = 0; i < 32; i++) {
             context->regs.r[i] = 0;
             context->regs.v[i].v128 = 0;
@@ -37,6 +65,15 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.nzcv = 0;
         context->sp_init = stack_ptr;
         context->pc = entry;
+        context->regs.is_in_syscall = 0;
+        context->is_in_signal = 0;
+        /* syscall execve exit sequence */
+         /* this will be translated into sysexec exit */
+        context->regs.is_in_syscall = 2;
+        syscall((long) 313, 1);
+         /* this will be translated into SIGTRAP */
+        context->regs.is_in_syscall = 0;
+        syscall((long) 313, 2);
     } else {
         //fork;
         //nothing to do
