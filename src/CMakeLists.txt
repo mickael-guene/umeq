@@ -24,8 +24,8 @@ add_subdirectory (gdb)
 
 add_executable(umeq-arm main.c start.S)
 set_target_properties(umeq-arm PROPERTIES COMPILE_FLAGS "-DARCH=1")
-target_link_libraries(umeq-arm -nostdlib -T${umeq_SOURCE_DIR}/src/custom.ld -Wl,-z,execstack -static -Wl,--start-group jitter loader cache runtime arm_target syscall32_64 gdb arm64_target syscall64_64 -Wl,--end-group)
+target_link_libraries(umeq-arm -nostdlib -T${umeq_SOURCE_DIR}/src/custom.ld -Wl,-z,execstack -static -Wl,--start-group jitter loader cache runtime arm_target syscall32_64 gdb -Wl,--end-group)
 
-add_executable(umeq-aarch64 main.c start.S)
-set_target_properties(umeq-aarch64 PROPERTIES COMPILE_FLAGS "-DARCH=2")
-target_link_libraries(umeq-aarch64 -nostdlib -T${umeq_SOURCE_DIR}/src/custom.ld -Wl,-z,execstack -static -Wl,--start-group jitter loader cache runtime arm_target syscall32_64 gdb arm64_target syscall64_64 -Wl,--end-group)
+add_executable(umeq-arm64 main.c start.S)
+set_target_properties(umeq-arm64 PROPERTIES COMPILE_FLAGS "-DARCH=2")
+target_link_libraries(umeq-arm64 -nostdlib -T${umeq_SOURCE_DIR}/src/custom.ld -Wl,-z,execstack -static -Wl,--start-group jitter loader cache runtime arm64_target syscall64_64 gdb -Wl,--end-group)
