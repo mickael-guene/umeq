@@ -10,7 +10,7 @@
 #define PAGE_MASK                       (PAGE_SIZE - 1)
 #define MIN_BRK_SIZE                    (16 * 1024 * 1024)
 
-extern guest64_ptr startbrk_64;
+extern guest_ptr startbrk_64;
 static uint64_t curbrk;
 static uint64_t mapbrk;
 
@@ -19,11 +19,11 @@ void arm64_setup_brk()
 {
     //init phase
     if (!curbrk) {
-        guest64_ptr map_result;
+        guest_ptr map_result;
 
         curbrk = startbrk_64;
         mapbrk = ((startbrk_64 + PAGE_SIZE) & ~PAGE_MASK);
-        map_result = mmap64_guest(mapbrk, MIN_BRK_SIZE, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
+        map_result = mmap_guest(mapbrk, MIN_BRK_SIZE, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
         if (map_result == mapbrk) {
             mapbrk = mapbrk + MIN_BRK_SIZE;
         }
@@ -32,7 +32,7 @@ void arm64_setup_brk()
 
 long arm64_brk(struct arm64_target *context)
 {
-    guest64_ptr new_brk = context->regs.r[0];
+    guest_ptr new_brk = context->regs.r[0];
 
     //sanity check
     if (new_brk < startbrk_64)
@@ -40,17 +40,17 @@ long arm64_brk(struct arm64_target *context)
     if (new_brk) {
         // need to map new memory ?
         if (new_brk >= mapbrk) {
-            guest64_ptr new_mapbrk = ((new_brk + PAGE_SIZE) & ~PAGE_MASK);
-            guest64_ptr map_result;
+            guest_ptr new_mapbrk = ((new_brk + PAGE_SIZE) & ~PAGE_MASK);
+            guest_ptr map_result;
 
-            map_result = mmap64_guest(mapbrk, new_mapbrk - mapbrk, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
+            map_result = mmap_guest(mapbrk, new_mapbrk - mapbrk, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
             if (map_result != mapbrk)
                 goto out;
             mapbrk = new_mapbrk;
         }
         // init mem with zero
         if (new_brk > curbrk)
-            memset(g_2_h_64(curbrk), 0, new_brk - curbrk);
+            memset(g_2_h(curbrk), 0, new_brk - curbrk);
     }
 
     curbrk = new_brk;

@@ -8,7 +8,6 @@ extern "C" {
 #ifndef __TARGET32__
 #define __TARGET32__ 1
 
-
 typedef uint32_t guest_ptr;
 #define g_2_h(ptr)  ((void *)(uint64_t)((ptr) + (mmap_offset)))
 #define h_2_g(ptr)  ((guest_ptr) (((uint64_t)(ptr)) - (mmap_offset)))

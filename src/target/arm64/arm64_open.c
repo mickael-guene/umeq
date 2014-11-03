@@ -64,7 +64,7 @@ long arm64_openat(struct arm64_target *context)
 {
     long res;
     int dirfd = (int) context->regs.r[0];
-    const char *pathname = (const char *) g_2_h_64(context->regs.r[1]);
+    const char *pathname = (const char *) g_2_h(context->regs.r[1]);
     long flags = (long) arm64ToX86Flags(context->regs.r[2]);
     int mode = context->regs.r[3];
 

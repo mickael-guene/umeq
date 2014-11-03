@@ -12,7 +12,7 @@
 long arm64_uname(struct arm64_target *context)
 {
     long res;
-    struct utsname *buf = (struct utsname *) g_2_h_64(context->regs.r[0]);
+    struct utsname *buf = (struct utsname *) g_2_h(context->regs.r[0]);
 
     res = syscall(SYS_uname, buf);
     strcpy(buf->machine, "aarch64");

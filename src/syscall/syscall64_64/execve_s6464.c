@@ -11,9 +11,9 @@
 long execve_s6464(uint64_t filename_p, uint64_t argv_p, uint64_t envp_p)
 {
     long res;
-    const char *filename = (const char *) g_2_h_64(filename_p);
-    uint64_t * argv_guest = (uint64_t *) g_2_h_64(argv_p);
-    uint64_t * envp_guest = (uint64_t *) g_2_h_64(envp_p);
+    const char *filename = (const char *) g_2_h(filename_p);
+    uint64_t * argv_guest = (uint64_t *) g_2_h(argv_p);
+    uint64_t * envp_guest = (uint64_t *) g_2_h(envp_p);
     char *ptr[4096];
     char **argv;
     char **envp;
@@ -26,13 +26,13 @@ long execve_s6464(uint64_t filename_p, uint64_t argv_p, uint64_t envp_p)
 
     argv = &ptr[index];
     while(*argv_guest != 0) {
-        ptr[index++] = (char *) g_2_h_64(*argv_guest);
+        ptr[index++] = (char *) g_2_h(*argv_guest);
         argv_guest = (uint64_t *) ((long)argv_guest + 8);
     }
     ptr[index++] = NULL;
     envp = &ptr[index];
     while(*envp_guest != 0) {
-        ptr[index++] = (char *) g_2_h_64(*envp_guest);
+        ptr[index++] = (char *) g_2_h(*envp_guest);
         envp_guest = (uint64_t *) ((long)envp_guest + 8);
     }
     ptr[index++] = NULL;

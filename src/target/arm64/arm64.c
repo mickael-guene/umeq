@@ -33,7 +33,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
 
         /* write sigreturn sequence on stack */
         sp = (prev_context->regs.r[31] - 4 * 16 - sizeof(return_code)) & ~7;
-        for(i = 0, dst = (unsigned int *)g_2_h_64(sp);i < sizeof(return_code)/sizeof(return_code[0]); i++)
+        for(i = 0, dst = (unsigned int *)g_2_h(sp);i < sizeof(return_code)/sizeof(return_code[0]); i++)
             *dst++ = return_code[i];
         /* setup context */
         for(i = 0; i < 32; i++) {
@@ -113,7 +113,7 @@ static void gdb_read_registers(struct gdb *gdb, char *buf)
     struct arm64_target *context = container_of(gdb, struct arm64_target, gdb);
     int i ,j;
     unsigned long val;
-    uint32_t pc = context->regs.pc;
+    //uint32_t pc = context->regs.pc;
 
     for(i=0;i<32;i++) {
         val = context->regs.r[i];

@@ -306,16 +306,16 @@ uint64_t arm64_hlp_ldxr(uint64_t regs, uint64_t address, uint32_t size_access)
 
     switch(size_access) {
         case 3://64 bits
-            context->exclusive_value = (uint64_t) *((uint64_t *)g_2_h_64(address));
+            context->exclusive_value = (uint64_t) *((uint64_t *)g_2_h(address));
             break;
         case 2://32 bits
-            context->exclusive_value = (uint32_t) *((uint32_t *)g_2_h_64(address));
+            context->exclusive_value = (uint32_t) *((uint32_t *)g_2_h(address));
             break;
         case 1://16 bits
-            context->exclusive_value = (uint16_t) *((uint16_t *)g_2_h_64(address));
+            context->exclusive_value = (uint16_t) *((uint16_t *)g_2_h(address));
             break;
         case 0://8 bits
-            context->exclusive_value = (uint8_t) *((uint8_t *)g_2_h_64(address));
+            context->exclusive_value = (uint8_t) *((uint8_t *)g_2_h(address));
             break;
         default:
             fatal("size_access %d unsupported\n", size_access);
@@ -346,13 +346,13 @@ void arm64_hlp_ldxp_dirty(uint64_t _regs, uint32_t insn)
     uint64_t address = regs->r[rn];
 
     if (size == 3) {
-        context->exclusive_value = (__uint128_t) *((__uint128_t *) g_2_h_64(address));
+        context->exclusive_value = (__uint128_t) *((__uint128_t *) g_2_h(address));
         if (rt != 31)
             regs->r[rt] = (uint64_t) context->exclusive_value;
         if (rt2 != 31)
             regs->r[rt2] = (uint64_t) (context->exclusive_value >> 64);
     } else if (size == 2) {
-        context->exclusive_value = (uint64_t) *((uint64_t *) g_2_h_64(address));
+        context->exclusive_value = (uint64_t) *((uint64_t *) g_2_h(address));
         if (rt != 31)
             regs->r[rt] = (uint32_t) context->exclusive_value;
         if (rt2 != 31)
@@ -386,14 +386,14 @@ void arm64_hlp_stxp_dirty(uint64_t _regs, uint32_t insn)
 #if 0
                 //FIXME: need to implement __sync_bool_compare_and_swap_16
                 __uint128_t value = ((__uint128_t)regs->r[rt2] << 64) | regs->r[rt];
-                if (__sync_bool_compare_and_swap((__uint128_t *) g_2_h_64(address), (__uint128_t)context->exclusive_value, (__uint128_t)value))
+                if (__sync_bool_compare_and_swap((__uint128_t *) g_2_h(address), (__uint128_t)context->exclusive_value, (__uint128_t)value))
                     res = 0;
                 else
                     res = 1;
 #else
                 /* FIXME: not atomic ..... */
-                if (__sync_bool_compare_and_swap((uint64_t *) g_2_h_64(address), (uint64_t)context->exclusive_value, regs->r[rt])) {
-                    if (__sync_bool_compare_and_swap((uint64_t *) g_2_h_64(address + 8), (uint64_t)(context->exclusive_value >> 64), regs->r[rt2])) {
+                if (__sync_bool_compare_and_swap((uint64_t *) g_2_h(address), (uint64_t)context->exclusive_value, regs->r[rt])) {
+                    if (__sync_bool_compare_and_swap((uint64_t *) g_2_h(address + 8), (uint64_t)(context->exclusive_value >> 64), regs->r[rt2])) {
                         res = 0;
                     } else {
                         /* restore lsb ... */
@@ -409,7 +409,7 @@ void arm64_hlp_stxp_dirty(uint64_t _regs, uint32_t insn)
             {
                 uint64_t value = (regs->r[rt2] << 32) | (regs->r[rt] & 0xffffffff);
 
-                if (__sync_bool_compare_and_swap((uint64_t *) g_2_h_64(address), (uint64_t)context->exclusive_value, (uint64_t)value))
+                if (__sync_bool_compare_and_swap((uint64_t *) g_2_h(address), (uint64_t)context->exclusive_value, (uint64_t)value))
                     res = 0;
                 else
                     res = 1;
@@ -434,25 +434,25 @@ uint32_t arm64_hlp_stxr(uint64_t regs, uint64_t address, uint32_t size_access, u
 
     switch(size_access) {
         case 3:
-            if (__sync_bool_compare_and_swap((uint64_t *) g_2_h_64(address), (uint64_t)context->exclusive_value, (uint64_t)value))
+            if (__sync_bool_compare_and_swap((uint64_t *) g_2_h(address), (uint64_t)context->exclusive_value, (uint64_t)value))
                 res = 0;
             else
                 res = 1;
             break;
         case 2:
-            if (__sync_bool_compare_and_swap((uint32_t *) g_2_h_64(address), (uint32_t)context->exclusive_value, (uint32_t)value))
+            if (__sync_bool_compare_and_swap((uint32_t *) g_2_h(address), (uint32_t)context->exclusive_value, (uint32_t)value))
                 res = 0;
             else
                 res = 1;
             break;
         case 1:
-            if (__sync_bool_compare_and_swap((uint16_t *) g_2_h_64(address), (uint16_t)context->exclusive_value, (uint16_t)value))
+            if (__sync_bool_compare_and_swap((uint16_t *) g_2_h(address), (uint16_t)context->exclusive_value, (uint16_t)value))
                 res = 0;
             else
                 res = 1;
             break;
         case 0:
-            if (__sync_bool_compare_and_swap((uint8_t *) g_2_h_64(address), (uint8_t)context->exclusive_value, (uint8_t)value))
+            if (__sync_bool_compare_and_swap((uint8_t *) g_2_h(address), (uint8_t)context->exclusive_value, (uint8_t)value))
                 res = 0;
             else
                 res = 1;

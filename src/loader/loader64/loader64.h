@@ -4,13 +4,13 @@
 #include "target64.h"
 
 struct load_auxv_info_64 {
-	guest64_ptr load_AT_PHDR; /* Program headers for program */
+	guest_ptr load_AT_PHDR; /* Program headers for program */
 	unsigned int load_AT_PHENT; /* Size of program header entry */
 	unsigned int load_AT_PHNUM; /* Number of program headers */
-	guest64_ptr load_AT_ENTRY; /* Entry point of program */
+	guest_ptr load_AT_ENTRY; /* Entry point of program */
 };
 
-extern guest64_ptr load64(const char *file, struct load_auxv_info_64 *auxv_info);
+extern guest_ptr load64(const char *file, struct load_auxv_info_64 *auxv_info);
 
 #endif
 

@@ -25,10 +25,10 @@ static long clone_fork_arm64(struct arm64_target *context)
     /* just do the syscall */
     long res = syscall(SYS_clone,
                         (unsigned long) context->regs.r[0],
-                        context->regs.r[1]?g_2_h_64(context->regs.r[1]):NULL,
-                        context->regs.r[2]?g_2_h_64(context->regs.r[2]):NULL,
-                        context->regs.r[4]?g_2_h_64(context->regs.r[4]):NULL,
-                        context->regs.r[3]?g_2_h_64(context->regs.r[3]):NULL);
+                        context->regs.r[1]?g_2_h(context->regs.r[1]):NULL,
+                        context->regs.r[2]?g_2_h(context->regs.r[2]):NULL,
+                        context->regs.r[4]?g_2_h(context->regs.r[4]):NULL,
+                        context->regs.r[3]?g_2_h(context->regs.r[3]):NULL);
 
     return res;
 }

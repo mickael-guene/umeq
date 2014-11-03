@@ -97,8 +97,8 @@ void wrap_signal_handler(int signum)
 /* FIXME: Use of mmap/munmap here need to be rework */
 void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
 {
-    guest64_ptr siginfo_guest = mmap64_guest(0, sizeof(siginfo_t_arm64), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS , -1, 0);
-    siginfo_t_arm64 *siginfo_arm64 = (siginfo_t_arm64 *) g_2_h_64(siginfo_guest);
+    guest_ptr siginfo_guest = mmap_guest(0, sizeof(siginfo_t_arm64), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS , -1, 0);
+    siginfo_t_arm64 *siginfo_arm64 = (siginfo_t_arm64 *) g_2_h(siginfo_guest);
 
     if (siginfo_arm64) {
         siginfo_arm64->si_signo = siginfo->si_signo;
@@ -121,7 +121,7 @@ void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
                     siginfo_arm64->_sifields._sigchld._si_utime = siginfo->si_utime;
                     siginfo_arm64->_sifields._sigchld._si_stime = siginfo->si_stime;
                 } else {
-                    siginfo_arm64->_sifields._sigfault._si_addr = h_2_g_64(siginfo->si_addr);
+                    siginfo_arm64->_sifields._sigfault._si_addr = h_2_g(siginfo->si_addr);
                 }
                 break;
             case SI_QUEUE:
@@ -149,7 +149,7 @@ void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
         }
 
         loop(guest_signals_handler[signum], ss.ss_flags?0:ss.ss_sp, signum, (void *)siginfo_guest);
-        munmap64_guest(siginfo_guest, sizeof(siginfo_arm64));
+        munmap_guest(siginfo_guest, sizeof(siginfo_arm64));
     }
 }
 
@@ -161,8 +161,8 @@ long arm64_rt_sigaction(struct arm64_target *context)
     uint64_t act_p = context->regs.r[1];
     uint64_t oldact_p = context->regs.r[2];
     int signum = (int) signum_p;
-    struct sigaction_arm64 *act_guest = (struct sigaction_arm64 *) g_2_h_64(act_p);
-    struct sigaction_arm64 *oldact_guest = (struct sigaction_arm64 *) g_2_h_64(oldact_p);
+    struct sigaction_arm64 *act_guest = (struct sigaction_arm64 *) g_2_h(act_p);
+    struct sigaction_arm64 *oldact_guest = (struct sigaction_arm64 *) g_2_h(oldact_p);
     struct kernel_sigaction act;
     struct kernel_sigaction oldact;
 

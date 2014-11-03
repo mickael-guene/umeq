@@ -307,7 +307,7 @@ void arm64_hlp_dirty_floating_point_compare_simd(uint64_t _regs, uint32_t insn)
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
     int is_double = INSN(22,22);
     int is_compare_zero = INSN(3,3);
-    int is_signaling = INSN(4,4);
+    //int is_signaling = INSN(4,4);
     int rm = INSN(20,16);
     int rn = INSN(9,5);
 
@@ -503,7 +503,7 @@ static void dis_ushr_vector(uint64_t _regs, uint32_t insn)
 
 void arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    //struct arm64_registers *regs = (struct arm64_registers *) _regs;
     int opcode = INSN(15,11);
     int U = INSN(29,29);
 

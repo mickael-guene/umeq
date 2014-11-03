@@ -10,8 +10,6 @@
 #include <errno.h>
 #include <string.h>
 
-#include "arm.h"
-#include "arm64.h"
 #include "cache.h"
 #include "jitter.h"
 #include "target.h"

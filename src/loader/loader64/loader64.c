@@ -14,12 +14,12 @@
 #define DL_LOAD_ADDR                    0x40000000
 #define DL_SHARE_ADDR                   0x00400000
 
-guest64_ptr startbrk_64;
-static guest64_ptr load_AT_PHDR_init = 0;
+guest_ptr startbrk_64;
+static guest_ptr load_AT_PHDR_init = 0;
 
-static guest64_ptr getEntry(int fd, Elf64_Ehdr *hdr, int is_dl)
+static guest_ptr getEntry(int fd, Elf64_Ehdr *hdr, int is_dl)
 {
-    guest64_ptr entry = 0;
+    guest_ptr entry = 0;
 
     if (read(fd, hdr, sizeof(*hdr)) == sizeof(*hdr)) {
         /* check it's an elf file */
@@ -90,7 +90,7 @@ static int mapSegment(int fd, Elf64_Phdr *segment, struct load_auxv_info_64 *aux
     uint64_t vaddr = segment->p_vaddr & ~PAGE_MASK;
     uint64_t offset = segment->p_offset & ~PAGE_MASK;
     uint64_t padding = segment->p_vaddr & PAGE_MASK;
-    guest64_ptr mapFileResult;
+    guest_ptr mapFileResult;
 
     // TODO : perhaps need to check it's entirely into this map segment and
     // not completely sure calculation is ok
@@ -101,20 +101,20 @@ static int mapSegment(int fd, Elf64_Phdr *segment, struct load_auxv_info_64 *aux
     }
 
     /* mapping and clearing bss if needed */
-    mapFileResult = mmap64_guest(vaddr, segment->p_filesz + padding, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED, fd, offset);
+    mapFileResult = mmap_guest(vaddr, segment->p_filesz + padding, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED, fd, offset);
     if (mapFileResult == vaddr) {
         uint64_t zeroAddr = segment->p_vaddr + segment->p_filesz;
         uint64_t zeroAddrAlignedOnNextPage = (zeroAddr + PAGE_SIZE - 1) & ~PAGE_MASK;
         uint64_t zeroAddrSize = segment->p_memsz - segment->p_filesz;
         int64_t zeroAddrMapSize = zeroAddrSize - (zeroAddrAlignedOnNextPage - zeroAddr);
-        char *zeroAddrBuffer = (char *) g_2_h_64(zeroAddr);
+        char *zeroAddrBuffer = (char *) g_2_h(zeroAddr);
 
         if (!is_dl)
             startbrk_64 = segment->p_vaddr + segment->p_memsz;
         if (zeroAddrSize) {
             /* need to map more memory for bss ? */
             if (zeroAddrMapSize > 0) {
-                mapFileResult = mmap64_guest(zeroAddrAlignedOnNextPage, zeroAddrMapSize, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
+                mapFileResult = mmap_guest(zeroAddrAlignedOnNextPage, zeroAddrMapSize, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
                 if (mapFileResult != zeroAddrAlignedOnNextPage)
                     goto exit;
             }
@@ -137,7 +137,7 @@ exit:
 
 static void unmapSegment(int fd, Elf64_Phdr *segment)
 {
-    munmap64_guest(segment->p_vaddr, segment->p_memsz);
+    munmap_guest(segment->p_vaddr, segment->p_memsz);
 }
 
 static void dl_copy_dl_name(int fd, Elf64_Phdr *segment, char *name)
@@ -148,12 +148,12 @@ static void dl_copy_dl_name(int fd, Elf64_Phdr *segment, char *name)
     }
 }
 
-static guest64_ptr load64_internal(const char *file, struct load_auxv_info_64 *auxv_info, int is_dl)
+static guest_ptr load64_internal(const char *file, struct load_auxv_info_64 *auxv_info, int is_dl)
 {
     Elf64_Ehdr elf_header;
     Elf64_Phdr segment;
-    guest64_ptr dl_entry = 0;
-    guest64_ptr entry = 0;
+    guest_ptr dl_entry = 0;
+    guest_ptr entry = 0;
     int fd;
     int i = 0;
     int is_share_object;
@@ -214,7 +214,7 @@ end:
 }
 
 /* public api */
-guest64_ptr load64(const char *file, struct load_auxv_info_64 *auxv_info)
+guest_ptr load64(const char *file, struct load_auxv_info_64 *auxv_info)
 {
     return load64_internal(file, auxv_info, 0);
 }

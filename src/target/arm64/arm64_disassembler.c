@@ -29,10 +29,10 @@ static struct irRegister *mk_8(struct irInstructionAllocator *ir, uint8_t value)
 {
     return ir->add_mov_const_8(ir, value);
 }
-static struct irRegister *mk_16(struct irInstructionAllocator *ir, uint16_t value)
+/*static struct irRegister *mk_16(struct irInstructionAllocator *ir, uint16_t value)
 {
     return ir->add_mov_const_16(ir, value);
-}
+}*/
 static struct irRegister *mk_32(struct irInstructionAllocator *ir, uint32_t value)
 {
     return ir->add_mov_const_32(ir, value);
@@ -3681,7 +3681,7 @@ static int dis_advanced_simd_two_reg_misc(struct arm64_target *context, uint32_t
 {
     int isExit = 0;
     int u = INSN(29,29);
-    int size = INSN(23,22);
+    //int size = INSN(23,22);
     int opcode = INSN(16,12);
 
     switch(opcode) {
@@ -3893,11 +3893,11 @@ void disassemble_arm64(struct target *target, struct irInstructionAllocator *ir,
     struct arm64_target *context = container_of(target, struct arm64_target, target);
     int i;
     int isExit; //unconditionnal exit
-    uint32_t *pc_ptr = (uint32_t *) g_2_h_64(pc);
+    uint32_t *pc_ptr = (uint32_t *) g_2_h(pc);
 
     assert((pc & 3) == 0);
     for(i = 0; i < maxInsn; i++) {
-        context->pc = h_2_g_64(pc_ptr);
+        context->pc = h_2_g(pc_ptr);
         isExit = disassemble_insn(context, *pc_ptr, ir);
         pc_ptr++;
         if (!isExit)
