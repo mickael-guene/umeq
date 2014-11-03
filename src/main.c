@@ -10,7 +10,6 @@
 #include <errno.h>
 #include <string.h>
 
-#include "loader.h"
 #include "arm.h"
 #include "arm64.h"
 #include "cache.h"

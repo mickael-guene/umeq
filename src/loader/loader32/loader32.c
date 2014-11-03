@@ -6,7 +6,7 @@
 #include <sys/mman.h>
 #include <assert.h>
 
-#include "loader.h"
+#include "loader32.h"
 #include "runtime.h"
 
 #define PAGE_SIZE                       4096

@@ -1,1 +1,2 @@
-add_library(loader loader32.c loader64.c)
+add_subdirectory (loader32)
+add_subdirectory (loader64)

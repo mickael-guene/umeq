@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include "loader.h"
+#include "loader32.h"
 
 #include "umeq.h"
 
