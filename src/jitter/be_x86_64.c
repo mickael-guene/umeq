@@ -604,7 +604,6 @@ static void allocateRegisters(struct inter *inter)
                     freeRegList[insn->u.ite.trueOp->index] = 1;
                 if (insn->u.ite.falseOp->lastReadIndex == i)
                     freeRegList[insn->u.ite.falseOp->index] = 1;
-                break;
 #ifdef DEBUG_REG_ALLOC
                 displayReg(insn->u.ite.dst);
                 printf(" = ");
@@ -614,6 +613,7 @@ static void allocateRegisters(struct inter *inter)
                 printf(":");
                 displayReg(insn->u.ite.falseOp);
 #endif
+                break;
             case X86_CAST:
                 insn->u.cast.dst->index = getFreeReg(freeRegList);
                 if (insn->u.cast.op->lastReadIndex == i)
