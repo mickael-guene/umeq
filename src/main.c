@@ -181,8 +181,15 @@ int main(int argc, char **argv)
     uint64_t entry = 0;
     uint64_t stack;
 
-    //current_target_arch = &arm_arch;
+#ifndef ARCH
+    #error ARCH not defined
+#elif ARCH == 1
+    current_target_arch = &arm_arch;
+#elif ARCH == 2
     current_target_arch = &arm64_arch;
+#else
+    #error ARCH not supported
+#endif
     /* capture umeq arguments.
         This consist on -E, -U and -0 option of qemu.
         These options must be set first.
