@@ -21,7 +21,6 @@
 
 int isGdb = 0;
 
-struct target_arch *current_target_arch = NULL;
 struct tls_context {
     struct target *target;
     void *target_runtime;
@@ -38,7 +37,7 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     char jitBuffer[16 * 1024];
     char beX86_64Memory[BE_X86_64_CONTEXT_SIZE];
     char *jitterMemory = alloca(JITTER_CONTEXT_SIZE);
-    char *context_memory = alloca(current_target_arch->get_context_size());
+    char *context_memory = alloca(current_target_arch.get_context_size());
     struct target *target;
     void *target_runtime;
     uint64_t currentPc = entry;
@@ -59,9 +58,9 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     backend = createX86_64Backend(beX86_64Memory);
     handle = createJitter(jitterMemory, backend);
     ir = getIrInstructionAllocator(handle);
-    targetHandle = current_target_arch->create_target_context(context_memory);
-    target = current_target_arch->get_target_structure(targetHandle);
-    target_runtime = current_target_arch->get_target_runtime(targetHandle);
+    targetHandle = current_target_arch.create_target_context(context_memory);
+    target = current_target_arch.get_target_structure(targetHandle);
+    target_runtime = current_target_arch.get_target_runtime(targetHandle);
     /* save parent tls context content and setup current one */
     parent_tls_context = *current_tls_context;
     current_tls_context->target = target;
@@ -98,7 +97,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     char jitBuffer[16 * 1024];
     char beX86_64Memory[BE_X86_64_CONTEXT_SIZE];
     char *jitterMemory = alloca(JITTER_CONTEXT_SIZE);
-    char *context_memory = alloca(current_target_arch->get_context_size());
+    char *context_memory = alloca(current_target_arch.get_context_size());
     struct target *target;
     void *target_runtime;
     uint64_t currentPc = entry;
@@ -121,9 +120,9 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     backend = createX86_64Backend(beX86_64Memory);
     handle = createJitter(jitterMemory, backend);
     ir = getIrInstructionAllocator(handle);
-    targetHandle = current_target_arch->create_target_context(context_memory);
-    target = current_target_arch->get_target_structure(targetHandle);
-    target_runtime = current_target_arch->get_target_runtime(targetHandle);
+    targetHandle = current_target_arch.create_target_context(context_memory);
+    target = current_target_arch.get_target_structure(targetHandle);
+    target_runtime = current_target_arch.get_target_runtime(targetHandle);
     /* save parent tls context content and setup current one */
     parent_tls_context = *current_tls_context;
     current_tls_context->target = target;
@@ -180,15 +179,6 @@ int main(int argc, char **argv)
     uint64_t entry = 0;
     uint64_t stack;
 
-#ifndef ARCH
-    #error ARCH not defined
-#elif ARCH == 1
-    current_target_arch = &arm_arch;
-#elif ARCH == 2
-    current_target_arch = &arm64_arch;
-#else
-    #error ARCH not supported
-#endif
     /* capture umeq arguments.
         This consist on -E, -U and -0 option of qemu.
         These options must be set first.
@@ -213,7 +203,7 @@ int main(int argc, char **argv)
     assert(unset_env_index < 16);
 
     /* load program in memory */
-    current_target_arch->loader(argc - target_argv0_index, argv + target_argv0_index,
+    current_target_arch.loader(argc - target_argv0_index, argv + target_argv0_index,
                                 additionnal_env, unset_env, target_argv0, &entry, &stack);
     if (entry) {
         loop(entry, stack, 0, NULL);

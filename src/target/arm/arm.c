@@ -207,7 +207,7 @@ static void *getArmContext(armContext handle)
 }
 
 /* api */
-struct target_arch arm_arch = {
+struct target_arch current_target_arch = {
     arm_load_image,
     getArmContextSize,
     createArmContext,

@@ -22,7 +22,7 @@ struct target_arch {
     void *(*get_target_runtime)(void *context);
 };
 
-extern struct target_arch *current_target_arch;
+extern struct target_arch current_target_arch;
 
 #endif
 

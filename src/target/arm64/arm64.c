@@ -227,7 +227,7 @@ static void *getArm64Context(arm64Context handle)
 }
 
 /* api */
-struct target_arch arm64_arch = {
+struct target_arch current_target_arch = {
     arm64_load_image,
     getArm64ContextSize,
     createArm64Context,
