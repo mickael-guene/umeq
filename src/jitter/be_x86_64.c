@@ -575,6 +575,9 @@ static void allocateRegisters(struct inter *inter)
                     freeRegList[insn->u.binop.op1->index] = 1;
                 if (insn->u.binop.op2->lastReadIndex == i)
                     freeRegList[insn->u.binop.op2->index] = 1;
+                /* FIXME: useless with dead code removal pass */
+                if (insn->u.binop.dst->lastReadIndex == -1)
+                    freeRegList[insn->u.binop.dst->index] = 1;
 #ifdef DEBUG_REG_ALLOC
                 printf("binop ");
                 displayReg(insn->u.binop.dst);
@@ -618,6 +621,9 @@ static void allocateRegisters(struct inter *inter)
                 insn->u.cast.dst->index = getFreeReg(freeRegList);
                 if (insn->u.cast.op->lastReadIndex == i)
                     freeRegList[insn->u.cast.op->index] = 1;
+                /* FIXME: useless with dead code removal pass */
+                if (insn->u.cast.dst->lastReadIndex == -1)
+                    freeRegList[insn->u.cast.dst->index] = 1;
 #ifdef DEBUG_REG_ALLOC
                 {
                 const char *typeToString[] = {"(8u_to_16)", "(8u_to_32)", "(8u_to_64)",

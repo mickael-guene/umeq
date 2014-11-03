@@ -3896,7 +3896,7 @@ void disassemble_arm64(struct target *target, struct irInstructionAllocator *ir,
     uint32_t *pc_ptr = (uint32_t *) g_2_h_64(pc);
 
     assert((pc & 3) == 0);
-    for(i = 0; i < 1/*maxInsn*/; i++) {
+    for(i = 0; i < maxInsn; i++) {
         context->pc = h_2_g_64(pc_ptr);
         isExit = disassemble_insn(context, *pc_ptr, ir);
         pc_ptr++;
