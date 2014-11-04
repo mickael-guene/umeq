@@ -12,6 +12,7 @@ extern "C" {
 
 #include "target64.h"
 
+extern void arm64_hlp_dirty_simd_dup_element(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_simd_dup_general(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_shl_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_scvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn);

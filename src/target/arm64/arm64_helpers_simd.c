@@ -27,6 +27,37 @@ void arm64_hlp_dump_simd(uint64_t regs)
     printf("pc    = 0x%016lx\n", context->regs.pc);
 }
 
+void arm64_hlp_dirty_simd_dup_element(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int imm5 = INSN(20,16);
+    int rn = INSN(9,5);
+    int rd = INSN(4,0);
+    uint64_t rn_r;
+    uint64_t lsb = 0;
+    uint64_t msb = 0;
+
+    if (imm5 & 1) {
+        rn_r = regs->v[rn].b[imm5 >> 1];
+        lsb = (rn_r << 56) | (rn_r << 48) | (rn_r << 40) | (rn_r << 32) | (rn_r << 24) | (rn_r << 16) | (rn_r << 8) | (rn_r << 0);
+    } else if (imm5 & 2) {
+        rn_r = regs->v[rn].h[imm5 >> 2];
+        lsb = (rn_r << 48) | (rn_r << 32) | (rn_r << 16) | (rn_r << 0);
+    } else if (imm5 & 4) {
+        rn_r = regs->v[rn].s[imm5 >> 3];
+        lsb = (rn_r << 32) | (rn_r << 0);
+    } else {
+        assert(q == 1);
+        lsb = regs->v[rn].d[imm5 >> 4];
+    }
+    if (q)
+        msb = lsb;
+
+    regs->v[rd].v.lsb = lsb;
+    regs->v[rd].v.msb = msb;
+}
+
 void arm64_hlp_dirty_simd_dup_general(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
