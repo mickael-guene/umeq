@@ -2619,6 +2619,9 @@ static int dis_fmov(struct arm64_target *context, uint32_t insn, struct irInstru
     } else if (sf == 1 && type == 2 && rmode == 1 && opcode == 6) {
         //fmod Xd, Vn.D[1]
         write_x(ir, rd, read_v_msb(ir, rn), ZERO_REG);
+    } else if (sf == 1 && type == 2 && rmode == 1 && opcode == 7) {
+        //fmov Vd.D[1], Xn
+        write_v_msb(ir, rd, read_x(ir, rn, ZERO_REG));
     } else
         fatal("sf=%d / type=%d / rmode=%d / opcode=%d\n", sf, type, rmode, opcode);
 
@@ -2674,84 +2677,6 @@ static int dis_dup_general(struct arm64_target *context, uint32_t insn, struct i
 
     ir->add_call_void(ir, "arm64_hlp_dirty_simd_dup_general",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_simd_dup_general),
-                           params);
-
-    return 0;
-}
-
-static int dis_add_simd_vector(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
-
-    params[0] = mk_32(ir, insn);
-
-    ir->add_call_void(ir, "arm64_hlp_dirty_add_simd_vector",
-                           mk_64(ir, (uint64_t) arm64_hlp_dirty_add_simd_vector),
-                           params);
-
-    return 0;
-}
-
-static int dis_cmpeq_simd_vector(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
-
-    params[0] = mk_32(ir, insn);
-
-    ir->add_call_void(ir, "arm64_hlp_dirty_cmpeq_simd_vector",
-                           mk_64(ir, (uint64_t) arm64_hlp_dirty_cmpeq_simd_vector),
-                           params);
-
-    return 0;
-}
-
-static int dis_cmpeq_register_simd_vector(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
-
-    params[0] = mk_32(ir, insn);
-
-    ir->add_call_void(ir, "arm64_hlp_dirty_cmpeq_register_simd_vector",
-                           mk_64(ir, (uint64_t) arm64_hlp_dirty_cmpeq_register_simd_vector),
-                           params);
-
-    return 0;
-}
-
-static int dis_orr_register_simd_vector(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
-
-    params[0] = mk_32(ir, insn);
-
-    ir->add_call_void(ir, "arm64_hlp_dirty_orr_register_simd_vector",
-                           mk_64(ir, (uint64_t) arm64_hlp_dirty_orr_register_simd_vector),
-                           params);
-
-    return 0;
-}
-
-static int dis_and_simd_vector(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
-
-    params[0] = mk_32(ir, insn);
-
-    ir->add_call_void(ir, "arm64_hlp_dirty_and_simd_vector",
-                           mk_64(ir, (uint64_t) arm64_hlp_dirty_and_simd_vector),
-                           params);
-
-    return 0;
-}
-
-static int dis_addp_simd_vector(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
-
-    params[0] = mk_32(ir, insn);
-
-    ir->add_call_void(ir, "arm64_hlp_dirty_addp_simd_vector",
-                           mk_64(ir, (uint64_t) arm64_hlp_dirty_addp_simd_vector),
                            params);
 
     return 0;
@@ -2919,6 +2844,25 @@ static int dis_movi(struct arm64_target *context, uint32_t insn, struct irInstru
     return 0;
 }
 
+static int dis_bic_immediate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(30, 30);
+    int op = INSN(29, 29);
+    int imm8 = (INSN(18,16) << 5) + INSN(9,5);
+    int cmode = INSN(15,12);
+    int rd = INSN(4, 0);
+    struct irRegister *imm64 = mk_64(ir, ~simd_immediate(op, cmode, imm8));
+
+    write_v_lsb(ir, rd, ir->add_and_64(ir, read_v_lsb(ir, rd), imm64));
+    if (Q) {
+        write_v_msb(ir, rd, ir->add_and_64(ir, read_v_msb(ir, rd), imm64));
+    } else {
+        write_v_msb(ir, rd, mk_64(ir, 0));
+    }
+
+    return 0;
+}
+
 static int dis_shl(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
@@ -3044,6 +2988,110 @@ static int dis_advanced_simd_shift_by_immediate(struct arm64_target *context, ui
 
     ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_advanced_simd_scalar_two_reg_misc(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_advanced_simd_scalar_pair_wise(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_scalar_pair_wise_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_scalar_pair_wise_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_advanced_simd_ext(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_ext_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_ext_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_advanced_simd_three_different(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_simd_three_different_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_simd_three_different_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_advanced_simd_two_reg_misc(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_two_reg_misc_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_two_reg_misc_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_advanced_simd_accross_lanes(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_accross_lanes_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_accross_lanes_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_advanced_simd_scalar_three_same(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_scalar_three_same_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_scalar_three_same_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_advanced_simd_three_same(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_three_same_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_three_same_simd),
                            params);
 
     return 0;
@@ -3566,6 +3614,8 @@ static int dis_conversion_between_floating_point_and_integer_insn(struct arm64_t
          isExit = dis_fmov(context, insn, ir);
     } else if (sf == 1 && type == 2 && rmode == 1 && opcode == 6) {
          isExit = dis_fmov(context, insn, ir);
+    } else if (sf == 1 && type == 2 && rmode == 1 && opcode == 7) {
+         isExit = dis_fmov(context, insn, ir);
     } else if (sf == 1 && type == 1 && rmode == 0 && opcode == 2) {
         isExit = dis_scvtf_scalar_integer(context, insn, ir);
     } else if (sf == 0 && type == 1 && rmode == 0 && opcode == 2) {
@@ -3607,51 +3657,6 @@ static int dis_advanced_simd_copy(struct arm64_target *context, uint32_t insn, s
     return isExit;
 }
 
-static int dis_advanced_simd_three_same(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    int isExit = 0;
-    int u = INSN(29,29);
-    int size = INSN(23,22);
-    int opcode = INSN(15,11);
-
-    switch(opcode) {
-        case 3:
-            if (u)
-                assert(0);
-            else {
-                if (size == 2)
-                    dis_orr_register_simd_vector(context, insn, ir);
-                else if (size == 0)
-                    dis_and_simd_vector(context, insn, ir);
-                else
-                    fatal("pc = 0x%016lx / size = %d\n", context->pc, size);
-            }
-            break;
-        case 16:
-            if (u)
-                assert(0);//sub
-            else
-                isExit = dis_add_simd_vector(context, insn, ir);
-            break;
-        case 17:
-            if (u)
-                isExit = dis_cmpeq_register_simd_vector(context, insn, ir);
-            else
-                assert(0);
-            break;
-        case 23:
-            if (u)
-                assert(0);
-            else
-                isExit = dis_addp_simd_vector(context, insn, ir);
-            break;
-        default:
-            fatal("opcode = %d(0x%x) / u=%d\n", opcode, opcode, u);
-    }
-
-    return isExit;
-}
-
 static int dis_advanced_simd_modified_immediate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int isExit = 0;
@@ -3670,29 +3675,15 @@ static int dis_advanced_simd_modified_immediate(struct arm64_target *context, ui
             case 14:
                 isExit = dis_movi(context, insn, ir);
                 break;
+            case 1: case 3: case 5: case 7:
+            case 9: case 11:
+                if (op)
+                    isExit = dis_bic_immediate(context, insn, ir);
+                else
+                    assert(0);
+                break;
         default:
             fatal("cmode = %d(0x%x)\n", cmode, cmode);
-    }
-
-    return isExit;
-}
-
-static int dis_advanced_simd_two_reg_misc(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    int isExit = 0;
-    int u = INSN(29,29);
-    //int size = INSN(23,22);
-    int opcode = INSN(16,12);
-
-    switch(opcode) {
-        case 9:
-            if (u)
-                assert(0);
-            else
-                isExit = dis_cmpeq_simd_vector(context, insn, ir);
-            break;
-        default:
-            fatal("opcode = %d(0x%x)\n", opcode, opcode);
     }
 
     return isExit;
@@ -3729,16 +3720,16 @@ static int dis_advanced_simd(struct arm64_target *context, uint32_t insn, struct
                             assert(0 && "decodeZipUzpTrn");
                         }
                     } else {
-                        assert(0 && "decodeAdvSIMDExt");
+                        isExit = dis_advanced_simd_ext(context, insn, ir);
                     }
                 } else { //INSN(21, 21) == 1
                     if (INSN(11, 11) == 0) {
-                        assert(0 && "decodeAdvSIMDThreeDifferent");
+                        isExit = dis_advanced_simd_three_different(context, insn, ir);
                     } else { //INSN(11, 11) == 1
                         if (INSN(20, 20) == 0) {
                             isExit = dis_advanced_simd_two_reg_misc(context, insn, ir);
                         } else { //INSN(20, 20) == 1
-                            assert(0 && "decodeAdvSIMDAccrossLanes");
+                            isExit = dis_advanced_simd_accross_lanes(context, insn, ir);
                         }
                     }
                 }
@@ -3768,16 +3759,16 @@ static int dis_advanced_simd(struct arm64_target *context, uint32_t insn, struct
                     assert(0); //decodeAdvSIMDScalarThreeDifferent(insn, dres);
                 } else { //INSN(11, 11) == 1
                     if (INSN(20, 20) == 0) {
-                        assert(0); //decodeAdvSIMDScalarTwoRegMisc(insn, dres);
+                        isExit = dis_advanced_simd_scalar_two_reg_misc(context, insn, ir);
                     } else { //INSN(20, 20) == 1
-                        assert(0); //decodeAdvSIMDScalarPairWise(insn, dres);
+                        isExit = dis_advanced_simd_scalar_pair_wise(context, insn, ir);
                     }
                 }
             } else { //INSN(10, 10) == 1
                 if (INSN(21, 21) == 0) {
                     assert(0); //decodeAdvSIMDScalarCopy(insn, dres);
                 } else {
-                    assert(0); //decodeAdvSIMDScalarThreeSame(insn, dres);
+                    isExit = dis_advanced_simd_scalar_three_same(context, insn, ir);
                 }
             }
         } else { //INSN(24, 24) == 1
