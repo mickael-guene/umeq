@@ -3140,7 +3140,16 @@ static int dis_add_substract_with_carry(struct arm64_target *context, uint32_t i
 
 static int dis_mvni(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    assert(0);
+    int Q = INSN(30, 30);
+    int op = INSN(29, 29);
+    int imm8 = (INSN(18,16) << 5) + INSN(9,5);
+    int cmode = INSN(15,12);
+    int rd = INSN(4, 0);
+    struct irRegister *imm64 = mk_64(ir, ~simd_immediate(op, cmode, imm8));
+
+    write_v_lsb(ir, rd, imm64);
+    write_v_msb(ir, rd, Q?imm64:mk_64(ir, 0));
+
     return 0;
 }
 
@@ -3153,11 +3162,8 @@ static int dis_movi(struct arm64_target *context, uint32_t insn, struct irInstru
     int rd = INSN(4, 0);
     struct irRegister *imm64 = mk_64(ir, simd_immediate(op, cmode, imm8));
 
-    if (Q) {
-        write_v_msb(ir, rd, imm64);
-        write_v_lsb(ir, rd, imm64);
-    } else
-        write_d(ir, rd, imm64);
+    write_v_lsb(ir, rd, imm64);
+    write_v_msb(ir, rd, Q?imm64:mk_64(ir, 0));
 
     return 0;
 }
@@ -3174,6 +3180,25 @@ static int dis_bic_immediate(struct arm64_target *context, uint32_t insn, struct
     write_v_lsb(ir, rd, ir->add_and_64(ir, read_v_lsb(ir, rd), imm64));
     if (Q) {
         write_v_msb(ir, rd, ir->add_and_64(ir, read_v_msb(ir, rd), imm64));
+    } else {
+        write_v_msb(ir, rd, mk_64(ir, 0));
+    }
+
+    return 0;
+}
+
+static int dis_orr_immediate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(30, 30);
+    int op = INSN(29, 29);
+    int imm8 = (INSN(18,16) << 5) + INSN(9,5);
+    int cmode = INSN(15,12);
+    int rd = INSN(4, 0);
+    struct irRegister *imm64 = mk_64(ir, simd_immediate(op, cmode, imm8));
+
+    write_v_lsb(ir, rd, ir->add_or_64(ir, read_v_lsb(ir, rd), imm64));
+    if (Q) {
+        write_v_msb(ir, rd, ir->add_or_64(ir, read_v_msb(ir, rd), imm64));
     } else {
         write_v_msb(ir, rd, mk_64(ir, 0));
     }
@@ -3429,6 +3454,19 @@ static int dis_advanced_simd_three_same(struct arm64_target *context, uint32_t i
 
     ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_three_same_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_three_same_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_advanced_simd_vector_x_indexed_element(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd),
                            params);
 
     return 0;
@@ -4022,7 +4060,7 @@ static int dis_advanced_simd_modified_immediate(struct arm64_target *context, ui
                 if (op)
                     isExit = dis_bic_immediate(context, insn, ir);
                 else
-                    assert(0);
+                    isExit = dis_orr_immediate(context, insn, ir);
                 break;
         default:
             fatal("cmode = %d(0x%x)\n", cmode, cmode);
@@ -4084,8 +4122,7 @@ static int dis_advanced_simd(struct arm64_target *context, uint32_t insn, struct
             }
         } else { //INSN(24,24) == 1
             if (INSN(10,10) == 0) {
-                //decodeAdvSIMDVectorXIndexedElement
-                fatal("pc = 0x%016lx / insn=0x%08x\n", context->pc, insn);
+                isExit = dis_advanced_simd_vector_x_indexed_element(context, insn, ir);
             } else { //INSN(10,10) == 1
                 if (INSN(22,19) == 0) {
                     isExit = dis_advanced_simd_modified_immediate(context, insn, ir);

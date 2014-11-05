@@ -27,6 +27,39 @@ void arm64_hlp_dump_simd(uint64_t regs)
     printf("pc    = 0x%016lx\n", context->regs.pc);
 }
 
+static inline uint8_t uabs8(uint8_t op1, uint8_t op2)
+{
+    return op1>op2?op1-op2:op2-op1;
+}
+static inline uint16_t uabs16(uint16_t op1, uint16_t op2)
+{
+    return op1>op2?op1-op2:op2-op1;
+}
+static inline uint32_t uabs32(uint32_t op1, uint32_t op2)
+{
+    return op1>op2?op1-op2:op2-op1;
+}
+static inline uint64_t uabs64(uint64_t op1, uint64_t op2)
+{
+    return op1>op2?op1-op2:op2-op1;
+}
+static inline uint8_t sabs8(int8_t op1, int8_t op2)
+{
+    return op1>op2?op1-op2:op2-op1;
+}
+static inline uint16_t sabs16(int16_t op1, int16_t op2)
+{
+    return op1>op2?op1-op2:op2-op1;
+}
+static inline uint32_t sabs32(int32_t op1, int32_t op2)
+{
+    return op1>op2?op1-op2:op2-op1;
+}
+static inline uint64_t sabs64(int64_t op1, int64_t op2)
+{
+    return op1>op2?op1-op2:op2-op1;
+}
+
 void arm64_hlp_dirty_simd_dup_element(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -368,6 +401,41 @@ static void dis_ushr_vector(uint64_t _regs, uint32_t insn)
     }
 }
 
+static void dis_rshrn(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int immh = INSN(22,19);
+    int imm = INSN(22,16);
+    int i;
+    int shift;
+    union simd_register res;
+
+    if (immh == 1) {
+        shift = 16 - imm;
+        for(i = 0; i < 8; i++)
+            res.b[i] = (regs->v[rn].h[i] + (1UL << (shift - 1))) >> shift;
+    } else if (immh < 4) {
+        shift = 32 - imm;
+        for(i = 0; i < 4; i++)
+            res.h[i] = (regs->v[rn].s[i] + (1UL << (shift - 1))) >> shift;
+    } else if (immh < 8) {
+        shift = 64 - imm;
+        for(i = 0; i < 2; i++)
+            res.s[i] = (regs->v[rn].d[i] + (1UL << (shift - 1))) >> shift;
+    } else
+        assert(0);
+
+    if (q)
+        regs->v[rd].v.msb = res.v.lsb;
+    else {
+        regs->v[rd].v.lsb = res.v.lsb;
+        regs->v[rd].v.msb = 0;
+    }
+}
+
 void arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd(uint64_t _regs, uint32_t insn)
 {
     int opcode = INSN(15,11);
@@ -378,9 +446,48 @@ void arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd(uint64_t _regs, uint3
             if (U)
                 dis_ushr_vector(_regs, insn);
             break;
+        case 17:
+            if (U)
+                assert(0);
+            else
+                dis_rshrn(_regs, insn);
+            break;
         default:
             fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
     }
+}
+
+static void dis_neg(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_scalar = INSN(28,28);
+    int q = INSN(30,30);
+    int size = INSN(23,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int i;
+
+    switch(size) {
+        case 0:
+            for(i = 0; i < (q?16:8); i++)
+                regs->v[rd].b[i] = -regs->v[rn].b[i];
+            break;
+        case 1:
+            for(i = 0; i < (q?8:4); i++)
+                regs->v[rd].h[i] = -regs->v[rn].h[i];
+            break;
+        case 2:
+            for(i = 0; i < (q?4:2); i++) {
+                regs->v[rd].s[i] = -regs->v[rn].s[i];
+            }
+            break;
+        case 3:
+            for(i = 0; i < (q && !is_scalar?2:1); i++)
+                regs->v[rd].d[i] = -regs->v[rn].d[i];
+            break;
+    }
+    if (!q || is_scalar)
+        regs->v[rd].v.msb = 0;
 }
 
 static void dis_abs(uint64_t _regs, uint32_t insn)
@@ -445,6 +552,124 @@ static void dis_cmpeq_vector(uint64_t _regs, uint32_t insn)
                 regs->v[rd].d[i] = regs->v[rn].d[i]==0?0xffffffffffffffffUL:0;
             break;
     }
+}
+
+static void dis_mal_mls(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int size = INSN(23,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int is_sub = INSN(29,29);
+    int i;
+
+    switch(size) {
+        case 0:
+            for(i = 0; i < (q?16:8); i++)
+                if (is_sub)
+                    regs->v[rd].b[i] -= regs->v[rn].b[i] * regs->v[rm].b[i];
+                else
+                    regs->v[rd].b[i] += regs->v[rn].b[i] * regs->v[rm].b[i];
+            break;
+        case 1:
+            for(i = 0; i < (q?8:4); i++)
+                if (is_sub)
+                    regs->v[rd].h[i] -= regs->v[rn].h[i] * regs->v[rm].h[i];
+                else
+                    regs->v[rd].h[i] += regs->v[rn].h[i] * regs->v[rm].h[i];
+            break;
+        case 2:
+            for(i = 0; i < (q?4:2); i++) {
+                if (is_sub)
+                    regs->v[rd].s[i] -= regs->v[rn].s[i] * regs->v[rm].s[i];
+                else
+                    regs->v[rd].s[i] += regs->v[rn].s[i] * regs->v[rm].s[i];
+            }
+            break;
+        case 3:
+            for(i = 0; i < (q?2:1); i++)
+                if (is_sub)
+                    regs->v[rd].d[i] -= regs->v[rn].d[i] * regs->v[rm].d[i];
+                else
+                    regs->v[rd].d[i] += regs->v[rn].d[i] * regs->v[rm].d[i];
+            break;
+    }
+    if (!q)
+        regs->v[rd].v.msb = 0;
+}
+
+static void dis_pmul(uint64_t _regs, uint32_t insn)
+{
+    /* FIXME: just do it */
+    assert(0);
+}
+
+static void dis_mul(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int size = INSN(23,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int i;
+
+    switch(size) {
+        case 0:
+            for(i = 0; i < (q?16:8); i++)
+                regs->v[rd].b[i] = regs->v[rn].b[i] * regs->v[rm].b[i];
+            break;
+        case 1:
+            for(i = 0; i < (q?8:4); i++)
+                regs->v[rd].h[i] = regs->v[rn].h[i] * regs->v[rm].h[i];
+            break;
+        case 2:
+            for(i = 0; i < (q?4:2); i++) {
+                regs->v[rd].s[i] = regs->v[rn].s[i] * regs->v[rm].s[i];
+            }
+            break;
+        case 3:
+            for(i = 0; i < (q?2:1); i++)
+                regs->v[rd].d[i] = regs->v[rn].d[i] * regs->v[rm].d[i];
+            break;
+    }
+    if (!q)
+        regs->v[rd].v.msb = 0;
+}
+
+static void dis_sabd_saba(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int size = INSN(23,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int is_acc = INSN(11,11);
+    int i;
+    union simd_register res;
+
+    res.v.msb = 0;
+    switch(size) {
+        case 0:
+            for(i = 0; i < (q?16:8); i++)
+                res.b[i] = (is_acc?regs->v[rd].b[i]:0) + sabs8(regs->v[rn].b[i], regs->v[rm].b[i]);
+            break;
+        case 1:
+            for(i = 0; i < (q?8:4); i++)
+                res.h[i] = (is_acc?regs->v[rd].h[i]:0) + sabs16(regs->v[rn].h[i], regs->v[rm].h[i]);
+            break;
+        case 2:
+            for(i = 0; i < (q?4:2); i++)
+                res.s[i] = (is_acc?regs->v[rd].s[i]:0) + sabs32(regs->v[rn].s[i], regs->v[rm].s[i]);
+            break;
+        default:
+            assert(0);
+    }
+
+    regs->v[rd] = res;
 }
 
 static void dis_add(uint64_t _regs, uint32_t insn)
@@ -517,6 +742,18 @@ static void dis_bic_register(uint64_t _regs, uint32_t insn)
     regs->v[rd].v.msb = q?regs->v[rn].v.msb & ~regs->v[rm].v.msb:0;
 }
 
+static void dis_orn(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+
+    regs->v[rd].v.lsb = regs->v[rn].v.lsb | ~regs->v[rm].v.lsb;
+    regs->v[rd].v.msb = q?regs->v[rn].v.msb | ~regs->v[rm].v.msb:0;
+}
+
 static void dis_addp(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -562,7 +799,7 @@ static void dis_addp(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
-static void dis_addhn(uint64_t _regs, uint32_t insn)
+static void dis_saddl(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
     int q = INSN(30,30);
@@ -576,18 +813,91 @@ static void dis_addhn(uint64_t _regs, uint32_t insn)
     res.v.msb = 0;
     switch(size) {
         case 0:
+            for(i = 0; i < 8; i++)
+                res.h[i] = (int8_t)regs->v[rn].b[q?i+8:i] + (int8_t)regs->v[rm].b[q?i+8:i];
+            break;
+        case 1:
+            for(i = 0; i < 4; i++)
+                res.s[i] = (int16_t)regs->v[rn].h[q?i+4:i] + (int16_t)regs->v[rm].h[q?i+4:i];
+            break;
+        case 2:
+            for(i = 0; i < 2; i++)
+                res.d[i] = (int64_t)(int32_t)regs->v[rn].s[q?i+2:i] + (int64_t)(int32_t)regs->v[rm].s[q?i+2:i];
+            break;
+        default:
+            assert(0);
+    }
+    regs->v[rd] = res;
+}
+
+static void dis_saddw(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int size = INSN(23,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int i;
+    union simd_register res;
+
+    res.v.msb = 0;
+    switch(size) {
+        case 0:
+            for(i = 0; i < 8; i++)
+                res.h[i] = (int16_t)regs->v[rn].h[i] + (int8_t)regs->v[rm].b[q?i+8:i];
+            break;
+        case 1:
+            for(i = 0; i < 4; i++)
+                res.s[i] = (int32_t)regs->v[rn].s[i] + (int16_t)regs->v[rm].h[q?i+4:i];
+            break;
+        case 2:
+            for(i = 0; i < 2; i++)
+                res.d[i] = (int64_t)regs->v[rn].d[i] + (int64_t)(int32_t)regs->v[rm].s[q?i+2:i];
+            break;
+        default:
+            assert(0);
+    }
+    regs->v[rd] = res;
+}
+
+static void dis_addhn_raddhn_subhn_rsubhn(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int size = INSN(23,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int is_round = INSN(29,29);
+    int is_sub = INSN(13,13);
+    int i;
+    union simd_register res;
+
+    res.v.msb = 0;
+    switch(size) {
+        case 0:
             for(i = 0; i < 8; i++) {
-                res.b[i] = (regs->v[rn].h[i] + regs->v[rm].h[i]) >> 8;
+                if (is_sub)
+                    res.b[i] = (regs->v[rn].h[i] - regs->v[rm].h[i] + (is_round?(1UL << 7):0)) >> 8;
+                else
+                    res.b[i] = (regs->v[rn].h[i] + regs->v[rm].h[i] + (is_round?(1UL << 7):0)) >> 8;
             }
             break;
         case 1:
             for(i = 0; i < 4; i++) {
-                res.h[i] = (regs->v[rn].s[i] + regs->v[rm].s[i]) >> 16;
+                if (is_sub)
+                    res.h[i] = (regs->v[rn].s[i] - regs->v[rm].s[i] + (is_round?(1UL << 15):0)) >> 16;
+                else
+                    res.h[i] = (regs->v[rn].s[i] + regs->v[rm].s[i] + (is_round?(1UL << 15):0)) >> 16;
             }
             break;
         case 2:
             for(i = 0; i < 2; i++) {
-                res.s[i] = (regs->v[rn].d[i] + regs->v[rm].d[i]) >> 32;
+                if (is_sub)
+                    res.s[i] = (regs->v[rn].d[i] - regs->v[rm].d[i] + (is_round?(1UL << 31):0)) >> 32;
+                else
+                    res.s[i] = (regs->v[rn].d[i] + regs->v[rm].d[i] + (is_round?(1UL << 31):0)) >> 32;
             }
             break;
         case 3:
@@ -598,6 +908,76 @@ static void dis_addhn(uint64_t _regs, uint32_t insn)
         regs->v[rd].v.msb = res.v.lsb;
     else
         regs->v[rd].v = res.v;
+}
+
+static void dis_sabdl_sabal(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int size = INSN(23,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int is_acc = (INSN(13, 13) == 0);
+    int i;
+    union simd_register res = {0};
+
+    if (is_acc)
+        res = regs->v[rd];
+    switch(size) {
+        case 0:
+            for(i = 0; i < 8; i++)
+                res.h[i] += sabs8(regs->v[rn].b[q?i+8:i], regs->v[rm].b[q?i+8:i]);
+            break;
+        case 1:
+            for(i = 0; i < 4; i++)
+                res.s[i] += sabs16(regs->v[rn].h[q?i+4:i], regs->v[rm].h[q?i+4:i]);
+            break;
+        case 2:
+            for(i = 0; i < 2; i++)
+                res.d[i] += sabs32(regs->v[rn].s[q?i+2:i], regs->v[rm].s[q?i+2:i]);
+            break;
+        default:
+            assert(0);
+    }
+    regs->v[rd] = res;
+}
+
+static void dis_pmull(uint64_t _regs, uint32_t insn)
+{
+    assert(0);
+}
+
+static void dis_saddlv(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int size = INSN(23,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int i;
+    union simd_register res;
+
+    res.v.msb = 0;
+    res.v.lsb = 0;
+    switch(size) {
+        case 0:
+            for(i = 0; i < (q?16:8); i++)
+                res.h[0] += (int8_t)regs->v[rn].b[i];
+            break;
+        case 1:
+            for(i = 0; i < (q?8:4); i++)
+                res.s[0] += (int16_t)regs->v[rn].h[i];
+            break;
+        case 2:
+            assert(q);
+            for(i = 0; i < 4; i++)
+                res.d[0] += (int64_t)(int32_t)regs->v[rn].s[i];
+            break;
+        default:
+            assert(0);
+    }
+    regs->v[rd].v = res.v;
 }
 
 static void dis_addv(uint64_t _regs, uint32_t insn)
@@ -704,6 +1084,38 @@ static int clz(uint64_t op, int start_index)
     }
 
     return res;
+}
+
+static void dis_revxx(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int size = INSN(23,22);
+    int op = (INSN(12,12) << 1) | INSN(29,29);
+    int revmask = (1 << (3-op-size)) - 1;
+    int i;
+    union simd_register res;
+
+    res.v.msb = 0;
+    switch(size) {
+        case 0:
+            for(i = 0; i < (q?16:8); i++)
+                res.b[i] = regs->v[rn].b[i ^ revmask];
+            break;
+        case 1:
+            for(i = 0; i < (q?8:4); i++)
+                res.h[i] = regs->v[rn].h[i ^ revmask];
+            break;
+        case 2:
+            for(i = 0; i < (q?4:2); i++)
+                res.s[i] = regs->v[rn].s[i ^ revmask];
+            break;
+        default:
+            assert(0);
+    }
+    regs->v[rd].v = res.v;
 }
 
 static void dis_cls_clz(uint64_t _regs, uint32_t insn)
@@ -848,6 +1260,41 @@ static int cnt(uint64_t op, int width)
     return res;
 }
 
+static uint8_t rbit(uint8_t op) {
+    op = ((op & 0x55) << 1) | ((op & ~0x55) >> 1);
+    op = ((op & 0x33) << 2) | ((op & ~0x33) >> 2);
+    op = ((op & 0x0f) << 4) | ((op & ~0x0f) >> 4);
+
+    return op;
+}
+
+static void dis_not(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+
+    regs->v[rd].v.lsb = ~regs->v[rn].v.lsb;
+    regs->v[rd].v.msb = q?~regs->v[rn].v.msb:0;
+}
+
+static void dis_rbit(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int i;
+    union simd_register res;
+
+    res.v.msb = 0;
+    for(i = 0; i < (q?16:8); i++) {
+        res.b[i] = rbit(regs->v[rn].b[i]);
+    }
+    regs->v[rd].v = res.v;
+}
+
 static void dis_cnt(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -869,6 +1316,42 @@ static void dis_cnt(uint64_t _regs, uint32_t insn)
             break;
     }
     regs->v[rd].v = res.v;
+}
+
+
+
+static void dis_saddlp_sadalp(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int size = INSN(23,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int is_acc = INSN(14,14);
+    int i;
+    union simd_register res = {0};
+
+    if (is_acc) {
+        res.v.lsb = regs->v[rd].v.lsb;
+        res.v.msb = q?regs->v[rd].v.msb:0;
+    }
+    switch(size) {
+        case 0:
+            for(i = 0; i < (q?8:4); i++)
+                res.h[i] += (int8_t)regs->v[rn].b[2*i] + (int8_t)regs->v[rn].b[2*i+1];
+            break;
+        case 1:
+            for(i = 0; i < (q?4:2); i++)
+                res.s[i] += (int16_t)regs->v[rn].h[2*i] + (int16_t)regs->v[rn].h[2*i+1];
+            break;
+        case 2:
+            for(i = 0; i < (q?2:1); i++)
+                res.d[i] += (int64_t)(int32_t)regs->v[rn].s[2*i] + (int64_t)(int32_t)regs->v[rn].s[2*i+1];
+            break;
+        default:
+            assert(0);
+    }
+    regs->v[rd] = res;
 }
 
 void arm64_hlp_dirty_advanced_simd_ext_simd(uint64_t _regs, uint32_t insn)
@@ -894,21 +1377,121 @@ void arm64_hlp_dirty_advanced_simd_ext_simd(uint64_t _regs, uint32_t insn)
     regs->v[rd].v = res.v;
 }
 
+static void dis_mla_mls_by_element(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(19,16);
+    int size = INSN(23,22);
+    int H = INSN(11,11);
+    int L = INSN(21,21);
+    int M = INSN(20,20);
+    int is_sub = INSN(14,14);
+    union simd_register res;
+    int index;
+    int i;
+
+    res.v.msb = 0;
+    switch(size) {
+        case 1:
+            index = (H << 2) | (L << 1) | M;
+            for(i = 0; i < (q?8:4); i++)
+                if (is_sub)
+                    res.h[i] = regs->v[rd].h[i] - regs->v[rn].h[i] * regs->v[rm].h[index];
+                else
+                    res.h[i] = regs->v[rd].h[i] + regs->v[rn].h[i] * regs->v[rm].h[index];
+            break;
+        case 2:
+            index = (H << 1) | L;
+            rm += M << 4;
+            for(i = 0; i < (q?4:2); i++)
+                if (is_sub)
+                    res.s[i] = regs->v[rd].s[i] - regs->v[rn].s[i] * regs->v[rm].s[index];
+                else
+                    res.s[i] = regs->v[rd].s[i] + regs->v[rn].s[i] * regs->v[rm].s[index];
+            break;
+        default:
+            assert(0);
+    }
+    regs->v[rd] = res;
+}
+
+static void dis_mul_by_element(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(19,16);
+    int size = INSN(23,22);
+    int H = INSN(11,11);
+    int L = INSN(21,21);
+    int M = INSN(20,20);
+    union simd_register res;
+    int index;
+    int i;
+
+    res.v.msb = 0;
+    switch(size) {
+        case 1:
+            index = (H << 2) | (L << 1) | M;
+            for(i = 0; i < (q?8:4); i++)
+                res.h[i] = regs->v[rn].h[i] * regs->v[rm].h[index];
+            break;
+        case 2:
+            index = (H << 1) | L;
+            rm += M << 4;
+            for(i = 0; i < (q?4:2); i++)
+                res.s[i] = regs->v[rn].s[i] * regs->v[rm].s[index];
+            break;
+        default:
+            assert(0);
+    }
+    regs->v[rd] = res;
+}
+
 /* simd deasm */
 void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t insn)
 {
     int U = INSN(29,29);
     int opcode = INSN(16,12);
+    int size = INSN(23,22);
 
     switch(opcode) {
+        case 0:
+            dis_revxx(_regs, insn);
+            break;
+        case 1:
+            assert(U==0);
+            dis_revxx(_regs, insn);
+            break;
+        case 2:
+            if (U)
+                assert(0);
+            else
+                dis_saddlp_sadalp(_regs, insn);
+            break;
         case 4:
             dis_cls_clz(_regs, insn);
             break;
         case 5:
+            if (U) {
+                if (size == 0)
+                    dis_not(_regs, insn);
+                else if (size == 1)
+                    dis_rbit(_regs, insn);
+                else
+                    fatal("size = %d\n", size);
+            } else
+                dis_cnt(_regs, insn);
+            break;
+        case 6:
             if (U)
                 assert(0);
             else
-                dis_cnt(_regs, insn);
+                dis_saddlp_sadalp(_regs, insn);
             break;
         case 8:
             if (U)
@@ -930,7 +1513,7 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
             break;
         case 11:
             if (U)
-                assert(0);
+                dis_neg(_regs, insn);
             else
                 dis_abs(_regs, insn);
             break;
@@ -965,7 +1548,7 @@ void arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd(uint64_t _regs, uint
             break;
         case 11:
             if (U)
-                assert(0);
+                dis_neg(_regs, insn);
             else
                 dis_abs(_regs, insn);
             break;
@@ -1027,7 +1610,7 @@ void arm64_hlp_dirty_advanced_simd_three_same_simd(uint64_t _regs, uint32_t insn
                 else if (size == 1)
                     dis_bic_register(_regs, insn);
                 else
-                    fatal("size = %d\n", size);
+                    dis_orn(_regs, insn);
             }
             break;
         case 6:
@@ -1042,6 +1625,18 @@ void arm64_hlp_dirty_advanced_simd_three_same_simd(uint64_t _regs, uint32_t insn
             else
                 dis_cmge(_regs, insn);
             break;
+        case 14:
+            if (U)
+                assert(0);
+            else
+                dis_sabd_saba(_regs, insn);
+            break;
+        case 15:
+            if (U)
+                assert(0);
+            else
+                dis_sabd_saba(_regs, insn);
+            break;
         case 16:
             if (U)
                 assert(0);
@@ -1053,6 +1648,15 @@ void arm64_hlp_dirty_advanced_simd_three_same_simd(uint64_t _regs, uint32_t insn
                 dis_cmeq(_regs, insn);
             else
                 dis_cmtst(_regs, insn);
+            break;
+        case 18:
+            dis_mal_mls(_regs, insn);
+            break;
+        case 19:
+            if (U)
+                dis_pmul(_regs, insn);
+            else
+                dis_mul(_regs, insn);
             break;
         case 23:
             if (U)
@@ -1071,11 +1675,36 @@ void arm64_hlp_dirty_advanced_simd_simd_three_different_simd(uint64_t _regs, uin
     int opcode = INSN(15,12);
 
     switch(opcode) {
-        case 4:
+        case 0:
             if (U)
                 assert(0);
             else
-                dis_addhn(_regs, insn);
+                dis_saddl(_regs, insn);
+            break;
+        case 1:
+            if (U)
+                assert(0);
+            else
+                dis_saddw(_regs, insn);
+            break;
+        case 4: case 6:
+            dis_addhn_raddhn_subhn_rsubhn(_regs, insn);
+            break;
+        case 5:
+            if (U)
+                assert(0);
+            else
+                dis_sabdl_sabal(_regs, insn);
+            break;
+        case 7:
+            if (U)
+                assert(0);
+            else
+                dis_sabdl_sabal(_regs, insn);
+            break;
+        case 14:
+            assert(U==0);
+            dis_pmull(_regs, insn);
             break;
         default:
             fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
@@ -1103,9 +1732,35 @@ void arm64_hlp_dirty_advanced_simd_accross_lanes_simd(uint64_t _regs, uint32_t i
     int opcode = INSN(16,12);
 
     switch(opcode) {
+        case 3:
+            if (U)
+                assert(0);
+            else
+                dis_saddlv(_regs, insn);
+            break;
         case 27:
             assert(U==0);
             dis_addv(_regs, insn);
+            break;
+        default:
+            fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
+    }
+}
+
+void arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd(uint64_t _regs, uint32_t insn)
+{
+    int U = INSN(29,29);
+    int opcode = INSN(15,12);
+
+    switch(opcode) {
+        case 0:
+        case 4:
+            assert(U);
+            dis_mla_mls_by_element(_regs, insn);
+            break;
+        case 8:
+            assert(U == 0);
+            dis_mul_by_element(_regs, insn);
             break;
         default:
             fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);

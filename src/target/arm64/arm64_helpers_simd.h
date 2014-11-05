@@ -32,6 +32,7 @@ extern void arm64_hlp_dirty_advanced_simd_simd_three_different_simd(uint64_t _re
 extern void arm64_hlp_dirty_advanced_simd_scalar_pair_wise_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_advanced_simd_accross_lanes_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_advanced_simd_ext_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd(uint64_t _regs, uint32_t insn);
 
 #endif
 

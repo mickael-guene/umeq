@@ -16,7 +16,7 @@ extern "C" {
     (type *)( (char *)__mptr - offsetof(type,member) );})
 
 union simd_register {
-    __uint128_t v128;
+    __uint128_t v128  __attribute__ ((aligned (32)));
     struct {
         uint64_t lsb;
         uint64_t msb;
