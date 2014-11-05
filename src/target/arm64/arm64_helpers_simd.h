@@ -14,7 +14,6 @@ extern "C" {
 
 extern void arm64_hlp_dirty_simd_dup_element(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_simd_dup_general(uint64_t _regs, uint32_t insn);
-extern void arm64_hlp_dirty_shl_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_scvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_floating_point_compare_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs, uint32_t insn);
@@ -33,6 +32,7 @@ extern void arm64_hlp_dirty_advanced_simd_scalar_pair_wise_simd(uint64_t _regs, 
 extern void arm64_hlp_dirty_advanced_simd_accross_lanes_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_advanced_simd_ext_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_advanced_simd_scalar_shift_by_immediate_simd(uint64_t _regs, uint32_t insn);
 
 #endif
 

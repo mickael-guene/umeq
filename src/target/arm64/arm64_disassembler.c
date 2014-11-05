@@ -2713,6 +2713,43 @@ static int dis_fmov_register(struct arm64_target *context, uint32_t insn, struct
     return 0;
 }
 
+static int dis_smov(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int q = INSN(30,30);
+    int q_imm5 = INSN(20,16);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int index;
+    struct irRegister *res;
+
+    if (q_imm5 & 1) {
+        index = q_imm5 >> 1;
+        if (q)
+            res = ir->add_8S_to_64(ir, ir->add_read_context_8(ir, offsetof(struct arm64_registers, v[rn].b[index])));
+        else
+            res = ir->add_8S_to_32(ir, ir->add_read_context_8(ir, offsetof(struct arm64_registers, v[rn].b[index])));
+    } else if (q_imm5 & 2) {
+        index = q_imm5 >> 2;
+        if (q)
+            res = ir->add_16S_to_64(ir, ir->add_read_context_16(ir, offsetof(struct arm64_registers, v[rn].h[index])));
+        else
+            res = ir->add_16S_to_32(ir, ir->add_read_context_16(ir, offsetof(struct arm64_registers, v[rn].h[index])));
+    } else if (q_imm5 & 4) {
+        index = q_imm5 >> 3;
+        res = ir->add_32S_to_64(ir, ir->add_read_context_32(ir, offsetof(struct arm64_registers, v[rn].s[index])));
+    } else if (q_imm5 & 8) {
+        index = (q_imm5 >> 4) & 1;
+        res = ir->add_read_context_64(ir, offsetof(struct arm64_registers, v[rn].d[index]));
+    } else
+        assert(0);
+    if (q)
+        write_x(ir, rd, res, ZERO_REG);
+    else
+        write_w(ir, rd, res, ZERO_REG);
+
+    return 0;
+}
+
 static int dis_umov(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int q_imm5 = (INSN(30,30) << 5) | INSN(20,16);
@@ -3206,19 +3243,6 @@ static int dis_orr_immediate(struct arm64_target *context, uint32_t insn, struct
     return 0;
 }
 
-static int dis_shl(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
-
-    params[0] = mk_32(ir, insn);
-
-    ir->add_call_void(ir, "arm64_hlp_dirty_shl_simd",
-                           mk_64(ir, (uint64_t) arm64_hlp_dirty_shl_simd),
-                           params);
-
-    return 0;
-}
-
 static int dis_scvtf_scalar_integer(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
@@ -3467,6 +3491,19 @@ static int dis_advanced_simd_vector_x_indexed_element(struct arm64_target *conte
 
     ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_advanced_simd_scalar_shift_by_immediate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_scalar_shift_by_immediate_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_scalar_shift_by_immediate_simd),
                            params);
 
     return 0;
@@ -4026,6 +4063,9 @@ static int dis_advanced_simd_copy(struct arm64_target *context, uint32_t insn, s
             case 3:
                 isExit = dis_insn_general(context, insn, ir);
                 break;
+            case 5:
+                isExit = dis_smov(context, insn, ir);
+                break;
             case 7:
                 isExit = dis_umov(context, insn, ir);
                 break;
@@ -4064,22 +4104,6 @@ static int dis_advanced_simd_modified_immediate(struct arm64_target *context, ui
                 break;
         default:
             fatal("cmode = %d(0x%x)\n", cmode, cmode);
-    }
-
-    return isExit;
-}
-
-static int dis_advanced_simd_scalar_shift_by_immediate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    int isExit = 0;
-    int opcode = INSN(15,11);
-
-    switch(opcode) {
-        case 10:
-            isExit = dis_shl(context, insn, ir);
-            break;
-        default:
-            fatal("opcode = %d(0x%x)\n", opcode, opcode);
     }
 
     return isExit;
