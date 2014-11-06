@@ -3360,6 +3360,19 @@ static int dis_advanced_simd_shift_by_immediate(struct arm64_target *context, ui
     return 0;
 }
 
+static int dis_advanced_simd_scalar_three_different(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_scalar_three_different_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_scalar_three_different_simd),
+                           params);
+
+    return 0;
+}
+
 static int dis_advanced_simd_scalar_two_reg_misc(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
@@ -3491,6 +3504,19 @@ static int dis_advanced_simd_vector_x_indexed_element(struct arm64_target *conte
 
     ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_advanced_simd_scalar_x_indexed_element(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_scalar_x_indexed_element_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_scalar_x_indexed_element_simd),
                            params);
 
     return 0;
@@ -4159,7 +4185,7 @@ static int dis_advanced_simd(struct arm64_target *context, uint32_t insn, struct
         if (INSN(24, 24) == 0) {
             if (INSN(10, 10) == 0) {
                 if (INSN(11, 11) == 0) {
-                    assert(0); //decodeAdvSIMDScalarThreeDifferent(insn, dres);
+                    isExit = dis_advanced_simd_scalar_three_different(context, insn, ir);
                 } else { //INSN(11, 11) == 1
                     if (INSN(20, 20) == 0) {
                         isExit = dis_advanced_simd_scalar_two_reg_misc(context, insn, ir);
@@ -4179,7 +4205,7 @@ static int dis_advanced_simd(struct arm64_target *context, uint32_t insn, struct
                 assert(0); //floating point data processing 3 source
             }   else { //INSN(30,30) == 1
                 if (INSN(10,10) == 0) {
-                    assert(0); //decodeAdvSIMDScalarXIndexedElement
+                    isExit = dis_advanced_simd_scalar_x_indexed_element(context, insn, ir);
                 } else { //INSN(10,10) == 1
                     isExit = dis_advanced_simd_scalar_shift_by_immediate(context, insn, ir);
                 }
