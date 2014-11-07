@@ -2840,278 +2840,54 @@ static int dis_insn_general(struct arm64_target *context, uint32_t insn, struct 
     return 0;
 }
 
-static int dis_load_multiple_structure(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir, struct irRegister *address)
-{
-    int q = INSN(30,30);
-    int opcode = INSN(15,12);
-    int rt = INSN(4,0);
-    int size = INSN(11,10);
-    int res = 0;
-
-    if (opcode & 2) {
-        //ld1
-        int i;
-        int nb;
-        switch(opcode) {
-            case 7: nb = 1; break;
-            case 10: nb = 2; break;
-            case 6: nb = 3; break;
-            case 2: nb = 4; break;
-            default: assert(0);
-        }
-        for(i = 0; i < nb; i++) {
-            write_v_lsb(ir, (rt + i) % 32, ir->add_load_64(ir, ir->add_add_64(ir, address, mk_64(ir, i * (q?16:8)))));
-            if (q)
-                write_v_msb(ir, (rt + i) % 32, ir->add_load_64(ir, ir->add_add_64(ir, address, mk_64(ir, i * 16 + 8))));
-            else
-                write_v_msb(ir, (rt + i) % 32, mk_64(ir, 0));
-        }
-        res = 8 * (1 + q) * nb;
-    } else {
-        int index;
-        int r;
-        int nb;
-
-        switch(opcode) {
-            case 8: nb=2; break;
-            case 4: nb=3; break;
-            case 0: nb=4; break;
-            default: assert(0);
-        }
-
-        switch(size) {
-            case 0:
-                for(index = 0; index < (q?16:8); index++) {
-                    for(r = 0; r < nb; r++) {
-                        write_b_by_index(ir, (rt + r) % 32, index, ir->add_load_8(ir, ir->add_add_64(ir, address, mk_64(ir, res))));
-                        res += 1;
-                    }
-                }
-                break;
-            case 1:
-                for(index = 0; index < (q?8:4); index++) {
-                    for(r = 0; r < nb; r++) {
-                        write_h_by_index(ir, (rt + r) % 32, index, ir->add_load_16(ir, ir->add_add_64(ir, address, mk_64(ir, res))));
-                        res += 2;
-                    }
-                }
-                break;
-            case 2:
-                for(index = 0; index < (q?4:2); index++) {
-                    for(r = 0; r < nb; r++) {
-                        write_s_by_index(ir, (rt + r) % 32, index, ir->add_load_32(ir, ir->add_add_64(ir, address, mk_64(ir, res))));
-                        res += 4;
-                    }
-                }
-                break;
-            case 3:
-                for(index = 0; index < (q?2:1); index++) {
-                    for(r = 0; r < nb; r++) {
-                        write_d_by_index(ir, (rt + r) % 32, index, ir->add_load_64(ir, ir->add_add_64(ir, address, mk_64(ir, res))));
-                        res += 8;
-                    }
-                }
-                break;
-        }
-        if (q == 0) {
-            for(r = 0; r < nb; r++) {
-                write_v_msb(ir, (rt + r) % 32, mk_64(ir, 0));
-            }
-        }
-    }
-
-    return res;
-}
-
-static int dis_store_multiple_structure(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir, struct irRegister *address)
-{
-    assert(0);
-    return 0;
-}
-
-static int dis_load_single_structure(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir, struct irRegister *address)
-{
-    int q = INSN(30,30);
-    int S = INSN(12,12);
-    int size = INSN(11,10);
-    int opcode_2_1 = INSN(15,14);
-    int rt = INSN(4,0);
-    int selem = (INSN(13,13) << 1) + INSN(21,21) + 1;
-    int res = 0;
-    int index;
-    int s;
-
-    for(s = 0; s < selem; s++) {
-        if (opcode_2_1 == 0) {
-            index = (q << 3) | (S << 2) | size;
-            write_b_by_index(ir, (rt + s) % 32, index, ir->add_load_8(ir, address));
-            res += 1;
-        } else if (opcode_2_1 == 1) {
-            index = (q << 2) | (S << 1) | (size >> 1);
-            write_h_by_index(ir, (rt + s) % 32, index, ir->add_load_16(ir, address));
-            res += 2;
-        } else if (opcode_2_1 == 2) {
-            if (size == 0) {
-                index = (q << 1) | (S << 0);
-                write_s_by_index(ir, (rt + s) % 32, index, ir->add_load_32(ir, address));
-                res += 4;
-            } else {
-                index = q;
-                write_d_by_index(ir, (rt + s) % 32, index, ir->add_load_64(ir, address));
-                res += 8;
-            }
-        } else
-            assert(0);
-    }
-
-    return res;
-}
-
-static int dis_store_single_structure(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir, struct irRegister *address)
-{
-    assert(0);
-    return 0;
-}
-
-static int dis_load_single_structure_replicate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir, struct irRegister *address)
-{
-    int q = INSN(30,30);
-    int size = INSN(11,10);
-    int rt = INSN(4,0);
-    int selem = (INSN(13,13) << 1) + INSN(21,21) + 1;
-    int res = 0;
-    int i;
-    struct irRegister *value;
-    int s;
-
-    for(s = 0; s < selem; s++) {
-        if (q == 0)
-            write_v_msb(ir, (rt + s) % 32, mk_64(ir, 0));
-        switch(size) {
-            case 0:
-                value = ir->add_load_8(ir, ir->add_add_64(ir, address, mk_64(ir, res)));
-                for(i = 0; i < (q?16:8); i++)
-                    write_b_by_index(ir, (rt + s) % 32, i, value);
-                res += 1;
-                break;
-            case 1:
-                value = ir->add_load_16(ir, ir->add_add_64(ir, address, mk_64(ir, res)));
-                for(i = 0; i < (q?8:4); i++)
-                    write_h_by_index(ir, (rt + s) % 32, i, value);
-                res += 2;
-                break;
-            case 2:
-                value = ir->add_load_32(ir, ir->add_add_64(ir, address, mk_64(ir, res)));
-                for(i = 0; i < (q?4:2); i++)
-                    write_s_by_index(ir, (rt + s) % 32, i, value);
-                res += 4;
-                break;
-            case 3:
-                value = ir->add_load_64(ir, ir->add_add_64(ir, address, mk_64(ir, res)));
-                for(i = 0; i < (q?2:1); i++)
-                    write_d_by_index(ir, (rt + s) % 32, i, value);
-                res += 8;
-                break;
-        }
-    }
-
-    return res;
-}
-
-static int dis_store_single_structure_replicate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir, struct irRegister *address)
-{
-    assert(0);
-    return 0;
-}
-
 static int dis_load_store_multiple_structure(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    int l = INSN(22,22);
-    int rn = INSN(9,5);
-    struct irRegister *address;
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
 
-    address = read_x(ir, rn, SP_REG);
-    if (l)
-        dis_load_multiple_structure(context, insn, ir, address);
-    else
-        dis_store_multiple_structure(context, insn, ir, address);
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_load_store_multiple_structure_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_load_store_multiple_structure_simd),
+                           params);
 
     return 0;
 }
 
 static int dis_load_store_multiple_structure_post_index(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    int l = INSN(22,22);
-    int rn = INSN(9,5);
-    int rm = INSN(20,16);
-    struct irRegister *address;
-    int offset;
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
 
-    address = read_x(ir, rn, SP_REG);
-    if (l)
-        offset = dis_load_multiple_structure(context, insn, ir, address);
-    else
-        offset = dis_store_multiple_structure(context, insn, ir, address);
+    params[0] = mk_32(ir, insn);
 
-    //writeback
-    if (rm == 31)
-        write_x(ir, rn, ir->add_add_64(ir, address, mk_64(ir, offset)), SP_REG);
-    else
-        write_x(ir, rn, ir->add_add_64(ir, address, read_x(ir, rm, ZERO_REG)), SP_REG);
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_load_store_multiple_structure_post_index_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_load_store_multiple_structure_post_index_simd),
+                           params);
 
     return 0;
 }
 
 static int dis_load_store_single_structure(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    int l = INSN(22,22);
-    int rn = INSN(9,5);
-    int is_replicate = (INSN(15,14) == 3);
-    struct irRegister *address;
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
 
-    address = read_x(ir, rn, SP_REG);
-    if (is_replicate) {
-        if (l)
-            dis_load_single_structure_replicate(context, insn, ir, address);
-        else
-            dis_store_single_structure_replicate(context, insn, ir, address);
-    } else {
-        if (l)
-            dis_load_single_structure(context, insn, ir, address);
-        else
-            dis_store_single_structure(context, insn, ir, address);
-    }
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_load_store_single_structure_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_load_store_single_structure_simd),
+                           params);
 
     return 0;
 }
 
 static int dis_load_store_single_structure_post_index(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    int l = INSN(22,22);
-    int rn = INSN(9,5);
-    int rm = INSN(20,16);
-    int is_replicate = (INSN(15,14) == 3);
-    struct irRegister *address;
-    int offset;
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
 
-    address = read_x(ir, rn, SP_REG);
-    if (is_replicate) {
-        if (l)
-            offset = dis_load_single_structure_replicate(context, insn, ir, address);
-        else
-            offset = dis_store_single_structure_replicate(context, insn, ir, address);
-    } else {
-        if (l)
-            offset = dis_load_single_structure(context, insn, ir, address);
-        else
-            offset = dis_store_single_structure(context, insn, ir, address);
-    }
+    params[0] = mk_32(ir, insn);
 
-    //writeback
-    if (rm == 31)
-        write_x(ir, rn, ir->add_add_64(ir, address, mk_64(ir, offset)), SP_REG);
-    else
-        write_x(ir, rn, ir->add_add_64(ir, address, read_x(ir, rm, ZERO_REG)), SP_REG);
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_load_store_single_structure_post_index_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_load_store_single_structure_post_index_simd),
+                           params);
 
     return 0;
 }
