@@ -1006,6 +1006,41 @@ static void dis_sqxtn(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+static void dis_suqadd(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_scalar = INSN(28,28);
+    int q = INSN(30,30);
+    int size = INSN(23,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int i;
+    union simd_register res = {0};
+
+    switch(size) {
+        case 0:
+            for(i = 0; i < (is_scalar?1:(q?16:8)); i++)
+                res.b[i] = ssat8(regs, regs->v[rn].b[i] + (int64_t)(int8_t)regs->v[rd].b[i]);
+            break;
+        case 1:
+            for(i = 0; i < (is_scalar?1:(q?8:4)); i++)
+                res.h[i] = ssat16(regs, regs->v[rn].h[i] + (int64_t)(int16_t)regs->v[rd].h[i]);
+            break;
+        case 2:
+            for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+                res.s[i] = ssat32(regs, regs->v[rn].s[i] + (int64_t)(int32_t)regs->v[rd].s[i]);
+            break;
+        case 3:
+            for(i = 0; i < (is_scalar?1:(q?2:1)); i++)
+                res.d[i] = ssat64(regs, regs->v[rn].d[i] + (__int128_t)(int64_t)regs->v[rd].d[i]);
+            break;
+        default:
+            assert(0);
+    }
+
+    regs->v[rd] = res;
+}
+
 static void dis_sqneg(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -1382,7 +1417,7 @@ static void dis_sqsub(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
-static void dis_add(uint64_t _regs, uint32_t insn)
+static void dis_add_sub(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
     int is_scalar = INSN(28,28);
@@ -1391,25 +1426,38 @@ static void dis_add(uint64_t _regs, uint32_t insn)
     int rd = INSN(4,0);
     int rn = INSN(9,5);
     int rm = INSN(20,16);
+    int is_sub = INSN(29,29);
     int i;
 
     switch(size) {
         case 0:
             for(i = 0; i < (q?16:8); i++)
-                regs->v[rd].b[i] = regs->v[rn].b[i] + regs->v[rm].b[i];
+                if (is_sub)
+                    regs->v[rd].b[i] = regs->v[rn].b[i] - regs->v[rm].b[i];
+                else
+                    regs->v[rd].b[i] = regs->v[rn].b[i] + regs->v[rm].b[i];
             break;
         case 1:
             for(i = 0; i < (q?8:4); i++)
-                regs->v[rd].h[i] = regs->v[rn].h[i] + regs->v[rm].h[i];
+                if (is_sub)
+                    regs->v[rd].h[i] = regs->v[rn].h[i] - regs->v[rm].h[i];
+                else
+                    regs->v[rd].h[i] = regs->v[rn].h[i] + regs->v[rm].h[i];
             break;
         case 2:
             for(i = 0; i < (q?4:2); i++) {
-                regs->v[rd].s[i] = regs->v[rn].s[i] + regs->v[rm].s[i];
+                if (is_sub)
+                    regs->v[rd].s[i] = regs->v[rn].s[i] - regs->v[rm].s[i];
+                else
+                    regs->v[rd].s[i] = regs->v[rn].s[i] + regs->v[rm].s[i];
             }
             break;
         case 3:
             for(i = 0; i < (q && !is_scalar?2:1); i++)
-                regs->v[rd].d[i] = regs->v[rn].d[i] + regs->v[rm].d[i];
+                if (is_sub)
+                    regs->v[rd].d[i] = regs->v[rn].d[i] - regs->v[rm].d[i];
+                else
+                    regs->v[rd].d[i] = regs->v[rn].d[i] + regs->v[rm].d[i];
             break;
     }
     if (!q || is_scalar)
@@ -2767,7 +2815,79 @@ static int dis_load_multiple_structure(uint64_t _regs, uint32_t insn, uint64_t a
 
 static int dis_store_multiple_structure(uint64_t _regs, uint32_t insn, uint64_t address)
 {
-    assert(0);
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int opcode = INSN(15,12);
+    int rt = INSN(4,0);
+    int size = INSN(11,10);
+    int res = 0;
+
+    if (opcode & 2) {
+        //st1
+        int i;
+        int nb;
+        switch(opcode) {
+            case 7: nb = 1; break;
+            case 10: nb = 2; break;
+            case 6: nb = 3; break;
+            case 2: nb = 4; break;
+            default: assert(0);
+        }
+        for(i = 0; i < nb; i++) {
+            *((uint64_t *) (address + i * (q?16:8))) = regs->v[(rt + i) % 32].v.lsb;
+            if (q)
+                *((uint64_t *) (address + i * 16 + 8)) = regs->v[(rt + i) % 32].v.msb;
+        }
+        res = 8 * (1 + q) * nb;
+    } else {
+        int index;
+        int r;
+        int nb;
+
+        switch(opcode) {
+            case 8: nb=2; break;
+            case 4: nb=3; break;
+            case 0: nb=4; break;
+            default: assert(0);
+        }
+
+        switch(size) {
+            case 0:
+                for(index = 0; index < (q?16:8); index++) {
+                    for(r = 0; r < nb; r++) {
+                        *((uint8_t *)(address + res)) = regs->v[(rt + r) % 32].b[index];
+                        res += 1;
+                    }
+                }
+                break;
+            case 1:
+                for(index = 0; index < (q?8:4); index++) {
+                    for(r = 0; r < nb; r++) {
+                        *((uint16_t *)(address + res)) = regs->v[(rt + r) % 32].h[index];
+                        res += 2;
+                    }
+                }
+                break;
+            case 2:
+                for(index = 0; index < (q?4:2); index++) {
+                    for(r = 0; r < nb; r++) {
+                        *((uint32_t *)(address + res)) = regs->v[(rt + r) % 32].s[index];
+                        res += 4;
+                    }
+                }
+                break;
+            case 3:
+                for(index = 0; index < (q?2:1); index++) {
+                    for(r = 0; r < nb; r++) {
+                        *((uint64_t *)(address + res)) = regs->v[(rt + r) % 32].d[index];
+                        res += 8;
+                    }
+                }
+                break;
+        }
+    }
+
+    return res;
 }
 
 static int dis_load_single_structure_replicate(uint64_t _regs, uint32_t insn, uint64_t address)
@@ -2857,7 +2977,83 @@ static int dis_load_single_structure(uint64_t _regs, uint32_t insn, uint64_t add
 
 static int dis_store_single_structure(uint64_t _regs, uint32_t insn, uint64_t address)
 {
-    assert(0);
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int S = INSN(12,12);
+    int size = INSN(11,10);
+    int opcode_2_1 = INSN(15,14);
+    int rt = INSN(4,0);
+    int selem = (INSN(13,13) << 1) + INSN(21,21) + 1;
+    int res = 0;
+    int index;
+    int s;
+
+    for(s = 0; s < selem; s++) {
+        if (opcode_2_1 == 0) {
+            index = (q << 3) | (S << 2) | size;
+            *((uint8_t *)(address + res)) = regs->v[(rt + s) % 32].b[index];
+            res += 1;
+        } else if (opcode_2_1 == 1) {
+            index = (q << 2) | (S << 1) | (size >> 1);
+            *((uint16_t *)(address + res)) = regs->v[(rt + s) % 32].h[index];
+            res += 2;
+        } else if (opcode_2_1 == 2) {
+            if (size == 0) {
+                index = (q << 1) | (S << 0);
+                *((uint32_t *)(address + res)) = regs->v[(rt + s) % 32].s[index];
+                res += 4;
+            } else {
+                index = q;
+                *((uint64_t *)(address + res)) = regs->v[(rt + s) % 32].d[index];
+                res += 8;
+            }
+        } else
+            assert(0);
+    }
+
+    return res;
+}
+
+static void dis_trn1_trn2(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int size = INSN(23,22);
+    union simd_register res = {0};
+    int part = INSN(14,14);
+    int i;
+
+    switch(size) {
+        case 0:
+            for(i = 0; i < (q?8:4); i++) {
+                res.b[2*i+0] = regs->v[rn].b[2*i+part];
+                res.b[2*i+1] = regs->v[rm].b[2*i+part];
+            }
+            break;
+        case 1:
+            for(i = 0; i < (q?4:2); i++) {
+                res.h[2*i+0] = regs->v[rn].h[2*i+part];
+                res.h[2*i+1] = regs->v[rm].h[2*i+part];
+            }
+            break;
+        case 2:
+            for(i = 0; i < (q?2:1); i++) {
+                res.s[2*i+0] = regs->v[rn].s[2*i+part];
+                res.s[2*i+1] = regs->v[rm].s[2*i+part];
+            }
+            break;
+        case 3:
+            assert(q);
+            for(i = 0; i < 1; i++) {
+                res.d[2*i+0] = regs->v[rn].d[2*i+part];
+                res.d[2*i+1] = regs->v[rm].d[2*i+part];
+            }
+            break;
+    }
+    regs->v[rd] = res;    
 }
 
 /* simd deasm */
@@ -2880,6 +3076,9 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
                 assert(0);
             else
                 dis_saddlp_sadalp(_regs, insn);
+            break;
+        case 3:
+            U?assert(0):dis_suqadd(_regs, insn);
             break;
         case 4:
             dis_cls_clz(_regs, insn);
@@ -2951,6 +3150,9 @@ void arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd(uint64_t _regs, uint
     int opcode = INSN(16,12);
 
     switch(opcode) {
+        case 3:
+            U?assert(0):dis_suqadd(_regs, insn);
+            break;
         case 7:
             if (U)
                 dis_sqneg(_regs, insn);
@@ -3023,10 +3225,7 @@ void arm64_hlp_dirty_advanced_simd_scalar_three_same_simd(uint64_t _regs, uint32
             U?assert(0):dis_sqrshl(_regs, insn);
             break;
         case 16:
-            if (U)
-                assert(0);
-            else
-                dis_add(_regs, insn);
+            dis_add_sub(_regs, insn);
             break;
         case 17:
             if (U)
@@ -3121,10 +3320,7 @@ void arm64_hlp_dirty_advanced_simd_three_same_simd(uint64_t _regs, uint32_t insn
                 dis_sabd_saba(_regs, insn);
             break;
         case 16:
-            if (U)
-                assert(0);
-            else
-                dis_add(_regs, insn);
+            dis_add_sub(_regs, insn);
             break;
         case 17:
             if (U)
@@ -3506,4 +3702,48 @@ void arm64_hlp_dirty_advanced_simd_load_store_single_structure_post_index_simd(u
         regs->r[rn] += offset;
     else
         regs->r[rn] += regs->r[rm];
+}
+
+void arm64_hlp_dirty_advanced_simd_table_lookup_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int len = INSN(14,13);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int is_tbx = INSN(12,12);
+    union simd_register res = {0};
+    int i;
+
+    if (is_tbx) {
+        res.v.lsb = regs->v[rd].v.lsb;
+        if (q)
+            res.v.msb = regs->v[rd].v.msb;
+    }
+    for(i = 0; i < (q?16:8); i++) {
+        int index = regs->v[rm].b[i];
+
+        if (index < 16 * (len + 1)) {
+            int r = index / 16;
+            int idx = index % 16;
+
+            res.b[i] = regs->v[(rn + r) % 32].b[idx];
+        }
+    }
+
+    regs->v[rd] = res;
+}
+
+void arm64_hlp_dirty_advanced_simd_permute_simd(uint64_t _regs, uint32_t insn)
+{
+    int opcode = INSN(14,12);
+
+    switch(opcode) {
+        case 2: case 6:
+            dis_trn1_trn2(_regs, insn);
+            break;
+        default:
+            fatal("opcode = %d(0x%x)\n", opcode, opcode);
+    }
 }

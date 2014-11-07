@@ -39,6 +39,8 @@ extern void arm64_hlp_dirty_advanced_simd_load_store_multiple_structure_simd(uin
 extern void arm64_hlp_dirty_advanced_simd_load_store_multiple_structure_post_index_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_advanced_simd_load_store_single_structure_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_advanced_simd_load_store_single_structure_post_index_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_advanced_simd_table_lookup_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_advanced_simd_permute_simd(uint64_t _regs, uint32_t insn);
 
 #endif
 

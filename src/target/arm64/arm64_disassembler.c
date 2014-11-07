@@ -3175,6 +3175,32 @@ static int dis_advanced_simd_scalar_pair_wise(struct arm64_target *context, uint
     return 0;
 }
 
+static int dis_advanced_simd_table_lookup(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_table_lookup_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_table_lookup_simd),
+                           params);
+
+    return 0;
+}
+
+static int dis_advanced_simd_permute(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_permute_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_permute_simd),
+                           params);
+
+    return 0;
+}
+
 static int dis_advanced_simd_ext(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
@@ -3921,9 +3947,9 @@ static int dis_advanced_simd(struct arm64_target *context, uint32_t insn, struct
                 if (INSN(21, 21) == 0) {
                     if (INSN(29,29) == 0) {
                         if(INSN(11,11) == 0) {
-                            assert(0 && "decodeTlbTbx");
+                            isExit = dis_advanced_simd_table_lookup(context, insn, ir);
                         } else {
-                            assert(0 && "decodeZipUzpTrn");
+                            isExit = dis_advanced_simd_permute(context, insn, ir);
                         }
                     } else {
                         isExit = dis_advanced_simd_ext(context, insn, ir);
