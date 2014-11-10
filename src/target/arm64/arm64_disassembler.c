@@ -5,6 +5,7 @@
 #include "runtime.h"
 #include "arm64_helpers.h"
 #include "arm64_helpers_simd.h"
+#include "arm64_helpers_fpu.h"
 #include "breakpoints.h"
 
 #define ZERO_REG    1
