@@ -2682,12 +2682,14 @@ static int dis_fmov(struct arm64_target *context, uint32_t insn, struct irInstru
     if (sf == 0 && type == 0 && rmode == 0 && opcode == 7) {
         //fmov Sd, Wn
         write_s(ir, rd, read_w(ir, rn, ZERO_REG));
+        write_v_msb(ir, rd, mk_64(ir, 0));
     } else if (sf == 0 && type == 0 && rmode == 0 && opcode == 6) {
         //fmov Wd, Sn
         write_w(ir, rd, read_s(ir, rn), ZERO_REG);
     } else if (sf == 1 && type == 1 && rmode == 0 && opcode == 7) {
         //fmov Dd, Xn
         write_d(ir, rd, read_x(ir, rn, ZERO_REG));
+        write_v_msb(ir, rd, mk_64(ir, 0));
     } else if (sf == 1 && type == 1 && rmode == 0 && opcode == 6) {
         //fmov Xd, Dn
         write_x(ir, rd, read_d(ir, rn), ZERO_REG);
@@ -3341,6 +3343,19 @@ static int dis_advanced_simd_scalar_shift_by_immediate(struct arm64_target *cont
     return 0;
 }
 
+static int dis_floating_point_conditional_compare(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_floating_point_conditional_compare",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_floating_point_conditional_compare),
+                           params);
+
+    return 0;
+}
+
 /* disassemblers */
 static int dis_load_store_exclusive(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -3834,7 +3849,15 @@ static int dis_floating_point_data_processing_1_source(struct arm64_target *cont
             isExit = dis_fmov_register(context, insn, ir);
             break;
         default:
-            fatal("opcode = %d(0x%x)\n", opcode, opcode);
+            {
+                struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+                params[0] = mk_32(ir, insn);
+
+                ir->add_call_void(ir, "arm64_hlp_dirty_floating_point_data_processing_1_source",
+                                       mk_64(ir, (uint64_t) arm64_hlp_dirty_floating_point_data_processing_1_source),
+                                       params);
+            }
     }
 
     return isExit;
@@ -4048,7 +4071,7 @@ static int dis_data_processing_simd_insn(struct arm64_target *context, uint32_t 
                             }
                             break;
                         case 1:
-                            assert(0);//floating_point_conditional_compare
+                            isExit = dis_floating_point_conditional_compare(context, insn, ir);
                             break;
                         case 2:
                             isExit = dis_floating_point_data_processing_2_source(context, insn, ir);

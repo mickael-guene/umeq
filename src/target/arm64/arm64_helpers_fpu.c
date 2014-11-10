@@ -10,6 +10,64 @@
 
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
 
+#include "arm64_helpers_simd_fpu_common.c"
+
+static void dis_fcvt(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int type = INSN(23,22);
+    int opc = INSN(16,15);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    union simd_register res = {0};
+
+    if (type == 1 && opc == 0) {
+        //fcvt Sd, Dn
+        res.sf[0] = regs->v[rn].df[0];
+    } else if (type == 0 && opc == 1) {
+        //fcvt Dd, Sn
+        res.df[0] = regs->v[rn].sf[0];
+    } else
+        fatal("type=%d / opc=%d\n", type, opc);
+    regs->v[rd] = res;
+}
+
+static void dis_fccmp_fccmpe(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_double = INSN(22,22);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int cond = INSN(15,12);
+    int nzcv = INSN(3,0);
+
+    if (arm64_hlp_compute_flags_pred(_regs, cond, regs->nzcv)) {
+        if (is_double) {
+            double op1 = regs->v[rn].df[0];
+            double op2 = regs->v[rm].df[0];
+
+            if (op1 == op2)
+                nzcv = 0x6;
+            else if (op1 < op2)
+                nzcv = 0x8;
+            else
+                nzcv = 0x2;
+        } else {
+            float op1 = regs->v[rn].sf[0];
+            float op2 = regs->v[rm].sf[0];
+
+            if (op1 == op2)
+                nzcv = 0x6;
+            else if (op1 < op2)
+                nzcv = 0x8;
+            else
+                nzcv = 0x2;
+        }
+    }
+    regs->nzcv = (nzcv << 28) | (regs->nzcv & 0x0fffffff);
+}
+
+/* deasm */
 void arm64_hlp_dirty_scvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -92,6 +150,14 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
             case 3://fsub
                 regs->v[rd].df[0] = regs->v[rn].df[0] - regs->v[rm].df[0];
                 break;
+            case 4://fmax
+            case 6://fmaxnm
+                regs->v[rd].df[0] = maxd(regs->v[rn].df[0],regs->v[rm].df[0]);
+                break;
+            case 5://fmin
+            case 7://fminnm
+                regs->v[rd].df[0] = mind(regs->v[rn].df[0],regs->v[rm].df[0]);
+                break;
             default:
                 fatal("opcode = %d(0x%x)\n", opcode, opcode);
         }
@@ -105,6 +171,17 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
                 break;
             case 2://fadd
                 regs->v[rd].sf[0] = regs->v[rn].sf[0] + regs->v[rm].sf[0];
+                break;
+            case 3://fsub
+                regs->v[rd].sf[0] = regs->v[rn].sf[0] - regs->v[rm].sf[0];
+                break;
+            case 4://fmax
+            case 6://fmaxnm
+                regs->v[rd].sf[0] = maxf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
+                break;
+            case 5://fmin
+            case 7://fminnm
+                regs->v[rd].sf[0] = minf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
                 break;
             default:
                 fatal("opcode = %d(0x%x)\n", opcode, opcode);
@@ -202,19 +279,26 @@ void arm64_hlp_dirty_floating_point_data_processing_3_source_simd(uint64_t _regs
     int ra = INSN(14,10);
     int rn = INSN(9,5);
     int rd = INSN(4,0);
+    union simd_register res = {0};
 
     if (is_double) {
-        regs->v[rd].d[1] = 0;
         switch(o1_o0) {
             case 0://fmadd
-                regs->v[rd].df[0] = regs->v[ra].df[0] + regs->v[rn].df[0] * regs->v[rm].df[0];
+                res.df[0] = regs->v[ra].df[0] + regs->v[rn].df[0] * regs->v[rm].df[0];
                 break;
             default:
                 fatal("o1_o0 = %d(0x%x)\n", o1_o0, o1_o0);
         }
     } else {
-        assert(0);
+        switch(o1_o0) {
+            case 0://fmadd
+                res.sf[0] = (double)regs->v[ra].sf[0] + (double)regs->v[rn].sf[0] * (double)regs->v[rm].sf[0];
+                break;
+            default:
+                fatal("o1_o0 = %d(0x%x)\n", o1_o0, o1_o0);
+        }
     }
+    regs->v[rd] = res;
 }
 
 void arm64_hlp_dirty_ucvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn)
@@ -233,4 +317,25 @@ void arm64_hlp_dirty_ucvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn)
         default:
             fatal("sf_type0 = %d\n", sf_type0);
     }
+}
+
+void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uint32_t insn)
+{
+    int opcode = INSN(20,15);
+
+    switch(opcode) {
+        case 1:
+            dis_fabs(_regs, insn);
+            break;
+        case 4: case 5:
+            dis_fcvt(_regs, insn);
+            break;
+        default:
+            fatal("opcode = %d/0x%x\n", opcode, opcode);
+    }
+}
+
+void arm64_hlp_dirty_floating_point_conditional_compare(uint64_t _regs, uint32_t insn)
+{
+    dis_fccmp_fccmpe(_regs, insn);
 }

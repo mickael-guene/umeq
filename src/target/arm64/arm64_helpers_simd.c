@@ -230,6 +230,8 @@ static inline int64_t ssat64(struct arm64_registers *regs, __int128_t op)
     return res;
 }
 
+#include "arm64_helpers_simd_fpu_common.c"
+
 void arm64_hlp_dirty_simd_dup_element(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -1587,6 +1589,249 @@ static void dis_sqdmulh_sqrdmulh(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+static void dis_fabd(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_scalar = INSN(28,28);
+    int size = INSN(23,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    union simd_register res = {0};
+    int i;
+
+    switch(size) {
+        case 2:
+            for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+                res.sf[i] = regs->v[rn].sf[i]-regs->v[rm].sf[i]>=0?regs->v[rn].sf[i]-regs->v[rm].sf[i]:regs->v[rm].sf[i]-regs->v[rn].sf[i];
+            break;
+        case 3:
+            assert(q);
+            for(i = 0; i < (is_scalar?1:2); i++)
+                res.df[i] = regs->v[rn].df[i]-regs->v[rm].df[i]>=0?regs->v[rn].df[i]-regs->v[rm].df[i]:regs->v[rm].df[i]-regs->v[rn].df[i];
+            break;
+        default:
+            assert(0);
+    }
+    regs->v[rd] = res;
+}
+
+static void dis_fadd(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    union simd_register res = {0};
+    int i;
+
+    if (is_double) {
+        assert(q);
+        for(i = 0; i < 2; i++)
+            res.df[i] = regs->v[rn].df[i] + regs->v[rm].df[i];
+    } else {
+        for(i = 0; i < (q?4:2); i++)
+            res.sf[i] = regs->v[rn].sf[i] + regs->v[rm].sf[i];
+    }
+    regs->v[rd] = res;
+}
+
+/* macro to implement fcmxx family */
+#define DIS_FCM(_op_,_is_zero_) \
+do { \
+struct arm64_registers *regs = (struct arm64_registers *) _regs; \
+int q = INSN(30,30); \
+int is_scalar = INSN(28,28); \
+int is_double = INSN(22,22); \
+int rd = INSN(4,0); \
+int rn = INSN(9,5); \
+int rm = INSN(20,16); \
+union simd_register res = {0}; \
+int i; \
+ \
+if (is_double) { \
+    for(i = 0; i < (is_scalar?1:2); i++) \
+        res.d[i] = regs->v[rn].df[i] _op_ (_is_zero_?0:regs->v[rm].df[i])?~0UL:0; \
+} else { \
+    for(i = 0; i < (is_scalar?1:(q?4:2)); i++) \
+        res.s[i] = regs->v[rn].sf[i] _op_ (_is_zero_?0:regs->v[rm].sf[i])?~0UL:0; \
+} \
+regs->v[rd] = res; \
+} while(0)
+
+static void dis_fcmeq_zero(uint64_t _regs, uint32_t insn)
+{
+DIS_FCM(==,1);
+}
+
+static void dis_fcmge_zero(uint64_t _regs, uint32_t insn)
+{
+DIS_FCM(>=,1);
+}
+
+static void dis_fcmgt_zero(uint64_t _regs, uint32_t insn)
+{
+DIS_FCM(>,1);
+}
+
+static void dis_fcmle_zero(uint64_t _regs, uint32_t insn)
+{
+DIS_FCM(<=,1);
+}
+
+static void dis_fcmlt_zero(uint64_t _regs, uint32_t insn)
+{
+DIS_FCM(<,1);
+}
+
+static void dis_fcmeq(uint64_t _regs, uint32_t insn)
+{
+DIS_FCM(==,0);
+}
+
+static void dis_fcmge(uint64_t _regs, uint32_t insn)
+{
+DIS_FCM(>=,0);
+}
+
+static void dis_fcmgt(uint64_t _regs, uint32_t insn)
+{
+DIS_FCM(>,0);
+}
+
+static void dis_facge(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_scalar = INSN(28,28);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    union simd_register res = {0};
+    int i;
+
+    if (is_double) {
+        double op1;
+        double op2;
+
+        for(i = 0; i < (is_scalar?1:2); i++) {
+            op1 = regs->v[rn].df[i]>=0?regs->v[rn].df[i]:-regs->v[rn].df[i];
+            op2 = regs->v[rm].df[i]>=0?regs->v[rm].df[i]:-regs->v[rm].df[i];
+
+            res.d[i] = op1>=op2?~0UL:0;
+        }
+    } else {
+        float op1;
+        float op2;
+
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
+            op1 = regs->v[rn].sf[i]>=0?regs->v[rn].sf[i]:-regs->v[rn].sf[i];
+            op2 = regs->v[rm].sf[i]>=0?regs->v[rm].sf[i]:-regs->v[rm].sf[i];
+
+            res.s[i] = op1>=op2?~0UL:0;
+        }
+    }
+    regs->v[rd] = res;
+}
+
+static void dis_fmax_fmin(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_scalar = INSN(28,28);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int is_min = INSN(23,23);
+    union simd_register res = {0};
+    int i;
+
+    assert(is_scalar==0);
+    if (is_double) {
+        for(i = 0; i < 2; i++)
+            if (is_min)
+                res.df[i] = mind(regs->v[rn].df[i],regs->v[rm].df[i]);
+            else
+                res.df[i] = maxd(regs->v[rn].df[i],regs->v[rm].df[i]);
+    } else {
+        for(i = 0; i < (q?4:2); i++)
+            if (is_min)
+                res.sf[i] = minf(regs->v[rn].sf[i],regs->v[rm].sf[i]);
+            else
+                res.sf[i] = maxf(regs->v[rn].sf[i],regs->v[rm].sf[i]);
+    }
+    regs->v[rd] = res;
+}
+
+static void dis_fmaxnm_fminnm(uint64_t _regs, uint32_t insn)
+{
+    dis_fmax_fmin(_regs, insn);
+}
+
+static void dis_fdiv(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_scalar = INSN(28,28);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    union simd_register res = {0};
+    int i;
+
+    assert(is_scalar==0);
+    if (is_double) {
+        for(i = 0; i < 2; i++)
+            res.df[i] = regs->v[rn].df[i] / regs->v[rm].df[i];
+    } else {
+        for(i = 0; i < (q?4:2); i++)
+            res.sf[i] = regs->v[rn].sf[i] / regs->v[rm].sf[i];
+    }
+    regs->v[rd] = res;
+}
+
+static void dis_facgt(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_scalar = INSN(28,28);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    union simd_register res = {0};
+    int i;
+
+    if (is_double) {
+        double op1;
+        double op2;
+
+        for(i = 0; i < (is_scalar?1:2); i++) {
+            op1 = regs->v[rn].df[i]>0?regs->v[rn].df[i]:-regs->v[rn].df[i];
+            op2 = regs->v[rm].df[i]>0?regs->v[rm].df[i]:-regs->v[rm].df[i];
+
+            res.d[i] = op1>=op2?~0UL:0;
+        }
+    } else {
+        float op1;
+        float op2;
+
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
+            op1 = regs->v[rn].sf[i]>0?regs->v[rn].sf[i]:-regs->v[rn].sf[i];
+            op2 = regs->v[rm].sf[i]>0?regs->v[rm].sf[i]:-regs->v[rm].sf[i];
+
+            res.s[i] = op1>=op2?~0UL:0;
+        }
+    }
+    regs->v[rd] = res;
+}
+
 static void dis_orr_register(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -1633,6 +1878,80 @@ static void dis_orn(uint64_t _regs, uint32_t insn)
 
     regs->v[rd].v.lsb = regs->v[rn].v.lsb | ~regs->v[rm].v.lsb;
     regs->v[rd].v.msb = q?regs->v[rn].v.msb | ~regs->v[rm].v.msb:0;
+}
+
+static void dis_fmaxp_fminp(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_scalar = INSN(28,28);
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int is_min = INSN(23,23);
+    int i;
+    union simd_register res = {0};
+
+    if (is_double) {
+        for(i = 0; i < 1; i++) {
+            if (is_min) {
+                res.df[i] = mind(regs->v[rn].df[2*i],regs->v[rn].df[2*i + 1]);
+                if (!is_scalar)
+                    res.df[i+1] = mind(regs->v[rm].df[2*i],regs->v[rm].df[2*i + 1]);
+            } else {
+                res.df[i] = maxd(regs->v[rn].df[2*i],regs->v[rn].df[2*i + 1]);
+                if (!is_scalar)
+                    res.df[i+1] = maxd(regs->v[rm].df[2*i],regs->v[rm].df[2*i + 1]);
+            }
+        }
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?2:1)); i++) {
+            if (is_min) {
+                res.sf[i] = minf(regs->v[rn].sf[2*i],regs->v[rn].sf[2*i + 1]);
+                if (!is_scalar)
+                    res.sf[(q?2:1) + i] = minf(regs->v[rm].sf[2*i],regs->v[rm].sf[2*i + 1]);
+            } else {
+                res.sf[i] = maxf(regs->v[rn].sf[2*i],regs->v[rn].sf[2*i + 1]);
+                if (!is_scalar)
+                    res.sf[(q?2:1) + i] = maxf(regs->v[rm].sf[2*i],regs->v[rm].sf[2*i + 1]);
+            }
+        }
+    }
+    regs->v[rd] = res;
+}
+
+static void dis_fmaxnmp_fminnmp(uint64_t _regs, uint32_t insn)
+{
+    dis_fmaxp_fminp(_regs,insn);
+}
+
+static void dis_faddp(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_scalar = INSN(28,28);
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int i;
+    union simd_register res = {0};
+
+    if (is_double) {
+        for(i = 0; i < 1; i++) {
+            res.df[i] = regs->v[rn].df[2*i] + regs->v[rn].df[2*i + 1];
+            if (!is_scalar)
+                res.df[i+1] = regs->v[rm].df[2*i] + regs->v[rm].df[2*i + 1];
+        }
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?2:1)); i++) {
+            res.sf[i] = regs->v[rn].sf[2*i] + regs->v[rn].sf[2*i + 1];
+            if (!is_scalar)
+                res.sf[(q?2:1) + i] = regs->v[rm].sf[2*i] + regs->v[rm].sf[2*i + 1];
+        }
+    }
+    regs->v[rd] = res;
 }
 
 static void dis_addp(uint64_t _regs, uint32_t insn)
@@ -2221,6 +2540,37 @@ static void dis_smaxv_sminv_umaxv_uminv(uint64_t _regs, uint32_t insn)
             assert(0);
     }
     regs->v[rd].v = res.v;
+}
+
+static void dis_fmaxv_fminv(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int is_min = INSN(23,23);
+    float tmp[2];
+    union simd_register res = {0};
+
+    assert(is_double == 0);
+    assert(q);
+    if (is_min) {
+        tmp[0] = minf(regs->v[rn].sf[0],regs->v[rn].sf[1]);
+        tmp[1] = minf(regs->v[rn].sf[2],regs->v[rn].sf[3]);
+        res.sf[0] = minf(tmp[0],tmp[1]);
+    } else {
+        tmp[0] = maxf(regs->v[rn].sf[0],regs->v[rn].sf[1]);
+        tmp[1] = maxf(regs->v[rn].sf[2],regs->v[rn].sf[3]);
+        res.sf[0] = maxf(tmp[0],tmp[1]);
+    }
+
+    regs->v[rd] = res;
+}
+
+static void dis_fmaxnmv_fminnmv(uint64_t _regs, uint32_t insn)
+{
+    dis_fmaxv_fminv(_regs, insn);
 }
 
 static void dis_addv(uint64_t _regs, uint32_t insn)
@@ -3497,6 +3847,27 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
             else
                 dis_abs(_regs, insn);
             break;
+        case 12:
+            if (size&2)
+                U?dis_fcmge_zero(_regs, insn):dis_fcmgt_zero(_regs, insn);
+            else
+                assert(0);
+            break;
+        case 13:
+            if (size&2)
+                U?dis_fcmle_zero(_regs, insn):dis_fcmeq_zero(_regs, insn);
+            else
+                assert(0);
+            break;
+        case 14:
+            if (size&2)
+                U?assert(0):dis_fcmlt_zero(_regs, insn);
+            else
+                assert(0);
+            break;
+        case 15:
+            U?assert(0):dis_fabs(_regs, insn);
+            break;
         case 18:
             U?dis_sqxtun(_regs, insn):dis_xtn(_regs, insn);
             break;
@@ -3510,7 +3881,7 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
             dis_sqxtn_uqxtn(_regs, insn);
             break;
         default:
-            fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
+            fatal("opcode = %d(0x%x) / U=%d / size=%d\n", opcode, opcode, U, size);
     }
 }
 
@@ -3518,6 +3889,7 @@ void arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd(uint64_t _regs, uint
 {
     int U = INSN(29,29);
     int opcode = INSN(16,12);
+    int size1 = INSN(23,23);
 
     switch(opcode) {
         case 3:
@@ -3553,14 +3925,38 @@ void arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd(uint64_t _regs, uint
             else
                 dis_abs(_regs, insn);
             break;
+        case 12:
+            if (size1)
+                U?dis_fcmge_zero(_regs, insn):dis_fcmgt_zero(_regs, insn);
+            else
+                assert(0);
+            break;
+        case 13:
+            if (size1)
+                U?dis_fcmle_zero(_regs, insn):dis_fcmeq_zero(_regs, insn);
+            else
+                assert(0);
+            break;
+        case 14:
+            if (size1)
+                U?assert(0):dis_fcmlt_zero(_regs, insn);
+            else
+                assert(0);
+            break;
         case 18:
             U?dis_sqxtun(_regs, insn):assert(0);
             break;
         case 20:
             dis_sqxtn_uqxtn(_regs, insn);
             break;
+        case 28:
+            if (size1)
+                assert(0);
+            else
+                U?assert(0):assert(0);
+            break;
         default:
-            fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
+            fatal("opcode = %d(0x%x) / U=%d / size1=%d\n", opcode, opcode, U, size1);
     }
 }
 
@@ -3568,6 +3964,7 @@ void arm64_hlp_dirty_advanced_simd_scalar_three_same_simd(uint64_t _regs, uint32
 {
     int U = INSN(29,29);
     int opcode = INSN(15,11);
+    int size1 = INSN(23,23);
 
     switch(opcode) {
         case 1:
@@ -3611,6 +4008,22 @@ void arm64_hlp_dirty_advanced_simd_scalar_three_same_simd(uint64_t _regs, uint32
             break;
         case 22:
             dis_sqdmulh_sqrdmulh(_regs, insn);
+            break;
+        case 26:
+            assert(size1);
+            U?dis_fabd(_regs, insn):assert(0);
+            break;
+        case 28:
+            if (size1 == 0)
+                U?dis_fcmge(_regs, insn):dis_fcmeq(_regs, insn);
+            else
+                U?dis_fcmgt(_regs, insn):assert(0);
+            break;
+        case 29:
+            if (size1 == 0)
+                U?dis_facge(_regs, insn):assert(0);
+            else
+                U?dis_facgt(_regs, insn):assert(0);
             break;
         default:
             fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
@@ -3722,6 +4135,36 @@ void arm64_hlp_dirty_advanced_simd_three_same_simd(uint64_t _regs, uint32_t insn
             else
                 dis_addp(_regs, insn);
             break;
+        case 24:
+            U?dis_fmaxnmp_fminnmp(_regs, insn):dis_fmaxnm_fminnm(_regs, insn);
+            break;
+        case 26:
+            if (size&2)
+                U?dis_fabd(_regs, insn):assert(0);
+            else
+                U?dis_faddp(_regs, insn):dis_fadd(_regs, insn);
+            break;
+        case 28:
+            if (size&2)
+                U?dis_fcmgt(_regs, insn):assert(0);
+            else
+                U?dis_fcmge(_regs, insn):dis_fcmeq(_regs, insn);
+            break;
+        case 29:
+            if (size&2)
+                U?dis_facgt(_regs, insn):assert(0);
+            else
+                U?dis_facge(_regs, insn):assert(0);
+            break;
+        case 30:
+            U?dis_fmaxp_fminp(_regs, insn):dis_fmax_fmin(_regs, insn);
+            break;
+        case 31:
+            if (size&2)
+                assert(0);
+            else
+                U?dis_fdiv(_regs, insn):assert(0);
+            break;
         default:
             fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
     }
@@ -3785,8 +4228,21 @@ void arm64_hlp_dirty_advanced_simd_scalar_pair_wise_simd(uint64_t _regs, uint32_
 {
     int U = INSN(29,29);
     int opcode = INSN(16,12);
+    //int size1 = INSN(23,23);
 
     switch(opcode) {
+        case 12:
+            assert(U);
+            dis_fmaxnmp_fminnmp(_regs, insn);
+            break;
+        case 13:
+            assert(U);
+            dis_faddp(_regs, insn);
+            break;
+        case 15:
+            assert(U);
+            dis_fmaxp_fminp(_regs, insn);
+            break;
         case 27:
             assert(U==0);
             dis_addp(_regs, insn);
@@ -3800,6 +4256,7 @@ void arm64_hlp_dirty_advanced_simd_accross_lanes_simd(uint64_t _regs, uint32_t i
 {
     int U = INSN(29,29);
     int opcode = INSN(16,12);
+    //int size1 = INSN(23,23);
 
     switch(opcode) {
         case 3:
@@ -3807,6 +4264,12 @@ void arm64_hlp_dirty_advanced_simd_accross_lanes_simd(uint64_t _regs, uint32_t i
             break;
         case 10:
             dis_smaxv_sminv_umaxv_uminv(_regs, insn);
+            break;
+        case 12:
+            dis_fmaxnmv_fminnmv(_regs, insn);
+            break;
+        case 15:
+            dis_fmaxv_fminv(_regs, insn);
             break;
         case 26:
             dis_smaxv_sminv_umaxv_uminv(_regs, insn);
