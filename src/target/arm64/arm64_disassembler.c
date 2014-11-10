@@ -2197,6 +2197,9 @@ static int dis_mrs_register(struct arm64_target *context, uint32_t insn, struct 
         write_x(ir, rt, mk_64(ir, (1 << 4) | 7 ), ZERO_REG);
     } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 2 && op2 == 0) {
         write_x(ir, rt, ir->add_32U_to_64(ir, read_nzcv(ir)), ZERO_REG);
+    } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 0) {
+        //fpcr
+        write_x(ir, rt, ir->add_read_context_32(ir, offsetof(struct arm64_registers, fpcr)), ZERO_REG);
     } else {
         fprintf(stderr, "op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\n", op0, op1, crn, crm, op2);
         fprintf(stderr, "pc = 0x%016lx\n", context->pc);

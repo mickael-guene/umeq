@@ -47,6 +47,8 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.r[31] = sp;
         context->regs.pc = entry;
         context->regs.tpidr_el0 = prev_context->regs.tpidr_el0;
+        context->regs.fpcr = prev_context->regs.fpcr;
+        context->regs.fpsr = prev_context->regs.fpsr;
         context->regs.nzcv = 0;
         context->pc = entry;
         context->regs.is_in_syscall = 0;
@@ -62,6 +64,8 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
        	context->regs.r[31] = stack_ptr;
        	context->regs.pc = entry;
         context->regs.tpidr_el0 = 0;
+        context->regs.fpcr = 0;
+        context->regs.fpsr = 0;
         context->regs.nzcv = 0;
         context->sp_init = stack_ptr;
         context->pc = entry;

@@ -160,6 +160,35 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_fchmodat:
             res = syscall(SYS_fchmodat, (int) p0, (char *) g_2_h(p1), (mode_t) p2, (int) p3);
             break;
+        case PR_chdir:
+            res = syscall(SYS_chdir, (const char *) g_2_h(p0));
+            break;
+        case PR_pread64:
+            res = syscall(SYS_pread64, (int) p0, (void *) g_2_h(p1), (size_t) p2, (off_t) p3);
+            break;
+        case PR_nanosleep:
+            res = syscall(SYS_nanosleep, (struct timespec *) p1, p2?(struct timespec *) g_2_h(p2):NULL);
+            break;
+        case PR_futex:
+            res = futex_s6464(p0,p1,p2,p3,p4,p5);
+            break;
+        case PR_clock_getres:
+            res = syscall(SYS_clock_getres, (clockid_t) p0, p1?(struct timespec *)g_2_h(p1):NULL);
+            break;
+        case PR_ppoll:
+            res = syscall(SYS_ppoll, (struct pollfd *) g_2_h(p0), p1, p2?(struct timespec *)g_2_h(p2):NULL,
+                                                                      p3?(sigset_t *)g_2_h(p3):NULL);
+            break;
+        case PR_sendmmsg:
+            res = syscall(SYS_sendmmsg, (int) p0, (struct mmsghdr *) g_2_h(p1), (unsigned int) p2, (unsigned int) p3);
+            break;
+        case PR_recvfrom:
+            res = syscall(SYS_recvfrom, (int) p0, (void *) g_2_h(p1), (size_t) p2, (int) p3,
+                                        p4?(struct sockaddr *)g_2_h(p4):NULL, p5?(socklen_t *)g_2_h(p5):NULL);
+            break;
+        case PR_getcwd:
+            res = syscall(SYS_getcwd, (char *) g_2_h(p0), (size_t) p1);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }

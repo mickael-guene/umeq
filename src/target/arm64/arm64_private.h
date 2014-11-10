@@ -35,7 +35,8 @@ struct arm64_registers {
     union simd_register v[32];
     uint64_t tpidr_el0;
     uint32_t nzcv;
-    uint16_t fpsr;
+    uint32_t fpcr;
+    uint32_t fpsr;
     uint32_t is_in_syscall;
 };
 

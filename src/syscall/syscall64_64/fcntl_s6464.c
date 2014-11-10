@@ -34,6 +34,9 @@ long fcntl_s6464(uint64_t fd_p, uint64_t cmd_p, uint64_t opt_p)
             res = syscall(SYS_fcntl, fd, cmd);
             res = x86ToArm64Flags(res);
             break;
+        case F_SETFL:
+            res = syscall(SYS_fcntl, fd, cmd, arm64ToX86Flags(opt_p));
+            break;
         default:
             fatal("unsupported fnctl command %d\n", cmd);
     }
