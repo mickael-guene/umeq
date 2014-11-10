@@ -179,6 +179,19 @@ static inline uint##size##_t usat##size##_u(struct arm64_registers *regs, uint64
 DECLARE_USAT_U(8,0xff)
 DECLARE_USAT_U(16,0xffff)
 DECLARE_USAT_U(32,0xffffffff)
+static inline uint64_t usat64_u(struct arm64_registers *regs, __uint128_t op)
+{
+    uint64_t res;
+    __int128_t max = 0xffffffffffffffffUL;
+
+    if (op > max) {
+        res = max;
+        regs->fpsr |= 1 << 27;
+    } else
+        res = op;
+
+    return res;
+}
 
 #define DECLARE_SSAT(size,max,min) \
 static inline int##size##_t ssat##size(struct arm64_registers *regs, int64_t op) \
@@ -573,6 +586,72 @@ static void dis_sqshlu(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+static void dis_sqshl(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int immh = INSN(22,19);
+    int imm = INSN(22,16);
+    int is_scalar = INSN(28,28);
+    int i;
+    int shift;
+    union simd_register res = {0};
+
+    if (immh == 1) {
+        shift = imm - 8;
+        for(i = 0; i < (is_scalar?1:(q?16:8)); i++)
+            res.b[i] = ssat8(regs, (int8_t)regs->v[rn].b[i] << shift);
+    } else if (immh < 4) {
+        shift = imm - 16;
+        for(i = 0; i < (is_scalar?1:(q?8:4)); i++)
+            res.h[i] = ssat16(regs, (int16_t)regs->v[rn].h[i] << shift);
+    } else if (immh < 8) {
+        shift = imm - 32;
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.s[i] = ssat32(regs, (int64_t)(int32_t)regs->v[rn].s[i] << shift);
+    } else {
+        shift = imm - 64;
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.d[i] = ssat64(regs, (__int128_t)(int64_t)regs->v[rn].d[i] << shift);
+    }
+    regs->v[rd] = res;
+}
+
+static void dis_uqshl(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int immh = INSN(22,19);
+    int imm = INSN(22,16);
+    int is_scalar = INSN(28,28);
+    int i;
+    int shift;
+    union simd_register res = {0};
+
+    if (immh == 1) {
+        shift = imm - 8;
+        for(i = 0; i < (is_scalar?1:(q?16:8)); i++)
+            res.b[i] = usat8(regs, regs->v[rn].b[i] << shift);
+    } else if (immh < 4) {
+        shift = imm - 16;
+        for(i = 0; i < (is_scalar?1:(q?8:4)); i++)
+            res.h[i] = usat16(regs, regs->v[rn].h[i] << shift);
+    } else if (immh < 8) {
+        shift = imm - 32;
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.s[i] = usat32(regs, (uint64_t)regs->v[rn].s[i] << shift);
+    } else {
+        shift = imm - 64;
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.d[i] = usat64(regs, (__uint128_t)regs->v[rn].d[i] << shift);
+    }
+    regs->v[rd] = res;
+}
+
 static void dis_sqrshrun_sqshrun(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -870,6 +949,9 @@ void arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd(uint64_t _regs, uint3
             break;
         case 12:
             U?dis_sqshlu(_regs, insn):assert(0);
+            break;
+        case 14:
+            U?dis_uqshl(_regs, insn):dis_sqshl(_regs, insn);
             break;
         case 16:
             U?dis_sqrshrun_sqshrun(_regs, insn):dis_shrn_rshrn(_regs, insn);
@@ -1446,9 +1528,124 @@ static void dis_sabd_saba_uabd_uaba(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
-static void dis_sqrshl_uqrshl(uint64_t _regs, uint32_t insn)
+static __uint128_t ushl(__uint128_t val, int8_t shift, int is_round)
 {
-    assert(0);
+    __uint128_t res;
+    __uint128_t round = 0;
+
+    if (is_round) {
+        if (shift < 0)
+            round = (__uint128_t)1 << (-shift -1);
+    }
+
+    if (shift == -128)
+        res = 0;
+    else if (shift >= 0) {
+        /* to keep stuff for saturation we need to limit shift to 64 bits */
+        shift = shift>64?64:shift;
+        res = val << shift;
+    }
+    else
+        res = (val + (is_round?round:0)) >> -shift;
+
+    return res;
+}
+
+static __int128_t sshl(__int128_t val, int8_t shift, int is_round)
+{
+    __int128_t res;
+    __uint128_t round = 0;
+
+    if (is_round) {
+        if (shift < 0)
+            round = (__uint128_t)1 << (-shift -1);
+    }
+
+    if (shift == -128)
+        res = (__int128_t)(val + (is_round?round:0)) >> 127;
+    else if (shift >= 0) {
+        /* to keep stuff for saturation we need to limit shift to 64 bits */
+        shift = shift>64?64:shift;
+        res = val << shift;
+    }
+    else
+        res = (__int128_t)(val + (is_round?round:0)) >> -shift;
+
+    return res;
+}
+
+static void dis_sshl_family(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int U = INSN(29,29);
+    int is_scalar = INSN(28,28);
+    int size = INSN(23,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int is_round = INSN(12,12);
+    int is_sat = INSN(11,11);
+    union simd_register res = {0};
+    int i;
+    __uint128_t u_res_before_sat;
+    __int128_t s_res_before_sat;
+
+    switch(size) {
+        case 0:
+            for(i = 0; i < (is_scalar?1:(q?16:8)); i++) {
+                int8_t shift = regs->v[rm].b[i];
+                if (U) {
+                    u_res_before_sat = ushl((__uint128_t) regs->v[rn].b[i], shift, is_round);
+                    res.b[i] = is_sat?usat8_u(regs, usat64_u(regs,u_res_before_sat)):u_res_before_sat;
+                } else {
+                    s_res_before_sat = sshl((__int128_t)(int8_t) regs->v[rn].b[i], shift, is_round);
+                    res.b[i] = is_sat?ssat8(regs, ssat64(regs,s_res_before_sat)):s_res_before_sat;
+                }
+            }
+            break;
+        case 1:
+            for(i = 0; i < (is_scalar?1:(q?8:4)); i++) {
+                int8_t shift = regs->v[rm].h[i];
+                if (U) {
+                    u_res_before_sat = ushl((__uint128_t) regs->v[rn].h[i], shift, is_round);
+                    res.h[i] = is_sat?usat16_u(regs, usat64_u(regs,u_res_before_sat)):u_res_before_sat;
+                } else {
+                    s_res_before_sat = sshl((__int128_t)(int16_t) regs->v[rn].h[i], shift, is_round);
+                    res.h[i] = is_sat?ssat16(regs, ssat64(regs,s_res_before_sat)):s_res_before_sat;
+                }
+            }
+            break;
+        case 2:
+            for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
+                int8_t shift = regs->v[rm].s[i];
+                if (U) {
+                    u_res_before_sat = ushl((__uint128_t) regs->v[rn].s[i], shift, is_round);
+                    res.s[i] = is_sat?usat32_u(regs, usat64_u(regs,u_res_before_sat)):u_res_before_sat;
+                } else {
+                    s_res_before_sat = sshl((__int128_t)(int32_t) regs->v[rn].s[i], shift, is_round);
+                    res.s[i] = is_sat?ssat32(regs, ssat64(regs,s_res_before_sat)):s_res_before_sat;
+                }
+            }
+            break;
+        case 3:
+            assert(q);
+            for(i = 0; i < (is_scalar?1:2); i++) {
+                int8_t shift = regs->v[rm].d[i];
+                if (U) {
+                    u_res_before_sat = ushl((__uint128_t) regs->v[rn].d[i], shift, is_round);
+                    res.d[i] = is_sat?usat64_u(regs, u_res_before_sat):u_res_before_sat;
+                } else {
+                    s_res_before_sat = sshl((__int128_t)(int64_t) regs->v[rn].d[i], shift, is_round);
+                    res.d[i] = is_sat?ssat64(regs, s_res_before_sat):s_res_before_sat;
+                }
+            }
+            break;
+        default:
+            assert(0);
+    }
+
+    regs->v[rd] = res;
 }
 
 static void dis_sqadd_uqadd(uint64_t _regs, uint32_t insn)
@@ -3618,8 +3815,17 @@ void arm64_hlp_dirty_advanced_simd_scalar_three_same_simd(uint64_t _regs, uint32
             else
                 dis_cmge(_regs, insn);
             break;
+        case 8:
+            dis_sshl_family(_regs, insn);
+            break;
+        case 9:
+            dis_sshl_family(_regs, insn);
+            break;
+        case 10:
+            dis_sshl_family(_regs, insn);
+            break;
         case 11:
-            dis_sqrshl_uqrshl(_regs, insn);
+            dis_sshl_family(_regs, insn);
             break;
         case 16:
             dis_add_sub(_regs, insn);
@@ -3685,6 +3891,18 @@ void arm64_hlp_dirty_advanced_simd_three_same_simd(uint64_t _regs, uint32_t insn
                 dis_cmhs(_regs, insn);
             else
                 dis_cmge(_regs, insn);
+            break;
+        case 8:
+            dis_sshl_family(_regs, insn);
+            break;
+        case 9:
+            dis_sshl_family(_regs, insn);
+            break;
+        case 10:
+            dis_sshl_family(_regs, insn);
+            break;
+        case 11:
+            dis_sshl_family(_regs, insn);
             break;
         case 12:
             dis_smax_smin_umax_umin(_regs, insn);
@@ -3902,6 +4120,9 @@ void arm64_hlp_dirty_advanced_simd_scalar_shift_by_immediate_simd(uint64_t _regs
             break;
         case 12:
             U?dis_sqshlu(_regs, insn):assert(0);
+            break;
+        case 14:
+            U?dis_uqshl(_regs, insn):dis_sqshl(_regs, insn);
             break;
         case 16:
             U?dis_sqrshrun_sqshrun(_regs, insn):assert(0);
