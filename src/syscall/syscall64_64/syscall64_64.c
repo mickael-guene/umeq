@@ -3,6 +3,7 @@
 #include <sys/syscall.h>   /* For SYS_xxx definitions */
 #include <errno.h>
 #include <stdint.h>
+#include <sched.h>
 
 #include "syscall64_64.h"
 #include "syscall64_64_private.h"
@@ -167,7 +168,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_pread64, (int) p0, (void *) g_2_h(p1), (size_t) p2, (off_t) p3);
             break;
         case PR_nanosleep:
-            res = syscall(SYS_nanosleep, (struct timespec *) p1, p2?(struct timespec *) g_2_h(p2):NULL);
+            res = syscall(SYS_nanosleep, (struct timespec *) p0, p1?(struct timespec *) g_2_h(p1):NULL);
             break;
         case PR_futex:
             res = futex_s6464(p0,p1,p2,p3,p4,p5);
@@ -188,6 +189,36 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             break;
         case PR_getcwd:
             res = syscall(SYS_getcwd, (char *) g_2_h(p0), (size_t) p1);
+            break;
+        case PR_pselect6:
+            res = pselect6_s6464(p0,p1,p2,p3,p4,p5);
+            break;
+        case PR_mkdirat:
+            res = syscall(SYS_mkdirat, (int) p0, (char *) g_2_h(p1), (mode_t) p2);
+            break;
+        case PR_renameat:
+            res = syscall(SYS_renameat, (int) p0, (char *) g_2_h(p1), (int) p2, (char *) g_2_h(p3));
+            break;
+        case PR_fsetxattr:
+            res = syscall(SYS_fsetxattr, (int) p0, (char *) g_2_h(p1), (void *) g_2_h(p2), (size_t) p3, (int) p4);
+            break;
+        case PR_sched_getaffinity:
+            res = syscall(SYS_sched_getaffinity, (pid_t) p0, (size_t) p1, (cpu_set_t *) g_2_h(p2));
+            break;
+        case PR_kill:
+            res = syscall(SYS_kill, (pid_t) p0, (int) p1);
+            break;
+        case PR_fgetxattr:
+            res = syscall(SYS_fgetxattr, (int) p0, (char *) g_2_h(p1), (void *) g_2_h(p2), (size_t) p3);
+            break;
+        case PR_getpeername:
+            res = syscall(SYS_getpeername, (int) p0, (struct sockaddr *) g_2_h(p1), (socklen_t *) g_2_h(p2));
+            break;
+        case PR_fchownat:
+            res = syscall(SYS_fchownat, (int) p0, (char *) g_2_h(p1), (uid_t) p2, (gid_t) p3, (int) p4);
+            break;
+        case PR_fchdir:
+            res = syscall(SYS_fchdir, (int) p0);
             break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);

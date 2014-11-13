@@ -919,6 +919,72 @@ static void dis_sqxtn_uqxtn(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+static void dis_fcvtzs(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_scalar = INSN(28,28);
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int i;
+    union simd_register res = {0};
+
+    if (is_double) {
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.d[i] = (int64_t) regs->v[rn].df[i];
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.s[i] = (int32_t) regs->v[rn].sf[i];
+    }
+
+    regs->v[rd] = res;
+}
+
+static void dis_ucvtf(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_scalar = INSN(28,28);
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int i;
+    union simd_register res = {0};
+
+    if (is_double) {
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.df[i] = (double) regs->v[rn].d[i];
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.sf[i] = (float) regs->v[rn].s[i];
+    }
+
+    regs->v[rd] = res;
+}
+
+static void dis_scvtf(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_scalar = INSN(28,28);
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int i;
+    union simd_register res = {0};
+
+    if (is_double) {
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.df[i] = (double)(int64_t) regs->v[rn].d[i];
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.sf[i] = (float)(int32_t) regs->v[rn].s[i];
+    }
+
+    regs->v[rd] = res;
+}
+
 static void dis_suqadd_usqadd(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -4015,6 +4081,18 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
         case 20:
             dis_sqxtn_uqxtn(_regs, insn);
             break;
+        case 27:
+            if (size&2)
+                U?assert(0):dis_fcvtzs(_regs, insn);
+            else
+                assert(0);
+            break;
+        case 29:
+            if(size&2)
+                assert(0);
+            else
+                U?dis_ucvtf(_regs, insn):dis_scvtf(_regs, insn);
+            break;
         default:
             fatal("opcode = %d(0x%x) / U=%d / size=%d\n", opcode, opcode, U, size);
     }
@@ -4084,11 +4162,23 @@ void arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd(uint64_t _regs, uint
         case 20:
             dis_sqxtn_uqxtn(_regs, insn);
             break;
+        case 27:
+            if (size1)
+                U?assert(0):dis_fcvtzs(_regs, insn);
+            else
+                assert(0);
+            break;
         case 28:
             if (size1)
                 assert(0);
             else
                 U?assert(0):assert(0);
+            break;
+        case 29:
+            if (size1)
+                assert(0);
+            else
+                U?dis_ucvtf(_regs, insn):dis_scvtf(_regs, insn);
             break;
         default:
             fatal("opcode = %d(0x%x) / U=%d / size1=%d\n", opcode, opcode, U, size1);

@@ -85,6 +85,11 @@ void arm64_hlp_dirty_scvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn)
             regs->v[rd].d[1] = 0;
             regs->v[rd].df[0] = (double)(int32_t) regs->r[rn];
             break;
+        case 2:
+            regs->v[rd].d[1] = 0;
+            regs->v[rd].sf[0] = (float)(int64_t) regs->r[rn];
+            regs->v[rd].sf[1] = 0;
+            break;
         case 3:
             regs->v[rd].d[1] = 0;
             regs->v[rd].df[0] = (double)(int64_t) regs->r[rn];
@@ -271,6 +276,31 @@ void arm64_hlp_dirty_fcvtzs_scalar_integer_simd(uint64_t _regs, uint32_t insn)
         case 1:
             regs->r[rd] = (int32_t) regs->v[rn].df[0];
             break;
+        case 3:
+            regs->r[rd] = (int64_t) regs->v[rn].df[0];
+            break;
+        default:
+            fatal("sf_type0 = %d\n", sf_type0);
+    }
+}
+
+void arm64_hlp_dirty_fcvtzu_scalar_integer_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int sf_type0 = (INSN(31,31) << 1) | INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+
+    switch(sf_type0) {
+        case 1:
+            regs->r[rd] = (uint32_t) regs->v[rn].df[0];
+            break;
+        case 2:
+            regs->r[rd] = (uint64_t) regs->v[rn].sf[0];
+            break;
+        case 3:
+            regs->r[rd] = (uint64_t) regs->v[rn].df[0];
+            break;
         default:
             fatal("sf_type0 = %d\n", sf_type0);
     }
@@ -332,11 +362,21 @@ void arm64_hlp_dirty_ucvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn)
     int rd = INSN(4,0);
     int rn = INSN(9,5);
 
+    regs->v[rd].d[1] = 0;
     switch(sf_type0) {
+        case 0:
+            regs->v[rd].sf[0] = (float)(uint32_t) regs->r[rn];
+            regs->v[rd].sf[1] = 0;
+            break;
+        case 1:
+            regs->v[rd].df[0] = (double)(uint32_t) regs->r[rn];
+            break;
         case 2:
-            regs->v[rd].d[1] = 0;
             regs->v[rd].sf[0] = (float) regs->r[rn];
             regs->v[rd].sf[1] = 0;
+            break;
+        case 3:
+            regs->v[rd].df[0] = (double) regs->r[rn];
             break;
         default:
             fatal("sf_type0 = %d\n", sf_type0);

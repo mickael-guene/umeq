@@ -18,6 +18,7 @@ extern void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_
 extern void arm64_hlp_dirty_floating_point_immediate_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_floating_point_conditional_select_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_fcvtzs_scalar_integer_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_fcvtzu_scalar_integer_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_floating_point_data_processing_3_source_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_ucvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uint32_t insn);

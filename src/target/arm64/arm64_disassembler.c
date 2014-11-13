@@ -3064,6 +3064,19 @@ static int dis_fcvtzs_scalar_integer(struct arm64_target *context, uint32_t insn
     return 0;
 }
 
+static int dis_fcvtzu_scalar_integer(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_fcvtzu_scalar_integer_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_fcvtzu_scalar_integer_simd),
+                           params);
+
+    return 0;
+}
+
 static int dis_floating_point_data_processing_3_source(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
@@ -3883,15 +3896,17 @@ static int dis_conversion_between_floating_point_and_integer_insn(struct arm64_t
          isExit = dis_fmov(context, insn, ir);
     } else if (sf == 1 && type == 2 && rmode == 1 && opcode == 7) {
          isExit = dis_fmov(context, insn, ir);
-    } else if (sf == 1 && type == 1 && rmode == 0 && opcode == 2) {
-        isExit = dis_scvtf_scalar_integer(context, insn, ir);
-    } else if (sf == 0 && type == 1 && rmode == 0 && opcode == 2) {
-        isExit = dis_scvtf_scalar_integer(context, insn, ir);
-    } else if (sf == 0 && type == 0 && rmode == 0 && opcode == 2) {
-        isExit = dis_scvtf_scalar_integer(context, insn, ir);
     } else if (sf == 0 && type == 1 && rmode == 3 && opcode == 0) {
         isExit = dis_fcvtzs_scalar_integer(context, insn, ir);
-    } else if (sf == 1 && type == 0 && rmode == 0 && opcode == 3) {
+    } else if (sf == 1 && type == 1 && rmode == 3 && opcode == 0) {
+        isExit = dis_fcvtzs_scalar_integer(context, insn, ir);
+    } else if (sf == 1 && type == 0 && rmode == 3 && opcode == 1) {
+        isExit = dis_fcvtzu_scalar_integer(context, insn, ir);
+    } else if (sf == 1 && type == 1 && rmode == 3 && opcode == 1) {
+        isExit = dis_fcvtzu_scalar_integer(context, insn, ir);
+    } else if ((type & 2) == 0 && rmode == 0 && opcode == 2) {
+        isExit = dis_scvtf_scalar_integer(context, insn, ir);
+    } else if ((type & 2) == 0 && rmode == 0 && opcode == 3) {
         isExit = dis_ucvtf_scalar_integer(context, insn, ir);
     } else
         fatal("pc = 0x%016lx / sf=%d / type=%d / rmode=%d / opcode=%d\n", context->pc, sf, type, rmode, opcode);
