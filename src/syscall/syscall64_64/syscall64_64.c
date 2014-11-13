@@ -220,6 +220,18 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_fchdir:
             res = syscall(SYS_fchdir, (int) p0);
             break;
+        case PR_symlinkat:
+            res = syscall(SYS_symlinkat, (char *) g_2_h(p0), (int) p1, (char *) g_2_h(p2));
+            break;
+        case PR_linkat:
+            res = syscall(SYS_linkat, (int) p0, (char *) g_2_h(p1), (int) p2, (char *) g_2_h(p3), (int) p4);
+            break;
+        case PR_madvise:
+            res = syscall(SYS_madvise, (void *) g_2_h(p0), (size_t) p1, (int) p2);
+            break;
+        case PR_tgkill:
+            res = syscall(SYS_tgkill, (int) p0, (int) p1, (int) p2);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }

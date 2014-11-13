@@ -41,7 +41,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
             context->regs.v[i].v128 = 0;
         }
         context->regs.r[0] = signum;
-        context->regs.r[1] = (uint32_t)(long) param; /* siginfo_t * */
+        context->regs.r[1] = (uint64_t) param; /* siginfo_t * */
         context->regs.r[2] = 0; /* void * */
         context->regs.r[30] = sp;
         context->regs.r[31] = sp;
@@ -54,7 +54,21 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.is_in_syscall = 0;
         context->is_in_signal = 1;
     } else if (param) {
-        fatal("Implement me\n");
+        /* new thread */
+        struct arm64_target *parent_context = container_of(param, struct arm64_target, target);
+        for(i = 0; i < 32; i++) {
+            context->regs.r[i] = parent_context->regs.r[i];
+            context->regs.v[i].v128 = parent_context->regs.v[i].v128;
+        }
+        context->regs.nzcv = parent_context->regs.nzcv;
+        context->regs.fpcr = parent_context->regs.fpcr;
+        context->regs.fpsr = parent_context->regs.fpsr;
+        context->regs.tpidr_el0 = parent_context->regs.r[3];
+        context->regs.r[0] = 0;
+        context->regs.r[31] = stack_ptr;
+        context->regs.pc = entry;
+        context->regs.is_in_syscall = 0;
+        context->is_in_signal = 0;
     } else if (stack_ptr) {
         /* main thread */
         for(i = 0; i < 32; i++) {
