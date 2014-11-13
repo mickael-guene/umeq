@@ -158,6 +158,9 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
             case 7://fminnm
                 regs->v[rd].df[0] = mind(regs->v[rn].df[0],regs->v[rm].df[0]);
                 break;
+            case 8://fnmul
+                regs->v[rd].df[0] = -(regs->v[rn].df[0] * regs->v[rm].df[0]);
+                break;
             default:
                 fatal("opcode = %d(0x%x)\n", opcode, opcode);
         }
@@ -182,6 +185,9 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
             case 5://fmin
             case 7://fminnm
                 regs->v[rd].sf[0] = minf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
+                break;
+            case 8://fnmul
+                regs->v[rd].sf[0] = -(regs->v[rn].sf[0] * regs->v[rm].sf[0]);
                 break;
             default:
                 fatal("opcode = %d(0x%x)\n", opcode, opcode);
@@ -286,6 +292,15 @@ void arm64_hlp_dirty_floating_point_data_processing_3_source_simd(uint64_t _regs
             case 0://fmadd
                 res.df[0] = regs->v[ra].df[0] + regs->v[rn].df[0] * regs->v[rm].df[0];
                 break;
+            case 1://fmsub
+                res.df[0] = regs->v[ra].df[0] - regs->v[rn].df[0] * regs->v[rm].df[0];
+                break;
+            case 2://fnmadd
+                res.df[0] = -regs->v[ra].df[0] - regs->v[rn].df[0] * regs->v[rm].df[0];
+                break;
+            case 3://fnmsub
+                res.df[0] = -regs->v[ra].df[0] + regs->v[rn].df[0] * regs->v[rm].df[0];
+                break;
             default:
                 fatal("o1_o0 = %d(0x%x)\n", o1_o0, o1_o0);
         }
@@ -293,6 +308,15 @@ void arm64_hlp_dirty_floating_point_data_processing_3_source_simd(uint64_t _regs
         switch(o1_o0) {
             case 0://fmadd
                 res.sf[0] = (double)regs->v[ra].sf[0] + (double)regs->v[rn].sf[0] * (double)regs->v[rm].sf[0];
+                break;
+            case 1://fmsub
+                res.sf[0] = (double)regs->v[ra].sf[0] - (double)regs->v[rn].sf[0] * (double)regs->v[rm].sf[0];
+                break;
+            case 2://fnmadd
+                res.sf[0] = -(double)regs->v[ra].sf[0] - (double)regs->v[rn].sf[0] * (double)regs->v[rm].sf[0];
+                break;
+            case 3://fnmsub
+                res.sf[0] = -(double)regs->v[ra].sf[0] + (double)regs->v[rn].sf[0] * (double)regs->v[rm].sf[0];
                 break;
             default:
                 fatal("o1_o0 = %d(0x%x)\n", o1_o0, o1_o0);
@@ -326,6 +350,9 @@ void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uin
     switch(opcode) {
         case 1:
             dis_fabs(_regs, insn);
+            break;
+        case 2:
+            dis_fneg(_regs, insn);
             break;
         case 4: case 5:
             dis_fcvt(_regs, insn);

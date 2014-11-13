@@ -41,3 +41,24 @@ static void dis_fabs(uint64_t _regs, uint32_t insn)
 
     regs->v[rd] = res;
 }
+
+static void dis_fneg(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_scalar = INSN(28,28);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    union simd_register res = {0};
+    int i;
+
+    if (is_double) {
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.df[i] = -regs->v[rn].df[i];
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.sf[i] = -regs->v[rn].sf[i];
+    }
+    regs->v[rd] = res;
+}

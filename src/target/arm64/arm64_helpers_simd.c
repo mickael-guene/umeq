@@ -1589,6 +1589,34 @@ static void dis_sqdmulh_sqrdmulh(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+static void dis_fmla_fmls(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int is_sub = INSN(23,23);
+    union simd_register res = {0};
+    int i;
+
+    if (is_double) {
+        for(i = 0; i < 2; i++)
+            if (is_sub)
+                res.df[i] = regs->v[rd].df[i] - regs->v[rn].df[i] * regs->v[rm].df[i];
+            else
+                res.df[i] = regs->v[rd].df[i] + regs->v[rn].df[i] * regs->v[rm].df[i];
+    } else {
+        for(i = 0; i < (q?4:2); i++)
+            if (is_sub)
+                res.sf[i] = (double)regs->v[rd].sf[i] - (double)regs->v[rn].sf[i] * (double)regs->v[rm].sf[i];
+            else
+                res.sf[i] = (double)regs->v[rd].sf[i] + (double)regs->v[rn].sf[i] * (double)regs->v[rm].sf[i];
+    }
+    regs->v[rd] = res;
+}
+
 static void dis_fabd(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -1617,7 +1645,7 @@ static void dis_fabd(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
-static void dis_fadd(uint64_t _regs, uint32_t insn)
+static void dis_fadd_fsub(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
     int q = INSN(30,30);
@@ -1625,16 +1653,23 @@ static void dis_fadd(uint64_t _regs, uint32_t insn)
     int rd = INSN(4,0);
     int rn = INSN(9,5);
     int rm = INSN(20,16);
+    int is_sub = INSN(12,12);
     union simd_register res = {0};
     int i;
 
     if (is_double) {
         assert(q);
         for(i = 0; i < 2; i++)
-            res.df[i] = regs->v[rn].df[i] + regs->v[rm].df[i];
+            if (is_sub)
+                res.df[i] = regs->v[rn].df[i] - regs->v[rm].df[i];
+            else
+                res.df[i] = regs->v[rn].df[i] + regs->v[rm].df[i];
     } else {
         for(i = 0; i < (q?4:2); i++)
-            res.sf[i] = regs->v[rn].sf[i] + regs->v[rm].sf[i];
+            if (is_sub)
+                res.sf[i] = regs->v[rn].sf[i] - regs->v[rm].sf[i];
+            else
+                res.sf[i] = regs->v[rn].sf[i] + regs->v[rm].sf[i];
     }
     regs->v[rd] = res;
 }
@@ -1952,6 +1987,34 @@ static void dis_faddp(uint64_t _regs, uint32_t insn)
         }
     }
     regs->v[rd] = res;
+}
+
+static void dis_fmul(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_scalar = INSN(28,28);
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int i;
+    union simd_register res = {0};
+
+    /* scalar is only for fmulx */
+    if (is_double) {
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.df[i] = regs->v[rn].df[i] * regs->v[rm].df[i];
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.sf[i] = regs->v[rn].sf[i] * regs->v[rm].sf[i];
+    }
+    regs->v[rd] = res;
+}
+
+static void dis_fmulx(uint64_t _regs, uint32_t insn)
+{
+    dis_fmul(_regs, insn);
 }
 
 static void dis_addp(uint64_t _regs, uint32_t insn)
@@ -3231,6 +3294,78 @@ static void dis_mul_by_element(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+static void dis_fmla_fmls_by_element(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_scalar = INSN(28,28);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(19,16);
+    int is_double = INSN(22,22);
+    int H = INSN(11,11);
+    int L = INSN(21,21);
+    int M = INSN(20,20);
+    int is_sub = INSN(14,14);
+    union simd_register res = {0};
+    int index;
+    int i;
+
+    if (is_double) {
+        index = H;
+        rm += M << 4;
+        for(i = 0; i < (is_scalar?1:2); i++)
+            if (is_sub)
+                res.df[i] = regs->v[rd].df[i] - regs->v[rn].df[i] * regs->v[rm].df[index];
+            else
+                res.df[i] = regs->v[rd].df[i] + regs->v[rn].df[i] * regs->v[rm].df[index];
+    } else {
+        index = (H << 1) | L;
+        rm += M << 4;
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            if (is_sub)
+                res.sf[i] = (double)regs->v[rd].sf[i] - (double)regs->v[rn].sf[i] * (double)regs->v[rm].sf[index];
+            else
+                res.sf[i] = (double)regs->v[rd].sf[i] + (double)regs->v[rn].sf[i] * (double)regs->v[rm].sf[index];
+    }
+    regs->v[rd] = res;
+}
+
+static void dis_fmul_by_element(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_scalar = INSN(28,28);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(19,16);
+    int is_double = INSN(22,22);
+    int H = INSN(11,11);
+    int L = INSN(21,21);
+    int M = INSN(20,20);
+    union simd_register res = {0};
+    int index;
+    int i;
+
+    if (is_double) {
+        index = H;
+        rm += M << 4;
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.df[i] = regs->v[rn].df[i] * regs->v[rm].df[index];
+    } else {
+        index = (H << 1) | L;
+        rm += M << 4;
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.sf[i] = regs->v[rn].sf[i] * regs->v[rm].sf[index];
+    }
+    regs->v[rd] = res;
+}
+
+static void dis_fmulx_by_element(uint64_t _regs, uint32_t insn)
+{
+    dis_fmul_by_element(_regs, insn);
+}
+
 static void dis_sqdmlal_sqdmlsl_by_element(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -3866,7 +4001,7 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
                 assert(0);
             break;
         case 15:
-            U?assert(0):dis_fabs(_regs, insn);
+            U?dis_fneg(_regs, insn):dis_fabs(_regs, insn);
             break;
         case 18:
             U?dis_sqxtun(_regs, insn):dis_xtn(_regs, insn);
@@ -4013,6 +4148,10 @@ void arm64_hlp_dirty_advanced_simd_scalar_three_same_simd(uint64_t _regs, uint32
             assert(size1);
             U?dis_fabd(_regs, insn):assert(0);
             break;
+        case 27:
+            assert(size1==0);
+            U?assert(0):dis_fmulx(_regs, insn);
+            break;
         case 28:
             if (size1 == 0)
                 U?dis_fcmge(_regs, insn):dis_fcmeq(_regs, insn);
@@ -4138,11 +4277,23 @@ void arm64_hlp_dirty_advanced_simd_three_same_simd(uint64_t _regs, uint32_t insn
         case 24:
             U?dis_fmaxnmp_fminnmp(_regs, insn):dis_fmaxnm_fminnm(_regs, insn);
             break;
+        case 25:
+            if (size&2)
+                U?assert(0):dis_fmla_fmls(_regs, insn);
+            else
+                U?assert(0):dis_fmla_fmls(_regs, insn);
+            break;
         case 26:
             if (size&2)
-                U?dis_fabd(_regs, insn):assert(0);
+                U?dis_fabd(_regs, insn):dis_fadd_fsub(_regs, insn);
             else
-                U?dis_faddp(_regs, insn):dis_fadd(_regs, insn);
+                U?dis_faddp(_regs, insn):dis_fadd_fsub(_regs, insn);
+            break;
+        case 27:
+            if (size&2)
+                assert(0);
+            else
+                U?dis_fmul(_regs, insn):dis_fmulx(_regs, insn);
             break;
         case 28:
             if (size&2)
@@ -4294,11 +4445,19 @@ void arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd(uint64_t _regs,
             assert(U);
             dis_mla_mls_by_element(_regs, insn);
             break;
+        case 1:
+            assert(U==0);
+            dis_fmla_fmls_by_element(_regs, insn);
+            break;
         case 2:
             dis_smlal_smlsl_umlal_umlsl_by_element(_regs, insn);
             break;
         case 3:
             U?assert(0):dis_sqdmlal_sqdmlsl_by_element(_regs, insn);
+            break;
+        case 5:
+            assert(U==0);
+            dis_fmla_fmls_by_element(_regs, insn);
             break;
         case 6:
             dis_smlal_smlsl_umlal_umlsl_by_element(_regs, insn);
@@ -4309,6 +4468,9 @@ void arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd(uint64_t _regs,
         case 8:
             assert(U == 0);
             dis_mul_by_element(_regs, insn);
+            break;
+        case 9:
+            U?dis_fmulx_by_element(_regs, insn):dis_fmul_by_element(_regs, insn);
             break;
         case 10:
             dis_smull_umull_by_element(_regs, insn);
@@ -4382,11 +4544,20 @@ void arm64_hlp_dirty_advanced_simd_scalar_x_indexed_element_simd(uint64_t _regs,
     int opcode = INSN(15,12);
 
     switch(opcode) {
+        case 1:
+            U?assert(0):dis_fmla_fmls_by_element(_regs, insn);
+            break;
         case 3:
             U?assert(0):dis_sqdmlal_sqdmlsl_by_element(_regs, insn);
             break;
+        case 5:
+            U?assert(0):dis_fmla_fmls_by_element(_regs, insn);
+            break;
         case 7:
             U?assert(0):dis_sqdmlal_sqdmlsl_by_element(_regs, insn);
+            break;
+        case 9:
+            U?dis_fmulx_by_element(_regs, insn):dis_fmul_by_element(_regs, insn);
             break;
         case 11:
             U?assert(0):dis_sqdmull_by_element(_regs, insn);
