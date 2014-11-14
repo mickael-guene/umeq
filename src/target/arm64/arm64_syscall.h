@@ -16,6 +16,7 @@ extern long arm64_fstat(struct arm64_target *context);
 extern long arm64_rt_sigaction(struct arm64_target *context);
 extern long arm64_fstatat64(struct arm64_target *context);
 extern long arm64_clone(struct arm64_target *context);
+extern long arm64_sigaltstack(struct arm64_target *context);
 
 #endif
 

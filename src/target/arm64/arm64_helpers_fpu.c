@@ -32,6 +32,23 @@ static void dis_fcvt(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+/* FIXME: certainly not exact ..... */
+static void dis_frintm(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    union simd_register res = {0};
+
+    if (is_double) {
+        res.df[0] = (double)(int64_t)regs->v[rn].df[0];
+    } else {
+        res.sf[0] = (float)(int64_t)regs->v[rn].sf[0];
+    }
+    regs->v[rd] = res;
+}
+
 static void dis_fccmp_fccmpe(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -396,6 +413,9 @@ void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uin
             break;
         case 4: case 5:
             dis_fcvt(_regs, insn);
+            break;
+        case 10:
+            dis_frintm(_regs, insn);
             break;
         default:
             fatal("opcode = %d/0x%x\n", opcode, opcode);

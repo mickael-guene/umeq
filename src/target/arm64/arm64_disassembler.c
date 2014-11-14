@@ -2201,6 +2201,9 @@ static int dis_mrs_register(struct arm64_target *context, uint32_t insn, struct 
     } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 0) {
         //fpcr
         write_x(ir, rt, ir->add_read_context_32(ir, offsetof(struct arm64_registers, fpcr)), ZERO_REG);
+    } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 1) {
+        //fpsr
+        write_x(ir, rt, ir->add_read_context_32(ir, offsetof(struct arm64_registers, fpsr)), ZERO_REG);
     } else {
         fprintf(stderr, "op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\n", op0, op1, crn, crm, op2);
         fprintf(stderr, "pc = 0x%016lx\n", context->pc);

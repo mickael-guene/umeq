@@ -232,6 +232,60 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_tgkill:
             res = syscall(SYS_tgkill, (int) p0, (int) p1, (int) p2);
             break;
+        case PR_fchmod:
+            res = syscall(SYS_fchmod, (int) p0, (mode_t) p1);
+            break;
+        case PR_setitimer:
+            res = syscall(SYS_setitimer, (int) p0, (struct itimerval *) g_2_h(p1), p2?(struct itimerval *) g_2_h(p2):NULL);
+            break;
+        case PR_timer_create:
+            res = syscall(SYS_timer_create, (clockid_t) p0, p1?(struct sigevent *)g_2_h(p1):NULL, (timer_t *) g_2_h(p2));
+            break;
+        case PR_getpriority:
+            res = syscall(SYS_getpriority, (int) p0, (id_t) p1);
+            break;
+        case PR_setsid:
+            res = syscall(SYS_setsid);
+            break;
+        case PR_inotify_init1:
+            res = syscall(SYS_inotify_init1, (int) p0);
+            break;
+        case PR_mknodat:
+            res = syscall(SYS_mknodat, (int) p0, (char *) g_2_h(p1), (mode_t) p2, (dev_t) p3);
+            break;
+        case PR_fstatfs:
+            res = syscall(SYS_fstatfs, (int) p0, (struct statfs *) g_2_h(p1));
+            break;
+        case PR_ftruncate:
+            res = syscall(SYS_ftruncate, (int) p0, (off_t) p1);
+            break;
+        case PR_fchown:
+            res = syscall(SYS_fchown, (int) p0, (uid_t) p1, (gid_t) p2);
+            break;
+        case PR_setxattr:
+            res = syscall(SYS_setxattr, (char *) g_2_h(p0), (char *) g_2_h(p1), (void *) g_2_h(p2), (size_t) p3, (int) p4);
+            break;
+        case PR_fdatasync:
+            res = syscall(SYS_fdatasync, (int) p0);
+            break;
+        case PR_timer_settime:
+            res = syscall(SYS_timer_settime, (timer_t) p0, (int) p1, (struct itimerspec *) g_2_h(p2), p3?(struct itimerspec *)g_2_h(p3):NULL);
+            break;
+        case PR_rt_sigsuspend:
+            res = syscall(SYS_rt_sigsuspend, (sigset_t *) g_2_h(p0));
+            break;
+        case PR_setpriority:
+            res = syscall(SYS_setpriority, (int) p0, (id_t) p1, (int) p2);
+            break;
+        case PR_inotify_add_watch:
+            res = syscall(SYS_inotify_add_watch, (int) p0, (char *) g_2_h(p1), (uint32_t) p2);
+            break;
+        case PR_fsync:
+            res = syscall(SYS_fsync, (int) p0);
+            break;
+        case PR_prctl:
+            res = syscall(SYS_prctl, (int) p0, (unsigned long) p1, (unsigned long) p2, (unsigned long) p3, (unsigned long) p4);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }

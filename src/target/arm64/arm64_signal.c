@@ -12,6 +12,7 @@
 #include "runtime.h"
 
 #define SA_RESTORER 0x04000000
+#define MINSTKSZ    2048
 
 extern int loop(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target);
 extern void wrap_signal_restorer(void);
@@ -205,6 +206,38 @@ long arm64_rt_sigaction(struct arm64_target *context)
             oldact_guest->sa_mask[0] = oldact.sa_mask.__val[0];
             oldact_guest->sa_restorer = (long)NULL;
         }
+    }
+
+    return res;
+}
+
+/* FIXME : need to handle SS_ONSTACK case ? (EPERM) */
+long arm64_sigaltstack(struct arm64_target *context)
+{
+    uint64_t ss_p = context->regs.r[0];
+    uint64_t oss_p = context->regs.r[1];
+    stack_t_arm64 *ss_guest = (stack_t_arm64 *) g_2_h(ss_p);
+    stack_t_arm64 *oss_guest = (stack_t_arm64 *) g_2_h(oss_p);
+    long res = 0;
+
+    if (oss_p) {
+        oss_guest->ss_sp = ss.ss_sp;
+        oss_guest->ss_flags = ss.ss_flags;
+        oss_guest->ss_size = ss.ss_size;
+    }
+    if (ss_p) {
+        if (ss_guest->ss_flags == 0) {
+            if (ss_guest->ss_size < MINSTKSZ) {
+                res = -ENOMEM;
+            } else {
+                ss.ss_sp = ss_guest->ss_sp;
+                ss.ss_flags = ss_guest->ss_flags;
+                ss.ss_size = ss_guest->ss_size;
+            }
+        } else if (ss_guest->ss_flags == SS_DISABLE) {
+            ss.ss_flags = ss_guest->ss_flags;
+        } else
+            res = -EINVAL;
     }
 
     return res;
