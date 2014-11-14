@@ -3280,15 +3280,28 @@ static int dis_advanced_simd_scalar_copy(struct arm64_target *context, uint32_t 
     int rn = INSN(9,5);
     int rd = INSN(4,0);
     int imm5 = INSN(20,16);
+    struct irRegister *value;
 
     if (imm5 & 1) {
-        write_b(ir, rd, read_b_by_index(ir, rn, imm5 >> 1));
+        value = read_b_by_index(ir, rn, imm5 >> 1);
+        write_v_lsb(ir, rd, mk_64(ir, 0));
+        write_v_msb(ir, rd, mk_64(ir, 0));
+        write_b(ir, rd, value);
     } else if (imm5 & 2) {
-        write_h(ir, rd, read_h_by_index(ir, rn, imm5 >> 2));
+        value = read_h_by_index(ir, rn, imm5 >> 2);
+        write_v_lsb(ir, rd, mk_64(ir, 0));
+        write_v_msb(ir, rd, mk_64(ir, 0));
+        write_h(ir, rd, value);
     } else if (imm5 & 4) {
-        write_s(ir, rd, read_s_by_index(ir, rn, imm5 >> 3));
+        value = read_s_by_index(ir, rn, imm5 >> 3);
+        write_v_lsb(ir, rd, mk_64(ir, 0));
+        write_v_msb(ir, rd, mk_64(ir, 0));
+        write_s(ir, rd, value);
     } else {
-        write_d(ir, rd, read_d_by_index(ir, rn, imm5 >> 4));
+        value = read_d_by_index(ir, rn, imm5 >> 4);
+        write_v_lsb(ir, rd, mk_64(ir, 0));
+        write_v_msb(ir, rd, mk_64(ir, 0));
+        write_d(ir, rd, value);
     }
 
     return 0;

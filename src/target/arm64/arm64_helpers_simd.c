@@ -1719,7 +1719,7 @@ static void dis_fadd_fsub(uint64_t _regs, uint32_t insn)
     int rd = INSN(4,0);
     int rn = INSN(9,5);
     int rm = INSN(20,16);
-    int is_sub = INSN(12,12);
+    int is_sub = INSN(23,23);
     union simd_register res = {0};
     int i;
 
@@ -2237,9 +2237,9 @@ static void dis_saddl_ssubl_uaddl_usubl(uint64_t _regs, uint32_t insn)
                         res.s[i] = regs->v[rn].h[q?i+4:i] + regs->v[rm].h[q?i+4:i];
                 } else {
                     if (is_sub)
-                        res.s[i] = (int16_t)regs->v[rn].h[q?i+4:i] - regs->v[rm].h[q?i+4:i];
+                        res.s[i] = (int16_t)regs->v[rn].h[q?i+4:i] - (int16_t)regs->v[rm].h[q?i+4:i];
                     else
-                        res.s[i] = (int16_t)regs->v[rn].h[q?i+4:i] + regs->v[rm].h[q?i+4:i];
+                        res.s[i] = (int16_t)regs->v[rn].h[q?i+4:i] + (int16_t)regs->v[rm].h[q?i+4:i];
                 }
             break;
         case 2:
