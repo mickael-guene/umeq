@@ -3915,9 +3915,7 @@ static int dis_conversion_between_floating_point_and_integer_insn(struct arm64_t
          isExit = dis_fmov(context, insn, ir);
     } else if (sf == 1 && type == 2 && rmode == 1 && opcode == 7) {
          isExit = dis_fmov(context, insn, ir);
-    } else if (sf == 0 && type == 1 && rmode == 3 && opcode == 0) {
-        isExit = dis_fcvtzs_scalar_integer(context, insn, ir);
-    } else if (sf == 1 && type == 1 && rmode == 3 && opcode == 0) {
+    } else if ((type & 2) == 0 && rmode == 3 && opcode == 0) {
         isExit = dis_fcvtzs_scalar_integer(context, insn, ir);
     } else if ((type & 2) == 0 && rmode == 3 && opcode == 1) {
         isExit = dis_fcvtzu_scalar_integer(context, insn, ir);

@@ -289,6 +289,35 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_writev:
             res = syscall(SYS_writev, (int) p0, (struct iovec *) g_2_h(p1), (int) p2);
             break;
+        case PR_bind:
+            res = syscall(SYS_bind, (int) p0, (struct sockaddr *) g_2_h(p1), (socklen_t) p2);
+            break;
+        case PR_getsockname:
+            res = syscall(SYS_getsockname, (int) p0, (struct sockaddr *) g_2_h(p1), (socklen_t *) g_2_h(p2));
+            break;
+        case PR_msync:
+            res = syscall(SYS_msync, (void *) g_2_h(p0), (size_t) p1, (int) p2);
+            break;
+        case PR_sendto:
+            res = syscall(SYS_sendto, (int) p0, (void *) g_2_h(p1), (size_t) p2, (int) p3,
+                                      (struct sockaddr *) g_2_h(p4), (socklen_t) p5);
+            break;
+        case PR_recvmsg:
+            res = syscall(SYS_recvmsg, (int) p0, (struct msghdr *) g_2_h(p1), (int) p2);
+            break;
+        case PR_getsockopt:
+            res = syscall(SYS_getsockopt, (int) p0, (int) p1, (int) p2,
+                                          p3?(void *)g_2_h(p3):NULL, p4?(void *)g_2_h(p4):NULL);
+            break;
+        case PR_flock:
+            res = syscall(SYS_flock, (int) p0, (int) p1);
+            break;
+        case PR_fallocate:
+            res = syscall(SYS_fallocate, (int) p0, (int) p1, (off_t) p2, (off_t) p3);
+            break;
+        case PR_sync_file_range:
+            res = syscall(SYS_sync_file_range, (int) p0, (off64_t) p1, (off64_t) p2, (unsigned int) p3);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }
