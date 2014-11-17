@@ -286,6 +286,9 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_prctl:
             res = syscall(SYS_prctl, (int) p0, (unsigned long) p1, (unsigned long) p2, (unsigned long) p3, (unsigned long) p4);
             break;
+        case PR_writev:
+            res = syscall(SYS_writev, (int) p0, (struct iovec *) g_2_h(p1), (int) p2);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }

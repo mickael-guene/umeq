@@ -12,7 +12,7 @@
 #define PAGE_SIZE                       4096
 #define PAGE_MASK                       (PAGE_SIZE - 1)
 #define DL_LOAD_ADDR                    0x40000000
-#define DL_SHARE_ADDR                   0x00400000
+#define DL_SHARE_ADDR                   0x20000000
 
 guest_ptr startbrk_64;
 static guest_ptr load_AT_PHDR_init = 0;
