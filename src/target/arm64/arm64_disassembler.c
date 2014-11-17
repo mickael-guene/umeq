@@ -2176,6 +2176,12 @@ static int dis_msr_register(struct arm64_target *context, uint32_t insn, struct 
         ir->add_write_context_64(ir, read_x(ir, rt, ZERO_REG), offsetof(struct arm64_registers, tpidr_el0));
     } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 2 && op2 == 0) {
         write_nzcv(ir, read_w(ir, rt, ZERO_REG));
+    } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 0) {
+        //fpcr
+        ir->add_write_context_32(ir, read_w(ir, rt, ZERO_REG), offsetof(struct arm64_registers, fpcr));
+    } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 1) {
+        //fpsr
+        ir->add_write_context_32(ir, read_w(ir, rt, ZERO_REG), offsetof(struct arm64_registers, fpsr));
     } else {
         fprintf(stderr, "op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\n", op0, op1, crn, crm, op2);
         fprintf(stderr, "pc = 0x%016lx\n", context->pc);

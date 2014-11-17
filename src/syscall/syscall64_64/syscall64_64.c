@@ -318,6 +318,26 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_sync_file_range:
             res = syscall(SYS_sync_file_range, (int) p0, (off64_t) p1, (off64_t) p2, (unsigned int) p3);
             break;
+        case PR_semget:
+            res = syscall(SYS_semget, (key_t) p0, (int) p1, (int) p2);
+            break;
+        case PR_mremap:
+            res = syscall(SYS_mremap, (void *) g_2_h(p0), (size_t) p1, (size_t) p2, (int) p3, (void *) g_2_h(p4));
+            break;
+        case PR_semctl:
+            /* FIXME: with offset this may not work since some buffers(p3) may be untranslated */
+            res = syscall(SYS_semctl, (int) p0, (int) p1, (int) p2, p3);
+            break;
+        case PR_clock_nanosleep:
+            res = syscall(SYS_clock_nanosleep, (clockid_t) p0, (int) p1, (struct timespec *) g_2_h(p2),
+                                               p3?(struct timespec *)g_2_h(p3):NULL);
+            break;
+        case PR_gettid:
+            res = syscall(SYS_gettid);
+            break;
+        case PR_socketpair:
+            res = syscall(SYS_socketpair, (int) p0, (int) p1, (int *) g_2_h(p2));
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }
