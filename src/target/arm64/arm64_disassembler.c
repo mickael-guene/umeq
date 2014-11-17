@@ -886,7 +886,10 @@ static int dis_logical_shifted_register(struct arm64_target *context, uint32_t i
             op2 = ir->add_shl_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
             break;
         case 1://LSR
-            op2 = ir->add_shr_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
+            if (is_64)
+                op2 = ir->add_shr_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
+            else
+                op2 = ir->add_32U_to_64(ir, ir->add_shr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imm6)));
             break;
         case 2://ASR
             if (is_64)

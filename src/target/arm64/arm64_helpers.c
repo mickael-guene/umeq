@@ -227,7 +227,7 @@ uint64_t arm64_hlp_compute_bitfield(uint64_t context, uint32_t insn, uint64_t rn
   }
 
   int64_t dst = inzero ? 0 : rd;
-  int64_t src = rn;
+  int64_t src = is64?rn:(rn & 0xffffffff);
   // Rotate source bitfield into place.
   int64_t result = ((uint64_t)(src) >> R) | (src << (reg_size - R));
   // Determine the sign extension.
