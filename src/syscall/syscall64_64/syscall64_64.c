@@ -178,7 +178,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             break;
         case PR_ppoll:
             res = syscall(SYS_ppoll, (struct pollfd *) g_2_h(p0), p1, p2?(struct timespec *)g_2_h(p2):NULL,
-                                                                      p3?(sigset_t *)g_2_h(p3):NULL);
+                                                                      p3?(sigset_t *)g_2_h(p3):NULL, (size_t) p4);
             break;
         case PR_sendmmsg:
             res = syscall(SYS_sendmmsg, (int) p0, (struct mmsghdr *) g_2_h(p1), (unsigned int) p2, (unsigned int) p3);
@@ -272,7 +272,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_timer_settime, (timer_t) p0, (int) p1, (struct itimerspec *) g_2_h(p2), p3?(struct itimerspec *)g_2_h(p3):NULL);
             break;
         case PR_rt_sigsuspend:
-            res = syscall(SYS_rt_sigsuspend, (sigset_t *) g_2_h(p0));
+            res = syscall(SYS_rt_sigsuspend, (sigset_t *) g_2_h(p0), (size_t) p1);
             break;
         case PR_setpriority:
             res = syscall(SYS_setpriority, (int) p0, (id_t) p1, (int) p2);
@@ -340,6 +340,24 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             break;
         case PR_personality:
             res = syscall(SYS_personality, (unsigned long) p0);
+            break;
+        case PR_truncate:
+            res = syscall(SYS_truncate, (char *) g_2_h(p0), (off_t) p1);
+            break;
+        case PR_shmget:
+            res = syscall(SYS_shmget, (key_t) p0, (size_t) p1, (int) p2);
+            break;
+        case PR_listen:
+            res = syscall(SYS_listen, (int) p0, (int) p1);
+            break;
+        case PR_setresuid:
+            res = syscall(SYS_setresuid, (uid_t) p0, (uid_t) p1, (uid_t) p2);
+            break;
+        case PR_rt_sigpending:
+            res = syscall(SYS_rt_sigpending, (sigset_t *) g_2_h(p0), (size_t) p1);
+            break;
+        case PR_times:
+            res = syscall(SYS_times, (struct tms *) g_2_h(p0));
             break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);

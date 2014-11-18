@@ -33,6 +33,23 @@ static void dis_fcvt(uint64_t _regs, uint32_t insn)
 }
 
 /* FIXME: certainly not exact ..... */
+static void dis_frintp(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    union simd_register res = {0};
+
+    if (is_double) {
+        res.df[0] = (double)(int64_t)regs->v[rn].df[0];
+    } else {
+        res.sf[0] = (float)(int64_t)regs->v[rn].sf[0];
+    }
+    regs->v[rd] = res;
+}
+
+/* FIXME: certainly not exact ..... */
 static void dis_frintm(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -409,6 +426,33 @@ void arm64_hlp_dirty_ucvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn)
     }
 }
 
+/* FIXME: rounding */
+void arm64_hlp_dirty_fcvtms_scalar_integer_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int sf_type0 = (INSN(31,31) << 1) | INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+
+    regs->v[rd].d[1] = 0;
+    switch(sf_type0) {
+        case 0:
+            regs->r[rd] = (int32_t) regs->v[rn].sf[0];
+            break;
+        case 1:
+            regs->r[rd] = (int64_t) regs->v[rn].sf[0];
+            break;
+        case 2:
+            regs->r[rd] = (int32_t) regs->v[rn].df[0];
+            break;
+        case 3:
+            regs->r[rd] = (int64_t) regs->v[rn].df[0];
+            break;
+        default:
+            fatal("sf_type0 = %d\n", sf_type0);
+    }
+}
+
 void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uint32_t insn)
 {
     int opcode = INSN(20,15);
@@ -422,6 +466,9 @@ void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uin
             break;
         case 4: case 5:
             dis_fcvt(_regs, insn);
+            break;
+        case 9:
+            dis_frintp(_regs, insn);
             break;
         case 10:
             dis_frintm(_regs, insn);
