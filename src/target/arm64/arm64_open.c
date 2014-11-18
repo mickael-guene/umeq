@@ -4,6 +4,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <string.h>
+#include <errno.h>
 
 #include "arm64_private.h"
 #include "arm64_syscall.h"
@@ -68,7 +70,12 @@ long arm64_openat(struct arm64_target *context)
     long flags = (long) arm64ToX86Flags(context->regs.r[2]);
     int mode = context->regs.r[3];
 
-    res = syscall(SYS_openat, dirfd, pathname, flags, mode);
+    if (strcmp(pathname, "/proc/self/auxv") == 0) {
+        res = -EACCES;
+    } else if (strncmp(pathname, "/proc/", strlen("/proc/")) == 0 && strncmp(pathname + strlen(pathname) - 5, "/auxv", strlen("/auxv")) == 0) {
+        res = -EACCES;
+    } else
+        res = syscall(SYS_openat, dirfd, pathname, flags, mode);
 
     return res;
 }

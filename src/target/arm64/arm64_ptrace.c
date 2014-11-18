@@ -15,6 +15,8 @@
 #include "arm64_syscall_types.h"
 #include "runtime.h"
 
+#define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
+
 #define NT_PRFPREG  2
 
 typedef union sigval_arm64 {
@@ -97,6 +99,58 @@ static long read_gpr(int pid, struct user_pt_regs_arm64 *regs)
     return res;
 }
 
+static long save_step_insn(int pid, int insn)
+{
+    long res;
+    struct user_regs_struct user_regs;
+    unsigned long data_long;
+    unsigned long data_reg;
+
+    res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
+    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm64_registers, step_insn), &data_reg);
+    data_reg = (data_reg & 0xffffffff00000000UL) | insn;
+    res = syscall(SYS_ptrace, PTRACE_POKETEXT, pid, data_long + offsetof(struct arm64_registers, step_insn), data_reg);
+
+    return res;
+}
+
+static long compute_next_pc(int pid, uint64_t *next_pc)
+{
+    long res;
+    struct user_pt_regs_arm64 regs;
+    unsigned long data_reg;
+    uint32_t insn;
+
+    res = read_gpr(pid, &regs);
+    if (res)
+        goto compute_next_pc_error;
+    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, regs.pc, &data_reg);
+    if (res)
+        goto compute_next_pc_error;
+    insn = data_reg;
+    if (INSN(30, 26) == 0x5) {
+        int64_t imm26 = INSN(25,0) << 2;
+
+        imm26 = ((imm26 << 36) >> 36);
+        *next_pc = regs.pc + imm26;
+    } else if (INSN(30, 25) == 0x1a) {
+        assert(0 && "compare & branch immediate");
+    } else if (INSN(30, 25) == 0x1b) {
+        assert(0 && "test & branch immediate");
+    } else if (INSN(31, 25) == 0x2a) {
+        assert(0 && "conditional branch immediate");
+    } else if (INSN(31, 25) == 0x6b) {
+        int rn = INSN(9, 5);
+
+        *next_pc = rn==31?regs.sp:regs.regs[rn];
+    } else
+        *next_pc = regs.pc + 4;
+
+    compute_next_pc_error:
+    return res;
+}
+
 long arm64_ptrace(struct arm64_target *context)
 {
     long res;
@@ -117,23 +171,19 @@ long arm64_ptrace(struct arm64_target *context)
             break;
         case PTRACE_GETEVENTMSG:
             {
-                unsigned long data_host;
                 unsigned long *data_guest = (unsigned long *) g_2_h(data);
 
-                res = syscall(SYS_ptrace, request, pid, addr, &data_host);
-                *data_guest = data_host;
+                res = syscall(SYS_ptrace, request, pid, addr, data_guest);
             }
             break;
         case PTRACE_PEEKTEXT:
         case PTRACE_PEEKDATA:
             {
-                unsigned long data_host;
                 unsigned long *data_guest = (unsigned long *) g_2_h(data);
                 void *addr_host = g_2_h(addr);
 
-                res = syscall(SYS_ptrace, request, pid, addr_host, &data_host);
-                fprintf(stderr, "PEEK: @0x%08lx => res = %ld => data = 0x%016lx\n", addr, res, data_host);
-                *data_guest = data_host;
+                res = syscall(SYS_ptrace, request, pid, addr_host, data_guest);
+                //fprintf(stderr, "PEEK: @0x%08lx => res = %ld => data = 0x%016lx\n", addr, res, *data_guest);
             }
             break;
         case PTRACE_POKETEXT:
@@ -142,7 +192,7 @@ long arm64_ptrace(struct arm64_target *context)
                 void *addr_host = g_2_h(addr);
 
                 res = syscall(SYS_ptrace, request, pid, addr_host, data);
-                fprintf(stderr, "POKE: @0x%08lx = 0x%08lx => res = %ld\n", addr, data, res);
+                //fprintf(stderr, "POKE: @0x%08lx = 0x%08lx => res = %ld\n", addr, data, res);
             }
             break;
         case PTRACE_GETSIGINFO:
@@ -165,70 +215,53 @@ long arm64_ptrace(struct arm64_target *context)
             break;
         case PTRACE_GETREGSET:
             if (addr == NT_PRSTATUS) {
-                //fprintf(stderr, "read registers\n");
-                /* read gpr registers */
-                //struct user_pt_regs_arm64 regs;
                 struct iovec *io = (struct iovec *) g_2_h(data);
 
-                fprintf(stderr, "io_base = 0x%016lx\n", io->iov_base);
-                fprintf(stderr, "len = %d / %d\n", io->iov_len, sizeof(struct user_pt_regs_arm64));
+                assert(io->iov_len >= sizeof(struct user_pt_regs_arm64));
                 res = read_gpr(pid, io->iov_base);
                 io->iov_len = sizeof(struct user_pt_regs_arm64);
+            } else if (addr == NT_PRFPREG) {
+                /* FIXME: implement simd */
+                res = -EINVAL;
+            } else if (addr == NT_ARM_TLS) {
+                struct iovec *io = (struct iovec *) g_2_h(data);
+                struct user_regs_struct user_regs;
+                unsigned long data_long;
 
-                /*{
-                    int i;
-                    struct user_pt_regs_arm64 *regs = (struct user_pt_regs_arm64 *) io->iov_base;
-
-                    for(i = 0; i < 31; i++) {
-                        fprintf(stderr, "r[%d]=0x%016lx\n", i, regs->regs[i]);
-                    }
-                    fprintf(stderr, "sp  =0x%016lx\n", regs->sp);
-                    fprintf(stderr, "pc  =0x%016lx\n", regs->pc);
-                }
-                fprintf(stderr, "res = %ld\n", res);*/
-
-                /* FIXME: add checks .... */
-            } else if (addr == NT_ARM_HW_BREAK || addr == NT_ARM_HW_WATCH || addr == NT_PRFPREG) {
+                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
+                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+                assert(io->iov_len >= sizeof(uint64_t));
+                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm64_registers, tpidr_el0), io->iov_base);
+                io->iov_len = sizeof(uint64_t);
+            } else if (addr == NT_ARM_HW_BREAK || addr == NT_ARM_HW_WATCH) {
                 res = -EINVAL;
             } else
                 fatal("PTRACE_GETREGSET: addr = %d\n", addr);
             break;
         case PTRACE_SINGLESTEP:
             {
-                struct user_pt_regs_arm64 regs;
-                struct user_regs_struct user_regs;
-                unsigned long data_host;
+                uint64_t next_pc;
+                uint64_t data_host;
 
-                /*res = read_gpr(pid, &regs);
-                res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs.pc + 4, &data_host);
-                fprintf(stderr, "data_host = 0x%016lx\n", data_host);
+                res = compute_next_pc(pid, &next_pc);
+                if (res)
+                    goto ptrace_single_step_error;
+                /* save next insn and replace it with brk #1 */
+                res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, next_pc, &data_host);
+                if (res)
+                    goto ptrace_single_step_error;
+                res = save_step_insn(pid, (uint32_t) data_host);
+                if (res)
+                    goto ptrace_single_step_error;
                 data_host = (data_host & 0xffffffff00000000UL) | 0xd4200020;
-                fprintf(stderr, "data_host = 0x%016lx\n", data_host);
-                res = syscall(SYS_ptrace, PTRACE_POKEDATA, pid, regs.pc + 4, &data_host);
-                fprintf(stderr, "res = %ld / pid = %d\n", res, pid);*/
-
-                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
-                fprintf(stderr, "pc = 0x%016lx\n", user_regs.rip);
-
-                res = syscall(SYS_ptrace, PTRACE_SINGLESTEP, pid, 0, 0);
-                fprintf(stderr, "res = %ld\n", res);
+                res = syscall(SYS_ptrace, PTRACE_POKEDATA, pid, next_pc, data_host);
+                if (res)
+                    goto ptrace_single_step_error;
+                /* continue */
+                res = syscall(SYS_ptrace, PTRACE_CONT, pid, 0, 0);
             }
-
+            ptrace_single_step_error:
             break;
-#if 0
-        case PTRACE_SEIZE:
-            res = syscall(SYS_ptrace, request, pid, 0, data);
-            break;
-        case PTRACE_GETREGSET:
-            if (addr == NT_PRSTATUS) {
-                /* read gpr registers */
-                struct user_pt_regs_arm64 regs;
-
-                res = read_gpr(pid, &regs);
-            } else
-                fatal("PTRACE_GETREGSET: addr = %d\n", addr);
-            break;
-#endif
         default:
             fprintf(stderr, "ptrace unknown command : %d / 0x%x / addr = %ld\n", request, request, addr);
             res = -EIO;

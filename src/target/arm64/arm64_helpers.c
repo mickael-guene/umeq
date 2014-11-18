@@ -56,6 +56,14 @@ void arm64_gdb_breakpoint_instruction(uint64_t regs)
     tkill(gettid(), SIGILL);
 }
 
+void arm64_step_breakpoint_instruction(uint64_t regs, uint32_t step_insn)
+{
+    struct arm64_target *context = container_of((void *) regs, struct arm64_target, regs);
+
+    *((uint32_t *) context->regs.pc) = step_insn;
+    tkill(gettid(), SIGTRAP);
+}
+
 uint32_t arm64_hlp_compute_next_nzcv_32(uint64_t context, uint32_t opcode, uint32_t op1, uint32_t op2, uint32_t oldnzcv)
 {
     int n, z, c, v;

@@ -405,6 +405,16 @@ static void mk_gdb_breakpoint_instruction(struct irInstructionAllocator *ir)
                         param);
 }
 
+static void mk_gdb_step_instruction(struct irInstructionAllocator *ir, uint32_t step_insn)
+{
+    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+
+    param[0] = mk_32(ir, step_insn);
+    ir->add_call_void(ir, "arm64_step_breakpoint_instruction",
+                        ir->add_mov_const_64(ir, (uint64_t) arm64_step_breakpoint_instruction),
+                        param);
+}
+
 static uint64_t simd_immediate(int op, int cmode, int imm8_p)
 {
     uint64_t imm8 = imm8_p;
@@ -994,15 +1004,23 @@ static int dis_svc(struct arm64_target *context, uint32_t insn, struct irInstruc
 
 static int dis_brk(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
+    int imm16 = INSN(20,5);
+
     //set pc to correct location before sending sigill signal
     write_pc(ir, ir->add_mov_const_64(ir, context->pc));
-    //will send a SIGILL signal
-    mk_gdb_breakpoint_instruction(ir);
+    if (imm16 == 0) {
+        //will send a SIGILL signal
+        mk_gdb_breakpoint_instruction(ir);
+    } else if (imm16 == 1) {
+        //will send a SIGTRAP signal
+        mk_gdb_step_instruction(ir, context->regs.step_insn);
+    } else
+        fatal("imm16 = %d\n", imm16);
 
     //clean caches since code has been modify to remove/insert breakpoints
     cleanCaches(0,~0);
     //reexecute same instructions since opcode has been updated by gdb
-    write_pc(ir, ir->add_mov_const_64(ir, context->pc));
+    ir->add_exit(ir, ir->add_mov_const_64(ir, context->pc));
 
     return 1;
 }
@@ -4191,6 +4209,7 @@ static int disassemble_insn(struct arm64_target *context, uint32_t insn, struct 
 
     if (INSN(28, 27) == 0) {
         //unallocated
+        fprintf(stderr, "pc = 0x%016lx / insn = 0x%08x / insn = 0x%08x\n", context->pc, insn, *((uint32_t *) context->pc));
         fatal("unallocated ins\n");
     } else if (INSN(28, 26) == 4) {
         isExit = dis_data_processing_immediate_insn(context, insn, ir);
