@@ -453,6 +453,12 @@ void arm64_hlp_dirty_fcvtms_scalar_integer_simd(uint64_t _regs, uint32_t insn)
     }
 }
 
+/* FIXME: rounding */
+void arm64_hlp_dirty_fcvtps_scalar_integer_simd(uint64_t _regs, uint32_t insn)
+{
+    arm64_hlp_dirty_fcvtms_scalar_integer_simd(_regs, insn);
+}
+
 void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uint32_t insn)
 {
     int opcode = INSN(20,15);

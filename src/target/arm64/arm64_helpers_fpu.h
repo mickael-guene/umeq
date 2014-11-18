@@ -24,6 +24,7 @@ extern void arm64_hlp_dirty_ucvtf_scalar_integer_simd(uint64_t _regs, uint32_t i
 extern void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_floating_point_conditional_compare(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_fcvtms_scalar_integer_simd(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_fcvtps_scalar_integer_simd(uint64_t _regs, uint32_t insn);
 
 #endif
 
