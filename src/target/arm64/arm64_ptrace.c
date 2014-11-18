@@ -14,6 +14,7 @@
 #include "arm64_syscall.h"
 #include "arm64_syscall_types.h"
 #include "runtime.h"
+#include "arm64_helpers.h"
 
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
 
@@ -94,7 +95,8 @@ static long read_gpr(int pid, struct user_pt_regs_arm64 *regs)
     res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + 32 * 8, &data_reg);
     regs->pc = data_reg;
     /* FIXME: use container_of */
-    regs->pstate = 0;
+    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm64_registers, nzcv), &data_reg);
+    regs->pstate = (uint32_t) data_reg;
 
     return res;
 }
@@ -139,7 +141,15 @@ static long compute_next_pc(int pid, uint64_t *next_pc)
     } else if (INSN(30, 25) == 0x1b) {
         assert(0 && "test & branch immediate");
     } else if (INSN(31, 25) == 0x2a) {
-        assert(0 && "conditional branch immediate");
+        int64_t imm19 = INSN(23,5) << 2;
+        int cond = INSN(3,0);
+        int pred = arm64_hlp_compute_flags_pred(0/*context*/, cond, (uint32_t)regs.pstate);
+
+        imm19 = (imm19 << 43) >> 43;
+        if (pred) {
+            *next_pc = regs.pc + imm19;
+        } else
+            *next_pc = regs.pc + 4;
     } else if (INSN(31, 25) == 0x6b) {
         int rn = INSN(9, 5);
 
