@@ -1,2 +1,2 @@
 enable_language(C ASM)
-add_library(arm64_target arm64.c arm64_load_image.c arm64_mmap.c arm64_disassembler.c arm64_helpers.c arm64_syscall.c arm64_uname.c arm64_brk.c arm64_open.c arm64_helpers_simd.c arm64_stat.c arm64_signal.c arm64_clone.c arm64_restorer.S arm64_helpers_fpu.c clone_asm.S)
+add_library(arm64_target arm64.c arm64_load_image.c arm64_mmap.c arm64_disassembler.c arm64_helpers.c arm64_syscall.c arm64_uname.c arm64_brk.c arm64_open.c arm64_helpers_simd.c arm64_stat.c arm64_signal.c arm64_clone.c arm64_restorer.S arm64_helpers_fpu.c clone_asm.S arm64_ptrace.c)

@@ -1,9 +1,14 @@
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <sys/syscall.h>
 #include <stdio.h>
 #include <assert.h>
+#include <signal.h>
 
 #include "arm64_private.h"
 #include "arm64_helpers.h"
 #include "runtime.h"
+#include "cache.h"
 
 //#define DUMP_STACK 1
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
@@ -34,6 +39,21 @@ void arm64_hlp_gdb_handle_breakpoint(uint64_t regs)
     struct arm64_target *context = container_of((void *) regs, struct arm64_target, regs);
 
     gdb_handle_breakpoint(&context->gdb);
+}
+
+static int tkill(int pid, int sig)
+{
+    return syscall(SYS_tkill, (long) pid, (long) sig);
+}
+
+static pid_t gettid()
+{
+    return syscall(SYS_gettid);
+}
+
+void arm64_gdb_breakpoint_instruction(uint64_t regs)
+{
+    tkill(gettid(), SIGILL);
 }
 
 uint32_t arm64_hlp_compute_next_nzcv_32(uint64_t context, uint32_t opcode, uint32_t op1, uint32_t op2, uint32_t oldnzcv)

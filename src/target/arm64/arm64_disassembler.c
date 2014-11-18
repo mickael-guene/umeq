@@ -8,6 +8,8 @@
 #include "arm64_helpers_fpu.h"
 #include "breakpoints.h"
 
+extern int isGdb;
+
 #define ZERO_REG    1
 #define SP_REG      0
 
@@ -392,6 +394,15 @@ static void mk_barrier(struct irInstructionAllocator *ir)
     ir->add_call_void(ir, "arm64_hlp_memory_barrier",
                            mk_64(ir, (uint64_t) arm64_hlp_memory_barrier),
                            params);
+}
+
+static void mk_gdb_breakpoint_instruction(struct irInstructionAllocator *ir)
+{
+    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+
+    ir->add_call_void(ir, "arm64_gdb_breakpoint_instruction",
+                        ir->add_mov_const_64(ir, (uint64_t) arm64_gdb_breakpoint_instruction),
+                        param);
 }
 
 static uint64_t simd_immediate(int op, int cmode, int imm8_p)
@@ -977,6 +988,21 @@ static int dis_svc(struct arm64_target *context, uint32_t insn, struct irInstruc
     write_pc(ir, ir->add_mov_const_64(ir, context->pc + 4));
 #endif
     ir->add_exit(ir, ir->add_mov_const_64(ir, context->pc + 4));
+
+    return 1;
+}
+
+static int dis_brk(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    //set pc to correct location before sending sigill signal
+    write_pc(ir, ir->add_mov_const_64(ir, context->pc));
+    //will send a SIGILL signal
+    mk_gdb_breakpoint_instruction(ir);
+
+    //clean caches since code has been modify to remove/insert breakpoints
+    cleanCaches(0,~0);
+    //reexecute same instructions since opcode has been updated by gdb
+    write_pc(ir, ir->add_mov_const_64(ir, context->pc));
 
     return 1;
 }
@@ -3761,8 +3787,10 @@ static int dis_exception_insn(struct arm64_target *context, uint32_t insn, struc
 
     if (opc == 0 && ll == 1)
         isExit = dis_svc(context, insn, ir);
+    else if (opc == 1 && ll == 0)
+        isExit = dis_brk(context, insn, ir);
     else
-        assert(0);
+        fatal("opc = %d / ll = %d\n", opc, ll);
 
     return isExit;
 }
@@ -4134,7 +4162,7 @@ static int disassemble_insn(struct arm64_target *context, uint32_t insn, struct 
     int isExit = 0;
     int isBpReached = 0;
 
-    if (insn == 0xd4200000) {
+    if (isGdb && insn == 0xd4200000) {
         struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
 
         isBpReached = 1;

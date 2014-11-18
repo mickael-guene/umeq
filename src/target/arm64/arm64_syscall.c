@@ -64,6 +64,9 @@ void arm64_hlp_syscall(uint64_t regs)
             case PR_sigaltstack:
                 res = arm64_sigaltstack(context);
                 break;
+            case PR_ptrace:
+                res = arm64_ptrace(context);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }

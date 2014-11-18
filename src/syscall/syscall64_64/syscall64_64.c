@@ -338,6 +338,9 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_socketpair:
             res = syscall(SYS_socketpair, (int) p0, (int) p1, (int *) g_2_h(p2));
             break;
+        case PR_personality:
+            res = syscall(SYS_personality, (unsigned long) p0);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }
