@@ -146,8 +146,27 @@ void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
                 assert(0);
                 break;
             default:
-                //fprintf(stderr, "si_code %d not yet implemented, signum = %d\n", siginfo->si_code, signum);
-                fatal("si_code %d not yet implemented, signum = %d\n", siginfo->si_code, signum);
+                if (siginfo->si_code < 0)
+                    fatal("si_code %d not yet implemented, signum = %d\n", siginfo->si_code, signum);
+                switch(signum) {
+                    case SIGILL: case SIGFPE: case SIGSEGV: case SIGBUS: case SIGTRAP:
+                        siginfo_arm64->_sifields._sigfault._si_addr = h_2_g(siginfo->si_addr);
+                        break;
+                    case SIGCHLD:
+                        siginfo_arm64->_sifields._sigchld._si_pid = siginfo->si_pid;
+                        siginfo_arm64->_sifields._sigchld._si_uid = siginfo->si_uid;
+                        siginfo_arm64->_sifields._sigchld._si_status = siginfo->si_status;
+                        siginfo_arm64->_sifields._sigchld._si_utime = siginfo->si_utime;
+                        siginfo_arm64->_sifields._sigchld._si_stime = siginfo->si_stime;
+                        break;
+                    case SIGPOLL:
+                        siginfo_arm64->_sifields._sigpoll._si_band = siginfo->si_band;
+                        siginfo_arm64->_sifields._sigpoll._si_fd = siginfo->si_fd;
+                        break;
+                    default:
+                        fatal("si_code %d with signum not yet implemented, signum = %d\n", siginfo->si_code, signum);
+                }
+
         }
 
         loop(guest_signals_handler[signum], ss.ss_flags?0:ss.ss_sp, signum, (void *)siginfo_guest);

@@ -425,6 +425,12 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_process_vm_readv, (pid_t) p0, (struct iovec *) p1, (unsigned long) p2,
                                                 (struct iovec *) p3, (unsigned long) p4, (unsigned long) p5);
             break;
+        case PR_semop:
+            res = syscall(SYS_semop, (int) p0, (struct sembuf *) g_2_h(p1), (size_t) p2);
+            break;
+        case PR_mlock:
+            res = syscall(SYS_mlock, (void *) g_2_h(p0), (size_t) p1);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }
