@@ -146,6 +146,7 @@ void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
                 assert(0);
                 break;
             default:
+                //fprintf(stderr, "si_code %d not yet implemented, signum = %d\n", siginfo->si_code, signum);
                 fatal("si_code %d not yet implemented, signum = %d\n", siginfo->si_code, signum);
         }
 

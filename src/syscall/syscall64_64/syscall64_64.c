@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <sched.h>
+#include <signal.h>
 
 #include "syscall64_64.h"
 #include "syscall64_64_private.h"
@@ -336,7 +337,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_gettid);
             break;
         case PR_socketpair:
-            res = syscall(SYS_socketpair, (int) p0, (int) p1, (int *) g_2_h(p2));
+            res = syscall(SYS_socketpair, (int) p0, (int) p1, (int) p2,(int *) g_2_h(p3));
             break;
         case PR_personality:
             res = syscall(SYS_personality, (unsigned long) p0);
@@ -373,6 +374,45 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             break;
         case PR_getitimer:
             res = syscall(SYS_getitimer, (int) p0, (struct itimerval *) g_2_h(p1));
+            break;
+        case PR_shmat:
+            res = syscall(SYS_shmat, (int) p0, (void *) g_2_h(p1), (int) p2);
+            break;
+        case PR_shutdown:
+            res = syscall(SYS_shutdown, (int) p0, (int) p1);
+            break;
+        case PR_getresuid:
+            res = syscall(SYS_getresuid, (uid_t *) g_2_h(p0), (uid_t *) g_2_h(p1), (uid_t *) g_2_h(p2));
+            break;
+        case PR_getresgid:
+            res = syscall(SYS_getresgid, (gid_t *) g_2_h(p0), (gid_t *) g_2_h(p1), (gid_t *) g_2_h(p2));
+            break;
+        case PR_sendmsg:
+            /* FIXME: will not work with offset since msg struct contain pointers */
+            res = syscall(SYS_sendmsg, (int) p0, (struct msghdr *) g_2_h(p1), (int) p2);
+            break;
+        case PR_eventfd2:
+            res = syscall(SYS_eventfd2, (int) p0, (int) p1);
+            break;
+        case PR_rt_sigtimedwait:
+            /* FIXME: is siginfo has same structure for arm64 ? */
+            res = syscall(SYS_rt_sigtimedwait, (sigset_t *) g_2_h(p0), p1?(siginfo_t *)g_2_h(p1):NULL,
+                                               p2?(struct timespec *)g_2_h(p2):NULL, (size_t) p3);
+            break;
+        case PR_shmdt:
+            res = syscall(SYS_shmdt, (void *) g_2_h(p0));
+            break;
+        case PR_sched_yield:
+            res = syscall(SYS_sched_yield);
+            break;
+        case PR_sched_get_priority_max:
+            res = syscall(SYS_sched_get_priority_max, (int) p0);
+            break;
+        case PR_sched_get_priority_min:
+            res = syscall(SYS_sched_get_priority_min, (int) p0);
+            break;
+        case PR_setuid:
+            res = syscall(SYS_setuid, (uid_t) p0);
             break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);

@@ -3133,6 +3133,19 @@ static int dis_fcvtps_scalar_integer(struct arm64_target *context, uint32_t insn
     return 0;
 }
 
+static int dis_fcvtas_scalar_integer(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_fcvtas_scalar_integer_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_fcvtas_scalar_integer_simd),
+                           params);
+
+    return 0;
+}
+
 static int dis_fcvtzs_scalar_integer(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
@@ -4005,6 +4018,8 @@ static int dis_conversion_between_floating_point_and_integer_insn(struct arm64_t
         isExit = dis_fcvtms_scalar_integer(context, insn, ir);
     } else if ((type & 2) == 0 && rmode == 1 && opcode == 0) {
         isExit = dis_fcvtps_scalar_integer(context, insn, ir);
+    } else if ((type & 2) == 0 && rmode == 0 && opcode == 4) {
+        isExit = dis_fcvtas_scalar_integer(context, insn, ir);
     } else
         fatal("pc = 0x%016lx / sf=%d / type=%d / rmode=%d / opcode=%d\n", context->pc, sf, type, rmode, opcode);
 
