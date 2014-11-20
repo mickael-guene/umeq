@@ -75,36 +75,56 @@ struct user_pt_regs_arm64 {
     uint64_t    pstate;
 };
 
+static long get_regs_base(int pid, uint64_t *regs_base) {
+    struct user_regs_struct user_regs;
+    long res;
+
+    res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
+    if (!res)
+        res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, user_regs.fs_base + 8, regs_base);
+
+    return res;
+}
+
 /* FIXME: check returns value */
 static long read_gpr(int pid, struct user_pt_regs_arm64 *regs)
 {
-    struct user_regs_struct user_regs;
     uint32_t is_in_syscall;
-    unsigned long data_long;
-    unsigned long data_reg;
+    uint64_t regs_base;
+    uint64_t data;
     long res;
     int i;
 
-    res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
-    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+    res = get_regs_base(pid, &regs_base);
+    if (res)
+        goto read_gpr_error;
+
     for(i=0;i<31;i++) {
-        res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + i * 8, &data_reg);
-        regs->regs[i] = data_reg;
+        res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, r[i]), &regs->regs[i]);
+        if (res)
+            goto read_gpr_error;
     }
-    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + 31 * 8, &data_reg);
-    regs->sp = data_reg;
-    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + 32 * 8, &data_reg);
-    regs->pc = data_reg;
-    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm64_registers, nzcv), &data_reg);
-    regs->pstate = (uint32_t) data_reg;
-    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm64_registers, is_in_syscall), &data_reg);
-    is_in_syscall = (uint32_t) data_reg;
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, r[31]), &regs->sp);
+    if (res)
+        goto read_gpr_error;
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, pc), &regs->pc);
+    if (res)
+        goto read_gpr_error;
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, nzcv), &data);
+    regs->pstate = (uint32_t) data;
+    if (res)
+        goto read_gpr_error;
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, is_in_syscall), &data);
+    is_in_syscall = (uint32_t) data;
+    if (res)
+        goto read_gpr_error;
     /* if we are in 'kerne'l then x7 is use as a syscall enter/exit flag */
     if (is_in_syscall == 1)
         regs->regs[7] = 0;
     else if (is_in_syscall == 2)
         regs->regs[7] = 1;
 
+    read_gpr_error:
     return res;
 }
 
@@ -182,33 +202,40 @@ long arm64_ptrace(struct arm64_target *context)
                 res = -EINVAL;
             } else if (addr == NT_ARM_TLS) {
                 struct iovec *io = (struct iovec *) g_2_h(data);
-                struct user_regs_struct user_regs;
-                unsigned long data_long;
+                uint64_t regs_base;
 
-                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+                res = get_regs_base(pid, &regs_base);
+                if (res)
+                    goto ptrace_getregset_error;
                 assert(io->iov_len >= sizeof(uint64_t));
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm64_registers, tpidr_el0), io->iov_base);
+                res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, tpidr_el0), io->iov_base);
+                if (res)
+                    goto ptrace_getregset_error;
                 io->iov_len = sizeof(uint64_t);
             } else if (addr == NT_ARM_HW_BREAK || addr == NT_ARM_HW_WATCH) {
                 res = -EINVAL;
             } else
                 fatal("PTRACE_GETREGSET: addr = %d\n", addr);
+            ptrace_getregset_error:
             break;
         case PTRACE_SINGLESTEP:
             {
-                struct user_regs_struct user_regs;
-                unsigned long data_long;
-                unsigned long data_reg;
+                uint64_t regs_base;
+                uint64_t data;
 
-                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
-
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm64_registers, is_stepin), &data_reg);
-                data_reg = (data_reg & 0xffffffff00000000UL) | 1;
-                res = syscall(SYS_ptrace, PTRACE_POKETEXT, pid, data_long + offsetof(struct arm64_registers, is_stepin), data_reg);
+                res = get_regs_base(pid, &regs_base);
+                if (res)
+                    goto ptrace_singlestep_error;
+                res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, is_stepin), &data);
+                if (res)
+                    goto ptrace_singlestep_error;
+                data = (data & 0xffffffff00000000UL) | 1;
+                res = syscall(SYS_ptrace, PTRACE_POKEDATA, pid, regs_base + offsetof(struct arm64_registers, is_stepin), data);
+                if (res)
+                    goto ptrace_singlestep_error;
                 res = syscall(SYS_ptrace, PTRACE_CONT, pid, 0, 0);
             }
+            ptrace_singlestep_error:
             break;
         case PTRACE_SEIZE:
             res = syscall(SYS_ptrace, PTRACE_SEIZE, pid, addr, data);
