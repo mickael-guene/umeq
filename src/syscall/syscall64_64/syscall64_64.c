@@ -417,6 +417,14 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_tkill:
             res = syscall(SYS_tkill, (int) p0, (int) p1);
             break;
+        case PR_setreuid:
+            res = syscall(SYS_setreuid, (uid_t) p0, (uid_t) p1);
+            break;
+        case PR_process_vm_readv:
+            /* FIXME: offset support not easy to do. what if we return not implemented ? */
+            res = syscall(SYS_process_vm_readv, (pid_t) p0, (struct iovec *) p1, (unsigned long) p2,
+                                                (struct iovec *) p3, (unsigned long) p4, (unsigned long) p5);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }

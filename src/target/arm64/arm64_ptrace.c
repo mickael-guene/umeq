@@ -79,6 +79,7 @@ struct user_pt_regs_arm64 {
 static long read_gpr(int pid, struct user_pt_regs_arm64 *regs)
 {
     struct user_regs_struct user_regs;
+    uint32_t is_in_syscall;
     unsigned long data_long;
     unsigned long data_reg;
     long res;
@@ -94,9 +95,15 @@ static long read_gpr(int pid, struct user_pt_regs_arm64 *regs)
     regs->sp = data_reg;
     res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + 32 * 8, &data_reg);
     regs->pc = data_reg;
-    /* FIXME: use container_of */
     res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm64_registers, nzcv), &data_reg);
     regs->pstate = (uint32_t) data_reg;
+    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm64_registers, is_in_syscall), &data_reg);
+    is_in_syscall = (uint32_t) data_reg;
+    /* if we are in 'kerne'l then x7 is use as a syscall enter/exit flag */
+    if (is_in_syscall == 1)
+        regs->regs[7] = 0;
+    else if (is_in_syscall == 2)
+        regs->regs[7] = 1;
 
     return res;
 }
@@ -202,6 +209,9 @@ long arm64_ptrace(struct arm64_target *context)
                 res = syscall(SYS_ptrace, PTRACE_POKETEXT, pid, data_long + offsetof(struct arm64_registers, is_stepin), data_reg);
                 res = syscall(SYS_ptrace, PTRACE_CONT, pid, 0, 0);
             }
+            break;
+        case PTRACE_SEIZE:
+            res = syscall(SYS_ptrace, PTRACE_SEIZE, pid, addr, data);
             break;
         default:
             fprintf(stderr, "ptrace unknown command : %d / 0x%x / addr = %ld\n", request, request, addr);
