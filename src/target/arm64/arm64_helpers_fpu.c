@@ -101,6 +101,51 @@ static void dis_fccmp_fccmpe(uint64_t _regs, uint32_t insn)
     regs->nzcv = (nzcv << 28) | (regs->nzcv & 0x0fffffff);
 }
 
+/* stolen from glibc */
+static double sqrt (double d)
+{
+  double res;
+#if defined __AVX__ || defined SSE2AVX
+  asm ("vsqrtsd %1, %0, %0" : "=x" (res) : "xm" (d));
+#else
+  asm ("sqrtsd %1, %0" : "=x" (res) : "xm" (d));
+#endif
+  return res;
+}
+/* stolen from glibc */
+static float sqrtf (float d)
+{
+  float res;
+#if defined __AVX__ || defined SSE2AVX
+  asm ("vsqrtss %1, %0, %0" : "=x" (res) : "xm" (d));
+#else
+  asm ("sqrtss %1, %0" : "=x" (res) : "xm" (d));
+#endif
+  return res;
+}
+
+static void dis_fsqrt(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_scalar = INSN(28,28);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    union simd_register res = {0};
+    int i;
+
+    assert(is_scalar);
+    if (is_double) {
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.df[i] = sqrt(regs->v[rn].df[i]);
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.sf[i] = sqrtf(regs->v[rn].sf[i]);
+    }
+    regs->v[rd] = res;
+}
+
 /* deasm */
 void arm64_hlp_dirty_scvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn)
 {
@@ -475,6 +520,9 @@ void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uin
             break;
         case 2:
             dis_fneg(_regs, insn);
+            break;
+        case 3:
+            dis_fsqrt(_regs, insn);
             break;
         case 4: case 5:
             dis_fcvt(_regs, insn);

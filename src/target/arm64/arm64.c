@@ -53,6 +53,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->pc = entry;
         context->regs.is_in_syscall = 0;
         context->is_in_signal = 1;
+        context->regs.is_stepin = 0;
     } else if (param) {
         /* new thread */
         struct arm64_target *parent_context = container_of(param, struct arm64_target, target);
@@ -69,6 +70,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.pc = entry;
         context->regs.is_in_syscall = 0;
         context->is_in_signal = 0;
+        context->regs.is_stepin = 0;
     } else if (stack_ptr) {
         /* main thread */
         for(i = 0; i < 32; i++) {
@@ -85,6 +87,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->pc = entry;
         context->regs.is_in_syscall = 0;
         context->is_in_signal = 0;
+        context->regs.is_stepin = 0;
         /* syscall execve exit sequence */
          /* this will be translated into sysexec exit */
         context->regs.is_in_syscall = 2;
