@@ -405,14 +405,23 @@ static void mk_gdb_breakpoint_instruction(struct irInstructionAllocator *ir)
                         param);
 }
 
-static void mk_gdb_step_instruction(struct irInstructionAllocator *ir, uint32_t step_insn)
+static void mk_gdb_stepin_instruction(struct irInstructionAllocator *ir)
 {
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
 
-    param[0] = mk_32(ir, step_insn);
-    ir->add_call_void(ir, "arm64_step_breakpoint_instruction",
-                        ir->add_mov_const_64(ir, (uint64_t) arm64_step_breakpoint_instruction),
+    ir->add_call_void(ir, "arm64_gdb_stepin_instruction",
+                        ir->add_mov_const_64(ir, (uint64_t) arm64_gdb_stepin_instruction),
                         param);
+}
+
+static void mk_exit(struct arm64_target *context, struct irInstructionAllocator *ir, struct irRegister *next_pc)
+{
+    write_pc(ir, next_pc);
+    if (context->regs.is_stepin) {
+        mk_gdb_stepin_instruction(ir);
+        context->regs.is_stepin = 0;
+    }
+    ir->add_exit(ir, next_pc);
 }
 
 static uint64_t simd_immediate(int op, int cmode, int imm8_p)
@@ -977,8 +986,8 @@ static int dis_b_A_bl(struct arm64_target *context, uint32_t insn, struct irInst
     if (is_l)
         write_x(ir, 30, mk_64(ir, context->pc + 4), ZERO_REG);
     dump_state(context, ir);
-    write_pc(ir, mk_64(ir, context->pc + imm26));
-    ir->add_exit(ir, mk_64(ir, context->pc + imm26));
+
+    mk_exit(context, ir, mk_64(ir, context->pc + imm26));
 
     return 1;
 }
@@ -995,30 +1004,18 @@ static int dis_svc(struct arm64_target *context, uint32_t insn, struct irInstruc
 #ifdef DUMP_STATE
     write_pc(ir, ir->add_mov_const_64(ir, context->pc));
     dump_state(context, ir);
-    write_pc(ir, ir->add_mov_const_64(ir, context->pc + 4));
 #endif
-    ir->add_exit(ir, ir->add_mov_const_64(ir, context->pc + 4));
+    mk_exit(context, ir, mk_64(ir, context->pc + 4));
 
     return 1;
 }
 
 static int dis_brk(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    int imm16 = INSN(20,5);
-
     //set pc to correct location before sending sigill signal
     write_pc(ir, ir->add_mov_const_64(ir, context->pc));
-    if (imm16 == 0) {
-        //will send a SIGILL signal
-        mk_gdb_breakpoint_instruction(ir);
-    } else if (imm16 == 1) {
-        //will send a SIGTRAP signal
-        mk_gdb_step_instruction(ir, context->regs.step_insn);
-    } else
-        fatal("imm16 = %d\n", imm16);
-
-    //clean caches since code has been modify to remove/insert breakpoints
-    cleanCaches(0,~0);
+    //will send a SIGILL signal
+    mk_gdb_breakpoint_instruction(ir);
     //reexecute same instructions since opcode has been updated by gdb
     ir->add_exit(ir, ir->add_mov_const_64(ir, context->pc));
 
@@ -1032,8 +1029,7 @@ static int dis_br(struct arm64_target *context, uint32_t insn, struct irInstruct
 
     dump_state(context, ir);
     ret = read_x(ir, rn, ZERO_REG);
-    write_pc(ir, ret);
-    ir->add_exit(ir, ret);
+    mk_exit(context, ir, ret);
 
     return 1;
 }
@@ -1046,8 +1042,7 @@ static int dis_blr(struct arm64_target *context, uint32_t insn, struct irInstruc
     ret = read_x(ir, rn, ZERO_REG);
     write_x(ir, 30, mk_64(ir, context->pc + 4), ZERO_REG);
     dump_state(context, ir);
-    write_pc(ir, ret);
-    ir->add_exit(ir, ret);
+    mk_exit(context, ir, ret);
 
     return 1;
 }
@@ -1059,8 +1054,7 @@ static int dis_ret(struct arm64_target *context, uint32_t insn, struct irInstruc
 
     dump_state(context, ir);
     ret = read_x(ir, rn, ZERO_REG);
-    write_pc(ir, ret);
-    ir->add_exit(ir, ret);
+    mk_exit(context, ir, ret);
 
     return 1;
 }
@@ -1071,6 +1065,7 @@ static int dis_conditionnal_branch_immediate_insn(struct arm64_target *context, 
     int64_t imm19 = INSN(23, 5) << 2;
     struct irRegister *params[4];
     struct irRegister *pred;
+    struct irRegister *next_pc;
 
     imm19 = (imm19 << 43) >> 43;
 
@@ -1084,12 +1079,10 @@ static int dis_conditionnal_branch_immediate_insn(struct arm64_target *context, 
                            mk_64(ir, (uint64_t) arm64_hlp_compute_flags_pred),
                            params);
     dump_state(context, ir);
-    /* if cond is true then do the branch */
-    write_pc(ir, mk_64(ir, context->pc + imm19));
-    ir->add_exit_cond(ir, mk_64(ir, context->pc + imm19), pred);
-    /* else we jump to next insn */
-    write_pc(ir, mk_64(ir, context->pc + 4));
-    ir->add_exit(ir, mk_64(ir, context->pc + 4));
+
+    /* if cond is true then do the branch else jump to next insn */
+    next_pc = ir->add_ite_64(ir, ir->add_32U_to_64(ir, pred), mk_64(ir, context->pc + imm19), mk_64(ir, context->pc + 4));
+    mk_exit(context, ir, next_pc);
 
     return 1;
 }
@@ -1132,6 +1125,7 @@ static int dis_cbz_A_cbnz(struct arm64_target *context, uint32_t insn, struct ir
     int rt = INSN(4,0);
     struct irRegister *pred;
     int is_cmp_not_zero = INSN(24,24);
+    struct irRegister *next_pc;
 
     imm19 = (imm19 << 43) >> 43;
     /* compute pred */
@@ -1139,20 +1133,17 @@ static int dis_cbz_A_cbnz(struct arm64_target *context, uint32_t insn, struct ir
         if (is_64)
             pred = ir->add_cmpne_64(ir, read_x(ir, rt, ZERO_REG), mk_64(ir, 0));
         else
-            pred = ir->add_cmpne_32(ir, read_w(ir, rt, ZERO_REG), mk_32(ir, 0));
+            pred = ir->add_32U_to_64(ir, ir->add_cmpne_32(ir, read_w(ir, rt, ZERO_REG), mk_32(ir, 0)));
     } else {
         if (is_64)
             pred = ir->add_cmpeq_64(ir, read_x(ir, rt, ZERO_REG), mk_64(ir, 0));
         else
-            pred = ir->add_cmpeq_32(ir, read_w(ir, rt, ZERO_REG), mk_32(ir, 0));
+            pred = ir->add_32U_to_64(ir, ir->add_cmpeq_32(ir, read_w(ir, rt, ZERO_REG), mk_32(ir, 0)));
     }
 
-    /* branch to destination if pred */
-    write_pc(ir, mk_64(ir, context->pc + imm19));
-    ir->add_exit_cond(ir, mk_64(ir, context->pc + imm19), pred);
-    /* if pred is false jump to next */
-    write_pc(ir, mk_64(ir, context->pc + 4));
-    ir->add_exit(ir, mk_64(ir, context->pc + 4));
+    /* if cond is true then branch to destination else jump to next insn */
+    next_pc = ir->add_ite_64(ir, pred, mk_64(ir, context->pc + imm19), mk_64(ir, context->pc + 4));
+    mk_exit(context, ir, next_pc);
 
     return 1;
 }
@@ -2031,6 +2022,7 @@ static int dis_tbz_A_tbnz(struct arm64_target *context, uint32_t insn, struct ir
     int is_tbnz = INSN(24,24);
     struct irRegister *res;
     struct irRegister *pred;
+    struct irRegister *next_pc;
 
     imm14 = (imm14 << 48) >> 48;
 
@@ -2041,12 +2033,10 @@ static int dis_tbz_A_tbnz(struct arm64_target *context, uint32_t insn, struct ir
         pred = ir->add_cmpne_64(ir, res, mk_64(ir, 0));
     else
         pred = ir->add_cmpeq_64(ir, res, mk_64(ir, 0));
-    /* branch to jump address if predicate hold */
-    write_pc(ir, mk_64(ir, context->pc + imm14));
-    ir->add_exit_cond(ir, mk_64(ir, context->pc + imm14), pred);
-    /* if pred is false jump to next */
-    write_pc(ir, mk_64(ir, context->pc + 4));
-    ir->add_exit(ir, mk_64(ir, context->pc + 4));
+
+    /* if cond is true then do the branch else jump to next insn */
+    next_pc = ir->add_ite_64(ir, pred, mk_64(ir, context->pc + imm14), mk_64(ir, context->pc + 4));
+    mk_exit(context, ir, next_pc);
 
     return 1;
 }
@@ -4273,7 +4263,7 @@ void disassemble_arm64(struct target *target, struct irInstructionAllocator *ir,
     uint32_t *pc_ptr = (uint32_t *) g_2_h(pc);
 
     assert((pc & 3) == 0);
-    for(i = 0; i < maxInsn; i++) {
+    for(i = 0; i < (context->regs.is_stepin?1:maxInsn); i++) {
         context->pc = h_2_g(pc_ptr);
         isExit = disassemble_insn(context, *pc_ptr, ir);
         pc_ptr++;
@@ -4283,8 +4273,7 @@ void disassemble_arm64(struct target *target, struct irInstructionAllocator *ir,
             break;
     }
     if (!isExit) {
-        write_pc(ir, ir->add_mov_const_64(ir, context->pc + 4));
-        ir->add_exit(ir, ir->add_mov_const_64(ir, context->pc + 4));
+        mk_exit(context, ir, mk_64(ir, context->pc + 4));
     }
 }
 

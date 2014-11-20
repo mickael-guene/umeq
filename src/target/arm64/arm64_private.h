@@ -38,7 +38,7 @@ struct arm64_registers {
     uint32_t fpcr;
     uint32_t fpsr;
     uint32_t is_in_syscall;
-    uint32_t step_insn;
+    uint32_t is_stepin;
 };
 
 struct arm64_target {

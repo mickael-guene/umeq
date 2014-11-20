@@ -101,66 +101,6 @@ static long read_gpr(int pid, struct user_pt_regs_arm64 *regs)
     return res;
 }
 
-static long save_step_insn(int pid, int insn)
-{
-    long res;
-    struct user_regs_struct user_regs;
-    unsigned long data_long;
-    unsigned long data_reg;
-
-    res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
-    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
-    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm64_registers, step_insn), &data_reg);
-    data_reg = (data_reg & 0xffffffff00000000UL) | insn;
-    res = syscall(SYS_ptrace, PTRACE_POKETEXT, pid, data_long + offsetof(struct arm64_registers, step_insn), data_reg);
-
-    return res;
-}
-
-static long compute_next_pc(int pid, uint64_t *next_pc)
-{
-    long res;
-    struct user_pt_regs_arm64 regs;
-    unsigned long data_reg;
-    uint32_t insn;
-
-    res = read_gpr(pid, &regs);
-    if (res)
-        goto compute_next_pc_error;
-    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, regs.pc, &data_reg);
-    if (res)
-        goto compute_next_pc_error;
-    insn = data_reg;
-    if (INSN(30, 26) == 0x5) {
-        int64_t imm26 = INSN(25,0) << 2;
-
-        imm26 = ((imm26 << 36) >> 36);
-        *next_pc = regs.pc + imm26;
-    } else if (INSN(30, 25) == 0x1a) {
-        assert(0 && "compare & branch immediate");
-    } else if (INSN(30, 25) == 0x1b) {
-        assert(0 && "test & branch immediate");
-    } else if (INSN(31, 25) == 0x2a) {
-        int64_t imm19 = INSN(23,5) << 2;
-        int cond = INSN(3,0);
-        int pred = arm64_hlp_compute_flags_pred(0/*context*/, cond, (uint32_t)regs.pstate);
-
-        imm19 = (imm19 << 43) >> 43;
-        if (pred) {
-            *next_pc = regs.pc + imm19;
-        } else
-            *next_pc = regs.pc + 4;
-    } else if (INSN(31, 25) == 0x6b) {
-        int rn = INSN(9, 5);
-
-        *next_pc = rn==31?regs.sp:regs.regs[rn];
-    } else
-        *next_pc = regs.pc + 4;
-
-    compute_next_pc_error:
-    return res;
-}
-
 long arm64_ptrace(struct arm64_target *context)
 {
     long res;
@@ -250,27 +190,18 @@ long arm64_ptrace(struct arm64_target *context)
             break;
         case PTRACE_SINGLESTEP:
             {
-                uint64_t next_pc;
-                uint64_t data_host;
+                struct user_regs_struct user_regs;
+                unsigned long data_long;
+                unsigned long data_reg;
 
-                res = compute_next_pc(pid, &next_pc);
-                if (res)
-                    goto ptrace_single_step_error;
-                /* save next insn and replace it with brk #1 */
-                res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, next_pc, &data_host);
-                if (res)
-                    goto ptrace_single_step_error;
-                res = save_step_insn(pid, (uint32_t) data_host);
-                if (res)
-                    goto ptrace_single_step_error;
-                data_host = (data_host & 0xffffffff00000000UL) | 0xd4200020;
-                res = syscall(SYS_ptrace, PTRACE_POKEDATA, pid, next_pc, data_host);
-                if (res)
-                    goto ptrace_single_step_error;
-                /* continue */
+                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
+                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+
+                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm64_registers, is_stepin), &data_reg);
+                data_reg = (data_reg & 0xffffffff00000000UL) | 1;
+                res = syscall(SYS_ptrace, PTRACE_POKETEXT, pid, data_long + offsetof(struct arm64_registers, is_stepin), data_reg);
                 res = syscall(SYS_ptrace, PTRACE_CONT, pid, 0, 0);
             }
-            ptrace_single_step_error:
             break;
         default:
             fprintf(stderr, "ptrace unknown command : %d / 0x%x / addr = %ld\n", request, request, addr);

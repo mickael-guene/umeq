@@ -414,6 +414,9 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_setuid:
             res = syscall(SYS_setuid, (uid_t) p0);
             break;
+        case PR_tkill:
+            res = syscall(SYS_tkill, (int) p0, (int) p1);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }
