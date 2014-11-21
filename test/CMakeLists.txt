@@ -39,3 +39,6 @@ ADD_TEST(Static.libc.Hello.a.out.O2.arm ../src/umeq-arm ${CMAKE_SOURCE_DIR}/test
 ADD_TEST(Static.libc.Hello.a.out.O0.thumb ../src/umeq-arm ${CMAKE_SOURCE_DIR}/test/static/libc/hello/a.out.O0.thumb)
 ADD_TEST(Static.libc.Hello.a.out.O1.thumb ../src/umeq-arm ${CMAKE_SOURCE_DIR}/test/static/libc/hello/a.out.O1.thumb)
 ADD_TEST(Static.libc.Hello.a.out.O2.thumb ../src/umeq-arm ${CMAKE_SOURCE_DIR}/test/static/libc/hello/a.out.O2.thumb)
+
+#add arm64 opcode test suite
+INCLUDE(${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/CMakeLists.txt)
