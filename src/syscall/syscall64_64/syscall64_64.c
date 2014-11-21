@@ -376,6 +376,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_getitimer, (int) p0, (struct itimerval *) g_2_h(p1));
             break;
         case PR_shmat:
+            /* FIXME: return value is a pointer */
             res = syscall(SYS_shmat, (int) p0, (void *) g_2_h(p1), (int) p2);
             break;
         case PR_shutdown:
@@ -439,6 +440,9 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             break;
         case PR_msgrcv:
             res = syscall(SYS_msgrcv, (int) p0, (void *) g_2_h(p1), (size_t) p2, (long) p3, (int) p4);
+            break;
+        case PR_msgctl:
+            res = syscall(SYS_msgctl, (int) p0, (int) p1, (struct msqid_ds *) g_2_h(p2));
             break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
