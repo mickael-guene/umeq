@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <sched.h>
 #include <signal.h>
+#include <mqueue.h>
 
 #include "syscall64_64.h"
 #include "syscall64_64_private.h"
@@ -443,6 +444,110 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             break;
         case PR_msgctl:
             res = syscall(SYS_msgctl, (int) p0, (int) p1, (struct msqid_ds *) g_2_h(p2));
+            break;
+        case PR_accept4:
+            res = syscall(SYS_accept4, (int) p0, p1?(struct sockaddr *)g_2_h(p1):NULL,
+                                       p2?(socklen_t *)g_2_h(p2):NULL, (int) p3);
+            break;
+        case PR_add_key:
+            res = syscall(SYS_add_key, (char *) g_2_h(p0), (char *) g_2_h(p1), (void *) g_2_h(p2),
+                                       (size_t) p3, (uint64_t/*key_serial_t*/) p4);
+            break;
+        case PR_setresgid:
+            res = syscall(SYS_setresgid, (gid_t) p0, (gid_t) p1, (gid_t) p2);
+            break;
+        case PR_capget:
+            res = syscall(SYS_capget, (uint64_t/*cap_user_header_t*/) p0, (uint64_t/*cap_user_data_t*/) p1);
+            break;
+        case PR_epoll_ctl:
+            res = syscall(SYS_epoll_ctl, (int) p0, (int) p1, (int) p2, (struct epoll_event *) g_2_h(p3));
+            break;
+        case PR_epoll_create1:
+            res = syscall(SYS_epoll_create1, (int) p0);
+            break;
+        case PR_setgid:
+            res = syscall(SYS_setgid, (gid_t) p0);
+            break;
+        case PR_setgroups:
+            res = syscall(SYS_setgroups, (size_t) p0, (gid_t *) g_2_h(p1));
+            break;
+        case PR_getsid:
+            res = syscall(SYS_getsid, (pid_t) p0);
+            break;
+        case PR_inotify_rm_watch:
+            res = syscall(SYS_inotify_rm_watch, (int) p0, (int) p1);
+            break;
+        case PR_fanotify_init:
+            res = syscall(SYS_fanotify_init, (unsigned int) p0, (unsigned int) p1);
+            break;
+        case PR_keyctl:
+            /* FIXME: check according to params */
+            res = syscall(SYS_keyctl, (int) p0, p1,p2,p3,p4,p5);
+            break;
+        case PR_mq_unlink:
+            res = syscall(SYS_mq_unlink, (char *) g_2_h(p0));
+            break;
+        case PR_mq_notify:
+            res = syscall(SYS_mq_notify, (mqd_t) p0, p1?(struct sigevent *)g_2_h(p1):NULL);
+            break;
+        case PR_mincore:
+            res = syscall(SYS_mincore, (void *) g_2_h(p0), (size_t) p1, (char *) g_2_h(p2));
+            break;
+        case PR_pwrite64:
+            res = syscall(SYS_pwrite64, (int) p0, (void *) g_2_h(p1), (size_t) p2, (off_t) p3);
+            break;
+        case PR_readv:
+            res = syscall(SYS_readv, (int) p0, (struct iovec *) g_2_h(p1), (int) p2);
+            break;
+        case PR_remap_file_pages:
+            res = syscall(SYS_remap_file_pages, (void *) g_2_h(p0), (size_t) p1, (int) p2, (size_t) p3, (int) p4);
+            break;
+        case PR_rt_sigqueueinfo:
+            res = syscall(SYS_rt_sigqueueinfo, (pid_t) p0, (int) p1, (siginfo_t *) g_2_h(p2));
+            break;
+        case PR_sched_getparam:
+            res = syscall(SYS_sched_getparam, (pid_t) p0, (struct sched_param *) g_2_h(p1));
+            break;
+        case PR_sched_setscheduler:
+            res = syscall(SYS_sched_setscheduler, (pid_t) p0, (int) p1, (struct sched_param *) g_2_h(p2));
+            break;
+        case PR_sched_setparam:
+            res = syscall(SYS_sched_setparam, (pid_t) p0, (struct sched_param *) g_2_h(p1));
+            break;
+        case PR_sched_getscheduler:
+            res = syscall(SYS_sched_getscheduler, (pid_t) p0);
+            break;
+        case PR_sendfile:
+            res = syscall(SYS_sendfile, (int) p0, (int) p1, (off_t *) g_2_h(p2), (size_t) p3);
+            break;
+        case PR_setfsgid:
+            res = syscall(SYS_setfsgid, (uid_t) p0);
+            break;
+        case PR_setfsuid:
+            res = syscall(SYS_setfsuid, (uid_t) p0);
+            break;
+        case PR_setregid:
+            res = syscall(SYS_setregid, (gid_t) p0, (gid_t) p1);
+            break;
+        case PR_sysinfo:
+            res = syscall(SYS_sysinfo, (struct sysinfo *) g_2_h(p0));
+            break;
+        case PR_timer_getoverrun:
+            res = syscall(SYS_timer_getoverrun, (timer_t) p0);
+            break;
+        case PR_timer_gettime:
+            res = syscall(SYS_timer_gettime, (timer_t) p0, (struct itimerspec *) g_2_h(p1));
+            break;
+        case PR_unshare:
+            res = syscall(SYS_unshare, (int) p0);
+            break;
+        case PR_waitid:
+            res = syscall(SYS_waitid, (idtype_t) p0, (id_t) p1, p2?(siginfo_t *)g_2_h(p2):NULL, (int) p3,
+                                      p4?(struct rusage *)g_2_h(p4):NULL);
+            break;
+        case PR_perf_event_open:
+            res = syscall(SYS_perf_event_open, (struct perf_event_attr *) g_2_h(p0), (pid_t) p1, (int) p2,
+                                                (int) p3, (unsigned long) p4);
             break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
