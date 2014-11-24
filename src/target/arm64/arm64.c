@@ -13,6 +13,7 @@
 #define ARM64_CONTEXT_SIZE     (4096)
 
 typedef void *arm64Context;
+const char arch_name[] = "arm64";
 
 /* backend implementation */
 static void init(struct target *target, struct target *prev_target, uint64_t entry, uint64_t stack_ptr, uint32_t signum, void *param)

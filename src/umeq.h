@@ -23,6 +23,7 @@ struct target_arch {
 };
 
 extern struct target_arch current_target_arch;
+extern const char arch_name[];
 
 #endif
 

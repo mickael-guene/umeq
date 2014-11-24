@@ -164,6 +164,12 @@ int loop(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_tar
         return loop_cache(entry, stack_entry, signum, parent_target);
 }
 
+static void display_version_and_exit()
+{
+    fprintf(stderr, "umeq-%s version %s\n", arch_name, GIT_VERSION_NB);
+    exit(0);
+}
+
 /* TODO: Remove limits on -E and -U options */
 int main(int argc, char **argv)
 {
@@ -194,6 +200,9 @@ int main(int argc, char **argv)
         } else if (strcmp("-0", argv[target_argv0_index]) == 0) {
             target_argv0 = argv[target_argv0_index + 1];
             target_argv0_index += 2;
+        } else if (strcmp("-version", argv[target_argv0_index]) == 0) {
+            target_argv0_index++;
+            display_version_and_exit();
         } else
             break;
     }

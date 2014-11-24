@@ -589,6 +589,10 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_timerfd_gettime:
             res = syscall(SYS_timerfd_gettime, (int) p0, (struct itimerspec *) g_2_h(p1));
             break;
+        case PR_name_to_handle_at:
+            res = syscall(SYS_name_to_handle_at, (int) p0, ( char *) g_2_h(p1), (struct file_handle *) g_2_h(p2),
+                                                 (int *) g_2_h(p3), (int) p4);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }

@@ -1,3 +1,12 @@
+# Get version number
+execute_process(
+  COMMAND git describe --always --dirty --tags --long --abbrev=12
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  OUTPUT_VARIABLE GIT_VERSION_NB
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+add_definitions("-DGIT_VERSION_NB=\"${GIT_VERSION_NB}\"")
+
 set(CMAKE_C_FLAGS "-fno-stack-protector -O2 -g -fPIC -Wall")
 set(CMAKE_CXX_FLAGS "-fno-stack-protector -O2 -g -fPIC -Wall")
 
