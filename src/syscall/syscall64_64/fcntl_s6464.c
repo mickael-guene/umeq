@@ -47,6 +47,9 @@ long fcntl_s6464(uint64_t fd_p, uint64_t cmd_p, uint64_t opt_p)
         case F_SETLKW:
             res = syscall(SYS_fcntl, fd, cmd, (struct flock *) g_2_h(opt_p));
             break;
+        case F_SETSIG:
+            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
+            break;
         case F_GETSIG:
             res = syscall(SYS_fcntl, fd, cmd);
             break;
@@ -69,7 +72,8 @@ long fcntl_s6464(uint64_t fd_p, uint64_t cmd_p, uint64_t opt_p)
             res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
             break;
         default:
-            fatal("unsupported fnctl command %d\n", cmd);
+            fprintf(stderr, "unsupported fnctl command %d\n", cmd);
+            res = -EINVAL;
     }
 
     return res;

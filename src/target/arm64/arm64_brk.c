@@ -8,7 +8,8 @@
 /* code stolen from noir. Not re-entrant but should be ok since higher lock level is certainly taken */
 #define PAGE_SIZE                       4096
 #define PAGE_MASK                       (PAGE_SIZE - 1)
-#define MIN_BRK_SIZE                    (16 * 1024 * 1024)
+/* reduce min brk size to 16K bytes to align with ltp (kernel ?) */
+#define MIN_BRK_SIZE                    (4 * PAGE_SIZE)
 
 extern guest_ptr startbrk_64;
 static guest_ptr startbrk_64_aligned;

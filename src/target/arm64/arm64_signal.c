@@ -34,7 +34,7 @@ struct sigaction_arm64 {
 typedef struct stack_arm64 {
     uint64_t ss_sp;
     uint32_t ss_flags;
-    uint32_t ss_size;
+    uint64_t ss_size;
 } stack_t_arm64;
 
 typedef union sigval_arm64 {
@@ -189,6 +189,8 @@ long arm64_rt_sigaction(struct arm64_target *context)
 
     if (signum >= NSIG)
         res = -EINVAL;
+    else if (act_p == ~0 || oldact_p == ~0)
+        res = -EFAULT;
     else {
         memset(&act, 0, sizeof(act));
         memset(&oldact, 0, sizeof(oldact));
