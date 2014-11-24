@@ -11,6 +11,7 @@
 #define MIN_BRK_SIZE                    (16 * 1024 * 1024)
 
 extern guest_ptr startbrk_64;
+static guest_ptr startbrk_64_aligned;
 static uint64_t curbrk;
 static uint64_t mapbrk;
 
@@ -21,12 +22,14 @@ void arm64_setup_brk()
     if (!curbrk) {
         guest_ptr map_result;
 
-        curbrk = startbrk_64;
-        mapbrk = ((startbrk_64 + PAGE_SIZE) & ~PAGE_MASK);
+        startbrk_64_aligned = ((startbrk_64 + PAGE_SIZE - 1) & ~PAGE_MASK);
+        curbrk = startbrk_64_aligned;
+        mapbrk = startbrk_64_aligned;
         map_result = mmap_guest(mapbrk, MIN_BRK_SIZE, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
         if (map_result == mapbrk) {
             mapbrk = mapbrk + MIN_BRK_SIZE;
-        }
+        } else
+            assert(0);
     }
 }
 
@@ -35,7 +38,7 @@ long arm64_brk(struct arm64_target *context)
     guest_ptr new_brk = context->regs.r[0];
 
     //sanity check
-    if (new_brk < startbrk_64)
+    if (new_brk < startbrk_64_aligned)
         goto out;
     if (new_brk) {
         // need to map new memory ?
