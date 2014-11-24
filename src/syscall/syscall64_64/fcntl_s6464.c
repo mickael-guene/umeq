@@ -22,6 +22,7 @@ long fcntl_s6464(uint64_t fd_p, uint64_t cmd_p, uint64_t opt_p)
 
     switch(cmd) {
         case F_DUPFD:
+        case F_DUPFD_CLOEXEC:
             res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
             break;
         case F_GETFD:
@@ -45,6 +46,27 @@ long fcntl_s6464(uint64_t fd_p, uint64_t cmd_p, uint64_t opt_p)
             break;
         case F_SETLKW:
             res = syscall(SYS_fcntl, fd, cmd, (struct flock *) g_2_h(opt_p));
+            break;
+        case F_GETSIG:
+            res = syscall(SYS_fcntl, fd, cmd);
+            break;
+        case F_SETOWN:
+            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
+            break;
+        case F_GETOWN_EX:
+            res = syscall(SYS_fcntl, fd, cmd, (struct f_owner_ex *) g_2_h(opt_p));
+            break;
+        case F_SETLEASE:
+            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
+            break;
+        case F_GETLEASE:
+            res = syscall(SYS_fcntl, fd, cmd);
+            break;
+        case F_GETPIPE_SZ:
+            res = syscall(SYS_fcntl, fd, cmd);
+            break;
+        case F_SETPIPE_SZ:
+            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
             break;
         default:
             fatal("unsupported fnctl command %d\n", cmd);

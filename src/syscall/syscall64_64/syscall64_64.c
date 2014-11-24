@@ -11,6 +11,8 @@
 #include "syscall64_64_private.h"
 #include "runtime.h"
 
+#define IS_NULL(px,type) ((px)?(type *)g_2_h((px)):NULL)
+
 long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, uint64_t p5)
 {
     long res = ENOSYS;
@@ -457,7 +459,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_setresgid, (gid_t) p0, (gid_t) p1, (gid_t) p2);
             break;
         case PR_capget:
-            res = syscall(SYS_capget, (uint64_t/*cap_user_header_t*/) p0, (uint64_t/*cap_user_data_t*/) p1);
+            res = syscall(SYS_capget, (uint64_t/*cap_user_header_t*/) p0, p1?(void *) g_2_h(p1):NULL);
             break;
         case PR_epoll_ctl:
             res = syscall(SYS_epoll_ctl, (int) p0, (int) p1, (int) p2, (struct epoll_event *) g_2_h(p3));
@@ -548,6 +550,44 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_perf_event_open:
             res = syscall(SYS_perf_event_open, (struct perf_event_attr *) g_2_h(p0), (pid_t) p1, (int) p2,
                                                 (int) p3, (unsigned long) p4);
+            break;
+        case PR_capset:
+            res = syscall(SYS_capset, (uint64_t/*cap_user_header_t*/) p0, p1?(void *) g_2_h(p1):NULL);
+            break;
+        case PR_chroot:
+            res = syscall(SYS_chroot, (char *) g_2_h(p0));
+            break;
+        case PR_mq_open:
+            res = syscall(SYS_mq_open, (char *) g_2_h(p0), (int) p1, (mode_t) p2, p3?(struct mq_attr *) g_2_h(p3):NULL);
+            break;
+        case PR_mq_timedsend:
+            res = syscall(SYS_mq_timedsend, (mqd_t) p0, (char *) g_2_h(p1), (size_t) p2, (unsigned int) p3,
+                                                        IS_NULL(p4, struct timespec));
+            break;
+        case PR_signalfd4:
+            res = syscall(SYS_signalfd4, (int) p0, (sigset_t *) p1, (size_t) p2, (int) p3);
+            break;
+        case PR_splice:
+            res = syscall(SYS_splice, (int) p0, (loff_t *) g_2_h(p1), (int) p2, (loff_t *) g_2_h(p3), (size_t) p4, (unsigned int) p5);
+            break;
+        case PR_tee:
+            res = syscall(SYS_tee, (int) p0, (int) p1, (size_t) p2, (unsigned int) p3);
+            break;
+        case PR_timerfd_create:
+            res = syscall(SYS_timerfd_create, (int) p0, (int) p1);
+            break;
+        case PR_vmsplice:
+            res = syscall(SYS_vmsplice, (int) p0, (struct iovec *) g_2_h(p1), (unsigned long) p2, (unsigned int) p3);
+            break;
+        case PR_mq_timedreceive:
+            res = syscall(SYS_mq_timedreceive, (mqd_t) p0, (char *) g_2_h(p1), (size_t) p2, IS_NULL(p3, unsigned int),
+                                                IS_NULL(p4, struct timespec));
+            break;
+        case PR_timerfd_settime:
+            res = syscall(SYS_timerfd_settime, (int) p0, (int) p1, (struct itimerspec *) g_2_h(p2), IS_NULL(p3, struct itimerspec));
+            break;
+        case PR_timerfd_gettime:
+            res = syscall(SYS_timerfd_gettime, (int) p0, (struct itimerspec *) g_2_h(p1));
             break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
