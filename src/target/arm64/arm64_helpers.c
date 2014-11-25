@@ -543,3 +543,39 @@ void arm64_hlp_memory_barrier(uint64_t regs)
 {
     __sync_synchronize();
 }
+
+#include <arm64_crc32_tables.c>
+
+static uint64_t crc32(uint64_t crc, uint8_t *buf, unsigned int len)
+{
+    while(len--)
+        crc = crc32_table[((int)crc ^ (*buf++)) & 0xff] ^ (crc >> 8);
+
+    return crc;
+}
+
+static uint64_t crc32c(uint64_t crc, uint8_t *buf, unsigned int len)
+{
+    while(len--)
+        crc = crc32c_table[((int)crc ^ (*buf++)) & 0xff] ^ (crc >> 8);
+
+    return crc;
+}
+
+void arm64_hlp_dirty_crc32(uint64_t _regs, uint32_t insn)
+{
+    const uint64_t mask[] = {0xff, 0xffff, 0xffffffff, ~0UL};
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int sz = INSN(11,10);
+    int rd = INSN(4, 0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int is_crc32c = INSN(12,12);
+    uint64_t acc = (regs->r[rn] & 0xffffffff);
+    uint64_t val= regs->r[rm] & mask[sz];
+
+    if (is_crc32c)
+        regs->r[rd] = crc32c(acc, (uint8_t *) &val, 1 << sz);
+    else
+        regs->r[rd] = crc32(acc, (uint8_t *) &val, 1 << sz);
+}

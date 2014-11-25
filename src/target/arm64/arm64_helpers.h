@@ -49,6 +49,7 @@ extern void arm64_hlp_ldaxp_dirty(uint64_t _regs, uint32_t insn);
 extern uint32_t arm64_hlp_stlxr(uint64_t regs, uint64_t address, uint32_t size_access, uint64_t value);
 extern void arm64_hlp_stxp_dirty(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_stlxp_dirty(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_dirty_crc32(uint64_t regs, uint32_t insn);
 
 #endif
 

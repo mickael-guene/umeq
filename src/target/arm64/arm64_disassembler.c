@@ -2014,6 +2014,19 @@ static int dis_rorv(struct arm64_target *context, uint32_t insn, struct irInstru
     return 0;
 }
 
+static int dis_crc32(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_crc32",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_crc32),
+                           params);
+
+    return 0;
+}
+
 static int dis_tbz_A_tbnz(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int bit_pos = (INSN(31,31) << 5) | INSN(23,19);
@@ -3767,6 +3780,10 @@ static int dis_data_processing_2_source(struct arm64_target *context, uint32_t i
             break;
         case 11:
             isExit = dis_rorv(context, insn, ir);
+            break;
+        case 16 ... 19:
+        case 20 ... 23:
+            isExit = dis_crc32(context, insn, ir);
             break;
         default:
             fatal("opcode = %d(0x%x)\n", opcode, opcode);
