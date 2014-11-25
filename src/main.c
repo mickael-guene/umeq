@@ -167,7 +167,7 @@ int loop(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_tar
 
 static void display_version_and_exit()
 {
-    fprintf(stderr, "umeq-%s version %s\n", arch_name, GIT_VERSION_NB);
+    fprintf(stderr, "umeq-%s version %s (%s)\n", arch_name, GIT_VERSION, GIT_DESCRIBE);
     exit(0);
 }
 

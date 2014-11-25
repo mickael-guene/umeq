@@ -1,6 +1,7 @@
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
 include(GetGitRevisionDescription)
-git_describe(GIT_DESCRIBE --always --tags --long --abbrev=12 --dirty) 
+git_describe(GIT_DESCRIBE --always --tags --long --abbrev=12 --dirty)
+git_describe(GIT_VERSION --abbrev=0)
 configure_file(
 	${CMAKE_SOURCE_DIR}/src/version/version.h.in
 	${CMAKE_BINARY_DIR}/generated/version/version.h

@@ -1,6 +1,7 @@
 #ifndef VERSION_H
 #define VERSION_H
 
-#define GIT_VERSION_NB "@GIT_DESCRIBE@"
+#define GIT_VERSION "@GIT_VERSION@"
+#define GIT_DESCRIBE "@GIT_DESCRIBE@"
 
 #endif
