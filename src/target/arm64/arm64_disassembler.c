@@ -2716,6 +2716,37 @@ static int dis_isb(struct arm64_target *context, uint32_t insn, struct irInstruc
     return 0;
 }
 
+static int dis_sys(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int isExit = 0;
+    int op1 = INSN(18,16);
+    int crn = INSN(15,12);
+    int crm = INSN(11,8);
+    int op2 = INSN(7,5);
+
+    if (op1 == 3 && crn == 7 && crm == 10 && op2 == 1) {
+        //cvac // clean data cache
+        // => do nothing
+    } else if (op1 == 3 && crn == 7 && crm == 11 && op2 == 1) {
+        //cvac // clean data cache
+        // => do nothing
+    } else if (op1 == 3 && crn == 7 && crm == 14 && op2 == 1) {
+        //civac // clean and invalidate data cache
+        // => do nothing
+    } else if (op1 == 3 && crn == 7 && crm == 5 && op2 == 1) {
+        //ivau
+        struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+
+        ir->add_call_void(ir, "arm64_clean_caches",
+                        ir->add_mov_const_64(ir, (uint64_t) arm64_clean_caches),
+                        param);
+        isExit = 1;
+    } else
+        fatal("op1=%d / crn=%d / crm=%d / op2=%d\n", op1, crn, crm, op2);
+
+    return isExit;
+}
+
 static int dis_fmov(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int sf = INSN(31,31);
@@ -3901,6 +3932,12 @@ static int dis_system(struct arm64_target *context, uint32_t insn, struct irInst
                     ;//hints are handled like nop
                 } else
                     fatal("pc = 0x%016lx / crn = %d\n", context->pc, crn);
+                break;
+            case 1:
+                if (l)
+                    assert(0 && "sysl");
+                else
+                    dis_sys(context, insn, ir);
                 break;
             case 2 ...3:
                 isExit = dis_msr_register(context, insn, ir);

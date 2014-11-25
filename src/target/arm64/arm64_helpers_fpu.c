@@ -66,6 +66,11 @@ static void dis_frintm(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+static void dis_frintx(uint64_t _regs, uint32_t insn)
+{
+    dis_frintm(_regs, insn);
+}
+
 static void dis_fccmp_fccmpe(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -532,6 +537,9 @@ void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uin
             break;
         case 10:
             dis_frintm(_regs, insn);
+            break;
+        case 14:
+            dis_frintx(_regs, insn);
             break;
         default:
             fatal("opcode = %d/0x%x\n", opcode, opcode);

@@ -63,6 +63,11 @@ void arm64_gdb_stepin_instruction(uint64_t regs)
     cleanCaches(0,~0);
 }
 
+void arm64_clean_caches(uint64_t regs)
+{
+    cleanCaches(0,~0);
+}
+
 uint32_t arm64_hlp_compute_next_nzcv_32(uint64_t context, uint32_t opcode, uint32_t op1, uint32_t op2, uint32_t oldnzcv)
 {
     int n, z, c, v;
