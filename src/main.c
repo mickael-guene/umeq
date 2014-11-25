@@ -16,6 +16,7 @@
 #include "be_x86_64.h"
 #include "runtime.h"
 #include "umeq.h"
+#include "version.h"
 
 int isGdb = 0;
 

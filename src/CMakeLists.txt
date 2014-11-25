@@ -1,15 +1,15 @@
-# Get version number
-execute_process(
-  COMMAND git describe --always --dirty --tags --long --abbrev=12
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  OUTPUT_VARIABLE GIT_VERSION_NB
-  OUTPUT_STRIP_TRAILING_WHITESPACE
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/")
+include(GetGitRevisionDescription)
+git_describe(GIT_DESCRIBE --always --tags --long --abbrev=12 --dirty) 
+configure_file(
+	${CMAKE_SOURCE_DIR}/src/version/version.h.in
+	${CMAKE_BINARY_DIR}/generated/version/version.h
 )
-add_definitions("-DGIT_VERSION_NB=\"${GIT_VERSION_NB}\"")
 
 set(CMAKE_C_FLAGS "-fno-stack-protector -O2 -g -fPIC -Wall")
 set(CMAKE_CXX_FLAGS "-fno-stack-protector -O2 -g -fPIC -Wall")
 
+include_directories(${CMAKE_BINARY_DIR}/generated/version)
 include_directories(jitter)
 include_directories(cache)
 include_directories(loader/loader32)
