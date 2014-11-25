@@ -75,6 +75,12 @@ struct user_pt_regs_arm64 {
     uint64_t    pstate;
 };
 
+struct user_fpsimd_state_arm64 {
+    union       simd_register vregs[32];
+    uint32_t    fpsr;
+    uint32_t    fpcr;
+};
+
 static long get_regs_base(int pid, uint64_t *regs_base) {
     struct user_regs_struct user_regs;
     long res;
@@ -125,6 +131,38 @@ static long read_gpr(int pid, struct user_pt_regs_arm64 *regs)
         regs->regs[7] = 1;
 
     read_gpr_error:
+    return res;
+}
+
+static long read_simd(int pid, struct user_fpsimd_state_arm64 *regs)
+{
+    uint64_t regs_base;
+    uint64_t data;
+    long res;
+    int i;
+
+    res = get_regs_base(pid, &regs_base);
+    if (res)
+        goto read_simd_error;
+
+    for(i=0;i<32;i++) {
+        res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, v[i].v.lsb), &regs->vregs[i].v.lsb);
+        if (res)
+            goto read_simd_error;
+        res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, v[i].v.msb), &regs->vregs[i].v.msb);
+        if (res)
+            goto read_simd_error;
+    }
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, fpcr), &data);
+    regs->fpsr = (uint32_t) data;
+    if (res)
+        goto read_simd_error;
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, fpsr), &data);
+    regs->fpsr = (uint32_t) data;
+    if (res)
+        goto read_simd_error;
+
+    read_simd_error:
     return res;
 }
 
@@ -198,8 +236,11 @@ long arm64_ptrace(struct arm64_target *context)
                 res = read_gpr(pid, io->iov_base);
                 io->iov_len = sizeof(struct user_pt_regs_arm64);
             } else if (addr == NT_PRFPREG) {
-                /* FIXME: implement simd */
-                res = -EINVAL;
+                struct iovec *io = (struct iovec *) g_2_h(data);
+
+                assert(io->iov_len >= sizeof(struct user_fpsimd_state_arm64));
+                res = read_simd(pid, io->iov_base);
+                io->iov_len = sizeof(struct user_fpsimd_state_arm64);
             } else if (addr == NT_ARM_TLS) {
                 struct iovec *io = (struct iovec *) g_2_h(data);
                 uint64_t regs_base;
