@@ -3141,66 +3141,14 @@ static int dis_ucvtf_scalar_integer(struct arm64_target *context, uint32_t insn,
     return 0;
 }
 
-static int dis_fcvtms_scalar_integer(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+static int dis_fcvtxx_scalar_integer(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_fcvtms_scalar_integer_simd",
-                           mk_64(ir, (uint64_t) arm64_hlp_dirty_fcvtms_scalar_integer_simd),
-                           params);
-
-    return 0;
-}
-
-static int dis_fcvtps_scalar_integer(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
-
-    params[0] = mk_32(ir, insn);
-
-    ir->add_call_void(ir, "arm64_hlp_dirty_fcvtps_scalar_integer_simd",
-                           mk_64(ir, (uint64_t) arm64_hlp_dirty_fcvtps_scalar_integer_simd),
-                           params);
-
-    return 0;
-}
-
-static int dis_fcvtas_scalar_integer(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
-
-    params[0] = mk_32(ir, insn);
-
-    ir->add_call_void(ir, "arm64_hlp_dirty_fcvtas_scalar_integer_simd",
-                           mk_64(ir, (uint64_t) arm64_hlp_dirty_fcvtas_scalar_integer_simd),
-                           params);
-
-    return 0;
-}
-
-static int dis_fcvtzs_scalar_integer(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
-
-    params[0] = mk_32(ir, insn);
-
-    ir->add_call_void(ir, "arm64_hlp_dirty_fcvtzs_scalar_integer_simd",
-                           mk_64(ir, (uint64_t) arm64_hlp_dirty_fcvtzs_scalar_integer_simd),
-                           params);
-
-    return 0;
-}
-
-static int dis_fcvtzu_scalar_integer(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
-
-    params[0] = mk_32(ir, insn);
-
-    ir->add_call_void(ir, "arm64_hlp_dirty_fcvtzu_scalar_integer_simd",
-                           mk_64(ir, (uint64_t) arm64_hlp_dirty_fcvtzu_scalar_integer_simd),
+    ir->add_call_void(ir, "arm64_hlp_dirty_fcvtxx_scalar_integer_simd",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_fcvtxx_scalar_integer_simd),
                            params);
 
     return 0;
@@ -4050,22 +3998,12 @@ static int dis_conversion_between_floating_point_and_integer_insn(struct arm64_t
          isExit = dis_fmov(context, insn, ir);
     } else if (sf == 1 && type == 2 && rmode == 1 && opcode == 7) {
          isExit = dis_fmov(context, insn, ir);
-    } else if ((type & 2) == 0 && rmode == 3 && opcode == 0) {
-        isExit = dis_fcvtzs_scalar_integer(context, insn, ir);
-    } else if ((type & 2) == 0 && rmode == 3 && opcode == 1) {
-        isExit = dis_fcvtzu_scalar_integer(context, insn, ir);
     } else if ((type & 2) == 0 && rmode == 0 && opcode == 2) {
         isExit = dis_scvtf_scalar_integer(context, insn, ir);
     } else if ((type & 2) == 0 && rmode == 0 && opcode == 3) {
         isExit = dis_ucvtf_scalar_integer(context, insn, ir);
-    } else if ((type & 2) == 0 && rmode == 2 && opcode == 0) {
-        isExit = dis_fcvtms_scalar_integer(context, insn, ir);
-    } else if ((type & 2) == 0 && rmode == 1 && opcode == 0) {
-        isExit = dis_fcvtps_scalar_integer(context, insn, ir);
-    } else if ((type & 2) == 0 && rmode == 0 && opcode == 4) {
-        isExit = dis_fcvtas_scalar_integer(context, insn, ir);
     } else
-        fatal("pc = 0x%016lx / sf=%d / type=%d / rmode=%d / opcode=%d\n", context->pc, sf, type, rmode, opcode);
+        isExit = dis_fcvtxx_scalar_integer(context, insn, ir);
 
     return isExit;
 }

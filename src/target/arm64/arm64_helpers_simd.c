@@ -919,7 +919,7 @@ static void dis_sqxtn_uqxtn(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
-static void dis_fcvtzs(uint64_t _regs, uint32_t insn)
+static void dis_fcvtu(uint64_t _regs, uint32_t insn, enum rm rmode)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
     int is_scalar = INSN(28,28);
@@ -932,13 +932,85 @@ static void dis_fcvtzs(uint64_t _regs, uint32_t insn)
 
     if (is_double) {
         for(i = 0; i < (is_scalar?1:2); i++)
-            res.d[i] = (int64_t) regs->v[rn].df[i];
+            res.d[i] = (uint64_t) usat64_d(fcvt_rm(regs->v[rn].df[i], rmode));
     } else {
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            res.s[i] = (int32_t) regs->v[rn].sf[i];
+            res.s[i] = (uint32_t) usat32_d(fcvt_rm(regs->v[rn].sf[i], rmode));
     }
 
     regs->v[rd] = res;
+}
+
+static void dis_fcvts(uint64_t _regs, uint32_t insn, enum rm rmode)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_scalar = INSN(28,28);
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int i;
+    union simd_register res = {0};
+
+    if (is_double) {
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.d[i] = (int64_t) ssat64_d(fcvt_rm(regs->v[rn].df[i], rmode));
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.s[i] = (int32_t) ssat32_d(fcvt_rm(regs->v[rn].sf[i], rmode));
+    }
+
+    regs->v[rd] = res;
+}
+
+static void dis_fcvtpu(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvtu(_regs, insn, RM_POSINF);
+}
+
+static void dis_fcvtps(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvts(_regs, insn, RM_POSINF);
+}
+
+static void dis_fcvtnu(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvtu(_regs, insn, RM_TIEEVEN);
+}
+
+static void dis_fcvtns(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvts(_regs, insn, RM_TIEEVEN);
+}
+
+static void dis_fcvtzu(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvtu(_regs, insn, RM_ZERO);
+}
+
+static void dis_fcvtzs(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvts(_regs, insn, RM_ZERO);
+}
+
+static void dis_fcvtmu(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvtu(_regs, insn, RM_NEGINF);
+}
+
+static void dis_fcvtms(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvts(_regs, insn, RM_NEGINF);
+}
+
+static void dis_fcvtau(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvtu(_regs, insn, RM_TIEAWAY);
+}
+
+static void dis_fcvtas(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvts(_regs, insn, RM_TIEAWAY);
 }
 
 /* stolen from glibc */
@@ -4223,17 +4295,23 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
         case 20:
             dis_sqxtn_uqxtn(_regs, insn);
             break;
+        case 26:
+            if (size&2)
+                U?dis_fcvtpu(_regs, insn):dis_fcvtps(_regs, insn);
+            else
+                U?dis_fcvtnu(_regs, insn):dis_fcvtns(_regs, insn);
+            break;
         case 27:
             if (size&2)
-                U?assert(0):dis_fcvtzs(_regs, insn);
+                U?dis_fcvtzu(_regs, insn):dis_fcvtzs(_regs, insn);
             else
-                assert(0);
+                U?dis_fcvtmu(_regs, insn):dis_fcvtms(_regs, insn);
             break;
         case 28:
             if (size&2)
                 U?dis_ursqrte(_regs, insn):dis_urecpe(_regs, insn);
             else
-                assert(0);
+                U?dis_fcvtau(_regs, insn):dis_fcvtas(_regs, insn);
             break;
         case 29:
             if(size&2)
@@ -4310,17 +4388,23 @@ void arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd(uint64_t _regs, uint
         case 20:
             dis_sqxtn_uqxtn(_regs, insn);
             break;
+        case 26:
+            if (size1)
+                U?dis_fcvtpu(_regs, insn):dis_fcvtps(_regs, insn);
+            else
+                U?dis_fcvtnu(_regs, insn):dis_fcvtns(_regs, insn);
+            break;
         case 27:
             if (size1)
-                U?assert(0):dis_fcvtzs(_regs, insn);
+                U?dis_fcvtzu(_regs, insn):dis_fcvtzs(_regs, insn);
             else
-                assert(0);
+                U?dis_fcvtmu(_regs, insn):dis_fcvtms(_regs, insn);
             break;
         case 28:
             if (size1)
                 assert(0);
             else
-                U?assert(0):assert(0);
+                U?dis_fcvtau(_regs, insn):dis_fcvtas(_regs, insn);
             break;
         case 29:
             if (size1)

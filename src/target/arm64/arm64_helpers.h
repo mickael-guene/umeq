@@ -19,6 +19,15 @@ enum ops {
 	OPS_ADC
 };
 
+enum rm {
+	RM_TIEEVEN = 0,
+	RM_POSINF,
+	RM_NEGINF,
+	RM_ZERO,
+	RM_TIEAWAY,
+	RM_ODD
+};
+
 extern void arm64_hlp_dump(uint64_t regs);
 extern void arm64_hlp_gdb_handle_breakpoint(uint64_t regs);
 extern void arm64_gdb_breakpoint_instruction(uint64_t regs);

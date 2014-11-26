@@ -349,56 +349,6 @@ void arm64_hlp_dirty_floating_point_conditional_select_simd(uint64_t _regs, uint
     }
 }
 
-void arm64_hlp_dirty_fcvtzs_scalar_integer_simd(uint64_t _regs, uint32_t insn)
-{
-    struct arm64_registers *regs = (struct arm64_registers *) _regs;
-    int sf_type0 = (INSN(31,31) << 1) | INSN(22,22);
-    int rd = INSN(4,0);
-    int rn = INSN(9,5);
-
-    switch(sf_type0) {
-        case 0:
-            regs->r[rd] = (uint32_t)(int32_t) regs->v[rn].sf[0];
-            break;
-        case 1:
-            regs->r[rd] = (uint32_t)(int32_t) regs->v[rn].df[0];
-            break;
-        case 2:
-            regs->r[rd] = (int64_t) regs->v[rn].sf[0];
-            break;
-        case 3:
-            regs->r[rd] = (int64_t) regs->v[rn].df[0];
-            break;
-        default:
-            fatal("sf_type0 = %d\n", sf_type0);
-    }
-}
-
-void arm64_hlp_dirty_fcvtzu_scalar_integer_simd(uint64_t _regs, uint32_t insn)
-{
-    struct arm64_registers *regs = (struct arm64_registers *) _regs;
-    int sf_type0 = (INSN(31,31) << 1) | INSN(22,22);
-    int rd = INSN(4,0);
-    int rn = INSN(9,5);
-
-    switch(sf_type0) {
-        case 0:
-            regs->r[rd] = (uint32_t) regs->v[rn].sf[0];
-            break;
-        case 1:
-            regs->r[rd] = (uint32_t) regs->v[rn].df[0];
-            break;
-        case 2:
-            regs->r[rd] = (uint64_t) regs->v[rn].sf[0];
-            break;
-        case 3:
-            regs->r[rd] = (uint64_t) regs->v[rn].df[0];
-            break;
-        default:
-            fatal("sf_type0 = %d\n", sf_type0);
-    }
-}
-
 void arm64_hlp_dirty_floating_point_data_processing_3_source_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -476,8 +426,7 @@ void arm64_hlp_dirty_ucvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn)
     }
 }
 
-/* FIXME: rounding */
-void arm64_hlp_dirty_fcvtms_scalar_integer_simd(uint64_t _regs, uint32_t insn)
+static void dis_fcvtu_scalar_integer(uint64_t _regs, uint32_t insn, enum rm rmode)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
     int sf_type0 = (INSN(31,31) << 1) | INSN(22,22);
@@ -487,32 +436,126 @@ void arm64_hlp_dirty_fcvtms_scalar_integer_simd(uint64_t _regs, uint32_t insn)
     regs->v[rd].d[1] = 0;
     switch(sf_type0) {
         case 0:
-            regs->r[rd] = (uint32_t)(int32_t) regs->v[rn].sf[0];
+            regs->r[rd] = (uint32_t) usat32_d(fcvt_rm(regs->v[rn].sf[0], rmode));
             break;
         case 1:
-            regs->r[rd] = (uint32_t)(int32_t) regs->v[rn].df[0];
+            regs->r[rd] = (uint32_t) usat32_d(fcvt_rm(regs->v[rn].df[0], rmode));
             break;
         case 2:
-            regs->r[rd] = (int64_t) regs->v[rn].sf[0];
+            regs->r[rd] = (uint64_t) usat64_d(fcvt_rm(regs->v[rn].sf[0], rmode));
             break;
         case 3:
-            regs->r[rd] = (int64_t) regs->v[rn].df[0];
+            regs->r[rd] = (uint64_t) usat64_d(fcvt_rm(regs->v[rn].df[0], rmode));
+            break;
+        default:
+            fatal("sf_type0 = %d\n", sf_type0);
+    }
+}
+static void dis_fcvts_scalar_integer(uint64_t _regs, uint32_t insn, enum rm rmode)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int sf_type0 = (INSN(31,31) << 1) | INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+
+    regs->v[rd].d[1] = 0;
+    switch(sf_type0) {
+        case 0:
+            regs->r[rd] = (uint32_t)(int32_t) ssat32_d(fcvt_rm(regs->v[rn].sf[0], rmode));
+            break;
+        case 1:
+            regs->r[rd] = (uint32_t)(int32_t) ssat32_d(fcvt_rm(regs->v[rn].df[0], rmode));
+            break;
+        case 2:
+            regs->r[rd] = (int64_t) ssat64_d(fcvt_rm(regs->v[rn].sf[0], rmode));
+            break;
+        case 3:
+            regs->r[rd] = (int64_t) ssat64_d(fcvt_rm(regs->v[rn].df[0], rmode));
             break;
         default:
             fatal("sf_type0 = %d\n", sf_type0);
     }
 }
 
-/* FIXME: rounding */
-void arm64_hlp_dirty_fcvtps_scalar_integer_simd(uint64_t _regs, uint32_t insn)
+static void dis_fcvtau_scalar_integer(uint64_t _regs, uint32_t insn)
 {
-    arm64_hlp_dirty_fcvtms_scalar_integer_simd(_regs, insn);
+    dis_fcvtu_scalar_integer(_regs, insn, RM_TIEAWAY);
 }
 
-/* FIXME: rounding */
-void arm64_hlp_dirty_fcvtas_scalar_integer_simd(uint64_t _regs, uint32_t insn)
+static void dis_fcvtas_scalar_integer(uint64_t _regs, uint32_t insn)
 {
-    arm64_hlp_dirty_fcvtms_scalar_integer_simd(_regs, insn);
+    dis_fcvts_scalar_integer(_regs, insn, RM_TIEAWAY);
+}
+
+static void dis_fcvtmu_scalar_integer(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvtu_scalar_integer(_regs, insn, RM_NEGINF);
+}
+
+static void dis_fcvtms_scalar_integer(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvts_scalar_integer(_regs, insn, RM_NEGINF);
+}
+
+static void dis_fcvtnu_scalar_integer(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvtu_scalar_integer(_regs, insn, RM_TIEEVEN);
+}
+
+static void dis_fcvtns_scalar_integer(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvts_scalar_integer(_regs, insn, RM_TIEEVEN);
+}
+
+static void dis_fcvtpu_scalar_integer(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvtu_scalar_integer(_regs, insn, RM_POSINF);
+}
+
+static void dis_fcvtps_scalar_integer(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvts_scalar_integer(_regs, insn, RM_POSINF);
+}
+
+static void dis_fcvtzu_scalar_integer(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvtu_scalar_integer(_regs, insn, RM_ZERO);
+}
+
+static void dis_fcvtzs_scalar_integer(uint64_t _regs, uint32_t insn)
+{
+    dis_fcvts_scalar_integer(_regs, insn, RM_ZERO);
+}
+
+void arm64_hlp_dirty_fcvtxx_scalar_integer_simd(uint64_t _regs, uint32_t insn)
+{
+    int sf = INSN(31,31);
+    int type = INSN(23,22);
+    int rmode = INSN(20,19);
+    int opcode = INSN(18,16);
+
+    if ((type & 2) == 0 && rmode == 0 && opcode == 5)
+        dis_fcvtau_scalar_integer(_regs, insn);
+    else if ((type & 2) == 0 && rmode == 2 && opcode == 1)
+        dis_fcvtmu_scalar_integer(_regs, insn);
+    else if ((type & 2) == 0 && rmode == 0 && opcode == 0)
+        dis_fcvtns_scalar_integer(_regs, insn);
+    else if ((type & 2) == 0 && rmode == 0 && opcode == 1)
+        dis_fcvtnu_scalar_integer(_regs, insn);
+    else if ((type & 2) == 0 && rmode == 1 && opcode == 1)
+        dis_fcvtpu_scalar_integer(_regs, insn);
+    else if ((type & 2) == 0 && rmode == 3 && opcode == 0)
+        dis_fcvtzs_scalar_integer(_regs, insn);
+    else if ((type & 2) == 0 && rmode == 3 && opcode == 1)
+        dis_fcvtzu_scalar_integer(_regs, insn);
+    else if ((type & 2) == 0 && rmode == 2 && opcode == 0)
+        dis_fcvtms_scalar_integer(_regs, insn);
+    else if ((type & 2) == 0 && rmode == 1 && opcode == 0)
+        dis_fcvtps_scalar_integer(_regs, insn);
+    else if ((type & 2) == 0 && rmode == 0 && opcode == 4)
+        dis_fcvtas_scalar_integer(_regs, insn);
+    else
+        fatal("sf=%d / type=%d / rmode=%d / opcode=%d\n", sf, type, rmode, opcode);
 }
 
 void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uint32_t insn)
