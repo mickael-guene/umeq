@@ -27,6 +27,7 @@ ADD_TEST(Static.arm64.opcode.neon.l ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_S
 ADD_TEST(Static.arm64.opcode.neon.m ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/neon/m)
 ADD_TEST(Static.arm64.opcode.neon.n ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/neon/n)
 ADD_TEST(Static.arm64.opcode.neon.o ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/neon/o)
+ADD_TEST(Static.arm64.opcode.neon.p ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/neon/p)
 ADD_TEST(Static.arm64.opcode.neon.r ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/neon/r)
 ADD_TEST(Static.arm64.opcode.neon.s ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/neon/s)
 ADD_TEST(Static.arm64.opcode.neon.t ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/neon/t)

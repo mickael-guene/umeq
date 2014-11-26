@@ -941,6 +941,108 @@ static void dis_fcvtzs(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+/* stolen from glibc */
+static double sqrt (double d)
+{
+  double res;
+#if defined __AVX__ || defined SSE2AVX
+  asm ("vsqrtsd %1, %0, %0" : "=x" (res) : "xm" (d));
+#else
+  asm ("sqrtsd %1, %0" : "=x" (res) : "xm" (d));
+#endif
+  return res;
+}
+
+static double recip_sqrt_estimate(double a)
+{
+    int q0, q1, s;
+    double r;
+
+    if (a < 0.5) {
+        q0 = (int)(a * 512.0);
+        r = 1.0 / sqrt(((double)q0 + 0.5) / 512.0);
+    } else {
+        q1 = (int)(a * 256.0);
+        r = 1.0 / sqrt(((double)q1 + 0.5) / 256.0);
+    }
+    s = (int)(256.0 * r + 0.5);
+
+    return (double)s / 256.0;
+}
+
+static void dis_ursqrte(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    union simd_register res = {0};
+    int i;
+
+    for(i = 0; i < (q?4:2); i++) {
+        uint32_t op = regs->v[rn].s[i];
+
+        if ((op >> 30) == 0) {
+            res.s[i] = 0xffffffff;
+        } else {
+            union {
+                uint64_t i;
+                double d;
+            } dp_operand, estimate;
+
+            if (op >> 31)
+                dp_operand.i = (0x3feULL << 52) | ((uint64_t)(op & 0x7fffffff) << 21);
+            else
+                dp_operand.i = (0x3fdULL << 52) | ((uint64_t)(op & 0x3fffffff) << 22);
+            estimate.d = recip_sqrt_estimate(dp_operand.d);
+            res.s[i] = 0x80000000 | ((estimate.i >> 21) & 0x7fffffff);
+        }
+    }
+
+    regs->v[rd] = res;
+}
+
+static double recip_estimate(double a)
+{
+    int q, s;
+    double r;
+
+    q = (int)(a * 512.0);
+    r = 1.0 / (((double)q + 0.5) / 512.0);
+    s = (int)(256.0 * r + 0.5);
+
+    return (double)s / 256.0;
+}
+
+static void dis_urecpe(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    union simd_register res = {0};
+    int i;
+
+    for(i = 0; i < (q?4:2); i++) {
+        uint32_t op = regs->v[rn].s[i];
+
+        if ((op >> 31) == 0) {
+            res.s[i] = 0xffffffff;
+        } else {
+            union {
+                uint64_t i;
+                double d;
+            } dp_operand, estimate;
+
+            dp_operand.i = (0x3feULL << 52) | ((int64_t)(op & 0x7fffffff) << 21);
+            estimate.d = recip_estimate(dp_operand.d);
+            res.s[i] = 0x80000000 | ((estimate.i >> 21) & 0x7fffffff);
+        }
+    }
+
+    regs->v[rd] = res;
+}
+
 static void dis_ucvtf(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -1229,8 +1331,27 @@ static void dis_mal_mls(uint64_t _regs, uint32_t insn)
 
 static void dis_pmul(uint64_t _regs, uint32_t insn)
 {
-    /* FIXME: just do it */
-    assert(0);
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int i, j;
+    union simd_register res = {0};
+
+    for(i = 0; i < (q?16:8); i++) {
+        int product = 0;
+        int op1 = regs->v[rn].b[i];
+        int op2 = regs->v[rm].b[i];
+
+        for(j = 0; j < 8; j++)
+            if ((op1 >> j) & 1)
+                product = product ^ (op2 << j);
+
+        res.b[i] = product;
+    }
+
+    regs->v[rd] = res;
 }
 
 static void dis_mul(uint64_t _regs, uint32_t insn)
@@ -2558,9 +2679,30 @@ static void dis_smull_umull(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+/* FIXME: add 1Q arrangement for crypto extension */
 static void dis_pmull(uint64_t _regs, uint32_t insn)
 {
-    assert(0);
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int i, j;
+    union simd_register res = {0};
+
+    for(i = 0; i < 8; i++) {
+        int product = 0;
+        int op1 = regs->v[rn].b[q?i+8:i];
+        int op2 = regs->v[rm].b[q?i+8:i];
+
+        for(j = 0; j < 8; j++)
+            if ((op1 >> j) & 1)
+                product = product ^ (op2 << j);
+
+        res.h[i] = product;
+    }
+
+    regs->v[rd] = res;
 }
 
 static void dis_saddlv_uaddlv(uint64_t _regs, uint32_t insn)
@@ -4084,6 +4226,12 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
         case 27:
             if (size&2)
                 U?assert(0):dis_fcvtzs(_regs, insn);
+            else
+                assert(0);
+            break;
+        case 28:
+            if (size&2)
+                U?dis_ursqrte(_regs, insn):dis_urecpe(_regs, insn);
             else
                 assert(0);
             break;
