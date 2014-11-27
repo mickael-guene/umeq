@@ -919,6 +919,70 @@ static void dis_sqxtn_uqxtn(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+static void dis_frint(uint64_t _regs, uint32_t insn, enum rm rmode)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int i;
+    union simd_register res = {0};
+
+    if (is_double) {
+        for(i = 0; i < 2; i++) {
+            res.df[i] = fcvt_rm(regs->v[rn].df[i], rmode);
+            if (res.df[i] == 0.0 && regs->v[rn].df[i] < 0)
+                res.d[i] = 0x8000000000000000UL;
+        }
+    } else {
+        for(i = 0; i < (q?4:2); i++) {
+            res.sf[i] = fcvt_rm(regs->v[rn].sf[i], rmode);
+            if (res.sf[i] == 0.0 && regs->v[rn].sf[i] < 0)
+                res.s[i] = 0x80000000;
+        }
+    }
+
+    regs->v[rd] = res;
+}
+
+static void dis_frinta(uint64_t _regs, uint32_t insn)
+{
+    dis_frint(_regs, insn, RM_TIEAWAY);
+}
+
+static void dis_frintp(uint64_t _regs, uint32_t insn)
+{
+    dis_frint(_regs, insn, RM_POSINF);
+}
+
+static void dis_frintn(uint64_t _regs, uint32_t insn)
+{
+    dis_frint(_regs, insn, RM_TIEEVEN);
+}
+
+static void dis_frinti(uint64_t _regs, uint32_t insn)
+{
+    /* FIXME: use fpcr rm */
+    dis_frint(_regs, insn, RM_TIEEVEN);
+}
+
+static void dis_frintz(uint64_t _regs, uint32_t insn)
+{
+    dis_frint(_regs, insn, RM_ZERO);
+}
+
+static void dis_frintx(uint64_t _regs, uint32_t insn)
+{
+    /* FIXME: use fpcr rm */
+    dis_frint(_regs, insn, RM_TIEEVEN);
+}
+
+static void dis_frintm(uint64_t _regs, uint32_t insn)
+{
+    dis_frint(_regs, insn, RM_NEGINF);
+}
+
 static void dis_fcvtu(uint64_t _regs, uint32_t insn, enum rm rmode)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -4294,6 +4358,18 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
             break;
         case 20:
             dis_sqxtn_uqxtn(_regs, insn);
+            break;
+        case 24:
+            if (size&2)
+                U?assert(0):dis_frintp(_regs, insn);
+            else
+                U?dis_frinta(_regs, insn):dis_frintn(_regs, insn);
+            break;
+        case 25:
+            if (size&2)
+                U?dis_frinti(_regs, insn):dis_frintz(_regs, insn);
+            else
+                U?dis_frintx(_regs, insn):dis_frintm(_regs, insn);
             break;
         case 26:
             if (size&2)

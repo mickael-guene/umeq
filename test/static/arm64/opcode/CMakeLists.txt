@@ -16,6 +16,7 @@ ADD_TEST(Static.arm64.opcode.floating.fc ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CM
 ADD_TEST(Static.arm64.opcode.floating.fd ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/floating/fd)
 ADD_TEST(Static.arm64.opcode.floating.fm ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/floating/fm)
 ADD_TEST(Static.arm64.opcode.floating.fn ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/floating/fn)
+ADD_TEST(Static.arm64.opcode.floating.fr ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/floating/fr)
 ADD_TEST(Static.arm64.opcode.floating.fs ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/floating/fs)
 ADD_TEST(Static.arm64.opcode.neon.a ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/neon/a)
 ADD_TEST(Static.arm64.opcode.neon.b ${CMAKE_BINARY_DIR}/src/umeq-arm64 ${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/neon/b)

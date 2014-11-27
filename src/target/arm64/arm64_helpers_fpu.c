@@ -32,8 +32,7 @@ static void dis_fcvt(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
-/* FIXME: certainly not exact ..... */
-static void dis_frintp(uint64_t _regs, uint32_t insn)
+static void dis_frint(uint64_t _regs, uint32_t insn, enum rm rmode)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
     int is_double = INSN(22,22);
@@ -42,33 +41,53 @@ static void dis_frintp(uint64_t _regs, uint32_t insn)
     union simd_register res = {0};
 
     if (is_double) {
-        res.df[0] = (double)(int64_t)regs->v[rn].df[0];
+        res.df[0] = fcvt_rm(regs->v[rn].df[0], rmode);
+        if (res.df[0] == 0.0 && regs->v[rn].df[0] < 0)
+            res.d[0] = 0x8000000000000000UL;
     } else {
-        res.sf[0] = (float)(int64_t)regs->v[rn].sf[0];
+        res.sf[0] = fcvt_rm(regs->v[rn].sf[0], rmode);
+        /* handle -0 case */
+        if (res.sf[0] == 0.0 && regs->v[rn].sf[0] < 0)
+            res.s[0] = 0x80000000;
     }
     regs->v[rd] = res;
 }
 
-/* FIXME: certainly not exact ..... */
+static void dis_frintp(uint64_t _regs, uint32_t insn)
+{
+    dis_frint(_regs, insn, RM_POSINF);
+}
+
+static void dis_frintn(uint64_t _regs, uint32_t insn)
+{
+    dis_frint(_regs, insn, RM_TIEEVEN);
+}
+
 static void dis_frintm(uint64_t _regs, uint32_t insn)
 {
-    struct arm64_registers *regs = (struct arm64_registers *) _regs;
-    int is_double = INSN(22,22);
-    int rd = INSN(4,0);
-    int rn = INSN(9,5);
-    union simd_register res = {0};
+    dis_frint(_regs, insn, RM_NEGINF);
+}
 
-    if (is_double) {
-        res.df[0] = (double)(int64_t)regs->v[rn].df[0];
-    } else {
-        res.sf[0] = (float)(int64_t)regs->v[rn].sf[0];
-    }
-    regs->v[rd] = res;
+static void dis_frintz(uint64_t _regs, uint32_t insn)
+{
+    dis_frint(_regs, insn, RM_ZERO);
+}
+
+static void dis_frinta(uint64_t _regs, uint32_t insn)
+{
+    dis_frint(_regs, insn, RM_TIEAWAY);
 }
 
 static void dis_frintx(uint64_t _regs, uint32_t insn)
 {
-    dis_frintm(_regs, insn);
+    /* FIXME: use rm of fcpcr */
+    dis_frint(_regs, insn, RM_TIEEVEN);
+}
+
+static void dis_frinti(uint64_t _regs, uint32_t insn)
+{
+    /* FIXME: use rm of fcpcr */
+    dis_frint(_regs, insn, RM_TIEEVEN);
 }
 
 static void dis_fccmp_fccmpe(uint64_t _regs, uint32_t insn)
@@ -575,14 +594,26 @@ void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uin
         case 4: case 5:
             dis_fcvt(_regs, insn);
             break;
+        case 8:
+            dis_frintn(_regs, insn);
+            break;
         case 9:
             dis_frintp(_regs, insn);
             break;
         case 10:
             dis_frintm(_regs, insn);
             break;
+        case 11:
+            dis_frintz(_regs, insn);
+            break;
+        case 12:
+            dis_frinta(_regs, insn);
+            break;
         case 14:
             dis_frintx(_regs, insn);
+            break;
+        case 15:
+            dis_frinti(_regs, insn);
             break;
         default:
             fatal("opcode = %d/0x%x\n", opcode, opcode);
