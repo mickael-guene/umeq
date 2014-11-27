@@ -43,8 +43,9 @@ these four paragraphs for those parts of this code that are retained.
 #endif
 
 #include <inttypes.h>
-#include "config-host.h"
-#include "qemu/osdep.h"
+typedef int bool;
+#define false 	0
+#define true    (!false)
 
 /*----------------------------------------------------------------------------
 | Each of the following `typedef's defines the most convenient type that holds

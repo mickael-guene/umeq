@@ -38,9 +38,9 @@ these four paragraphs for those parts of this code that are retained.
 /* softfloat (and in particular the code in softfloat-specialize.h) is
  * target-dependent and needs the TARGET_* macros.
  */
-#include "config.h"
+#define TARGET_ARM  1
 
-#include "fpu/softfloat.h"
+#include "softfloat.h"
 
 /* We only need stdlib for abort() */
 #include <stdlib.h>
