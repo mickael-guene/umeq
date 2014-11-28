@@ -4,6 +4,7 @@
 #include "arm64_private.h"
 #include "arm64_helpers.h"
 #include "runtime.h"
+#include "softfloat.h"
 
 /* FIXME: rounding */
 /* FIXME: support signaling */
@@ -27,6 +28,26 @@ static void dis_fcvt(uint64_t _regs, uint32_t insn)
     } else if (type == 0 && opc == 1) {
         //fcvt Dd, Sn
         res.df[0] = regs->v[rn].sf[0];
+    } else if (type == 0 && opc ==3) {
+        //fcvt Hd, Sn
+        float_status dummy;
+        float16 r = float32_to_float16(regs->v[rn].s[0], 1, &dummy);
+        res.h[0] = float16_val(r);
+    } else if (type == 1 && opc ==3) {
+        //fcvt Hd, Dn
+        float_status dummy;
+        float16 r = float64_to_float16(regs->v[rn].d[0], 1, &dummy);
+        res.h[0] = float16_val(r);
+    } else if (type == 3 && opc == 0) {
+        //fcvt Sd, Hn
+        float_status dummy;
+        float32 r = float16_to_float32(regs->v[rn].h[0], 1, &dummy);
+        res.s[0] = float32_val(r);
+    }else if (type == 3 && opc == 1) {
+        //fcvt Dd, Hn
+        float_status dummy;
+        float64 r = float16_to_float64(regs->v[rn].h[0], 1, &dummy);
+        res.d[0] = float64_val(r);
     } else
         fatal("type=%d / opc=%d\n", type, opc);
     regs->v[rd] = res;
@@ -546,6 +567,128 @@ static void dis_fcvtzs_scalar_integer(uint64_t _regs, uint32_t insn)
     dis_fcvts_scalar_integer(_regs, insn, RM_ZERO);
 }
 
+static void dis_fcvtzs_fixed(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int sf_type0 = (INSN(31,31) << 1) | INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int fracbits = 64 - INSN(15,10);
+
+    switch(sf_type0) {
+        case 0:
+            //Wd, Sn
+            regs->r[rd] = (uint32_t)(int32_t) ssat32_d(fcvt_fract(regs->v[rn].sf[0], fracbits));
+            break;
+        case 1:
+            //Wd, Dn
+            regs->r[rd] = (uint32_t)(int32_t) ssat32_d(fcvt_fract(regs->v[rn].df[0], fracbits));
+            break;
+        case 2:
+            //Xd, Sn
+            regs->r[rd] = (int64_t) ssat64_d(fcvt_fract(regs->v[rn].sf[0], fracbits));
+            break;
+        case 3:
+            //Xd, Dn
+            regs->r[rd] = (int64_t) ssat64_d(fcvt_fract(regs->v[rn].df[0], fracbits));
+            break;
+        default:
+            fatal("sf_type0=%d\n", sf_type0);
+    }
+}
+
+static void dis_fcvtzu_fixed(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int sf_type0 = (INSN(31,31) << 1) | INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int fracbits = 64 - INSN(15,10);
+
+    switch(sf_type0) {
+        case 0:
+            //Wd, Sn
+            regs->r[rd] = (uint32_t) usat32_d(fcvt_fract(regs->v[rn].sf[0], fracbits));
+            break;
+        case 1:
+            //Wd, Dn
+            regs->r[rd] = (uint32_t) usat32_d(fcvt_fract(regs->v[rn].df[0], fracbits));
+            break;
+        case 2:
+            //Xd, Sn
+            regs->r[rd] = (uint64_t) usat64_d(fcvt_fract(regs->v[rn].sf[0], fracbits));
+            break;
+        case 3:
+            //Xd, Dn
+            regs->r[rd] = (uint64_t) usat64_d(fcvt_fract(regs->v[rn].df[0], fracbits));
+            break;
+    }
+}
+
+static void dis_scvtf_fixed(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int sf_type0 = (INSN(31,31) << 1) | INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int fracbits = 64 - INSN(15,10);
+    union simd_register res = {0};
+
+    switch(sf_type0) {
+        case 0:
+            //Sd, Wn
+            res.sf[0] = (double)(int32_t)regs->r[rn] / (1UL << fracbits);
+            break;
+        case 1:
+            //Dd, Wn
+            res.df[0] = (double)(int32_t)regs->r[rn] / (1UL << fracbits);
+            break;
+        case 2:
+            //Sd, Xn
+            res.sf[0] = (double)(int64_t)regs->r[rn] / (1UL << fracbits);
+            break;
+        case 3:
+            //Dd, Xn
+            res.df[0] = (double)(int64_t)regs->r[rn] / (1UL << fracbits);
+            break;
+        default:
+            fatal("sf_type0=%d\n", sf_type0);
+    }
+    regs->v[rd] = res;
+}
+
+static void dis_ucvtf_fixed(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int sf_type0 = (INSN(31,31) << 1) | INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int fracbits = 64 - INSN(15,10);
+    union simd_register res = {0};
+
+    switch(sf_type0) {
+        case 0:
+            //Sd, Wn
+            res.sf[0] = (double)(uint32_t)regs->r[rn] / (1UL << fracbits);
+            break;
+        case 1:
+            //Dd, Wn
+            res.df[0] = (double)(uint32_t)regs->r[rn] / (1UL << fracbits);
+            break;
+        case 2:
+            //Sd, Xn
+            res.sf[0] = (double)(uint64_t)regs->r[rn] / (1UL << fracbits);
+            break;
+        case 3:
+            //Dd, Xn
+            res.df[0] = (double)(uint64_t)regs->r[rn] / (1UL << fracbits);
+            break;
+        default:
+            fatal("sf_type0=%d\n", sf_type0);
+    }
+    regs->v[rd] = res;
+}
+
 void arm64_hlp_dirty_fcvtxx_scalar_integer_simd(uint64_t _regs, uint32_t insn)
 {
     int sf = INSN(31,31);
@@ -591,7 +734,7 @@ void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uin
         case 3:
             dis_fsqrt(_regs, insn);
             break;
-        case 4: case 5:
+        case 4: case 5: case 7:
             dis_fcvt(_regs, insn);
             break;
         case 8:
@@ -623,4 +766,28 @@ void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uin
 void arm64_hlp_dirty_floating_point_conditional_compare(uint64_t _regs, uint32_t insn)
 {
     dis_fccmp_fccmpe(_regs, insn);
+}
+
+void arm64_hlp_dirty_conversion_between_floating_point_and_fixed_point(uint64_t _regs, uint32_t insn)
+{
+    int type0 = INSN(22,22);
+    int rmode = INSN(20,19);
+    int opcode = INSN(18,16);
+
+    switch(opcode) {
+        case 0:
+            dis_fcvtzs_fixed(_regs, insn);
+            break;
+        case 1:
+            dis_fcvtzu_fixed(_regs, insn);
+            break;
+        case 2:
+            dis_scvtf_fixed(_regs, insn);
+            break;
+        case 3:
+            dis_ucvtf_fixed(_regs, insn);
+            break;
+        default:
+            fatal("type0=%d / rmode=%d / opcode=%d\n", type0, rmode, opcode);
+    }
 }

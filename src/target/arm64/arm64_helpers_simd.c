@@ -4,6 +4,7 @@
 #include "arm64_private.h"
 #include "arm64_helpers.h"
 #include "runtime.h"
+#include "softfloat.h"
 
 //#define DUMP_STACK 1
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
@@ -503,6 +504,104 @@ static void dis_sqrshrn_sqshrn_uqrshrn_uqshrn(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+/* FIXME: add fpcr rounding mode */
+static void dis_ucvtf_fixed(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int is_scalar = INSN(28,28);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int fracbits = (1 + is_double) * 64 - INSN(22,16);
+    union simd_register res = {0};
+    int i;
+
+    if (is_double) {
+        assert(q);
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.df[i] = (double)(uint64_t)regs->v[rn].d[i] / (1UL << fracbits);
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+        res.sf[i] = (double)(uint32_t)regs->v[rn].s[i] / (1UL << fracbits);
+    }
+
+    regs->v[rd] = res;
+}
+
+/* FIXME: add fpcr rounding mode */
+static void dis_scvtf_fixed(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int is_scalar = INSN(28,28);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int fracbits = (1 + is_double) * 64 - INSN(22,16);
+    union simd_register res = {0};
+    int i;
+
+    if (is_double) {
+        assert(q);
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.df[i] = (double)(int64_t)regs->v[rn].d[i] / (1UL << fracbits);
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+        res.sf[i] = (double)(int32_t)regs->v[rn].s[i] / (1UL << fracbits);
+    }
+
+    regs->v[rd] = res;
+}
+
+static void dis_fcvtzu_fixed(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int is_scalar = INSN(28,28);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int fracbits = (1 + is_double) * 64 - INSN(22,16);
+    union simd_register res = {0};
+    int i;
+
+    if (is_double) {
+        assert(q);
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.d[i] = (uint64_t) usat64_d(fcvt_fract(regs->v[rn].df[i], fracbits));
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.s[i] = (uint32_t) usat32_d(fcvt_fract(regs->v[rn].sf[i], fracbits));
+    }
+
+    regs->v[rd] = res;
+}
+
+static void dis_fcvtzs_fixed(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int is_scalar = INSN(28,28);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int fracbits = (1 + is_double) * 64 - INSN(22,16);
+    union simd_register res = {0};
+    int i;
+
+    if (is_double) {
+        assert(q);
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.d[i] = (int64_t) ssat64_d(fcvt_fract(regs->v[rn].df[i], fracbits));
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.s[i] = (int32_t) ssat32_d(fcvt_fract(regs->v[rn].sf[i], fracbits));
+    }
+
+    regs->v[rd] = res;
+}
+
 static void dis_sshll_ushll(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -742,6 +841,12 @@ void arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd(uint64_t _regs, uint3
         case 20:
             dis_sshll_ushll(_regs, insn);
             break;
+        case 28:
+            U?dis_ucvtf_fixed(_regs, insn):dis_scvtf_fixed(_regs, insn);
+            break;
+        case 31:
+            U?dis_fcvtzu_fixed(_regs, insn):dis_fcvtzs_fixed(_regs, insn);
+            break;
         default:
             fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
     }
@@ -914,6 +1019,88 @@ static void dis_sqxtn_uqxtn(uint64_t _regs, uint32_t insn)
             break;
         default:
             assert(0);
+    }
+
+    regs->v[rd] = res;
+}
+
+static void dis_fcvtxn(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_scalar = INSN(28,28);
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int i;
+    union simd_register res = {0};
+
+    if (!is_scalar)
+        res.v.lsb = regs->v[rd].v.lsb;
+    if (is_double) {
+        for(i = 0; i < (is_scalar?1:2); i++) {
+            float_status dummy = {0};
+            dummy.float_rounding_mode = float_round_to_zero;
+            float32 r = float64_to_float32(regs->v[rn].d[i], &dummy);
+            /* FIXME: lsb bit should be set only when result is inexact */
+            res.s[is_scalar?i:(q?2+i:i)] = float32_val(r) | 1;
+        }
+    } else {
+        assert(0);
+    }
+
+    regs->v[rd] = res;
+}
+
+/* FIXME: use fpcr rounding mode */
+static void dis_fcvtn(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int i;
+    union simd_register res = {0};
+
+    if (q)
+        res.v.lsb = regs->v[rd].v.lsb;
+    if (is_double) {
+        for(i = 0; i < 2; i++) {
+            res.sf[q?2+i:i] = regs->v[rn].df[i];
+        }
+    } else {
+        for(i = 0; i < 4; i++) {
+            float_status dummy = {0};
+            float16 r = float32_to_float16(regs->v[rn].s[i], 1, &dummy);
+            res.h[q?4+i:i] = float16_val(r);
+        }
+    }
+
+    regs->v[rd] = res;
+}
+
+/* FIXME: use fpcr rounding mode */
+static void dis_fcvtl(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int i;
+    union simd_register res = {0};
+
+    if (is_double) {
+        for(i = 0; i < 2; i++) {
+            res.df[i] = regs->v[rn].sf[q?2+i:i];;
+        }
+    } else {
+        for(i = 0; i < 4; i++) {
+            float_status dummy;
+            float32 r = float16_to_float32(regs->v[rn].h[q?4+i:i], 1, &dummy);
+            res.s[i] = float32_val(r);
+        }
     }
 
     regs->v[rd] = res;
@@ -4359,6 +4546,18 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
         case 20:
             dis_sqxtn_uqxtn(_regs, insn);
             break;
+        case 22:
+            if (size&2)
+                assert(0);
+            else
+                U?dis_fcvtxn(_regs, insn):dis_fcvtn(_regs, insn);
+            break;
+        case 23:
+            if (size&2)
+                assert(0);
+            else
+                U?assert(0):dis_fcvtl(_regs, insn);
+            break;
         case 24:
             if (size&2)
                 U?assert(0):dis_frintp(_regs, insn);
@@ -4463,6 +4662,12 @@ void arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd(uint64_t _regs, uint
             break;
         case 20:
             dis_sqxtn_uqxtn(_regs, insn);
+            break;
+        case 22:
+            if (size1)
+                assert(0);
+            else
+                U?dis_fcvtxn(_regs, insn):assert(0);
             break;
         case 26:
             if (size1)
@@ -4930,6 +5135,12 @@ void arm64_hlp_dirty_advanced_simd_scalar_shift_by_immediate_simd(uint64_t _regs
             dis_sqrshrn_sqshrn_uqrshrn_uqshrn(_regs, insn);
         case 19:
             dis_sqrshrn_sqshrn_uqrshrn_uqshrn(_regs, insn);
+            break;
+        case 28:
+            U?dis_ucvtf_fixed(_regs, insn):dis_scvtf_fixed(_regs, insn);
+            break;
+        case 31:
+            U?dis_fcvtzu_fixed(_regs, insn):dis_fcvtzs_fixed(_regs, insn);
             break;
         default:
             fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);

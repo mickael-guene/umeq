@@ -57,6 +57,13 @@ static double fcvt_rm(double a, enum rm rmode)
     return int_result;
 }
 
+static double fcvt_fract(double a, int fracbits)
+{
+    double value = a * (1UL << fracbits);
+
+    return fcvt_rm(value, RM_ZERO);
+}
+
 static double ssat64_d(double a)
 {
     if (a > 0x7fffffffffffffffUL)

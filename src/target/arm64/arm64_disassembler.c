@@ -3459,6 +3459,19 @@ static int dis_floating_point_conditional_compare(struct arm64_target *context, 
     return 0;
 }
 
+static int dis_conversion_between_floating_point_and_fixed_point_insn(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
+
+    params[0] = mk_32(ir, insn);
+
+    ir->add_call_void(ir, "arm64_hlp_dirty_conversion_between_floating_point_and_fixed_point",
+                           mk_64(ir, (uint64_t) arm64_hlp_dirty_conversion_between_floating_point_and_fixed_point),
+                           params);
+
+    return 0;
+}
+
 /* disassemblers */
 static int dis_load_store_exclusive(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -4190,8 +4203,7 @@ static int dis_data_processing_simd_insn(struct arm64_target *context, uint32_t 
                             break;
                     }
                 } else {
-                    //conversion_between_floating_point_and_fixed_point
-                    assert(0);
+                    dis_conversion_between_floating_point_and_fixed_point_insn(context, insn, ir);
                 }
             }
         }
