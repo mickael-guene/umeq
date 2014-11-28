@@ -30,22 +30,22 @@ static void dis_fcvt(uint64_t _regs, uint32_t insn)
         res.df[0] = regs->v[rn].sf[0];
     } else if (type == 0 && opc ==3) {
         //fcvt Hd, Sn
-        float_status dummy;
+        float_status dummy = {0};
         float16 r = float32_to_float16(regs->v[rn].s[0], 1, &dummy);
         res.h[0] = float16_val(r);
     } else if (type == 1 && opc ==3) {
         //fcvt Hd, Dn
-        float_status dummy;
+        float_status dummy = {0};
         float16 r = float64_to_float16(regs->v[rn].d[0], 1, &dummy);
         res.h[0] = float16_val(r);
     } else if (type == 3 && opc == 0) {
         //fcvt Sd, Hn
-        float_status dummy;
+        float_status dummy = {0};
         float32 r = float16_to_float32(regs->v[rn].h[0], 1, &dummy);
         res.s[0] = float32_val(r);
     }else if (type == 3 && opc == 1) {
         //fcvt Dd, Hn
-        float_status dummy;
+        float_status dummy = {0};
         float64 r = float16_to_float64(regs->v[rn].h[0], 1, &dummy);
         res.d[0] = float64_val(r);
     } else

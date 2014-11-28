@@ -1097,7 +1097,7 @@ static void dis_fcvtl(uint64_t _regs, uint32_t insn)
         }
     } else {
         for(i = 0; i < 4; i++) {
-            float_status dummy;
+            float_status dummy = {0};
             float32 r = float16_to_float32(regs->v[rn].h[q?4+i:i], 1, &dummy);
             res.s[i] = float32_val(r);
         }
