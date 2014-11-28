@@ -462,6 +462,24 @@ static uint64_t simd_immediate(int op, int cmode, int imm8_p)
 
             for(i=0;i<8;i++)
                 imm64 |= (imm8&(1<<i))?(0xffUL << (8*i)):0;
+        } else if ((cmode & 1) == 1 && op == 0) {
+            uint64_t imm8_7 = (imm8 >> 7) & 1;
+            uint64_t imm8_6_not = (~imm8 >> 6) & 1;
+            uint64_t imm8_6 = (imm8 >> 6) & 1;
+            uint64_t imm8_5_0 = imm8 & 0x3f;
+            uint64_t imm32 = (imm8_7 << 31) | (imm8_6_not << 30) | (imm8_6 << 29) | (imm8_6 << 28) |
+                             (imm8_6 << 27) | (imm8_6 << 26) | (imm8_6 << 25) | (imm8_5_0 << 19);
+
+            imm64 = (imm32 << 32UL) | imm32;
+        } else if ((cmode & 1) == 1 && op == 1) {
+            uint64_t imm8_7 = (imm8 >> 7) & 1;
+            uint64_t imm8_6_not = (~imm8 >> 6) & 1;
+            uint64_t imm8_6 = (imm8 >> 6) & 1;
+            uint64_t imm8_5_0 = imm8 & 0x3f;
+
+            imm64 = (imm8_7 << 63) | (imm8_6_not << 62) | (imm8_6 << 61) | (imm8_6 << 60) |
+                    (imm8_6 << 59) | (imm8_6 << 58) | (imm8_6 << 57) | (imm8_6 << 56) |
+                    (imm8_6 << 55) | (imm8_6 << 54) | (imm8_5_0 << 48);
         } else {
             fatal("cmode0 = %d / op = %d\n", (cmode & 1), op);
         }
@@ -2260,6 +2278,10 @@ static int dis_mrs_register(struct arm64_target *context, uint32_t insn, struct 
     } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 1) {
         //fpsr
         write_x(ir, rt, ir->add_read_context_32(ir, offsetof(struct arm64_registers, fpsr)), ZERO_REG);
+    } else if (op0 == 3 && op1 == 3 && crn == 0x0 && crm == 0 && op2 == 1) {
+        //ctr_el0
+        /* 32 byte I and D cacheline size, VIPT icache */
+        write_x(ir, rt, mk_64(ir, 0x80030003), ZERO_REG);
     } else {
         fprintf(stderr, "op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\n", op0, op1, crn, crm, op2);
         fprintf(stderr, "pc = 0x%016lx\n", context->pc);
@@ -2805,6 +2827,7 @@ static int dis_fmov_register(struct arm64_target *context, uint32_t insn, struct
         write_d(ir, rd, read_d(ir, rn));
     else
         write_s(ir, rd, read_s(ir, rn));
+    write_v_msb(ir, rd, mk_64(ir, 0));
 
     return 0;
 }
@@ -3108,6 +3131,25 @@ static int dis_orr_immediate(struct arm64_target *context, uint32_t insn, struct
     write_v_lsb(ir, rd, ir->add_or_64(ir, read_v_lsb(ir, rd), imm64));
     if (Q) {
         write_v_msb(ir, rd, ir->add_or_64(ir, read_v_msb(ir, rd), imm64));
+    } else {
+        write_v_msb(ir, rd, mk_64(ir, 0));
+    }
+
+    return 0;
+}
+
+static int dis_fmov_immediate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(30, 30);
+    int op = INSN(29, 29);
+    int imm8 = (INSN(18,16) << 5) + INSN(9,5);
+    int cmode = INSN(15,12);
+    int rd = INSN(4, 0);
+    struct irRegister *imm64 = mk_64(ir, simd_immediate(op, cmode, imm8));
+
+    write_v_lsb(ir, rd, imm64);
+    if (Q) {
+        write_v_msb(ir, rd, imm64);
     } else {
         write_v_msb(ir, rd, mk_64(ir, 0));
     }
@@ -4078,6 +4120,9 @@ static int dis_advanced_simd_modified_immediate(struct arm64_target *context, ui
                     isExit = dis_bic_immediate(context, insn, ir);
                 else
                     isExit = dis_orr_immediate(context, insn, ir);
+                break;
+            case 15:
+                isExit = dis_fmov_immediate(context, insn, ir);
                 break;
         default:
             fatal("cmode = %d(0x%x)\n", cmode, cmode);
