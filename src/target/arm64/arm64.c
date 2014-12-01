@@ -15,6 +15,98 @@
 typedef void *arm64Context;
 const char arch_name[] = "arm64";
 
+struct _aarch64_ctx {
+    uint32_t magic;
+    uint32_t size;
+};
+
+typedef union sigval_arm64 {
+    uint32_t sival_int;
+    uint64_t sival_ptr;
+} sigval_t_arm64;
+
+struct siginfo_arm64 {
+    uint32_t si_signo;
+    uint32_t si_errno;
+    uint32_t si_code;
+    union {
+        uint32_t _pad[28];
+        /* kill */
+        struct {
+            uint32_t _si_pid;
+            uint32_t _si_uid;
+        } _kill;
+        /* POSIX.1b timers */
+        struct {
+            uint32_t _si_tid;
+            uint32_t _si_overrun;
+            sigval_t_arm64 _si_sigval;
+        } _timer;
+        /* POSIX.1b signals */
+        struct {
+            uint32_t _si_pid;
+            uint32_t _si_uid;
+            sigval_t_arm64 _si_sigval;
+        } _rt;
+        /* SIGCHLD */
+        struct {
+            uint32_t _si_pid;
+            uint32_t _si_uid;
+            uint32_t _si_status;
+            uint32_t _si_utime;
+            uint32_t _si_stime;
+        } _sigchld;
+        /* SIGILL, SIGFPE, SIGSEGV, SIGBUS */
+        struct {
+            uint64_t _si_addr;
+        } _sigfault;
+        /* SIGPOLL */
+        struct {
+            uint64_t _si_band;
+            uint32_t _si_fd;
+        } _sigpoll;
+    } _sifields;
+};
+
+typedef struct stack_arm64 {
+    uint64_t ss_sp;
+    uint32_t ss_flags;
+    uint64_t ss_size;
+} stack_t_arm64;
+
+typedef struct {
+    uint64_t sig[1/*_NSIG_WORDS*/];
+} sigset_t_arm64;
+
+struct sigcontext_arm64 {
+    uint64_t fault_address;
+    /* AArch64 registers */
+    uint64_t regs[31];
+    uint64_t sp;
+    uint64_t pc;
+    uint64_t pstate;
+    /* 4K reserved for FP/SIMD state and future expansion */
+    uint8_t __reserved[4096] __attribute__((__aligned__(16)));
+};
+
+struct ucontext_arm64 {
+    uint64_t                uc_flags;
+    struct ucontext_arm64   *uc_link;
+    stack_t_arm64           uc_stack;
+    sigset_t_arm64          uc_sigmask;
+    /* glibc uses a 1024-bit sigset_t */
+    uint8_t                 __unused[1024 / 8 - sizeof(sigset_t_arm64)];
+    /* last for future expansion */
+    struct sigcontext_arm64 uc_mcontext;
+};
+
+struct rt_sigframe_arm64 {
+    struct siginfo_arm64 info;
+    struct ucontext_arm64 uc;
+    uint64_t fp;
+    uint64_t lr;
+};
+
 /* backend implementation */
 static void init(struct target *target, struct target *prev_target, uint64_t entry, uint64_t stack_ptr, uint32_t signum, void *param)
 {
@@ -24,6 +116,65 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
 
     context-> isLooping = 1;
     if (signum) {
+#if 1
+        const unsigned int return_code[] = {0xd2801168, //1: mov     x8, #139
+                                            0xd4000001, //svc     0x00000000
+                                            0xd503201f, //nop
+                                            0x17fffffd};//b 1b
+        uint32_t *dst;
+        uint64_t return_code_addr;
+        struct rt_sigframe_arm64 *frame;
+        struct _aarch64_ctx *end;
+        /* stp can be ongoing ... jump away and align on 16 bytes */
+        /* FIXME: altstack stuff */
+        uint64_t sp = (prev_context->regs.r[31] - 128) & ~15UL;
+        /* insert return code sequence */
+        sp = sp - sizeof(return_code);
+        return_code_addr = sp;
+        for(i = 0, dst = (unsigned int *)g_2_h(sp);i < sizeof(return_code)/sizeof(return_code[0]); i++)
+            *dst++ = return_code[i];
+        /* fill signal frame */
+        sp = sp - sizeof(struct rt_sigframe_arm64);
+        frame = (struct rt_sigframe_arm64 *) g_2_h(sp);
+        frame->uc.uc_flags = 0;
+        frame->uc.uc_link = NULL;
+        /* no need to do __save_altstack */
+        frame->fp = prev_context->regs.r[29];
+        frame->lr = prev_context->regs.r[30];
+        for(i = 0; i < 31; i++)
+            frame->uc.uc_mcontext.regs[i] = prev_context->regs.r[i];
+        frame->uc.uc_mcontext.sp = prev_context->regs.r[31];
+        frame->uc.uc_mcontext.pc = prev_context->regs.pc;
+        frame->uc.uc_mcontext.pstate = prev_context->regs.nzcv;
+        /* FIXME: fault address ? */
+        /* FIXME: sigmask ? */
+        end = (struct _aarch64_ctx *) frame->uc.uc_mcontext.__reserved;
+        end->magic = 0;
+        end->size = 0;
+
+        /* setup new user context */
+        for(i = 0; i < 32; i++) {
+            context->regs.r[i] = 0;
+            context->regs.v[i].v128 = 0;
+        }
+        context->regs.r[0] = signum;
+        /* FIXME: cleanup code with signal once */
+        context->regs.r[1] = (uint64_t) param; /* siginfo_t * */
+        /* FIXME: use frame->uc address */
+        context->regs.r[2] = 0; /* void * */
+        context->regs.r[29] = sp + offsetof(struct rt_sigframe_arm64, fp);
+        context->regs.r[30] = return_code_addr;
+        context->regs.r[31] = sp;
+        context->regs.pc = entry;
+        context->regs.tpidr_el0 = prev_context->regs.tpidr_el0;
+        context->regs.fpcr = prev_context->regs.fpcr;
+        context->regs.fpsr = prev_context->regs.fpsr;
+        context->regs.nzcv = 0;
+        context->pc = entry;
+        context->regs.is_in_syscall = 0;
+        context->is_in_signal = 1;
+        context->regs.is_stepin = 0;
+#else
         /* new signal frame */
         uint32_t *dst;
         uint64_t sp;
@@ -55,6 +206,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.is_in_syscall = 0;
         context->is_in_signal = 1;
         context->regs.is_stepin = 0;
+#endif
     } else if (param) {
         /* new thread */
         struct arm64_target *parent_context = container_of(param, struct arm64_target, target);
