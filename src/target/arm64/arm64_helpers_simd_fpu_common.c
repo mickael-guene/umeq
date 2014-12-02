@@ -14,6 +14,42 @@ static inline double mind(double a, double b)
 {
     return a<b?a:b;
 }
+static inline float maxnmf(float a, float b)
+{
+    if (isnanf(a))
+        return b;
+    else if (isnanf(b))
+        return a;
+    else
+        return a>=b?a:b;
+}
+static inline double maxnmd(double a, double b)
+{
+    if (isnan(a))
+        return b;
+    else if (isnan(b))
+        return a;
+    else
+        return a>=b?a:b;
+}
+static inline float minnmf(float a, float b)
+{
+    if (isnanf(a))
+        return b;
+    else if (isnanf(b))
+        return a;
+    else
+        return a<b?a:b;
+}
+static inline double minnmd(double a, double b)
+{
+    if (isnan(a))
+        return b;
+    else if (isnan(b))
+        return a;
+    else
+        return a<b?a:b;
+}
 
 static double fcvt_rm(double a, enum rm rmode)
 {

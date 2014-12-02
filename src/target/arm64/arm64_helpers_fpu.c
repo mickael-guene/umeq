@@ -245,32 +245,36 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
     int rm = INSN(20,16);
     int rn = INSN(9,5);
     int rd = INSN(4,0);
+    union simd_register res = {0};
 
-    regs->v[rd].d[1] = 0;
     if (is_double) {
         switch(opcode) {
             case 0://fmul
-                regs->v[rd].df[0] = regs->v[rn].df[0] * regs->v[rm].df[0];
+                res.df[0] = regs->v[rn].df[0] * regs->v[rm].df[0];
                 break;
             case 1://fdiv
-                regs->v[rd].df[0] = regs->v[rn].df[0] / regs->v[rm].df[0];
+                res.df[0] = regs->v[rn].df[0] / regs->v[rm].df[0];
                 break;
             case 2://fadd
-                regs->v[rd].df[0] = regs->v[rn].df[0] + regs->v[rm].df[0];
+                res.df[0] = regs->v[rn].df[0] + regs->v[rm].df[0];
                 break;
             case 3://fsub
-                regs->v[rd].df[0] = regs->v[rn].df[0] - regs->v[rm].df[0];
+                res.df[0] = regs->v[rn].df[0] - regs->v[rm].df[0];
                 break;
             case 4://fmax
+                res.df[0] = maxd(regs->v[rn].df[0],regs->v[rm].df[0]);
+                break;
             case 6://fmaxnm
-                regs->v[rd].df[0] = maxd(regs->v[rn].df[0],regs->v[rm].df[0]);
+                res.df[0] = maxnmd(regs->v[rn].df[0],regs->v[rm].df[0]);
                 break;
             case 5://fmin
+                res.df[0] = mind(regs->v[rn].df[0],regs->v[rm].df[0]);
+                break;
             case 7://fminnm
-                regs->v[rd].df[0] = mind(regs->v[rn].df[0],regs->v[rm].df[0]);
+                res.df[0] = minnmd(regs->v[rn].df[0],regs->v[rm].df[0]);
                 break;
             case 8://fnmul
-                regs->v[rd].df[0] = -(regs->v[rn].df[0] * regs->v[rm].df[0]);
+                res.df[0] = -(regs->v[rn].df[0] * regs->v[rm].df[0]);
                 break;
             default:
                 fatal("opcode = %d(0x%x)\n", opcode, opcode);
@@ -278,33 +282,37 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
     } else {
         switch(opcode) {
             case 0://fmul
-                regs->v[rd].sf[0] = regs->v[rn].sf[0] * regs->v[rm].sf[0];
+                res.sf[0] = regs->v[rn].sf[0] * regs->v[rm].sf[0];
                 break;
             case 1://fdiv
-                regs->v[rd].sf[0] = regs->v[rn].sf[0] / regs->v[rm].sf[0];
+                res.sf[0] = regs->v[rn].sf[0] / regs->v[rm].sf[0];
                 break;
             case 2://fadd
-                regs->v[rd].sf[0] = regs->v[rn].sf[0] + regs->v[rm].sf[0];
+                res.sf[0] = regs->v[rn].sf[0] + regs->v[rm].sf[0];
                 break;
             case 3://fsub
-                regs->v[rd].sf[0] = regs->v[rn].sf[0] - regs->v[rm].sf[0];
+                res.sf[0] = regs->v[rn].sf[0] - regs->v[rm].sf[0];
                 break;
             case 4://fmax
+                res.sf[0] = maxf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
+                break;
             case 6://fmaxnm
-                regs->v[rd].sf[0] = maxf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
+                res.sf[0] = maxnmf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
                 break;
             case 5://fmin
+                res.sf[0] = minf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
+                break;
             case 7://fminnm
-                regs->v[rd].sf[0] = minf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
+                res.sf[0] = minnmf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
                 break;
             case 8://fnmul
-                regs->v[rd].sf[0] = -(regs->v[rn].sf[0] * regs->v[rm].sf[0]);
+                res.sf[0] = -(regs->v[rn].sf[0] * regs->v[rm].sf[0]);
                 break;
             default:
                 fatal("opcode = %d(0x%x)\n", opcode, opcode);
         }
-        regs->v[rd].sf[1] = 0;
     }
+    regs->v[rd] = res;
 }
 
 void arm64_hlp_dirty_floating_point_immediate_simd(uint64_t _regs, uint32_t insn)

@@ -2312,7 +2312,32 @@ static void dis_fmax_fmin(uint64_t _regs, uint32_t insn)
 
 static void dis_fmaxnm_fminnm(uint64_t _regs, uint32_t insn)
 {
-    dis_fmax_fmin(_regs, insn);
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_scalar = INSN(28,28);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int is_min = INSN(23,23);
+    union simd_register res = {0};
+    int i;
+
+    assert(is_scalar==0);
+    if (is_double) {
+        for(i = 0; i < 2; i++)
+            if (is_min)
+                res.df[i] = minnmd(regs->v[rn].df[i],regs->v[rm].df[i]);
+            else
+                res.df[i] = maxnmd(regs->v[rn].df[i],regs->v[rm].df[i]);
+    } else {
+        for(i = 0; i < (q?4:2); i++)
+            if (is_min)
+                res.sf[i] = minnmf(regs->v[rn].sf[i],regs->v[rm].sf[i]);
+            else
+                res.sf[i] = maxnmf(regs->v[rn].sf[i],regs->v[rm].sf[i]);
+    }
+    regs->v[rd] = res;
 }
 
 static void dis_fdiv(uint64_t _regs, uint32_t insn)
@@ -2358,7 +2383,7 @@ static void dis_facgt(uint64_t _regs, uint32_t insn)
             op1 = regs->v[rn].df[i]>0?regs->v[rn].df[i]:-regs->v[rn].df[i];
             op2 = regs->v[rm].df[i]>0?regs->v[rm].df[i]:-regs->v[rm].df[i];
 
-            res.d[i] = op1>=op2?~0UL:0;
+            res.d[i] = op1>op2?~0UL:0;
         }
     } else {
         float op1;
@@ -2368,7 +2393,7 @@ static void dis_facgt(uint64_t _regs, uint32_t insn)
             op1 = regs->v[rn].sf[i]>0?regs->v[rn].sf[i]:-regs->v[rn].sf[i];
             op2 = regs->v[rm].sf[i]>0?regs->v[rm].sf[i]:-regs->v[rm].sf[i];
 
-            res.s[i] = op1>=op2?~0UL:0;
+            res.s[i] = op1>op2?~0UL:0;
         }
     }
     regs->v[rd] = res;
@@ -2465,7 +2490,43 @@ static void dis_fmaxp_fminp(uint64_t _regs, uint32_t insn)
 
 static void dis_fmaxnmp_fminnmp(uint64_t _regs, uint32_t insn)
 {
-    dis_fmaxp_fminp(_regs,insn);
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_scalar = INSN(28,28);
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int is_min = INSN(23,23);
+    int i;
+    union simd_register res = {0};
+
+    if (is_double) {
+        for(i = 0; i < 1; i++) {
+            if (is_min) {
+                res.df[i] = minnmd(regs->v[rn].df[2*i],regs->v[rn].df[2*i + 1]);
+                if (!is_scalar)
+                    res.df[i+1] = minnmd(regs->v[rm].df[2*i],regs->v[rm].df[2*i + 1]);
+            } else {
+                res.df[i] = maxnmd(regs->v[rn].df[2*i],regs->v[rn].df[2*i + 1]);
+                if (!is_scalar)
+                    res.df[i+1] = maxnmd(regs->v[rm].df[2*i],regs->v[rm].df[2*i + 1]);
+            }
+        }
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?2:1)); i++) {
+            if (is_min) {
+                res.sf[i] = minnmf(regs->v[rn].sf[2*i],regs->v[rn].sf[2*i + 1]);
+                if (!is_scalar)
+                    res.sf[(q?2:1) + i] = minnmf(regs->v[rm].sf[2*i],regs->v[rm].sf[2*i + 1]);
+            } else {
+                res.sf[i] = maxnmf(regs->v[rn].sf[2*i],regs->v[rn].sf[2*i + 1]);
+                if (!is_scalar)
+                    res.sf[(q?2:1) + i] = maxnmf(regs->v[rm].sf[2*i],regs->v[rm].sf[2*i + 1]);
+            }
+        }
+    }
+    regs->v[rd] = res;
 }
 
 static void dis_faddp(uint64_t _regs, uint32_t insn)
@@ -3161,7 +3222,28 @@ static void dis_fmaxv_fminv(uint64_t _regs, uint32_t insn)
 
 static void dis_fmaxnmv_fminnmv(uint64_t _regs, uint32_t insn)
 {
-    dis_fmaxv_fminv(_regs, insn);
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int is_min = INSN(23,23);
+    float tmp[2];
+    union simd_register res = {0};
+
+    assert(is_double == 0);
+    assert(q);
+    if (is_min) {
+        tmp[0] = minnmf(regs->v[rn].sf[0],regs->v[rn].sf[1]);
+        tmp[1] = minnmf(regs->v[rn].sf[2],regs->v[rn].sf[3]);
+        res.sf[0] = minnmf(tmp[0],tmp[1]);
+    } else {
+        tmp[0] = maxnmf(regs->v[rn].sf[0],regs->v[rn].sf[1]);
+        tmp[1] = maxnmf(regs->v[rn].sf[2],regs->v[rn].sf[3]);
+        res.sf[0] = maxnmf(tmp[0],tmp[1]);
+    }
+
+    regs->v[rd] = res;
 }
 
 static void dis_addv(uint64_t _regs, uint32_t insn)
