@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <assert.h>
+#include <math.h>
 
 #include "arm64_private.h"
 #include "arm64_helpers.h"
@@ -146,29 +147,6 @@ static void dis_fccmp_fccmpe(uint64_t _regs, uint32_t insn)
     regs->nzcv = (nzcv << 28) | (regs->nzcv & 0x0fffffff);
 }
 
-/* stolen from glibc */
-static double sqrt (double d)
-{
-  double res;
-#if defined __AVX__ || defined SSE2AVX
-  asm ("vsqrtsd %1, %0, %0" : "=x" (res) : "xm" (d));
-#else
-  asm ("sqrtsd %1, %0" : "=x" (res) : "xm" (d));
-#endif
-  return res;
-}
-/* stolen from glibc */
-static float sqrtf (float d)
-{
-  float res;
-#if defined __AVX__ || defined SSE2AVX
-  asm ("vsqrtss %1, %0, %0" : "=x" (res) : "xm" (d));
-#else
-  asm ("sqrtss %1, %0" : "=x" (res) : "xm" (d));
-#endif
-  return res;
-}
-
 static void dis_fsqrt(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -236,7 +214,9 @@ void arm64_hlp_dirty_floating_point_compare_simd(uint64_t _regs, uint32_t insn)
         double op1 = regs->v[rn].df[0];
         double op2 = is_compare_zero?0.0:regs->v[rm].df[0];
 
-        if (op1 == op2)
+        if (isnan(op1) || isnan(op2))
+            regs->nzcv = 0x30000000;
+        else if (op1 == op2)
             regs->nzcv = 0x60000000;
         else if (op1 > op2)
             regs->nzcv = 0x20000000;
@@ -246,7 +226,9 @@ void arm64_hlp_dirty_floating_point_compare_simd(uint64_t _regs, uint32_t insn)
         float op1 = regs->v[rn].sf[0];
         float op2 = is_compare_zero?0.0:regs->v[rm].sf[0];
 
-        if (op1 == op2)
+        if (isnan(op1) || isnan(op2))
+            regs->nzcv = 0x30000000;
+        else if (op1 == op2)
             regs->nzcv = 0x60000000;
         else if (op1 > op2)
             regs->nzcv = 0x20000000;

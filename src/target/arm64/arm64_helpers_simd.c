@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <assert.h>
+#include <math.h>
 
 #include "arm64_private.h"
 #include "arm64_helpers.h"
@@ -681,11 +682,18 @@ static void dis_srshr_srsra_sshr_ssra_urshr_ursra_ushr_usra(uint64_t _regs, uint
                 res.s[i] = (((int32_t)regs->v[rn].s[i] + (is_round?(1L<<(shift-1)):0)) >> shift) + (is_acc?regs->v[rd].s[i]:0);
     } else {
         shift = 128 - imm;
+        /* since we use 64 bits arithmetic, we need to handle shift by 64 in specific case */
         for(i = 0; i < (is_scalar?1:2); i++)
-            if (U)
-                res.d[i] = (((uint64_t)regs->v[rn].d[i] + (is_round?(1UL<<(shift-1)):0)) >> shift) + (is_acc?regs->v[rd].d[i]:0);
+            if (shift == 64)
+                if (U)
+                    res.d[i] = (is_acc?regs->v[rd].d[i]:0);
+                else
+                    res.d[i] = (((int64_t)regs->v[rn].d[i] + (is_round?(1L<<(shift-1)):0)) >> 63) + (is_acc?regs->v[rd].d[i]:0);
             else
-                res.d[i] = (((int64_t)regs->v[rn].d[i] + (is_round?(1L<<(shift-1)):0)) >> shift) + (is_acc?regs->v[rd].d[i]:0);
+                if (U)
+                    res.d[i] = (((uint64_t)regs->v[rn].d[i] + (is_round?(1UL<<(shift-1)):0)) >> shift) + (is_acc?regs->v[rd].d[i]:0);
+                else
+                    res.d[i] = (((int64_t)regs->v[rn].d[i] + (is_round?(1L<<(shift-1)):0)) >> shift) + (is_acc?regs->v[rd].d[i]:0);
     }
 
     regs->v[rd] = res;
@@ -1262,18 +1270,6 @@ static void dis_fcvtau(uint64_t _regs, uint32_t insn)
 static void dis_fcvtas(uint64_t _regs, uint32_t insn)
 {
     dis_fcvts(_regs, insn, RM_TIEAWAY);
-}
-
-/* stolen from glibc */
-static double sqrt (double d)
-{
-  double res;
-#if defined __AVX__ || defined SSE2AVX
-  asm ("vsqrtsd %1, %0, %0" : "=x" (res) : "xm" (d));
-#else
-  asm ("sqrtsd %1, %0" : "=x" (res) : "xm" (d));
-#endif
-  return res;
 }
 
 static double recip_sqrt_estimate(double a)
