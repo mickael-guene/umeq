@@ -1579,27 +1579,28 @@ static void dis_cmpeq_vector(uint64_t _regs, uint32_t insn)
     int rd = INSN(4,0);
     int rn = INSN(9,5);
     int i;
+    union simd_register res = {0};
 
-    regs->v[rd].v.msb = 0;
     switch(size) {
         case 0:
             for(i = 0; i < (q?16:8); i++)
-                regs->v[rd].b[i] = regs->v[rn].b[i]==0?0xff:0;
+                res.b[i] = regs->v[rn].b[i]==0?0xff:0;
             break;
         case 1:
             for(i = 0; i < (q?8:4); i++)
-                regs->v[rd].h[i] = regs->v[rn].h[i]==0?0xffff:0;
+                res.h[i] = regs->v[rn].h[i]==0?0xffff:0;
             break;
         case 2:
             for(i = 0; i < (q?4:2); i++) {
-                regs->v[rd].s[i] = regs->v[rn].s[i]==0?0xffffffff:0;
+                res.s[i] = regs->v[rn].s[i]==0?0xffffffff:0;
             }
             break;
         case 3:
             for(i = 0; i < (q?2:1); i++)
-                regs->v[rd].d[i] = regs->v[rn].d[i]==0?0xffffffffffffffffUL:0;
+                res.d[i] = regs->v[rn].d[i]==0?0xffffffffffffffffUL:0;
             break;
     }
+    regs->v[rd] = res;
 }
 
 static void dis_mal_mls(uint64_t _regs, uint32_t insn)
