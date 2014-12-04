@@ -1457,6 +1457,24 @@ static void dis_frecpe(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+static void dis_frecpx(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    union simd_register res = {0};
+    float_status dummy = {0};
+
+    if (is_double) {
+        res.d[0] = float64_val(HELPER(frecpx_f64)(make_float64(regs->v[rn].d[0]), &dummy));
+    } else {
+        res.s[0] = float32_val(HELPER(frecpx_f32)(make_float32(regs->v[rn].s[0]), &dummy));
+    }
+
+    regs->v[rd] = res;
+}
+
 static void dis_suqadd_usqadd(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -4863,6 +4881,12 @@ void arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd(uint64_t _regs, uint
                 U?assert(0):dis_frecpe(_regs, insn);
             else
                 U?dis_ucvtf(_regs, insn):dis_scvtf(_regs, insn);
+            break;
+        case 31:
+            if (size1)
+                U?assert(0):dis_frecpx(_regs, insn);
+            else
+                assert(0);
             break;
         default:
             fatal("opcode = %d(0x%x) / U=%d / size1=%d\n", opcode, opcode, U, size1);

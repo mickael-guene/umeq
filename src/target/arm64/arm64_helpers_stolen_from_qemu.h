@@ -14,9 +14,10 @@ extern "C" {
 
 #define HELPER(a)   qemu_stolen_##a
 
-float32 HELPER(recpe_f32)(float32 input, void *fpstp);
-float64 HELPER(recpe_f64)(float64 input, void *fpstp);
-
+extern float32 HELPER(recpe_f32)(float32 input, void *fpstp);
+extern float64 HELPER(recpe_f64)(float64 input, void *fpstp);
+extern float32 HELPER(frecpx_f32)(float32 a, void *fpstp);
+extern float64 HELPER(frecpx_f64)(float64 a, void *fpstp);
 
 #endif
 
