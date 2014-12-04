@@ -2426,6 +2426,41 @@ static void dis_facgt(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+static void dis_frecps(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_scalar = INSN(28,28);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    union simd_register res = {0};
+    int i;
+
+    if (is_double) {
+        for(i = 0; i < (is_scalar?1:(q?2:1)); i++) {
+            if (isnanf(regs->v[rn].df[i]))
+                res.d[i] = (regs->v[rn].d[i]^0x8000000000000000UL) | (1UL << 51);
+            else if (isnanf(regs->v[rm].df[i]))
+                res.d[i] = regs->v[rm].d[i] | (1UL << 51);
+            else
+                res.df[i] = 2.0 - regs->v[rn].df[i] * regs->v[rm].df[i];
+        }
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
+            if (isnanf(regs->v[rn].sf[i]))
+                res.s[i] = (regs->v[rn].s[i]^0x80000000) | (1 << 22);
+            else if (isnanf(regs->v[rm].sf[i]))
+                res.s[i] = regs->v[rm].s[i] | (1 << 22);
+            else
+                res.sf[i] = 2.0 - regs->v[rn].sf[i] * regs->v[rm].sf[i];
+        }
+    }
+
+    regs->v[rd] = res;
+}
+
 static void dis_orr_register(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -4879,6 +4914,12 @@ void arm64_hlp_dirty_advanced_simd_scalar_three_same_simd(uint64_t _regs, uint32
             else
                 U?dis_facgt(_regs, insn):assert(0);
             break;
+        case 31:
+            if (size1 == 0)
+                U?assert(0):dis_frecps(_regs, insn);
+            else
+                assert(0);
+            break;
         default:
             fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
     }
@@ -5029,7 +5070,7 @@ void arm64_hlp_dirty_advanced_simd_three_same_simd(uint64_t _regs, uint32_t insn
             if (size&2)
                 assert(0);
             else
-                U?dis_fdiv(_regs, insn):assert(0);
+                U?dis_fdiv(_regs, insn):dis_frecps(_regs, insn);
             break;
         default:
             fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
