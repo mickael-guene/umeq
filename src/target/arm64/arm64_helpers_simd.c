@@ -555,6 +555,33 @@ static void dis_scvtf_fixed(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
+static void dis_fsqrt(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    union simd_register res = {0};
+    int i;
+
+    if (is_double) {
+        for(i = 0; i < 2; i++)
+            if (regs->v[rn].d[i]&0x8000000000000000UL)
+                res.df[i] = NAN;
+            else
+                res.df[i] = sqrt(regs->v[rn].df[i]);
+    } else {
+        for(i = 0; i < (q?4:2); i++)
+            if (regs->v[rn].s[i]&0x80000000)
+                res.sf[i] = NAN;
+            else
+                res.sf[i] = sqrtf(regs->v[rn].sf[i]);
+    }
+
+    regs->v[rd] = res;
+}
+
 static void dis_fcvtzu_fixed(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -4672,6 +4699,12 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
                 assert(0);
             else
                 U?dis_ucvtf(_regs, insn):dis_scvtf(_regs, insn);
+            break;
+        case 31:
+            if(size&2)
+                U?dis_fsqrt(_regs, insn):assert(0);
+            else
+                assert(0);
             break;
         default:
             fatal("opcode = %d(0x%x) / U=%d / size=%d\n", opcode, opcode, U, size);

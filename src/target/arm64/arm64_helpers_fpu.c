@@ -161,10 +161,16 @@ static void dis_fsqrt(uint64_t _regs, uint32_t insn)
     assert(is_scalar);
     if (is_double) {
         for(i = 0; i < (is_scalar?1:2); i++)
-            res.df[i] = sqrt(regs->v[rn].df[i]);
+            if (regs->v[rn].d[i]&0x8000000000000000UL)
+                res.df[i] = NAN;
+            else
+                res.df[i] = sqrt(regs->v[rn].df[i]);
     } else {
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            res.sf[i] = sqrtf(regs->v[rn].sf[i]);
+            if (regs->v[rn].s[i]&0x80000000)
+                res.sf[i] = NAN;
+            else
+                res.sf[i] = sqrtf(regs->v[rn].sf[i]);
     }
     regs->v[rd] = res;
 }
