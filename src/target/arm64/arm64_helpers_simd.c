@@ -6,6 +6,7 @@
 #include "arm64_helpers.h"
 #include "runtime.h"
 #include "softfloat.h"
+#include "arm64_helpers_stolen_from_qemu.h"
 
 //#define DUMP_STACK 1
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
@@ -1428,6 +1429,29 @@ static void dis_scvtf(uint64_t _regs, uint32_t insn)
     } else {
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
             res.sf[i] = (float)(int32_t) regs->v[rn].s[i];
+    }
+
+    regs->v[rd] = res;
+}
+
+static void dis_frecpe(uint64_t _regs, uint32_t insn)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_scalar = INSN(28,28);
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int i;
+    union simd_register res = {0};
+    float_status dummy = {0};
+
+    if (is_double) {
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.d[i] = float64_val(HELPER(recpe_f64)(make_float64(regs->v[rn].d[i]), &dummy));
+    } else {
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.s[i] = float32_val(HELPER(recpe_f32)(make_float32(regs->v[rn].s[i]), &dummy));
     }
 
     regs->v[rd] = res;
@@ -4731,7 +4755,7 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
             break;
         case 29:
             if(size&2)
-                assert(0);
+                U?assert(0):dis_frecpe(_regs, insn);
             else
                 U?dis_ucvtf(_regs, insn):dis_scvtf(_regs, insn);
             break;
@@ -4836,7 +4860,7 @@ void arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd(uint64_t _regs, uint
             break;
         case 29:
             if (size1)
-                assert(0);
+                U?assert(0):dis_frecpe(_regs, insn);
             else
                 U?dis_ucvtf(_regs, insn):dis_scvtf(_regs, insn);
             break;
