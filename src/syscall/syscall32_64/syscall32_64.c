@@ -31,9 +31,6 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_read:
             res = syscall(SYS_read, (int)p0, (void *) g_2_h(p1), (size_t) p2);
             break;
-        case PR_exit:
-            res = syscall(SYS_exit, (int)p0);
-            break;
         case PR_exit_group:
             res = syscall(SYS_exit_group, (int)p0);
             break;

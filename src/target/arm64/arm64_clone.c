@@ -13,13 +13,19 @@
 /* FIXME: we assume a x86_64 host */
 extern int loop(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target);
 extern int clone_asm(long number, ...);
+extern void clone_exit_asm(void *stack , long stacksize, int res);
 
 void clone_thread_trampoline_arm64()
 {
     void *sp = __builtin_frame_address(0) + 8;//rbp has been push on stack
     struct arm64_target *parent_context = (struct arm64_target *) sp;
+    int res;
+    void *stack = sp + sizeof(struct arm64_target) - CACHE_SIZE * 2;
 
-    loop(parent_context->regs.pc, parent_context->regs.r[1], 0, &parent_context->target);
+    res = loop(parent_context->regs.pc, parent_context->regs.r[1], 0, &parent_context->target);
+
+    /* unmap thread stack and exit without using stack */
+    clone_exit_asm(stack, CACHE_SIZE * 2, res);
 }
 
 static long clone_thread_arm64(struct arm64_target *context)

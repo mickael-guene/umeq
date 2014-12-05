@@ -67,6 +67,12 @@ void arm64_hlp_syscall(uint64_t regs)
             case PR_ptrace:
                 res = arm64_ptrace(context);
                 break;
+            case PR_exit:
+                context->isLooping = 0;
+                context->exitStatus = context->regs.r[0];
+                /* stay in syscall */
+                return ;
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }

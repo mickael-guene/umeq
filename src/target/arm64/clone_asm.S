@@ -13,3 +13,13 @@ clone_asm:
     testq  %rax,%rax
     jz     clone_thread_trampoline_arm64
     retq
+
+.GLOBAL clone_exit_asm
+
+clone_exit_asm:
+    mov %rdx, %r15
+    mov $11, %rax
+    syscall
+    mov %r15,%rdi
+    mov $60, %rax
+    syscall

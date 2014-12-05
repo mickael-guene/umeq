@@ -214,7 +214,7 @@ int main(int argc, char **argv)
     current_target_arch.loader(argc - target_argv0_index, argv + target_argv0_index,
                                 additionnal_env, unset_env, target_argv0, &entry, &stack);
     if (entry) {
-        loop(entry, stack, 0, NULL);
+        res = loop(entry, stack, 0, NULL);
     } else {
         info("Unable to open %s\n", argv[target_argv0_index]);
         res = -ENOEXEC;

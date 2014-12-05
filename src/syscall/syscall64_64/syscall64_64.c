@@ -21,9 +21,6 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_write:
             res = syscall(SYS_write, (int)p0, (void *)g_2_h(p1), (size_t)p2);
             break;
-        case PR_exit:
-            res = syscall(SYS_exit, (int)p0);
-            break;
         case PR_readlinkat:
             res = syscall(SYS_readlinkat, (int) p0, (const char *) g_2_h(p1), (char *) g_2_h(p2), (size_t) p3);
             break;
