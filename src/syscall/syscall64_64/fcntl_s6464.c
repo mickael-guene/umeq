@@ -59,6 +59,9 @@ long fcntl_s6464(uint64_t fd_p, uint64_t cmd_p, uint64_t opt_p)
         case F_GETOWN_EX:
             res = syscall(SYS_fcntl, fd, cmd, (struct f_owner_ex *) g_2_h(opt_p));
             break;
+        case F_SETOWN_EX:
+            res = syscall(SYS_fcntl, fd, cmd, (struct f_owner_ex *) g_2_h(opt_p));
+            break;
         case F_SETLEASE:
             res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
             break;
