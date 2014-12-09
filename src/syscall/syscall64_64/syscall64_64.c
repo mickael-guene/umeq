@@ -326,8 +326,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_mremap, (void *) g_2_h(p0), (size_t) p1, (size_t) p2, (int) p3, (void *) g_2_h(p4));
             break;
         case PR_semctl:
-            /* FIXME: with offset this may not work since some buffers(p3) may be untranslated */
-            res = syscall(SYS_semctl, (int) p0, (int) p1, (int) p2, p3);
+            res = semctl_s6464(p0,p1,p2,p3);
             break;
         case PR_clock_nanosleep:
             res = syscall(SYS_clock_nanosleep, (clockid_t) p0, (int) p1, (struct timespec *) g_2_h(p2),
@@ -589,6 +588,9 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_name_to_handle_at:
             res = syscall(SYS_name_to_handle_at, (int) p0, ( char *) g_2_h(p1), (struct file_handle *) g_2_h(p2),
                                                  (int *) g_2_h(p3), (int) p4);
+            break;
+        case PR_sched_setaffinity:
+            res = syscall(SYS_sched_setaffinity, (pid_t) p0, (size_t) p1, (unsigned long *) g_2_h(p2));
             break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
