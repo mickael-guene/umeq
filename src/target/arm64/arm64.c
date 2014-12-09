@@ -56,6 +56,8 @@ static void setup_siginfo(uint32_t signum, siginfo_t *siginfo, struct siginfo_ar
             info->_sifields._timer._si_sigval.sival_ptr = (uint64_t) siginfo->si_ptr;
             break;
         case SI_MESGQ:
+            info->_sifields._rt._si_pid = siginfo->si_pid;
+            info->_sifields._rt._si_uid = siginfo->si_uid;
             info->_sifields._rt._si_sigval.sival_int = siginfo->si_int;
             info->_sifields._rt._si_sigval.sival_ptr = (uint64_t) siginfo->si_ptr;
             break;

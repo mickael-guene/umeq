@@ -592,6 +592,10 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_sched_setaffinity:
             res = syscall(SYS_sched_setaffinity, (pid_t) p0, (size_t) p1, (unsigned long *) g_2_h(p2));
             break;
+        case PR_mq_getsetattr:
+            res = syscall(SYS_mq_getsetattr, (mqd_t) p0, p1?(struct mq_attr *)g_2_h(p1):NULL,
+                                                         p2?(struct mq_attr *)g_2_h(p2):NULL);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }

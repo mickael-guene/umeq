@@ -54,6 +54,7 @@ long arm64_rt_sigaction(struct arm64_target *context)
     uint64_t signum_p = context->regs.r[0];
     uint64_t act_p = context->regs.r[1];
     uint64_t oldact_p = context->regs.r[2];
+    uint64_t sigset_size = context->regs.r[3];
     int signum = (int) signum_p;
     struct sigaction_arm64 *act_guest = (struct sigaction_arm64 *) g_2_h(act_p);
     struct sigaction_arm64 *oldact_guest = (struct sigaction_arm64 *) g_2_h(oldact_p);
@@ -95,7 +96,7 @@ long arm64_rt_sigaction(struct arm64_target *context)
             guest_signals_handler[signum] = act_guest->_sa_handler;
         }
 
-        res = syscall(SYS_rt_sigaction, signum, act_p?&act:NULL, oldact_p?&oldact:NULL, _NSIG / 8);
+        res = syscall(SYS_rt_sigaction, signum, act_p?&act:NULL, oldact_p?&oldact:NULL, sigset_size);
 
         if (oldact_p) {
             //TODO : add guest restorer support
