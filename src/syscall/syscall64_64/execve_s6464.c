@@ -19,21 +19,23 @@ long execve_s6464(uint64_t filename_p, uint64_t argv_p, uint64_t envp_p)
     char **envp;
     int index = 0;
 
-    /* FIXME: do we really need to support this ? */
     /* Manual say 'On Linux, argv and envp can be specified as NULL' */
-    assert(argv_p != 0);
-    assert(envp_p != 0);
+    /* In that case we give array of length 1 with only one null element */
 
     argv = &ptr[index];
-    while(*argv_guest != 0) {
-        ptr[index++] = (char *) g_2_h(*argv_guest);
-        argv_guest = (uint64_t *) ((long)argv_guest + 8);
+    if (argv_p) {
+        while(*argv_guest != 0) {
+            ptr[index++] = (char *) g_2_h(*argv_guest);
+            argv_guest = (uint64_t *) ((long)argv_guest + 8);
+        }
     }
     ptr[index++] = NULL;
     envp = &ptr[index];
-    while(*envp_guest != 0) {
-        ptr[index++] = (char *) g_2_h(*envp_guest);
-        envp_guest = (uint64_t *) ((long)envp_guest + 8);
+    if (envp_p) {
+        while(*envp_guest != 0) {
+            ptr[index++] = (char *) g_2_h(*envp_guest);
+            envp_guest = (uint64_t *) ((long)envp_guest + 8);
+        }
     }
     ptr[index++] = NULL;
     /* sanity check in case we overflow => see fixme */
