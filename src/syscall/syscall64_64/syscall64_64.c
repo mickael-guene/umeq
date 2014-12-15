@@ -53,8 +53,8 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = -EPERM;
             break;
         case PR_rt_sigprocmask:
-            res = syscall(SYS_rt_sigprocmask, (int)p0, p1?(const sigset_t *) g_2_h(p1):NULL,
-                                              p2?(sigset_t *) g_2_h(p2):NULL, (size_t) p3);
+            res = syscall(SYS_rt_sigprocmask, (int)p0, IS_NULL(p1, const sigset_t),
+                                              IS_NULL(p2, sigset_t), (size_t) p3);
             break;
         case PR_getrlimit:
             res = syscall(SYS_getrlimit, (int) p0, (struct rlimit *) g_2_h(p1));
@@ -169,24 +169,24 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_pread64, (int) p0, (void *) g_2_h(p1), (size_t) p2, (off_t) p3);
             break;
         case PR_nanosleep:
-            res = syscall(SYS_nanosleep, (struct timespec *) p0, p1?(struct timespec *) g_2_h(p1):NULL);
+            res = syscall(SYS_nanosleep, (struct timespec *) p0, IS_NULL(p1, struct timespec));
             break;
         case PR_futex:
             res = futex_s6464(p0,p1,p2,p3,p4,p5);
             break;
         case PR_clock_getres:
-            res = syscall(SYS_clock_getres, (clockid_t) p0, p1?(struct timespec *)g_2_h(p1):NULL);
+            res = syscall(SYS_clock_getres, (clockid_t) p0, IS_NULL(p1, struct timespec));
             break;
         case PR_ppoll:
-            res = syscall(SYS_ppoll, (struct pollfd *) g_2_h(p0), p1, p2?(struct timespec *)g_2_h(p2):NULL,
-                                                                      p3?(sigset_t *)g_2_h(p3):NULL, (size_t) p4);
+            res = syscall(SYS_ppoll, (struct pollfd *) g_2_h(p0), p1, IS_NULL(p2, struct timespec),
+                                                                      IS_NULL(p3, sigset_t), (size_t) p4);
             break;
         case PR_sendmmsg:
             res = syscall(SYS_sendmmsg, (int) p0, (struct mmsghdr *) g_2_h(p1), (unsigned int) p2, (unsigned int) p3);
             break;
         case PR_recvfrom:
             res = syscall(SYS_recvfrom, (int) p0, (void *) g_2_h(p1), (size_t) p2, (int) p3,
-                                        p4?(struct sockaddr *)g_2_h(p4):NULL, p5?(socklen_t *)g_2_h(p5):NULL);
+                                        IS_NULL(p4, struct sockaddr), IS_NULL(p5, socklen_t));
             break;
         case PR_getcwd:
             res = syscall(SYS_getcwd, (char *) g_2_h(p0), (size_t) p1);
@@ -237,10 +237,11 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_fchmod, (int) p0, (mode_t) p1);
             break;
         case PR_setitimer:
-            res = syscall(SYS_setitimer, (int) p0, (struct itimerval *) g_2_h(p1), p2?(struct itimerval *) g_2_h(p2):NULL);
+            res = syscall(SYS_setitimer, (int) p0, IS_NULL(p1, struct itimerval), IS_NULL(p2, struct itimerval));
             break;
         case PR_timer_create:
-            res = syscall(SYS_timer_create, (clockid_t) p0, p1?(struct sigevent *)g_2_h(p1):NULL, (timer_t *) g_2_h(p2));
+            res = syscall(SYS_timer_create, (clockid_t) p0, IS_NULL(p1, struct sigevent),
+                                                            IS_NULL(p2, timer_t));
             break;
         case PR_getpriority:
             res = syscall(SYS_getpriority, (int) p0, (id_t) p1);
@@ -270,7 +271,8 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_fdatasync, (int) p0);
             break;
         case PR_timer_settime:
-            res = syscall(SYS_timer_settime, (timer_t) p0, (int) p1, (struct itimerspec *) g_2_h(p2), p3?(struct itimerspec *)g_2_h(p3):NULL);
+            res = syscall(SYS_timer_settime, (timer_t) p0, (int) p1, (struct itimerspec *) g_2_h(p2),
+                                             IS_NULL(p3, struct itimerspec));
             break;
         case PR_rt_sigsuspend:
             res = syscall(SYS_rt_sigsuspend, (sigset_t *) g_2_h(p0), (size_t) p1);
@@ -308,7 +310,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             break;
         case PR_getsockopt:
             res = syscall(SYS_getsockopt, (int) p0, (int) p1, (int) p2,
-                                          p3?(void *)g_2_h(p3):NULL, p4?(void *)g_2_h(p4):NULL);
+                                          IS_NULL(p3, void), IS_NULL(p4, void));
             break;
         case PR_flock:
             res = syscall(SYS_flock, (int) p0, (int) p1);
@@ -330,7 +332,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             break;
         case PR_clock_nanosleep:
             res = syscall(SYS_clock_nanosleep, (clockid_t) p0, (int) p1, (struct timespec *) g_2_h(p2),
-                                               p3?(struct timespec *)g_2_h(p3):NULL);
+                                               IS_NULL(p3, struct timespec));
             break;
         case PR_gettid:
             res = syscall(SYS_gettid);
@@ -363,13 +365,13 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_shmctl, (int) p0, (int) p1, (struct shmid_ds *) g_2_h(p2));
             break;
         case PR_accept:
-            res = syscall(SYS_accept, (int) p0, p1?(struct sockaddr *)g_2_h(p1):NULL, p2?(socklen_t *)g_2_h(p2):NULL);
+            res = syscall(SYS_accept, (int) p0, IS_NULL(p1, struct sockaddr), IS_NULL(p2, socklen_t));
             break;
         case PR_msgget:
             res = syscall(SYS_msgget, (key_t) p0, (int) p1);
             break;
         case PR_setsockopt:
-            res = syscall(SYS_setsockopt, (int) p0, (int) p1, (int) p2, p3?(void *)g_2_h(p3):NULL, (socklen_t) p4);
+            res = syscall(SYS_setsockopt, (int) p0, (int) p1, (int) p2, IS_NULL(p3, void), (socklen_t) p4);
             break;
         case PR_getitimer:
             res = syscall(SYS_getitimer, (int) p0, (struct itimerval *) g_2_h(p1));
@@ -396,8 +398,8 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             break;
         case PR_rt_sigtimedwait:
             /* FIXME: is siginfo has same structure for arm64 ? */
-            res = syscall(SYS_rt_sigtimedwait, (sigset_t *) g_2_h(p0), p1?(siginfo_t *)g_2_h(p1):NULL,
-                                               p2?(struct timespec *)g_2_h(p2):NULL, (size_t) p3);
+            res = syscall(SYS_rt_sigtimedwait, (sigset_t *) g_2_h(p0), IS_NULL(p1, siginfo_t),
+                                               IS_NULL(p2, struct timespec), (size_t) p3);
             break;
         case PR_shmdt:
             res = syscall(SYS_shmdt, (void *) g_2_h(p0));
@@ -444,8 +446,8 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_msgctl, (int) p0, (int) p1, (struct msqid_ds *) g_2_h(p2));
             break;
         case PR_accept4:
-            res = syscall(SYS_accept4, (int) p0, p1?(struct sockaddr *)g_2_h(p1):NULL,
-                                       p2?(socklen_t *)g_2_h(p2):NULL, (int) p3);
+            res = syscall(SYS_accept4, (int) p0, IS_NULL(p1, struct sockaddr),
+                                       IS_NULL(p2, socklen_t), (int) p3);
             break;
         case PR_add_key:
             res = syscall(SYS_add_key, (char *) g_2_h(p0), (char *) g_2_h(p1), (void *) g_2_h(p2),
@@ -455,7 +457,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_setresgid, (gid_t) p0, (gid_t) p1, (gid_t) p2);
             break;
         case PR_capget:
-            res = syscall(SYS_capget, (uint64_t/*cap_user_header_t*/) p0, p1?(void *) g_2_h(p1):NULL);
+            res = syscall(SYS_capget, (uint64_t/*cap_user_header_t*/) p0, IS_NULL(p1, void));
             break;
         case PR_epoll_ctl:
             res = syscall(SYS_epoll_ctl, (int) p0, (int) p1, (int) p2, (struct epoll_event *) g_2_h(p3));
@@ -486,7 +488,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_mq_unlink, (char *) g_2_h(p0));
             break;
         case PR_mq_notify:
-            res = syscall(SYS_mq_notify, (mqd_t) p0, p1?(struct sigevent *)g_2_h(p1):NULL);
+            res = syscall(SYS_mq_notify, (mqd_t) p0, IS_NULL(p1, struct sigevent));
             break;
         case PR_mincore:
             res = syscall(SYS_mincore, (void *) g_2_h(p0), (size_t) p1, (char *) g_2_h(p2));
@@ -540,21 +542,21 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_unshare, (int) p0);
             break;
         case PR_waitid:
-            res = syscall(SYS_waitid, (idtype_t) p0, (id_t) p1, p2?(siginfo_t *)g_2_h(p2):NULL, (int) p3,
-                                      p4?(struct rusage *)g_2_h(p4):NULL);
+            res = syscall(SYS_waitid, (idtype_t) p0, (id_t) p1, IS_NULL(p2, siginfo_t), (int) p3,
+                                      IS_NULL(p4, struct rusage));
             break;
         case PR_perf_event_open:
             res = syscall(SYS_perf_event_open, (struct perf_event_attr *) g_2_h(p0), (pid_t) p1, (int) p2,
                                                 (int) p3, (unsigned long) p4);
             break;
         case PR_capset:
-            res = syscall(SYS_capset, (uint64_t/*cap_user_header_t*/) p0, p1?(void *) g_2_h(p1):NULL);
+            res = syscall(SYS_capset, (uint64_t/*cap_user_header_t*/) p0, IS_NULL(p1, void));
             break;
         case PR_chroot:
             res = syscall(SYS_chroot, (char *) g_2_h(p0));
             break;
         case PR_mq_open:
-            res = syscall(SYS_mq_open, (char *) g_2_h(p0), (int) p1, (mode_t) p2, p3?(struct mq_attr *) g_2_h(p3):NULL);
+            res = syscall(SYS_mq_open, (char *) g_2_h(p0), (int) p1, (mode_t) p2, IS_NULL(p3, struct mq_attr));
             break;
         case PR_mq_timedsend:
             res = syscall(SYS_mq_timedsend, (mqd_t) p0, (char *) g_2_h(p1), (size_t) p2, (unsigned int) p3,
@@ -593,11 +595,11 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_sched_setaffinity, (pid_t) p0, (size_t) p1, (unsigned long *) g_2_h(p2));
             break;
         case PR_mq_getsetattr:
-            res = syscall(SYS_mq_getsetattr, (mqd_t) p0, p1?(struct mq_attr *)g_2_h(p1):NULL,
-                                                         p2?(struct mq_attr *)g_2_h(p2):NULL);
+            res = syscall(SYS_mq_getsetattr, (mqd_t) p0, IS_NULL(p1, struct mq_attr),
+                                                         IS_NULL(p2, struct mq_attr));
             break;
         case PR_flistxattr:
-            res = syscall(SYS_flistxattr, (int) p0, (char *) g_2_h(p1), (size_t) p2);
+            res = syscall(SYS_flistxattr, (int) p0, IS_NULL(p1, char), (size_t) p2);
             break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
