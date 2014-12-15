@@ -596,6 +596,9 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_mq_getsetattr, (mqd_t) p0, p1?(struct mq_attr *)g_2_h(p1):NULL,
                                                          p2?(struct mq_attr *)g_2_h(p2):NULL);
             break;
+        case PR_flistxattr:
+            res = syscall(SYS_flistxattr, (int) p0, (char *) g_2_h(p1), (size_t) p2);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }
