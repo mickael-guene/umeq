@@ -18,6 +18,11 @@ extern long arm64_fstatat64(struct arm64_target *context);
 extern long arm64_clone(struct arm64_target *context);
 extern long arm64_sigaltstack(struct arm64_target *context);
 extern long arm64_ptrace(struct arm64_target *context);
+extern long arm64_mmap(struct arm64_target *context);
+extern long arm64_munmap(struct arm64_target *context);
+extern long arm64_mremap(struct arm64_target *context);
+extern long arm64_shmat(struct arm64_target *context);
+extern long arm64_shmdt(struct arm64_target *context);
 
 #endif
 

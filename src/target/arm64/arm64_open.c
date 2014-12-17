@@ -61,6 +61,33 @@ long x86ToArm64Flags(long x86_flags)
     return res;
 }
 
+static pid_t gettid()
+{
+    return syscall(SYS_gettid);
+}
+
+static long open_proc_self_maps()
+{
+    static uint32_t cnt = 0;
+    char tmpName[1024];
+    int fd_res;
+    int fd_proc_self_maps;
+
+    fd_proc_self_maps = open("/proc/self/maps", O_RDONLY);
+    if (fd_proc_self_maps >= 0) {
+        sprintf(tmpName, "/tmp/umeq-open-proc-self-maps.%d-%d", gettid(), cnt++);
+        fd_res = open(tmpName, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
+
+        if (fd_res >= 0) {
+            unlink(tmpName);
+            write_offset_proc_self_maps(fd_proc_self_maps, fd_res);
+        }
+    } else
+        fd_res = fd_proc_self_maps;
+
+    return fd_res;
+}
+
 /* FIXME: /proc ?? */
 long arm64_openat(struct arm64_target *context)
 {
@@ -72,6 +99,8 @@ long arm64_openat(struct arm64_target *context)
 
     if (strcmp(pathname, "/proc/self/auxv") == 0) {
         res = -EACCES;
+    } else if (strcmp(pathname, "/proc/self/maps") == 0) {
+        res = open_proc_self_maps();
     } else if (strncmp(pathname, "/proc/", strlen("/proc/")) == 0 && strncmp(pathname + strlen(pathname) - 5, "/auxv", strlen("/auxv")) == 0) {
         res = -EACCES;
     } else

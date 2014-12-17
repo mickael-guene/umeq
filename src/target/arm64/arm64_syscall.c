@@ -79,6 +79,21 @@ void arm64_hlp_syscall(uint64_t regs)
                     return ;
                 }
                 break;
+            case PR_mmap:
+                res = arm64_mmap(context);
+                break;
+            case PR_munmap:
+                res = arm64_munmap(context);
+                break;
+            case PR_mremap:
+                res = arm64_mremap(context);
+                break;
+            case PR_shmat:
+                res = arm64_shmat(context);
+                break;
+            case PR_shmdt:
+                res = arm64_shmdt(context);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }

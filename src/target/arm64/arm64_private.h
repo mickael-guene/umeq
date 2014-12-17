@@ -57,6 +57,7 @@ extern void arm64_load_image(int argc, char **argv, void **additionnal_env, void
 extern void disassemble_arm64(struct target *target, struct irInstructionAllocator *ir, uint64_t pc, int maxInsn);
 extern void arm64_hlp_syscall(uint64_t regs);
 extern void arm64_setup_brk(void);
+extern void write_offset_proc_self_maps(int fd_orig, int fd_res);
 
 #endif
 

@@ -39,7 +39,6 @@ void wrap_signal_handler(int signum)
     loop(guest_signals_handler[signum], stack_entry, signum, NULL);
 }
 
-/* FIXME: Use of mmap/munmap here need to be rework */
 void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
 {
     uint64_t stack_entry = (sa_flags[signum]&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
