@@ -15,11 +15,15 @@
 #include "arm64_private.h"
 #include "runtime.h"
 
+#define MAPPING_START                   0x400000
+#define KERNEL_CHOOSE_START_ADDR        0x4000000000UL
+#define MAPPING_RESERVE_IN_SIGNAL_START 0x7000000000UL
+#define MAPPING_END                     0x8000000000UL
+
 #define PAGE_SIZE                       4096
 #define PAGE_MASK                       (PAGE_SIZE - 1)
 #define PAGE_ALIGN_DOWN(addr)           ((addr) & ~PAGE_MASK)
 #define PAGE_ALIGN_UP(addr)             (((addr) + PAGE_MASK) & ~PAGE_MASK)
-#define KERNEL_CHOOSE_START_ADDR        0x4000000000UL
 #define ENOMEM_64                       ((uint64_t) -ENOMEM)
 #define MAX(a,b)                        ((a)>=(b)?(a):(b))
 #define MIN(a,b)                        ((a)<(b)?(a):(b))
@@ -50,6 +54,7 @@ LIST_HEAD(shmat_head, shmat_desc);
 
 /* globals */
 static int is_init = 0;
+static uint64_t signal_cursor = MAPPING_RESERVE_IN_SIGNAL_START;
 static struct vma_head free_vma_list = LIST_HEAD_INITIALIZER(free_vma_list);
 static struct vma_head vma_list = LIST_HEAD_INITIALIZER(vma_list);
 static pthread_mutex_t ll_big_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -73,6 +78,16 @@ static int is_syscall_error(long res)
     else
         return 0;
 }
+
+#if 0
+static int is_signal_memory(uint64_t addr)
+{
+    if (addr >= MAPPING_RESERVE_IN_SIGNAL_START && addr < MAPPING_END)
+        return 1;
+    else
+        return 0;
+}
+#endif
 
 /* this fucntion allocate a new bunch of free descriptors and add them to free_vma_list */
 static void allocate_more_desc()
@@ -542,15 +557,15 @@ static void arm64_mmap_init()
     long res;
 
     /* This prevent further umeq internal mmap to allocate in guest memory with a direct mmap syscall */
-    res = mmap_syscall((void *) 0x400000, 512 * 1024 * 1024 * 1024UL - 0x400000, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    res = mmap_syscall((void *) MAPPING_START, MAPPING_END - MAPPING_START, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     assert(!is_syscall_error(res));
-    assert(res == 0x400000);
+    assert(res == MAPPING_START);
     /* init vma_list */
     desc = arm64_get_free_desc();
     desc->type = VMA_UNMAP;
     /* FIXME: read /proc/sys/vm/mmap_min_addr to set start_addr */
-    desc->start_addr = 0x400000;
-    desc->end_addr = 512 * 1024 * 1024 * 1024UL;
+    desc->start_addr = MAPPING_START;
+    desc->end_addr = MAPPING_RESERVE_IN_SIGNAL_START;
     LIST_INSERT_HEAD(&vma_list, desc, entries);
 
     is_init = 1;
@@ -788,17 +803,47 @@ static void internal_write_offset_proc_self_maps(int fd_orig, int fd_res)
     lseek(fd_res, 0, SEEK_SET);
 }
 
+static long internal_mmap_signal(uint64_t addr_p, uint64_t length_p, uint64_t prot_p,
+                                 uint64_t flags_p, uint64_t fd_p, uint64_t offset_p)
+{
+    long res;
+    void *addr;
+    size_t length = (size_t) length_p;
+    int prot = (int) prot_p;
+    int flags = (int) flags_p;
+    int fd = (int) fd_p;
+    off_t offset = (off_t) offset_p;
+
+    if (flags & MAP_FIXED) {
+        res = -EINVAL;
+    } else {
+        length = PAGE_ALIGN_UP(length);
+        /* this could be done atomically to improve multiple signal mmap case .... */
+        addr = (void *) signal_cursor;
+        signal_cursor += length;
+        assert((uint64_t) addr < MAPPING_END);
+        res = mmap_syscall(addr, length, prot, flags | MAP_FIXED, fd, offset);
+    }
+
+    return is_syscall_error(res)?res:h_2_g(res);
+}
+
 /* public interface */
 /* emulate arm64 syscall */
 long arm64_mmap(struct arm64_target *context)
 {
     long res;
 
-    assert(context->is_in_signal == 0);
-    pthread_mutex_lock(&ll_big_mutex);
-    res = internal_mmap(context->regs.r[0], context->regs.r[1], context->regs.r[2],
-                         context->regs.r[3], context->regs.r[4], context->regs.r[5]);
-    pthread_mutex_unlock(&ll_big_mutex);
+    if (context->is_in_signal) {
+        res = internal_mmap_signal(context->regs.r[0], context->regs.r[1], context->regs.r[2],
+                                   context->regs.r[3], context->regs.r[4], context->regs.r[5]);
+    } else {
+        assert(context->is_in_signal == 0);
+        pthread_mutex_lock(&ll_big_mutex);
+        res = internal_mmap(context->regs.r[0], context->regs.r[1], context->regs.r[2],
+                             context->regs.r[3], context->regs.r[4], context->regs.r[5]);
+        pthread_mutex_unlock(&ll_big_mutex);
+    }
 
     return res;
 }
@@ -809,7 +854,7 @@ long arm64_munmap(struct arm64_target *context)
     long res;
 
     if (context->is_in_signal) {
-        /* we leak vma space but at least we unmaep memory */
+        /* we may leak vma space but at least we unmap memory */
         res = munmap(g_2_h(context->regs.r[0]), context->regs.r[1]);
     } else {
         pthread_mutex_lock(&ll_big_mutex);
