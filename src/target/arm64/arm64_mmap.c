@@ -755,7 +755,8 @@ static long internal_shmat(uint64_t shmid_p, uint64_t shmaddr_p, uint64_t shmflg
     /* do the shmat */
     if (start_addr != ENOMEM_64) {
         shmaddr = g_2_h(start_addr);
-        res = syscall(SYS_shmat, shmid, shmaddr, shmflg);
+        /* SHM_REMAP is need since area is map by us at start-up */
+        res = syscall(SYS_shmat, shmid, shmaddr, shmflg | SHM_REMAP);
         if (is_syscall_error(res))
             insert_unmap_area(start_addr, end_addr);
         else
