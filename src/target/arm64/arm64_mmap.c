@@ -52,12 +52,19 @@ struct shmat_desc
 #define SHMAT_DESC_PER_PAGE  ((PAGE_SIZE) / sizeof(struct shmat_desc))
 LIST_HEAD(shmat_head, shmat_desc);
 
+/* static prototype */
+static long internal_mmap(uint64_t addr_p, uint64_t length_p, uint64_t prot_p, uint64_t flags_p, uint64_t fd_p, uint64_t offset_p);
+
 /* globals */
 static int is_init = 0;
 static uint64_t signal_cursor = MAPPING_RESERVE_IN_SIGNAL_START;
+static pthread_mutex_t ll_big_mutex = PTHREAD_MUTEX_INITIALIZER;
+static struct vma_desc vma_bootstrap[4];
+static struct vma_desc initial_desc;
+
+static struct vma_head reserved_vma_list = LIST_HEAD_INITIALIZER(free_vma_list);
 static struct vma_head free_vma_list = LIST_HEAD_INITIALIZER(free_vma_list);
 static struct vma_head vma_list = LIST_HEAD_INITIALIZER(vma_list);
-static pthread_mutex_t ll_big_mutex = PTHREAD_MUTEX_INITIALIZER;
 static struct shmat_head free_shmat_list = LIST_HEAD_INITIALIZER(free_shmat_list);
 static struct shmat_head shmat_list = LIST_HEAD_INITIALIZER(shmat_list);
 
@@ -68,6 +75,7 @@ static long mremap_syscall(void *old_address, size_t old_size, size_t new_size, 
 
 static long mmap_syscall(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
+    assert(flags & MAP_FIXED);
     return syscall(SYS_mmap, addr, length, prot, flags, fd, offset);
 }
 
@@ -90,13 +98,39 @@ static int is_signal_memory(uint64_t addr)
 #endif
 
 /* this fucntion allocate a new bunch of free descriptors and add them to free_vma_list */
-static void allocate_more_desc()
+static void allocate_more_desc_old()
 {
     int i;
-    struct vma_desc *descs = (struct vma_desc *) mmap_syscall(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    struct vma_desc *descs = (struct vma_desc *) internal_mmap((uint64_t) NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+
     assert(is_syscall_error((long) descs) == 0);
     for(i = 0; i < DESC_PER_PAGE; i++)
         LIST_INSERT_HEAD(&free_vma_list, &descs[i], entries);
+}
+
+static void allocate_more_desc()
+{
+    int i;
+
+    /* add four descriptor from reserved list to free_vma_list */
+    for (i = 0; i < 4; ++i)
+    {
+        struct vma_desc *desc = LIST_FIRST(&reserved_vma_list);
+
+        assert(desc);
+        LIST_REMOVE(desc, entries);
+        LIST_INSERT_HEAD(&free_vma_list, desc, entries);
+    }
+    allocate_more_desc_old();
+    /* bring back four descriptor to reserved list */
+    for (i = 0; i < 4; ++i)
+    {
+        struct vma_desc *desc = LIST_FIRST(&free_vma_list);
+
+        assert(desc);
+        LIST_REMOVE(desc, entries);
+        LIST_INSERT_HEAD(&reserved_vma_list, desc, entries);
+    }
 }
 
 /* return a new free vma_desc */
@@ -383,7 +417,7 @@ static uint64_t find_vma_with_hint(uint64_t length, uint64_t hint_addr)
 static void allocate_more_shmat_desc()
 {
     int i;
-    struct shmat_desc *descs = (struct shmat_desc *) mmap_syscall(NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    struct shmat_desc *descs = (struct shmat_desc *) internal_mmap((uint64_t) NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     assert(is_syscall_error((long) descs) == 0);
     for(i = 0; i < SHMAT_DESC_PER_PAGE; i++)
         LIST_INSERT_HEAD(&free_shmat_list, &descs[i], entries);
@@ -555,13 +589,16 @@ static void arm64_mmap_init()
 {
     struct vma_desc *desc;
     long res;
+    int i;
 
+    for (i = 0; i < 4; ++i)
+        LIST_INSERT_HEAD(&reserved_vma_list, &vma_bootstrap[i], entries);
     /* This prevent further umeq internal mmap to allocate in guest memory with a direct mmap syscall */
-    res = mmap_syscall((void *) MAPPING_START, MAPPING_END - MAPPING_START, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    res = mmap_syscall((void *) MAPPING_START, MAPPING_END - MAPPING_START, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
     assert(!is_syscall_error(res));
     assert(res == MAPPING_START);
     /* init vma_list */
-    desc = arm64_get_free_desc();
+    desc = &initial_desc;
     desc->type = VMA_UNMAP;
     /* FIXME: read /proc/sys/vm/mmap_min_addr to set start_addr */
     desc->start_addr = MAPPING_START;
