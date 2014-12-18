@@ -24,6 +24,7 @@ void clone_thread_trampoline_arm64()
 
     res = loop(parent_context->regs.pc, parent_context->regs.r[1], 0, &parent_context->target);
 
+    /* FIXME: Need to release vma descriptor */
     /* unmap thread stack and exit without using stack */
     clone_exit_asm(stack, CACHE_SIZE * 2, res);
 }
@@ -31,10 +32,12 @@ void clone_thread_trampoline_arm64()
 static long clone_thread_arm64(struct arm64_target *context)
 {
     int res = -1;
+    guest_ptr guest_stack;
     void *stack;
 
     //allocate memory for stub thread stack
-    stack = mmap(NULL, CACHE_SIZE * 2, PROT_EXEC|PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_GROWSDOWN, -1, 0);
+    guest_stack = mmap_guest((uint64_t) NULL, CACHE_SIZE * 2, PROT_EXEC|PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_GROWSDOWN, -1, 0);
+    stack = g_2_h(guest_stack);
 
     if (stack) {//to be check what is return value of mmap
         stack = stack + CACHE_SIZE * 2 - sizeof(struct arm64_target);

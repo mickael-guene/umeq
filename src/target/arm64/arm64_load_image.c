@@ -208,10 +208,10 @@ static guest_ptr arm64_load_program(const char *file, struct load_auxv_info_64 *
 
 static guest_ptr allocate_stack()
 {
-    if (mmap_guest(0x70000000, 128 * 1024 * 1024,
+    if (mmap_guest(0x70000000, 4 * 1024 * 1024,
         PROT_EXEC | PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN | MAP_FIXED,
         -1, 0) == 0x70000000) {
-        return (0x70000000 + 128 * 1024 * 1024);
+        return (0x70000000 + 4 * 1024 * 1024);
     } else
         assert(0);
 }

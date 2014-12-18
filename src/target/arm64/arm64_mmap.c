@@ -591,12 +591,9 @@ static void arm64_mmap_init()
     long res;
     int i;
 
+    /* init reserved vma list */
     for (i = 0; i < 4; ++i)
         LIST_INSERT_HEAD(&reserved_vma_list, &vma_bootstrap[i], entries);
-    /* This prevent further umeq internal mmap to allocate in guest memory with a direct mmap syscall */
-    res = mmap_syscall((void *) MAPPING_START, MAPPING_END - MAPPING_START, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-    assert(!is_syscall_error(res));
-    assert(res == MAPPING_START);
     /* init vma_list */
     desc = &initial_desc;
     desc->type = VMA_UNMAP;
