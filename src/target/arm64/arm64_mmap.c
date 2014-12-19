@@ -30,7 +30,8 @@
 
 enum vma_type {
     VMA_UNMAP = 0,
-    VMA_MAP
+    VMA_MAP,
+    VMA_UNMAP_ONGOING
 };
 
 struct vma_desc
@@ -54,6 +55,7 @@ LIST_HEAD(shmat_head, shmat_desc);
 
 /* static prototype */
 static long internal_mmap(uint64_t addr_p, uint64_t length_p, uint64_t prot_p, uint64_t flags_p, uint64_t fd_p, uint64_t offset_p);
+static void insert_unmap_area(uint64_t start_addr, uint64_t end_addr);
 
 /* globals */
 static int is_init = 0;
@@ -65,6 +67,7 @@ static struct vma_desc initial_desc;
 static struct vma_head reserved_vma_list = LIST_HEAD_INITIALIZER(free_vma_list);
 static struct vma_head free_vma_list = LIST_HEAD_INITIALIZER(free_vma_list);
 static struct vma_head vma_list = LIST_HEAD_INITIALIZER(vma_list);
+static struct vma_head ongoing_vma_list = LIST_HEAD_INITIALIZER(vma_list);
 static struct shmat_head free_shmat_list = LIST_HEAD_INITIALIZER(free_shmat_list);
 static struct shmat_head shmat_list = LIST_HEAD_INITIALIZER(shmat_list);
 
@@ -87,16 +90,6 @@ static int is_syscall_error(long res)
         return 0;
 }
 
-#if 0
-static int is_signal_memory(uint64_t addr)
-{
-    if (addr >= MAPPING_RESERVE_IN_SIGNAL_START && addr < MAPPING_END)
-        return 1;
-    else
-        return 0;
-}
-#endif
-
 /* this fucntion allocate a new bunch of free descriptors and add them to free_vma_list */
 static void allocate_more_desc_old()
 {
@@ -108,10 +101,33 @@ static void allocate_more_desc_old()
         LIST_INSERT_HEAD(&free_vma_list, &descs[i], entries);
 }
 
+static void collect_ongoing_unmap()
+{
+    struct vma_desc *desc = NULL;
+    struct vma_desc *desc_find = NULL;
+
+    do {
+        desc_find = NULL;
+        LIST_FOREACH(desc, &ongoing_vma_list, entries) {
+            if (desc->type == VMA_UNMAP) {
+                desc_find = desc;
+                break;
+            }
+        }
+        if (desc_find) {
+            LIST_REMOVE(desc_find, entries);
+            //fprintf(stderr, "GC [0x%016lx:0x%016lx[\n", desc_find->start_addr, desc_find->end_addr);
+            insert_unmap_area(desc_find->start_addr, desc_find->end_addr);
+            LIST_INSERT_HEAD(&free_vma_list, desc_find, entries);
+        }
+    } while(desc_find);
+}
+
 static void allocate_more_desc()
 {
     int i;
 
+    collect_ongoing_unmap();
     /* add four descriptor from reserved list to free_vma_list */
     for (i = 0; i < 4; ++i)
     {
@@ -472,123 +488,10 @@ static void shm_remove(uint64_t start_addr)
         warning("Unable to find 0x%016lx for shmdt\n", start_addr);
 }
 
-/* helpers for /proc/self/maps */
-static int conv_hex_to_int(int c)
-{
-    int res;
-
-    switch(c) {
-        case 48 ... 57:
-            res = c - 48;
-            break;
-        case 97 ... 102:
-            res = c - 97 + 10;
-            break;
-        case 65 ... 70:
-            res = c - 65 + 10;
-            break;
-        default:
-            fatal("invalid char %c\n", c);
-    }
-
-    return res;
-}
-
-static char *split_line(char *line, uint64_t *start_addr_p, uint64_t *end_addr_p)
-{
-    uint64_t start_addr = 0;
-    uint64_t end_addr = 0;
-    unsigned char c;
-    int i = 0;
-    int len = strlen(line);
-    int is_in_start_addr = 1;
-    char *res = NULL;
-
-    while(i < len) {
-        c = line[i++];
-        if (is_in_start_addr) {
-            if (c == '-') {
-                is_in_start_addr = 0;
-            } else {
-                start_addr = start_addr * 16 + conv_hex_to_int(c);
-            }
-        } else {
-            if (c == ' ') {
-                res = &line[i];
-                break;
-            } else {
-                end_addr = end_addr * 16 + conv_hex_to_int(c);
-            }
-        }
-    }
-
-    *start_addr_p = start_addr;
-    *end_addr_p = end_addr;
-
-    return res;
-}
-
-static int getline_internal(char *line, int max_length, int fd)
-{
-    char c;
-    int i = 0;
-
-    while(i<max_length - 1 && read(fd, &c, 1) > 0) {
-        line[i++] = c;
-        if (c == '\n')
-            break;
-    }
-    line[i] = '\0';
-
-    return i==0?-1:i;
-}
-
-static int is_none_prot_area(char *line)
-{
-    if (line[0] == '-' && line [1] == '-' && line[2] == '-')
-        return 1;
-    else
-        return 0;
-}
-
-static int is_overlap(uint64_t start_1, uint64_t end_1, uint64_t start_2, uint64_t end_2)
-{
-    if (start_2 >= start_1 && start_2 < end_1)
-        return 1;
-    if (end_2 - 1 >= start_1 && end_2 - 1 < end_1)
-        return 1;
-    return 0;
-}
-
-static void get_overlap_area(uint64_t start_1, uint64_t end_1, uint64_t start_2, uint64_t end_2, uint64_t *start, uint64_t *end)
-{
-    *start = MAX(start_1, start_2);
-    *end = MIN(end_1, end_2);
-}
-
-static void handle_none_prot_area(int fd_res, char *line_with_remove_addresses, uint64_t start_addr, uint64_t end_addr)
-{
-    struct vma_desc *owner = find_address_owner(start_addr);
-
-    while(is_overlap(owner->start_addr, owner->end_addr, start_addr, end_addr)) {
-        if (owner->type == VMA_MAP) {
-            char new_line[512];
-            uint64_t start_overlap_area;
-            uint64_t end_overlap_area;
-
-            get_overlap_area(owner->start_addr, owner->end_addr, start_addr, end_addr, &start_overlap_area, &end_overlap_area);
-            sprintf(new_line, "%08lx-%08lx %s", start_overlap_area, end_overlap_area, line_with_remove_addresses);
-            write(fd_res, new_line, strlen(new_line));
-        }
-        owner = LIST_NEXT(owner, entries);
-    }
-}
-
 /* init vma stuff */
 static void arm64_mmap_init()
 {
     struct vma_desc *desc;
-    long res;
     int i;
 
     /* init reserved vma list */
@@ -673,6 +576,28 @@ static long internal_munmap(uint64_t addr_p, uint64_t length_p)
     return res;
 }
 
+static void *internal_munmap_ongoing(uint64_t addr_p, uint64_t length_p)
+{
+    void *res = NULL;
+
+    if (!is_init)
+        arm64_mmap_init();
+    {
+        uint64_t start_addr = addr_p;
+        uint64_t end_addr = PAGE_ALIGN_UP(start_addr + length_p);
+        struct vma_desc *desc = arm64_get_free_desc();
+
+        desc->start_addr = start_addr;
+        desc->end_addr = end_addr;
+        desc->type = VMA_UNMAP_ONGOING;
+        res = &desc->type;
+
+        LIST_INSERT_HEAD(&ongoing_vma_list, desc, entries);
+    }
+
+    return res;
+}
+
 /* FIXME: this one need testing .... */
 static long internal_mremap(uint64_t old_addr_p, uint64_t old_size_p, uint64_t new_size_p,
                            uint64_t flags_p, uint64_t new_addr_p)
@@ -694,7 +619,6 @@ static long internal_mremap(uint64_t old_addr_p, uint64_t old_size_p, uint64_t n
         void *new_addr = (void *) g_2_h(new_addr_p);
         uint64_t old_size_align_p = PAGE_ALIGN_UP(old_size_p);
         uint64_t new_size_align_p = PAGE_ALIGN_UP(new_size_p);
-
 
         if (flags & MREMAP_FIXED) {
             /* user request that we move mapping to new_addr */
@@ -750,8 +674,7 @@ static long internal_mremap(uint64_t old_addr_p, uint64_t old_size_p, uint64_t n
                         }
                     } else
                         res = -ENOMEM;
-                } else
-                    res = -ENOMEM;
+                }
             }
         }
     }
@@ -811,31 +734,6 @@ static long internal_shmdt(uint64_t shmaddr_p)
         shm_remove(shmaddr_p);
 
     return res;
-}
-
-static void internal_write_offset_proc_self_maps(int fd_orig, int fd_res)
-{
-    char line[512];
-    char *line_with_remove_addresses;
-    uint64_t start_addr;
-    uint64_t end_addr;
-
-    while (getline_internal(line, sizeof(line), fd_orig) != -1) {
-        line_with_remove_addresses = split_line(line, &start_addr, &end_addr);
-        if ((start_addr >= 0x400000) && (end_addr < 512 * 1024 * 1024 * 1024UL)) {
-            if (is_none_prot_area(line_with_remove_addresses)) {
-                handle_none_prot_area(fd_res, line_with_remove_addresses, start_addr, end_addr);
-            } else {
-                char new_line[512];
-                guest_ptr start_addr_guest = h_2_g(start_addr);
-                guest_ptr end_addr_guest = h_2_g(end_addr);
-
-                sprintf(new_line, "%08lx-%08lx %s", start_addr_guest, end_addr_guest, line_with_remove_addresses);
-                write(fd_res, new_line, strlen(new_line));
-            }
-        }
-    }
-    lseek(fd_res, 0, SEEK_SET);
 }
 
 static long internal_mmap_signal(uint64_t addr_p, uint64_t length_p, uint64_t prot_p,
@@ -963,10 +861,13 @@ int munmap_guest(guest_ptr addr, size_t length)
     return res;
 }
 
-/* use original /proc/self/maps + internal info to write a correct one */
-void write_offset_proc_self_maps(int fd_orig, int fd_res)
+void *munmap_guest_ongoing(guest_ptr addr, size_t length)
 {
+    void *res;
+
     pthread_mutex_lock(&ll_big_mutex);
-    internal_write_offset_proc_self_maps(fd_orig, fd_res);
+    res = internal_munmap_ongoing(addr, length);
     pthread_mutex_unlock(&ll_big_mutex);
+
+    return res;
 }

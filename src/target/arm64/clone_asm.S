@@ -18,8 +18,10 @@ clone_asm:
 
 clone_exit_asm:
     mov %rdx, %r15
+    mov %rcx, %r14
     mov $11, %rax
     syscall
+    movb $0, (%r14)
     mov %r15,%rdi
     mov $60, %rax
     syscall
