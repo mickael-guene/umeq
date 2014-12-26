@@ -2230,13 +2230,17 @@ static void dis_fabd(uint64_t _regs, uint32_t insn)
 
     switch(size) {
         case 2:
-            for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-                res.sf[i] = regs->v[rn].sf[i]-regs->v[rm].sf[i]>=0?regs->v[rn].sf[i]-regs->v[rm].sf[i]:regs->v[rm].sf[i]-regs->v[rn].sf[i];
+            for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
+                res.sf[i] = regs->v[rn].sf[i]-regs->v[rm].sf[i];
+                res.s[i] = res.s[i] & ~0x80000000;
+            }
             break;
         case 3:
             assert(q);
-            for(i = 0; i < (is_scalar?1:2); i++)
-                res.df[i] = regs->v[rn].df[i]-regs->v[rm].df[i]>=0?regs->v[rn].df[i]-regs->v[rm].df[i]:regs->v[rm].df[i]-regs->v[rn].df[i];
+            for(i = 0; i < (is_scalar?1:2); i++) {
+                res.df[i] = regs->v[rn].df[i]-regs->v[rm].df[i];
+                res.d[i] = res.d[i] & ~0x8000000000000000UL;
+            }
             break;
         default:
             assert(0);
