@@ -1568,7 +1568,7 @@ static void dis_sqneg(uint64_t _regs, uint32_t insn)
             break;
         case 2:
             for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-                res.s[i] = ssat32(regs, -(int32_t)regs->v[rn].s[i]);
+                res.s[i] = ssat32(regs, -(int64_t)(int32_t)regs->v[rn].s[i]);
             break;
         case 3:
             for(i = 0; i < (is_scalar?1:(q?2:1)); i++)
