@@ -109,7 +109,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     struct tls_context parent_tls_context;
     struct tls_context *current_tls_context;
     struct cache *cache = NULL;
-    char cacheMemory[CACHE_SIZE];
+    char cacheMemory[MIN_CACHE_SIZE];
 
     /* setup tls area if not yet set */
     syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
@@ -133,7 +133,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     current_tls_context->target_runtime = target_runtime;
     /* init target */
     target->init(target, parent_tls_context.target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
-    cache = createCache(cacheMemory);
+    cache = createCache(cacheMemory, MIN_CACHE_SIZE);
 
     while(target->isLooping(target)) {
         void *cache_area;

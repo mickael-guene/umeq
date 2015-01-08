@@ -5,19 +5,19 @@
 #include "cache.h"
 
 TEST(Cache, createRemove) {
-    char memory[CACHE_SIZE];
+    char memory[MIN_CACHE_SIZE];
     struct cache *cache;
 
-    cache = createCache(memory);
+    cache = createCache(memory, MIN_CACHE_SIZE);
     removeCache(cache);
 }
 
 TEST(Cache, lookupFailed) {
-    char memory[CACHE_SIZE];
+    char memory[MIN_CACHE_SIZE];
     struct cache *cache;
     void *cache_hit;
 
-    cache = createCache(memory);
+    cache = createCache(memory, MIN_CACHE_SIZE);
     
     cache_hit = cache->lookup(cache, 0x8000);
     EXPECT_TRUE(cache_hit == NULL);
@@ -26,7 +26,7 @@ TEST(Cache, lookupFailed) {
 }
 
 TEST(Cache, lookupSuccess) {
-    char memory[CACHE_SIZE];
+    char memory[MIN_CACHE_SIZE];
     char data[16];
     struct cache *cache;
     char *cache_hit;
@@ -35,7 +35,7 @@ TEST(Cache, lookupSuccess) {
     for(i = 0; i < sizeof(data); i++) {
         data[i] = i;
     }
-    cache = createCache(memory);
+    cache = createCache(memory, MIN_CACHE_SIZE);
     
     cache->append(cache, 0x8000, data, sizeof(data));
     cache_hit = (char *) cache->lookup(cache, 0x8000);
@@ -49,7 +49,7 @@ TEST(Cache, lookupSuccess) {
 
 TEST(Cache, multipleCache) {
     /* FIXME: keep like this of increase stacksize limit */
-    static char memory[2][CACHE_SIZE];
+    static char memory[2][MIN_CACHE_SIZE];
     struct cache *cache[2];
     char *cache_hit;
     char data[16];
@@ -59,7 +59,7 @@ TEST(Cache, multipleCache) {
         data[i] = i;
     }
     for(i = 0; i < 2; i++) {
-        cache[i] = createCache(memory[i]);
+        cache[i] = createCache(memory[i], MIN_CACHE_SIZE);
     }
     cache[0]->append(cache[0], 0x8000, data, sizeof(data));
     cache[1]->append(cache[1], 0x18000, data, sizeof(data));
@@ -86,7 +86,7 @@ TEST(Cache, multipleCache) {
 }
 
 TEST(Cache, cleanCache) {
-    char memory[CACHE_SIZE];
+    char memory[MIN_CACHE_SIZE];
     char data[16];
     struct cache *cache;
     char *cache_hit;
@@ -95,7 +95,7 @@ TEST(Cache, cleanCache) {
     for(i = 0; i < sizeof(data); i++) {
         data[i] = i;
     }
-    cache = createCache(memory);
+    cache = createCache(memory, MIN_CACHE_SIZE);
     
     cache->append(cache, 0x8000, data, sizeof(data));
     cache_hit = (char *) cache->lookup(cache, 0x8000);
@@ -112,7 +112,7 @@ TEST(Cache, cleanCache) {
 
 TEST(Cache, cleanCacheMultiple) {
     /* FIXME: keep like this of increase stacksize limit */
-    static char memory[2][CACHE_SIZE];
+    static char memory[2][MIN_CACHE_SIZE];
     struct cache *cache[2];
     char *cache_hit;
     char data[16];
@@ -122,7 +122,7 @@ TEST(Cache, cleanCacheMultiple) {
         data[i] = i;
     }
     for(i = 0; i < 2; i++) {
-        cache[i] = createCache(memory[i]);
+        cache[i] = createCache(memory[i], MIN_CACHE_SIZE);
     }
     cache[0]->append(cache[0], 0x8000, data, sizeof(data));
     cache[1]->append(cache[1], 0x18000, data, sizeof(data));

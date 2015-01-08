@@ -20,12 +20,12 @@ void clone_thread_trampoline_arm()
     void *sp = __builtin_frame_address(0) + 8;//rbp has been push on stack
     struct arm_target *parent_context = (struct arm_target *) sp;
     int res;
-    void *stack = sp + sizeof(struct arm_target) - CACHE_SIZE * 2;
+    void *stack = sp + sizeof(struct arm_target) - MIN_CACHE_SIZE * 2;
 
     res = loop(parent_context->regs.r[15], parent_context->regs.r[1], 0, &parent_context->target);
 
     /* unmap thread stack and exit without using stack */
-    clone_exit_asm(stack, CACHE_SIZE * 2, res);
+    clone_exit_asm(stack, MIN_CACHE_SIZE * 2, res);
 }
 
 static int clone_thread_arm(struct arm_target *context)
@@ -34,10 +34,10 @@ static int clone_thread_arm(struct arm_target *context)
     void *stack;
 
     //allocate memory for stub thread stack
-    stack = mmap(NULL, CACHE_SIZE * 2, PROT_EXEC|PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_GROWSDOWN, -1, 0);
+    stack = mmap(NULL, MIN_CACHE_SIZE * 2, PROT_EXEC|PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_GROWSDOWN, -1, 0);
 
     if (stack) {//to be check what is return value of mmap
-        stack = stack + CACHE_SIZE * 2 - sizeof(struct arm_target);
+        stack = stack + MIN_CACHE_SIZE * 2 - sizeof(struct arm_target);
         //copy arm context onto stack
         memcpy(stack, context, sizeof(struct arm_target));
         //clone

@@ -8,14 +8,14 @@ extern "C" {
 #ifndef __CACHE__
 #define __CACHE__ 1
 
-#define CACHE_SIZE  (4 * 1024 * 1024)
+#define MIN_CACHE_SIZE  (4 * 1024 * 1024)
 
 struct cache {
     void *(*lookup)(struct cache *cache, uint64_t pc);
     void (*append)(struct cache *cache, uint64_t pc, void *data, int size);
 };
 
-struct cache *createCache(void *memory);
+struct cache *createCache(void *memory, int size);
 void removeCache(struct cache *cache);
 void cleanCaches(uint64_t from_pc, uint64_t to_pc_exclude);
 
