@@ -23,10 +23,11 @@ struct target_arch {
 };
 
 enum memory_profile {
-    MEM_PROFILE_2M,
+    MEM_PROFILE_2M = 0,
     MEM_PROFILE_4M,
     MEM_PROFILE_8M,
-    MEM_PROFILE_16M
+    MEM_PROFILE_16M,
+    MEM_PROFILE_NB
 };
 
 extern enum memory_profile memory_profile;

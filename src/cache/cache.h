@@ -8,7 +8,7 @@ extern "C" {
 #ifndef __CACHE__
 #define __CACHE__ 1
 
-#define MIN_CACHE_SIZE  (4 * 1024 * 1024)
+#define MIN_CACHE_SIZE  (1 * 1024 * 1024)
 
 struct cache {
     void *(*lookup)(struct cache *cache, uint64_t pc);

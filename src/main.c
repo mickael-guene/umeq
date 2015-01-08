@@ -20,7 +20,8 @@
 #include "umeq.h"
 #include "version.h"
 
-#define MB  (1024 * 1024)
+#define KB  (1024)
+#define MB  (KB * KB)
 
 int isGdb = 0;
 
@@ -29,7 +30,22 @@ struct tls_context {
     void *target_runtime;
 };
 
+struct memory_config {
+    int max_insn;
+    int jitter_context_size;
+    int be_context_size;
+    int cache_size;
+};
+
 enum memory_profile memory_profile = MEM_PROFILE_2M;
+
+const struct memory_config nocache_memory_config = {5, 32 * KB, 32 * KB, 0};
+const struct memory_config cache_memory_config[MEM_PROFILE_NB] = {
+    {10, 64 * KB, 64 * KB, 1 * MB},
+    {10, 64 * KB, 64 * KB, 3 * MB},
+    {20, 128 * KB, 128 * KB, 6 * MB},
+    {40, 128 * KB, 128 * KB, 14 * MB},
+};
 
 /* FIXME: try to factorize loop_nocache and loop_cache */
 static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target)
@@ -39,8 +55,8 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     struct irInstructionAllocator *ir;
     struct backend *backend;
     char jitBuffer[16 * 1024];
-    char beX86_64Memory[BE_X86_64_MIN_CONTEXT_SIZE];
-    char *jitterMemory = alloca(JITTER_MIN_CONTEXT_SIZE);
+    char *beX86_64Memory = alloca(nocache_memory_config.be_context_size);
+    char *jitterMemory = alloca(nocache_memory_config.jitter_context_size);
     char *context_memory = alloca(current_target_arch.get_context_size());
     struct target *target;
     void *target_runtime;
@@ -59,8 +75,8 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     current_tls_context =  (struct tls_context *) tlsareaAddress;
 
     /* allocate jitter and target context */
-    backend = createX86_64Backend(beX86_64Memory, BE_X86_64_MIN_CONTEXT_SIZE);
-    handle = createJitter(jitterMemory, backend, JITTER_MIN_CONTEXT_SIZE);
+    backend = createX86_64Backend(beX86_64Memory, nocache_memory_config.be_context_size);
+    handle = createJitter(jitterMemory, backend, nocache_memory_config.jitter_context_size);
     ir = getIrInstructionAllocator(handle);
     targetHandle = current_target_arch.create_target_context(context_memory);
     target = current_target_arch.get_target_structure(targetHandle);
@@ -78,7 +94,7 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
         resetJitter(handle);
         if (isGdb && target->gdb(target)->isSingleStepping)
             gdb_handle_breakpoint(target->gdb(target));
-        target->disassemble(target, ir, currentPc, (isGdb && target->gdb(target)->isSingleStepping)?1:10/*10*/);
+        target->disassemble(target, ir, currentPc, (isGdb && target->gdb(target)->isSingleStepping)?1:nocache_memory_config.max_insn/*10*/);
         //displayIr(handle);
         jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
         if (jitSize > 0) {
@@ -99,8 +115,8 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     struct irInstructionAllocator *ir;
     struct backend *backend;
     char jitBuffer[16 * 1024];
-    char beX86_64Memory[BE_X86_64_MIN_CONTEXT_SIZE];
-    char *jitterMemory = alloca(JITTER_MIN_CONTEXT_SIZE);
+    char *beX86_64Memory = alloca(cache_memory_config[memory_profile].be_context_size);
+    char *jitterMemory = alloca(cache_memory_config[memory_profile].jitter_context_size);
     char *context_memory = alloca(current_target_arch.get_context_size());
     struct target *target;
     void *target_runtime;
@@ -109,7 +125,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     struct tls_context parent_tls_context;
     struct tls_context *current_tls_context;
     struct cache *cache = NULL;
-    char cacheMemory[MIN_CACHE_SIZE];
+    char *cacheMemory = alloca(cache_memory_config[memory_profile].cache_size);
 
     /* setup tls area if not yet set */
     syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
@@ -121,8 +137,8 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     current_tls_context =  (struct tls_context *) tlsareaAddress;
 
     /* allocate jitter and target context */
-    backend = createX86_64Backend(beX86_64Memory, BE_X86_64_MIN_CONTEXT_SIZE);
-    handle = createJitter(jitterMemory, backend, JITTER_MIN_CONTEXT_SIZE);
+    backend = createX86_64Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
+    handle = createJitter(jitterMemory, backend, cache_memory_config[memory_profile].jitter_context_size);
     ir = getIrInstructionAllocator(handle);
     targetHandle = current_target_arch.create_target_context(context_memory);
     target = current_target_arch.get_target_structure(targetHandle);
@@ -133,7 +149,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     current_tls_context->target_runtime = target_runtime;
     /* init target */
     target->init(target, parent_tls_context.target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
-    cache = createCache(cacheMemory, MIN_CACHE_SIZE);
+    cache = createCache(cacheMemory, cache_memory_config[memory_profile].cache_size);
 
     while(target->isLooping(target)) {
         void *cache_area;
@@ -145,7 +161,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
             int jitSize;
 
             resetJitter(handle);
-            target->disassemble(target, ir, currentPc, 10/*10*/);
+            target->disassemble(target, ir, currentPc, cache_memory_config[memory_profile].max_insn/*10*/);
             //displayIr(handle);
             jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
             if (jitSize > 0) {
