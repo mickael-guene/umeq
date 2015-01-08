@@ -8,7 +8,7 @@ extern "C" {
 #ifndef __JITTER__
 #define __JITTER__ 1
 
-#define JITTER_CONTEXT_SIZE     (64 * 1024)
+#define JITTER_MIN_CONTEXT_SIZE     (64 * 1024)
 
 typedef void *jitContext;
 
@@ -112,7 +112,7 @@ struct backend {
 
 /* jitter public api */
 /* Create a new jitter instance */
-jitContext createJitter(void *memory, struct backend *backend);
+jitContext createJitter(void *memory, struct backend *backend, int size);
 /* Delete a jitter instance */
 void deleteJitter(jitContext);
 /* Reset a jitter instance so it can jit a new sequence of code */

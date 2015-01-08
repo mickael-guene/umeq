@@ -3,8 +3,6 @@
 
 #include "be_x86_64.h"
 
-//#define USE_INTERPRETED
-
 class jitterFixture : public ::testing::Test {
     protected:
     jitContext handle;
@@ -12,16 +10,12 @@ class jitterFixture : public ::testing::Test {
     struct backend *backend;
     char jitBuffer[4096];
     char contextBuffer[4096];
-#ifdef USE_INTERPRETED
-    char *beInterpretedMemory[BE_INTERPRETED_CONTEXT_SIZE];
-#else
-    char *beX86_64Memory[BE_X86_64_CONTEXT_SIZE];
-#endif
-    char *jitterMemory[JITTER_CONTEXT_SIZE];
+    char *beX86_64Memory[BE_X86_64_MIN_CONTEXT_SIZE];
+    char *jitterMemory[JITTER_MIN_CONTEXT_SIZE];
 
     virtual void SetUp() {
-        backend = createX86_64Backend(beX86_64Memory);
-        handle = createJitter(jitterMemory, backend);
+        backend = createX86_64Backend(beX86_64Memory, BE_X86_64_MIN_CONTEXT_SIZE);
+        handle = createJitter(jitterMemory, backend, JITTER_MIN_CONTEXT_SIZE);
         ir = getIrInstructionAllocator(handle);
     }
 

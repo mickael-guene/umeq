@@ -98,12 +98,12 @@ struct x86Instruction {
     } u;
 };
 
-#define MEMORY_POOL_SIZE    (16 * 1024)
 struct memoryPool {
     void *(*alloc)(struct memoryPool *pool, int size);
     void *(*reset)(struct memoryPool *pool);
-    char buffer[MEMORY_POOL_SIZE];
+    char *buffer;
     int index;
+    int size;
 };
 
 struct inter {
@@ -119,7 +119,7 @@ static void *memoryPoolAlloc(struct memoryPool *pool, int size)
 {
     void *res = NULL;
 
-    if (size + pool->index <= MEMORY_POOL_SIZE) {
+    if (size + pool->index <= pool->size) {
         res = &pool->buffer[pool->index];
         pool->index += size;
     }
@@ -133,6 +133,12 @@ static void *memoryPoolReset(struct memoryPool *pool)
     pool->index = 0;
 
     return NULL;
+}
+
+static void memoryPoolInit(struct memoryPool *pool, char *buffer, int size)
+{
+    pool->buffer = buffer;
+    pool->size = size;
 }
 
 /* register allocation */
@@ -1394,21 +1400,31 @@ static void reset(struct backend *backend)
 }
 
 /* api */
-struct backend *createX86_64Backend(void *memory)
+struct backend *createX86_64Backend(void *memory, int size)
 {
     struct inter *inter;
 
-    assert(BE_X86_64_CONTEXT_SIZE >= sizeof(*inter));
+    assert(BE_X86_64_MIN_CONTEXT_SIZE >= sizeof(*inter));
     inter = (struct inter *) memory;
-    inter->backend.jit = jit;
-    inter->backend.execute = execute;
-    inter->backend.reset = reset;
-    inter->registerPoolAllocator.alloc = memoryPoolAlloc;
-    inter->instructionPoolAllocator.alloc = memoryPoolAlloc;
-    inter->registerPoolAllocator.reset = memoryPoolReset;
-    inter->instructionPoolAllocator.reset = memoryPoolReset;
+    if (inter) {
+        int pool_mem_size;
+        int struct_inter_size_aligned_16 = ((sizeof(*inter) + 15) & ~0xf);
 
-    reset(&inter->backend);
+        inter->backend.jit = jit;
+        inter->backend.execute = execute;
+        inter->backend.reset = reset;
+        inter->registerPoolAllocator.alloc = memoryPoolAlloc;
+        inter->instructionPoolAllocator.alloc = memoryPoolAlloc;
+        inter->registerPoolAllocator.reset = memoryPoolReset;
+        inter->instructionPoolAllocator.reset = memoryPoolReset;
+
+        /* setup pool memory */
+        pool_mem_size = (size - struct_inter_size_aligned_16) / 2;
+        memoryPoolInit(&inter->registerPoolAllocator, memory + struct_inter_size_aligned_16, pool_mem_size);
+        memoryPoolInit(&inter->instructionPoolAllocator, memory + struct_inter_size_aligned_16 + pool_mem_size, pool_mem_size);
+
+        reset(&inter->backend);
+    }
 
     return &inter->backend;
 }

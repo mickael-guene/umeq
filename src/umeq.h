@@ -22,6 +22,14 @@ struct target_arch {
     void *(*get_target_runtime)(void *context);
 };
 
+enum memory_profile {
+    MEM_PROFILE_2M,
+    MEM_PROFILE_4M,
+    MEM_PROFILE_8M,
+    MEM_PROFILE_16M
+};
+
+extern enum memory_profile memory_profile;
 extern struct target_arch current_target_arch;
 extern const char arch_name[];
 

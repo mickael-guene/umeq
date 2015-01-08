@@ -9,6 +9,8 @@
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #include "cache.h"
 #include "jitter.h"
@@ -18,6 +20,8 @@
 #include "umeq.h"
 #include "version.h"
 
+#define MB  (1024 * 1024)
+
 int isGdb = 0;
 
 struct tls_context {
@@ -25,6 +29,7 @@ struct tls_context {
     void *target_runtime;
 };
 
+enum memory_profile memory_profile = MEM_PROFILE_2M;
 
 /* FIXME: try to factorize loop_nocache and loop_cache */
 static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target)
@@ -34,8 +39,8 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     struct irInstructionAllocator *ir;
     struct backend *backend;
     char jitBuffer[16 * 1024];
-    char beX86_64Memory[BE_X86_64_CONTEXT_SIZE];
-    char *jitterMemory = alloca(JITTER_CONTEXT_SIZE);
+    char beX86_64Memory[BE_X86_64_MIN_CONTEXT_SIZE];
+    char *jitterMemory = alloca(JITTER_MIN_CONTEXT_SIZE);
     char *context_memory = alloca(current_target_arch.get_context_size());
     struct target *target;
     void *target_runtime;
@@ -54,8 +59,8 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     current_tls_context =  (struct tls_context *) tlsareaAddress;
 
     /* allocate jitter and target context */
-    backend = createX86_64Backend(beX86_64Memory);
-    handle = createJitter(jitterMemory, backend);
+    backend = createX86_64Backend(beX86_64Memory, BE_X86_64_MIN_CONTEXT_SIZE);
+    handle = createJitter(jitterMemory, backend, JITTER_MIN_CONTEXT_SIZE);
     ir = getIrInstructionAllocator(handle);
     targetHandle = current_target_arch.create_target_context(context_memory);
     target = current_target_arch.get_target_structure(targetHandle);
@@ -94,8 +99,8 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     struct irInstructionAllocator *ir;
     struct backend *backend;
     char jitBuffer[16 * 1024];
-    char beX86_64Memory[BE_X86_64_CONTEXT_SIZE];
-    char *jitterMemory = alloca(JITTER_CONTEXT_SIZE);
+    char beX86_64Memory[BE_X86_64_MIN_CONTEXT_SIZE];
+    char *jitterMemory = alloca(JITTER_MIN_CONTEXT_SIZE);
     char *context_memory = alloca(current_target_arch.get_context_size());
     struct target *target;
     void *target_runtime;
@@ -116,8 +121,8 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     current_tls_context =  (struct tls_context *) tlsareaAddress;
 
     /* allocate jitter and target context */
-    backend = createX86_64Backend(beX86_64Memory);
-    handle = createJitter(jitterMemory, backend);
+    backend = createX86_64Backend(beX86_64Memory, BE_X86_64_MIN_CONTEXT_SIZE);
+    handle = createJitter(jitterMemory, backend, JITTER_MIN_CONTEXT_SIZE);
     ir = getIrInstructionAllocator(handle);
     targetHandle = current_target_arch.create_target_context(context_memory);
     target = current_target_arch.get_target_structure(targetHandle);
@@ -223,6 +228,58 @@ int main(int argc, char **argv)
     return res;
 }
 
+/* try to use maximum memory profile for maximum performance */
+void setup_memory_profile()
+{
+    struct rlimit limit;
+    rlim_t current_soft_limit;
+    rlim_t new_soft_limit = 0;
+    int res;
+
+    /* get current limit */
+    res = getrlimit(RLIMIT_STACK, &limit);
+    if (res) {
+        //warning("getrlimit return res = %d / %d\n", res, errno);
+        return;
+    }
+
+    //debug("current soft limit is %d\n", limit.rlim_cur);
+    current_soft_limit = limit.rlim_cur;
+    /* check if we can select an upper limit that current one */
+    if (limit.rlim_max >= 16 * MB && limit.rlim_max > limit.rlim_cur)
+        new_soft_limit = 16 * MB;
+    else if (limit.rlim_max >= 8 * MB && limit.rlim_max > limit.rlim_cur)
+        new_soft_limit = 8 * MB;
+    else if (limit.rlim_max >= 4 * MB && limit.rlim_max > limit.rlim_cur)
+        new_soft_limit = 4 * MB;
+    else if (limit.rlim_max >= 2 * MB && limit.rlim_max > limit.rlim_cur)
+        new_soft_limit = 2 * MB;
+    if (new_soft_limit > current_soft_limit) {
+        /* yes we can !!! so just to it */
+        struct rlimit new_limit = limit;
+
+        new_limit.rlim_cur = new_soft_limit;
+        res = setrlimit(RLIMIT_STACK, &new_limit);
+        if (!res)
+            current_soft_limit = new_soft_limit;
+    }
+    /* now setup memory profile */
+    if (current_soft_limit >= 16 * MB) {
+        //debug("MEM_PROFILE_16M\n");
+        memory_profile = MEM_PROFILE_16M;;
+    } else if (current_soft_limit >= 8 * MB) {
+        //debug("MEM_PROFILE_8M\n");
+        memory_profile = MEM_PROFILE_8M;
+    } else if (current_soft_limit >= 4 * MB) {
+        //debug("MEM_PROFILE_4M\n");
+        memory_profile = MEM_PROFILE_4M;
+    } else if (current_soft_limit >= 2 * MB) {
+        //debug("MEM_PROFILE_2M\n");
+        memory_profile = MEM_PROFILE_2M;
+    } else
+        fatal("umeq need at least stack size limit to be 2M bytes to run\n");
+}
+
 /* public api */
 void main_wrapper(void *sp)
 {
@@ -230,6 +287,7 @@ void main_wrapper(void *sp)
     char **argv = (char **)(sp + 8);
     int res;
 
+    setup_memory_profile();
     res = main(argc, argv);
 
     exit(res);

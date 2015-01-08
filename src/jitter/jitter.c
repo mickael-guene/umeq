@@ -8,12 +8,12 @@
     const typeof( ((type *)0)->member ) *__mptr = (ptr);	\
     (type *)( (char *)__mptr - offsetof(type,member) );})
 
-#define MEMORY_POOL_SIZE    (16 * 1024)
 struct memoryPool {
     void *(*alloc)(struct memoryPool *pool, int size);
     void *(*reset)(struct memoryPool *pool);
-    char buffer[MEMORY_POOL_SIZE];
+    char *buffer;
     int index;
+    int size;
 };
 
 struct jitter {
@@ -30,7 +30,7 @@ static void *memoryPoolAlloc(struct memoryPool *pool, int size)
 {
     void *res = NULL;
 
-    if (size + pool->index <= MEMORY_POOL_SIZE) {
+    if (size + pool->index <= pool->size) {
         res = &pool->buffer[pool->index];
         pool->index += size;
     }
@@ -44,6 +44,12 @@ static void *memoryPoolReset(struct memoryPool *pool)
     pool->index = 0;
 
     return NULL;
+}
+
+static void memoryPoolInit(struct memoryPool *pool, char *buffer, int size)
+{
+    pool->buffer = buffer;
+    pool->size = size;
 }
 
 /* ir register allocator */
@@ -818,13 +824,17 @@ static void displayInsn(struct irInstruction *insn)
 }
 
 /* api */
-jitContext createJitter(void *memory, struct backend *backend)
+jitContext createJitter(void *memory, struct backend *backend, int size)
 {
     struct jitter *jitter;
 
-    assert(JITTER_CONTEXT_SIZE >= sizeof(*jitter));
+    /* memory must be at least JITTER_MIN_CONTEXT_SIZE */
+    assert(size >= JITTER_MIN_CONTEXT_SIZE);
     jitter = (struct jitter *) memory;
     if (jitter) {
+        int pool_mem_size;
+        int struct_jitter_size_aligned_16 = ((sizeof(*jitter) + 15) & ~0xf);
+
         jitter->backend = backend;
         jitter->registerPoolAllocator.alloc = memoryPoolAlloc;
         jitter->registerPoolAllocator.reset = memoryPoolReset;
@@ -919,6 +929,11 @@ jitContext createJitter(void *memory, struct backend *backend)
         jitter->irInstructionAllocator.add_write_context_16 = add_write_context_16;
         jitter->irInstructionAllocator.add_write_context_32 = add_write_context_32;
         jitter->irInstructionAllocator.add_write_context_64 = add_write_context_64;
+
+        /* setup pool memory */
+        pool_mem_size = (size - struct_jitter_size_aligned_16) / 2;
+        memoryPoolInit(&jitter->registerPoolAllocator, memory + struct_jitter_size_aligned_16, pool_mem_size);
+        memoryPoolInit(&jitter->instructionPoolAllocator, memory + struct_jitter_size_aligned_16 + pool_mem_size, pool_mem_size);
 
         resetJitter((jitContext) jitter);
     }
