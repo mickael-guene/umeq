@@ -61,10 +61,10 @@ static void insert_unmap_area(uint64_t start_addr, uint64_t end_addr);
 static int is_init = 0;
 static uint64_t signal_cursor = MAPPING_RESERVE_IN_SIGNAL_START;
 static pthread_mutex_t ll_big_mutex = PTHREAD_MUTEX_INITIALIZER;
-static struct vma_desc vma_bootstrap[4];
-static struct vma_desc initial_desc;
+static char desc_bootstrap_memory[4096];
+static char desc_reserved_memory[4096];
+static void *desc_next_memory = desc_reserved_memory;
 
-static struct vma_head reserved_vma_list = LIST_HEAD_INITIALIZER(free_vma_list);
 static struct vma_head free_vma_list = LIST_HEAD_INITIALIZER(free_vma_list);
 static struct vma_head vma_list = LIST_HEAD_INITIALIZER(vma_list);
 static struct vma_head ongoing_vma_list = LIST_HEAD_INITIALIZER(vma_list);
@@ -88,17 +88,6 @@ static int is_syscall_error(long res)
         return 1;
     else
         return 0;
-}
-
-/* this fucntion allocate a new bunch of free descriptors and add them to free_vma_list */
-static void allocate_more_desc_old()
-{
-    int i;
-    struct vma_desc *descs = (struct vma_desc *) internal_mmap((uint64_t) NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-
-    assert(is_syscall_error((long) descs) == 0);
-    for(i = 0; i < DESC_PER_PAGE; i++)
-        LIST_INSERT_HEAD(&free_vma_list, &descs[i], entries);
 }
 
 static void collect_ongoing_unmap()
@@ -126,27 +115,21 @@ static void collect_ongoing_unmap()
 static void allocate_more_desc()
 {
     int i;
+    struct vma_desc *descs = (struct vma_desc *) desc_next_memory;
 
+    assert(descs != NULL);
+    for(i = 0; i < DESC_PER_PAGE; i++)
+        LIST_INSERT_HEAD(&free_vma_list, &descs[i], entries);
+    desc_next_memory = NULL;
+}
+
+static void allocate_more_desc_memory()
+{
+    long res = internal_mmap((uint64_t) NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+
+    assert(!is_syscall_error(res));
+    desc_next_memory = (void *) res;
     collect_ongoing_unmap();
-    /* add four descriptor from reserved list to free_vma_list */
-    for (i = 0; i < 4; ++i)
-    {
-        struct vma_desc *desc = LIST_FIRST(&reserved_vma_list);
-
-        assert(desc);
-        LIST_REMOVE(desc, entries);
-        LIST_INSERT_HEAD(&free_vma_list, desc, entries);
-    }
-    allocate_more_desc_old();
-    /* bring back four descriptor to reserved list */
-    for (i = 0; i < 4; ++i)
-    {
-        struct vma_desc *desc = LIST_FIRST(&free_vma_list);
-
-        assert(desc);
-        LIST_REMOVE(desc, entries);
-        LIST_INSERT_HEAD(&reserved_vma_list, desc, entries);
-    }
 }
 
 /* return a new free vma_desc */
@@ -494,11 +477,12 @@ static void arm64_mmap_init()
     struct vma_desc *desc;
     int i;
 
-    /* init reserved vma list */
-    for (i = 0; i < 4; ++i)
-        LIST_INSERT_HEAD(&reserved_vma_list, &vma_bootstrap[i], entries);
+    /* init bootstrap vma list */
+    desc = (struct vma_desc *) desc_bootstrap_memory;
+    for(i = 0; i < DESC_PER_PAGE; i++)
+        LIST_INSERT_HEAD(&free_vma_list, &desc[i], entries);
     /* init vma_list */
-    desc = &initial_desc;
+    desc = arm64_get_free_desc();
     desc->type = VMA_UNMAP;
     /* FIXME: read /proc/sys/vm/mmap_min_addr to set start_addr */
     desc->start_addr = MAPPING_START;
@@ -775,6 +759,8 @@ long arm64_mmap(struct arm64_target *context)
         pthread_mutex_lock(&ll_big_mutex);
         res = internal_mmap(context->regs.r[0], context->regs.r[1], context->regs.r[2],
                              context->regs.r[3], context->regs.r[4], context->regs.r[5]);
+        if (!desc_next_memory)
+            allocate_more_desc_memory();
         pthread_mutex_unlock(&ll_big_mutex);
     }
 
@@ -792,6 +778,8 @@ long arm64_munmap(struct arm64_target *context)
     } else {
         pthread_mutex_lock(&ll_big_mutex);
         res = internal_munmap(context->regs.r[0], context->regs.r[1]);
+        if (!desc_next_memory)
+            allocate_more_desc_memory();
         pthread_mutex_unlock(&ll_big_mutex);
     }
 
@@ -807,6 +795,8 @@ long arm64_mremap(struct arm64_target *context)
     pthread_mutex_lock(&ll_big_mutex);
     res = internal_mremap(context->regs.r[0], context->regs.r[1], context->regs.r[2],
                           context->regs.r[3], context->regs.r[4]);
+    if (!desc_next_memory)
+        allocate_more_desc_memory();
     pthread_mutex_unlock(&ll_big_mutex);
 
     return res;
@@ -820,6 +810,8 @@ long arm64_shmat(struct arm64_target *context)
     assert(context->is_in_signal == 0);
     pthread_mutex_lock(&ll_big_mutex);
     res = internal_shmat(context->regs.r[0], context->regs.r[1], context->regs.r[2]);
+    if (!desc_next_memory)
+        allocate_more_desc_memory();
     pthread_mutex_unlock(&ll_big_mutex);
 
     return res;
@@ -833,6 +825,8 @@ long arm64_shmdt(struct arm64_target *context)
     assert(context->is_in_signal == 0);
     pthread_mutex_lock(&ll_big_mutex);
     res = internal_shmdt(context->regs.r[0]);
+    if (!desc_next_memory)
+        allocate_more_desc_memory();
     pthread_mutex_unlock(&ll_big_mutex);
 
     return res;
@@ -845,6 +839,8 @@ guest_ptr mmap_guest(guest_ptr addr, size_t length, int prot, int flags, int fd,
 
     pthread_mutex_lock(&ll_big_mutex);
     res = internal_mmap(addr, length, prot, flags, fd, offset);
+    if (!desc_next_memory)
+        allocate_more_desc_memory();
     pthread_mutex_unlock(&ll_big_mutex);
 
     return res;
@@ -856,6 +852,8 @@ int munmap_guest(guest_ptr addr, size_t length)
 
     pthread_mutex_lock(&ll_big_mutex);
     res = internal_munmap(addr, length);
+    if (!desc_next_memory)
+        allocate_more_desc_memory();
     pthread_mutex_unlock(&ll_big_mutex);
 
     return res;
@@ -867,6 +865,8 @@ void *munmap_guest_ongoing(guest_ptr addr, size_t length)
 
     pthread_mutex_lock(&ll_big_mutex);
     res = internal_munmap_ongoing(addr, length);
+    if (!desc_next_memory)
+        allocate_more_desc_memory();
     pthread_mutex_unlock(&ll_big_mutex);
 
     return res;
