@@ -9,6 +9,11 @@
 #include "arm64_private.h"
 #include "arm64_syscall.h"
 #include "cache.h"
+#include "umeq.h"
+
+#define KB  (1024)
+#define MB  (KB * KB)
+const int mmap_size[MEM_PROFILE_NB] = {2 * MB, 4 * MB, 8 * MB, 16 * MB};
 
 /* FIXME: we assume a x86_64 host */
 extern int loop(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target);
@@ -20,15 +25,15 @@ void clone_thread_trampoline_arm64()
     void *sp = __builtin_frame_address(0) + 8;//rbp has been push on stack
     struct arm64_target *parent_context = (struct arm64_target *) sp;
     int res;
-    void *stack = sp + sizeof(struct arm64_target) - MIN_CACHE_SIZE * 2;
+    void *stack = sp + sizeof(struct arm64_target) - mmap_size[memory_profile];
     void *patch_address;
 
     res = loop(parent_context->regs.pc, parent_context->regs.r[1], 0, &parent_context->target);
 
     /* release vma descr */
-    patch_address = munmap_guest_ongoing(h_2_g(stack), MIN_CACHE_SIZE * 2);
+    patch_address = munmap_guest_ongoing(h_2_g(stack), mmap_size[memory_profile]);
     /* unmap thread stack and exit without using stack */
-    clone_exit_asm(stack, MIN_CACHE_SIZE * 2, res, patch_address);
+    clone_exit_asm(stack, mmap_size[memory_profile], res, patch_address);
 }
 
 static long clone_thread_arm64(struct arm64_target *context)
@@ -38,11 +43,11 @@ static long clone_thread_arm64(struct arm64_target *context)
     void *stack;
 
     //allocate memory for stub thread stack
-    guest_stack = mmap_guest((uint64_t) NULL, MIN_CACHE_SIZE * 2, PROT_EXEC|PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_GROWSDOWN, -1, 0);
+    guest_stack = mmap_guest((uint64_t) NULL, mmap_size[memory_profile], PROT_EXEC|PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
     stack = g_2_h(guest_stack);
 
     if (stack) {//to be check what is return value of mmap
-        stack = stack + MIN_CACHE_SIZE * 2 - sizeof(struct arm64_target);
+        stack = stack + mmap_size[memory_profile] - sizeof(struct arm64_target);
         //copy arm64 context onto stack
         memcpy(stack, context, sizeof(struct arm64_target));
         //clone
