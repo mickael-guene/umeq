@@ -44,7 +44,7 @@ const struct memory_config cache_memory_config[MEM_PROFILE_NB] = {
     {10, 64 * KB, 64 * KB, 1 * MB},
     {10, 64 * KB, 64 * KB, 3 * MB},
     {20, 128 * KB, 128 * KB, 6 * MB},
-    {40, 128 * KB, 128 * KB, 14 * MB},
+    {40, 256 * KB, 256 * KB, 14 * MB},
 };
 
 /* FIXME: try to factorize loop_nocache and loop_cache */
