@@ -60,6 +60,7 @@ static void insert_unmap_area(uint64_t start_addr, uint64_t end_addr);
 
 /* globals */
 static int is_init = 0;
+static int is_end_of_vm_reach = 0;
 static uint64_t signal_cursor = MAPPING_RESERVE_IN_SIGNAL_START;
 static uint64_t kernel_cursor = KERNEL_CHOOSE_START_ADDR;
 static pthread_mutex_t ll_big_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -381,13 +382,10 @@ static uint64_t find_vma_with_kernel_choose(uint64_t length)
     }
 
     if (res == ENOMEM_64) {
-        /* if we are then all the memory space was use at least once. If we
-           reallocate some memory now then we need to call cleanCaches(0,~0)
-           for each mmap with +x or for each unmap (since we don't keep type).
-           This as a bad performance impact for this type of application. So
-           we assert until we use cleanCaches with correct area.
-         */
-        fatal("Virtual space wrapping not suppported");
+        is_end_of_vm_reach = 1;
+        kernel_cursor = KERNEL_CHOOSE_START_ADDR;
+        /* to avoid recursion we call find_vma */
+        res = find_vma(length);
     } else {
         kernel_cursor = res + length;
     }
@@ -542,7 +540,8 @@ static long internal_mmap(uint64_t addr_p, uint64_t length_p, uint64_t prot_p,
                 uint64_t end_addr = PAGE_ALIGN_UP(res_vma + length_p);
 
                 insert_unmap_area(res_vma, end_addr);
-            }
+            } else if (is_end_of_vm_reach && (prot & PROT_NONE))
+                cleanCaches(0, ~0);
         } else
             res = res_vma;
     }
