@@ -14,6 +14,7 @@
 #include "target64.h"
 #include "arm64_private.h"
 #include "runtime.h"
+#include "cache.h"
 
 #define MAPPING_START                   0x400000
 #define KERNEL_CHOOSE_START_ADDR        0x4000000000UL
@@ -60,6 +61,7 @@ static void insert_unmap_area(uint64_t start_addr, uint64_t end_addr);
 /* globals */
 static int is_init = 0;
 static uint64_t signal_cursor = MAPPING_RESERVE_IN_SIGNAL_START;
+static uint64_t kernel_cursor = KERNEL_CHOOSE_START_ADDR;
 static pthread_mutex_t ll_big_mutex = PTHREAD_MUTEX_INITIALIZER;
 static char desc_bootstrap_memory[4096];
 static char desc_reserved_memory[4096];
@@ -362,11 +364,11 @@ static uint64_t find_vma_with_kernel_choose(uint64_t length)
     struct vma_desc *desc;
 
     length = PAGE_ALIGN_UP(length);
-    /* start the search from KERNEL_CHOOSE_START_ADDR */
-    desc = find_address_owner(KERNEL_CHOOSE_START_ADDR);
+    /* start the search from kernel_cursor */
+    desc = find_address_owner(kernel_cursor);
     while(desc) {
         if (desc->type == VMA_UNMAP) {
-            uint64_t start_addr = MAX(desc->start_addr, KERNEL_CHOOSE_START_ADDR);
+            uint64_t start_addr = MAX(desc->start_addr, kernel_cursor);
             uint64_t available_space =  desc->end_addr - start_addr;
 
             if (available_space >= length) {
@@ -378,9 +380,17 @@ static uint64_t find_vma_with_kernel_choose(uint64_t length)
         desc = LIST_NEXT(desc, entries);
     }
 
-    /* in case we don't find free space we search from all descriptor */
-    if (res == ENOMEM_64)
-        res = find_vma(length);
+    if (res == ENOMEM_64) {
+        /* if we are then all the memory space was use at least once. If we
+           reallocate some memory now then we need to call cleanCaches(0,~0)
+           for each mmap with +x or for each unmap (since we don't keep type).
+           This as a bad performance impact for this type of application. So
+           we assert until we use cleanCaches with correct area.
+         */
+        fatal("Virtual space wrapping not suppported");
+    } else {
+        kernel_cursor = res + length;
+    }
 
     return res;
 }
