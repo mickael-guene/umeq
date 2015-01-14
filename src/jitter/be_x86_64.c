@@ -733,16 +733,22 @@ static void allocateRegisters(struct inter *inter)
 
 static char *gen_mov_const_hlp(char *pos, struct x86Register *dst, uint64_t value)
 {
-    *pos++ = REX_OPCODE | REX_W | REX_B;
-    *pos++ = 0xb8 + dst->index;
-    *pos++ = (value >> 0) & 0xff;
-    *pos++ = (value >> 8) & 0xff;
-    *pos++ = (value >> 16) & 0xff;
-    *pos++ = (value >> 24) & 0xff;
-    *pos++ = (value >> 32) & 0xff;
-    *pos++ = (value >> 40) & 0xff;
-    *pos++ = (value >> 48) & 0xff;
-    *pos++ = (value >> 56) & 0xff;
+    if (value) {
+        *pos++ = REX_OPCODE | REX_W | REX_B;
+        *pos++ = 0xb8 + dst->index;
+        *pos++ = (value >> 0) & 0xff;
+        *pos++ = (value >> 8) & 0xff;
+        *pos++ = (value >> 16) & 0xff;
+        *pos++ = (value >> 24) & 0xff;
+        *pos++ = (value >> 32) & 0xff;
+        *pos++ = (value >> 40) & 0xff;
+        *pos++ = (value >> 48) & 0xff;
+        *pos++ = (value >> 56) & 0xff;
+    } else {
+        *pos++ = REX_OPCODE | REX_R | REX_B;
+        *pos++ = 0x31;
+        *pos++ = 0xc0 | (dst->index << 3) | dst->index;
+    }
 
     return pos;
 }
@@ -928,20 +934,22 @@ static char *gen_move_reg(char *pos, struct x86Register *dst, struct x86Register
 
 static char *gen_cmp(char *pos, int isEq, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2)
 {
-    char *pos_ori = pos;
-    char mov_const_size;
+    char *pos_patch;
+    char *pos_ori;
 
     pos = gen_mov_const_hlp(pos, dst, ~0);
-    mov_const_size = pos - pos_ori;
     //cmp op1 op2
     *pos++ = REX_OPCODE | REX_R | REX_B | REX_W;
     *pos++ = 0x3b;
     *pos++ = MODRM_MODE_3 | (op2->index << MODRM_REG_SHIFT) | op1->index;
     //je after next move
     *pos++ = (isEq)?0x74:0x75;
-    *pos++ = mov_const_size;
+    pos_patch = pos;
+    *pos++ = 0;
     // set false value
+    pos_ori = pos;
     pos = gen_mov_const_hlp(pos, dst, 0);
+    *pos_patch = pos - pos_ori;
 
     return pos;
 }
