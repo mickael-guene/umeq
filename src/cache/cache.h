@@ -15,7 +15,7 @@ struct cache {
     void (*append)(struct cache *cache, uint64_t pc, void *data, int size);
 };
 
-struct cache *createCache(void *memory, int size);
+struct cache *createCache(void *memory, int size, int nb_of_pc_bit_to_drop);
 void removeCache(struct cache *cache);
 void cleanCaches(uint64_t from_pc, uint64_t to_pc_exclude);
 

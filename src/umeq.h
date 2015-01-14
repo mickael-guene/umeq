@@ -20,6 +20,8 @@ struct target_arch {
     struct target *(*get_target_structure)(void *context);
     /* return runtime target handle from the given context */
     void *(*get_target_runtime)(void *context);
+    /* return number of lsb bit that are useless for cache */
+    int (*get_nb_of_pc_bit_to_drop)(void);
 };
 
 enum memory_profile {

@@ -8,7 +8,7 @@ TEST(Cache, createRemove) {
     char memory[MIN_CACHE_SIZE];
     struct cache *cache;
 
-    cache = createCache(memory, MIN_CACHE_SIZE);
+    cache = createCache(memory, MIN_CACHE_SIZE, 0);
     removeCache(cache);
 }
 
@@ -17,7 +17,7 @@ TEST(Cache, lookupFailed) {
     struct cache *cache;
     void *cache_hit;
 
-    cache = createCache(memory, MIN_CACHE_SIZE);
+    cache = createCache(memory, MIN_CACHE_SIZE, 0);
     
     cache_hit = cache->lookup(cache, 0x8000);
     EXPECT_TRUE(cache_hit == NULL);
@@ -35,7 +35,7 @@ TEST(Cache, lookupSuccess) {
     for(i = 0; i < sizeof(data); i++) {
         data[i] = i;
     }
-    cache = createCache(memory, MIN_CACHE_SIZE);
+    cache = createCache(memory, MIN_CACHE_SIZE, 0);
     
     cache->append(cache, 0x8000, data, sizeof(data));
     cache_hit = (char *) cache->lookup(cache, 0x8000);
@@ -59,7 +59,7 @@ TEST(Cache, multipleCache) {
         data[i] = i;
     }
     for(i = 0; i < 2; i++) {
-        cache[i] = createCache(memory[i], MIN_CACHE_SIZE);
+        cache[i] = createCache(memory[i], MIN_CACHE_SIZE, 0);
     }
     cache[0]->append(cache[0], 0x8000, data, sizeof(data));
     cache[1]->append(cache[1], 0x18000, data, sizeof(data));
@@ -95,7 +95,7 @@ TEST(Cache, cleanCache) {
     for(i = 0; i < sizeof(data); i++) {
         data[i] = i;
     }
-    cache = createCache(memory, MIN_CACHE_SIZE);
+    cache = createCache(memory, MIN_CACHE_SIZE, 0);
     
     cache->append(cache, 0x8000, data, sizeof(data));
     cache_hit = (char *) cache->lookup(cache, 0x8000);
@@ -122,7 +122,7 @@ TEST(Cache, cleanCacheMultiple) {
         data[i] = i;
     }
     for(i = 0; i < 2; i++) {
-        cache[i] = createCache(memory[i], MIN_CACHE_SIZE);
+        cache[i] = createCache(memory[i], MIN_CACHE_SIZE, 0);
     }
     cache[0]->append(cache[0], 0x8000, data, sizeof(data));
     cache[1]->append(cache[1], 0x18000, data, sizeof(data));

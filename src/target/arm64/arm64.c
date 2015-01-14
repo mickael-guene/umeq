@@ -380,6 +380,11 @@ static void *getArm64Context(arm64Context handle)
     return &context->regs;
 }
 
+static int getArm64NbOfPcBitToDrop()
+{
+    return 2;
+}
+
 /* api */
 struct target_arch current_target_arch = {
     arm64_load_image,
@@ -387,5 +392,6 @@ struct target_arch current_target_arch = {
     createArm64Context,
     deleteArm64Context,
     getArm64Target,
-    getArm64Context
+    getArm64Context,
+    getArm64NbOfPcBitToDrop
 };

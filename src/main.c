@@ -149,7 +149,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     current_tls_context->target_runtime = target_runtime;
     /* init target */
     target->init(target, parent_tls_context.target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
-    cache = createCache(cacheMemory, cache_memory_config[memory_profile].cache_size);
+    cache = createCache(cacheMemory, cache_memory_config[memory_profile].cache_size, current_target_arch.get_nb_of_pc_bit_to_drop());
 
     while(target->isLooping(target)) {
         void *cache_area;

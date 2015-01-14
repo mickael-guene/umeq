@@ -207,6 +207,11 @@ static void *getArmContext(armContext handle)
     return &context->regs;
 }
 
+static int getArmNbOfPcBitToDrop()
+{
+    return 1;
+}
+
 /* api */
 struct target_arch current_target_arch = {
     arm_load_image,
@@ -214,5 +219,6 @@ struct target_arch current_target_arch = {
     createArmContext,
     deleteArmContext,
     getArmTarget,
-    getArmContext
+    getArmContext,
+    getArmNbOfPcBitToDrop
 };

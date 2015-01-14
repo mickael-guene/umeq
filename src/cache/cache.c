@@ -27,7 +27,7 @@ struct cache_config {
     int cache_entry_nb;
     int cache_entry_size;
     int jitter_area_size;
-    int reserved_0;
+    int nb_of_pc_bit_to_drop;
 };
 
 struct internal_cache {
@@ -110,7 +110,7 @@ static void *lookup(struct cache *cache, uint64_t pc)
 {
     struct internal_cache *acache = container_of(cache, struct internal_cache, cache);
     void *res = NULL;
-    int entry_index = (pc >> 0) & (acache->config.cache_entry_nb - 1);
+    int entry_index = (pc >> acache->config.nb_of_pc_bit_to_drop) & (acache->config.cache_entry_nb - 1);
     int way;
 
     if (is_cache_clean_need) {
@@ -135,7 +135,7 @@ static void append(struct cache *cache, uint64_t pc, void *data, int size)
 {
     struct internal_cache *acache = container_of(cache, struct internal_cache, cache);
     struct cache_entry *entry = NULL;
-    int entry_index = (pc >> 0) & (acache->config.cache_entry_nb - 1);
+    int entry_index = (pc >> acache->config.nb_of_pc_bit_to_drop) & (acache->config.cache_entry_nb - 1);
     int way;
 
     /* handle jitter area full */
@@ -160,7 +160,7 @@ static void append(struct cache *cache, uint64_t pc, void *data, int size)
 }
 
 /* api */
-struct cache *createCache(void *memory, int size)
+struct cache *createCache(void *memory, int size, int nb_of_pc_bit_to_drop)
 {
     struct internal_cache *acache;
 
@@ -170,8 +170,9 @@ struct cache *createCache(void *memory, int size)
         acache->next = NULL;
         acache->cache.lookup = lookup;
         acache->cache.append = append;
-        /* one quarter of memory is use for cache entries */
-        acache->config.cache_entry_nb = size / ( 4 * CACHE_WAY * sizeof(struct cache_entry));
+        acache->config.nb_of_pc_bit_to_drop = nb_of_pc_bit_to_drop;
+        /* we measure around 300 bytes per entry => we reserve around 1/16 of cache for entries */
+        acache->config.cache_entry_nb = size / ( 16 * CACHE_WAY * sizeof(struct cache_entry));
         acache->config.cache_entry_size = CACHE_WAY * acache->config.cache_entry_nb * sizeof(struct cache_entry);
         acache->config.jitter_area_size = size - sizeof(struct internal_cache) - acache->config.cache_entry_size;
         acache->info.write_pos = 0;
