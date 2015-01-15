@@ -12,20 +12,26 @@ extern "C" {
 
 #include "target64.h"
 
+#define ARM64_FPSR_IOC      1
+#define ARM64_FPSR_DZC      2
+#define ARM64_FPSR_OFC      4
+#define ARM64_FPSR_UFC      8
+#define ARM64_FPSR_IXC      16
+
 enum ops {
-	OPS_ADD = 0,
-	OPS_SUB,
-	OPS_LOGICAL,
-	OPS_ADC
+    OPS_ADD = 0,
+    OPS_SUB,
+    OPS_LOGICAL,
+    OPS_ADC
 };
 
 enum rm {
-	RM_TIEEVEN = 0,
-	RM_POSINF,
-	RM_NEGINF,
-	RM_ZERO,
-	RM_TIEAWAY,
-	RM_ODD
+    RM_TIEEVEN = 0,
+    RM_POSINF,
+    RM_NEGINF,
+    RM_ZERO,
+    RM_TIEAWAY,
+    RM_ODD
 };
 
 extern void arm64_hlp_dump(uint64_t regs);

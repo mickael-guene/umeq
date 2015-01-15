@@ -14,6 +14,94 @@
 
 #include "arm64_helpers_simd_fpu_common.c"
 
+/* slolen from glibc */
+int feclearexcept (int excepts)
+{
+  fenv_t temp;
+
+  /* Mask out unsupported bits/exceptions.  */
+  excepts &= FE_ALL_EXCEPT;
+
+  /* Bah, we have to clear selected exceptions.  Since there is no
+     `fldsw' instruction we have to do it the hard way.  */
+  __asm__ ("fnstenv %0" : "=m" (*&temp));
+
+  /* Clear the relevant bits.  */
+  temp.__status_word &= excepts ^ FE_ALL_EXCEPT;
+
+  /* Put the new data in effect.  */
+  __asm__ ("fldenv %0" : : "m" (*&temp));
+
+  /* If the CPU supports SSE, we clear the MXCSR as well.  */
+  if (1)
+    {
+      unsigned int xnew_exc;
+
+      /* Get the current MXCSR.  */
+      __asm__ ("stmxcsr %0" : "=m" (*&xnew_exc));
+
+      /* Clear the relevant bits.  */
+      xnew_exc &= ~excepts;
+
+      /* Put the new data in effect.  */
+      __asm__ ("ldmxcsr %0" : : "m" (*&xnew_exc));
+    }
+
+  /* Success.  */
+  return 0;
+}
+
+/* slolen from glibc */
+int fetestexcept (int excepts)
+{
+  int temp;
+  unsigned int mxscr;
+
+  /* Get current exceptions.  */
+  __asm__ ("fnstsw %0\n"
+       "stmxcsr %1" : "=m" (*&temp), "=m" (*&mxscr));
+
+  return (temp | mxscr) & excepts & FE_ALL_EXCEPT;
+}
+
+/* slolen from glibc */
+int fesetround (int round)
+{
+  unsigned short int cw;
+  int mxcsr;
+
+  if ((round & ~0xc00) != 0)
+    /* ROUND is no valid rounding mode.  */
+    return 1;
+
+  /* First set the x87 FPU.  */
+  asm ("fnstcw %0" : "=m" (*&cw));
+  cw &= ~0xc00;
+  cw |= round;
+  asm ("fldcw %0" : : "m" (*&cw));
+
+  /* And now the MSCSR register for SSE, the precision is at different bit
+     positions in the different units, we need to shift it 3 bits.  */
+  asm ("stmxcsr %0" : "=m" (*&mxcsr));
+  mxcsr &= ~ 0x6000;
+  mxcsr |= round << 3;
+  asm ("ldmxcsr %0" : : "m" (*&mxcsr));
+
+  return 0;
+}
+
+/* slolen from glibc */
+int fegetround (void)
+{
+  int cw;
+  /* We only check the x87 FPU unit.  The SSE unit should be the same
+     - and if it's not the same there's no way to signal it.  */
+
+  __asm__ ("fnstcw %0" : "=m" (*&cw));
+
+  return cw & 0xc00;
+}
+
 static void dis_fcvt(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -165,14 +253,18 @@ static void dis_fsqrt(uint64_t _regs, uint32_t insn)
     assert(is_scalar);
     if (is_double) {
         for(i = 0; i < (is_scalar?1:2); i++)
-            if (regs->v[rn].d[i]&0x8000000000000000UL)
+            if (regs->v[rn].d[i]&0x8000000000000000UL) {
+                set_arm64_exception(_regs, FE_INVALID);
                 res.df[i] = NAN;
+            }
             else
                 res.df[i] = sqrt(regs->v[rn].df[i]);
     } else {
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            if (regs->v[rn].s[i]&0x80000000)
+            if (regs->v[rn].s[i]&0x80000000) {
+                set_arm64_exception(_regs, FE_INVALID);
                 res.sf[i] = NAN;
+            }
             else
                 res.sf[i] = sqrtf(regs->v[rn].sf[i]);
     }
@@ -256,7 +348,10 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
     int rn = INSN(9,5);
     int rd = INSN(4,0);
     union simd_register res = {0};
+    int original_rounding_mode = fegetround();
 
+    feclearexcept(FE_ALL_EXCEPT);
+    set_host_rounding_mode_from_arm64(_regs);
     if (is_double) {
         switch(opcode) {
             case 0://fmul
@@ -323,6 +418,8 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
         }
     }
     regs->v[rd] = res;
+    fesetround(original_rounding_mode);
+    set_arm64_exception(_regs, fetestexcept(FE_ALL_EXCEPT));
 }
 
 void arm64_hlp_dirty_floating_point_immediate_simd(uint64_t _regs, uint32_t insn)
