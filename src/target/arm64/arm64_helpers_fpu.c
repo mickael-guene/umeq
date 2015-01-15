@@ -102,14 +102,18 @@ static void dis_frinta(uint64_t _regs, uint32_t insn)
 
 static void dis_frintx(uint64_t _regs, uint32_t insn)
 {
-    /* FIXME: use rm of fcpcr */
-    dis_frint(_regs, insn, RM_TIEEVEN);
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    enum rm rm = (regs->fpcr >> 22) & 3;
+
+    dis_frint(_regs, insn, rm);
 }
 
 static void dis_frinti(uint64_t _regs, uint32_t insn)
 {
-    /* FIXME: use rm of fcpcr */
-    dis_frint(_regs, insn, RM_TIEEVEN);
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    enum rm rm = (regs->fpcr >> 22) & 3;
+
+    dis_frint(_regs, insn, rm);
 }
 
 static void dis_fccmp_fccmpe(uint64_t _regs, uint32_t insn)
