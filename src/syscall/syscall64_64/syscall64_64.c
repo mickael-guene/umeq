@@ -601,6 +601,17 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_flistxattr:
             res = syscall(SYS_flistxattr, (int) p0, IS_NULL(p1, char), (size_t) p2);
             break;
+        case PR_prlimit64:
+            res = syscall(SYS_prlimit64, (pid_t) p0, (int) p1, IS_NULL(p2, struct rlimit),
+                                                               IS_NULL(p3, struct rlimit));
+            break;
+        case PR_readahead:
+            res = syscall(SYS_readahead, (int) p0, (off64_t) p1, (size_t) p2);
+            break;
+        case PR_epoll_pwait:
+            res = syscall(SYS_epoll_pwait, (int) p0, (struct epoll_event *) g_2_h(p1), (int) p2,
+                                           (int) p3, IS_NULL(p4, sigset_t), (size_t) p5);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }
