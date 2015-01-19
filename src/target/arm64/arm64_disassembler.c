@@ -777,34 +777,40 @@ static int dis_add_sub_shifted_register_insn(struct arm64_target *context, uint3
     /* prepare ops */
     if (is_64) {
         op1 = read_x(ir, rn, ZERO_REG);
-        switch(shift) {
-            case 0://lsl
-                op2 = ir->add_shl_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
-                break;
-            case 1:
-                op2 = ir->add_shr_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
-                break;
-            case 2:
-                op2 = ir->add_asr_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
-                break;
-            default:
-                assert(0);
-        }
+        if (imm6) {
+            switch(shift) {
+                case 0://lsl
+                    op2 = ir->add_shl_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
+                    break;
+                case 1:
+                    op2 = ir->add_shr_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
+                    break;
+                case 2:
+                    op2 = ir->add_asr_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
+                    break;
+                default:
+                    assert(0);
+            }
+        } else
+            op2 = read_x(ir, rm, ZERO_REG);
     } else {
         op1 = read_w(ir, rn, ZERO_REG);
-        switch(shift) {
-            case 0://lsl
-                op2 = ir->add_shl_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imm6));
-                break;
-            case 1:
-                op2 = ir->add_shr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imm6));
-                break;
-            case 2:
-                op2 = ir->add_asr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imm6));
-                break;
-            default:
-                assert(0);
-        }
+        if (imm6) {
+            switch(shift) {
+                case 0://lsl
+                    op2 = ir->add_shl_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imm6));
+                    break;
+                case 1:
+                    op2 = ir->add_shr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imm6));
+                    break;
+                case 2:
+                    op2 = ir->add_asr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imm6));
+                    break;
+                default:
+                    assert(0);
+            }
+        } else
+            op2 = read_w(ir, rm, ZERO_REG);
     }
 
     return dis_add_sub(context, insn, ir, op1, op2, ZERO_REG);
