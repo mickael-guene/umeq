@@ -612,6 +612,9 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_epoll_pwait, (int) p0, (struct epoll_event *) g_2_h(p1), (int) p2,
                                            (int) p3, IS_NULL(p4, sigset_t), (size_t) p5);
             break;
+        case PR_quotactl:
+            res = syscall(SYS_quotactl, (int) p0, (char *) g_2_h(p1), (int) p2, (void *) g_2_h(p3));
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }
