@@ -113,10 +113,14 @@ static void dis_fcvt(uint64_t _regs, uint32_t insn)
 
     if (type == 1 && opc == 0) {
         //fcvt Sd, Dn
+        feclearexcept(FE_ALL_EXCEPT);
         res.sf[0] = regs->v[rn].df[0];
+        set_arm64_exception(_regs, fetestexcept(FE_ALL_EXCEPT));
     } else if (type == 0 && opc == 1) {
         //fcvt Dd, Sn
+        feclearexcept(FE_ALL_EXCEPT);
         res.df[0] = regs->v[rn].sf[0];
+        set_arm64_exception(_regs, fetestexcept(FE_ALL_EXCEPT));
     } else if (type == 0 && opc ==3) {
         //fcvt Hd, Sn
         float_status dummy = {0};
