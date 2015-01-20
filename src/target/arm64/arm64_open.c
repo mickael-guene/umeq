@@ -7,10 +7,14 @@
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
+#include <sys/ptrace.h>
 
 #include "arm64_private.h"
 #include "arm64_syscall.h"
 #include "runtime.h"
+
+extern void *auxv_start;
+extern void *auxv_end;
 
 struct convertFlags {
     long arm64Flag;
@@ -66,6 +70,89 @@ long x86ToArm64Flags(long x86_flags)
 static pid_t gettid()
 {
     return syscall(SYS_gettid);
+}
+
+static int open_proc_self_auxv()
+{
+    static uint32_t cnt = 0;
+    char tmpName[1024];
+    int fd;
+
+    sprintf(tmpName, "/tmp/umeq-open-proc-self-auxv.%d-%d", gettid(), cnt++);
+    fd = open(tmpName, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
+
+    if (fd >= 0) {
+        unlink(tmpName);
+        write(fd, auxv_start, auxv_end - auxv_start);
+        lseek(fd, 0, SEEK_SET);
+    }
+
+    return fd;
+}
+
+static long remote_read(int pid, void *from, void *to, char *buffer)
+{
+    long res;
+    long data;
+    int i;
+    int j;
+
+    assert((to - from) % sizeof(void *) == 0);
+    for(i = 0; i < (to - from) / sizeof(void *); i++) {
+        res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, from + i * sizeof(void *), &data);
+        if (res)
+            goto error;
+        for(j = 0; j < 8; j++)
+            *buffer++ = (data >> (j * 8)) & 0xff;
+    }
+
+error:
+    return res;
+}
+
+/*  This code will only work when a tracer try to read a tracee
+ * auxv. This allow gdb to be able to debug pie binaries.
+ */
+static int open_proc_pid_auxv(const char *pathname)
+{
+    int fd = -EACCES;
+    int pid = 0;
+    long res;
+    int i;
+    void *auxv_start_value;
+    void *auxv_end_value;
+    char *auxv_buffer;
+    char tmpName[128];
+    static uint32_t cnt = 0;
+
+    /* compute pid */
+    for(i = 6; i < strlen(pathname) - 5; i++)
+        pid = pid * 10 + (pathname[i] - '0');
+
+    /* read auxv_start and auxv_end value and remote read auxv data in buffer */
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, &auxv_start, &auxv_start_value);
+    if (res)
+        goto error;
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, &auxv_end, &auxv_end_value);
+    if (res)
+        goto error;
+    auxv_buffer = alloca(auxv_end_value - auxv_start_value);
+    res = remote_read(pid, auxv_start_value, auxv_end_value, auxv_buffer);
+    if (res)
+        goto error;
+
+    /* now generate file */
+    sprintf(tmpName, "/tmp/umeq-open-proc-%d-auxv.%d-%d", pid, gettid(), cnt++);
+    fd = open(tmpName, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
+
+    if (fd >= 0) {
+        unlink(tmpName);
+        write(fd, auxv_buffer, auxv_end_value - auxv_start_value);
+        lseek(fd, 0, SEEK_SET);
+    }
+
+error:
+    return fd;
 }
 
 static int conv_hex_to_int(int c)
@@ -191,11 +278,11 @@ long arm64_openat(struct arm64_target *context)
     int mode = context->regs.r[3];
 
     if (strcmp(pathname, "/proc/self/auxv") == 0) {
-        res = -EACCES;
+        res = open_proc_self_auxv();
     } else if (strcmp(pathname, "/proc/self/maps") == 0) {
         res = open_proc_self_maps();
     } else if (strncmp(pathname, "/proc/", strlen("/proc/")) == 0 && strncmp(pathname + strlen(pathname) - 5, "/auxv", strlen("/auxv")) == 0) {
-        res = -EACCES;
+        res = open_proc_pid_auxv(pathname);
     } else
         res = syscall(SYS_openat, dirfd, pathname, flags, mode);
 

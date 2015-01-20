@@ -6,8 +6,8 @@
 #include "runtime.h"
 #include "arm64_private.h"
 
-void *auxv64_start = NULL;
-void *auxv64_end = NULL;
+void *auxv_start = NULL;
+void *auxv_end = NULL;
 
 static int strcmp_env(char *s1, char *s2)
 {
@@ -153,7 +153,7 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
     /* auxv stuff */
     auxv = (Elf64_auxv_t *) pos;
     auxv_target = (Elf64_auxv_t *) ptr_area;
-    auxv64_start = (void *) auxv_target;
+    auxv_start = (void *) auxv_target;
     while(auxv->a_type != AT_NULL) {
         auxv_target->a_type = auxv->a_type;
         switch(auxv->a_type) {
@@ -192,7 +192,7 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
     // end of auxv
     auxv_target->a_type = AT_NULL;
     auxv_target++;
-    auxv64_end = (void *) auxv_target;
+    auxv_end = (void *) auxv_target;
 
     return stack - string_area_size - pointer_area_size;
 }
