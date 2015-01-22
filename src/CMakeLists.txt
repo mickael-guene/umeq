@@ -36,7 +36,7 @@ add_subdirectory(gdb)
 add_subdirectory(fpu)
 
 add_executable(umeq-arm main.c start.S)
-target_link_libraries(umeq-arm -nostdlib -T${umeq_SOURCE_DIR}/src/custom.ld -Wl,-z,execstack -static -Wl,--start-group jitter loader32 cache runtime arm_target syscall32_64 gdb -Wl,--end-group)
+target_link_libraries(umeq-arm -nostdlib -Wl,-Ttext=0x8000000000 -Wl,-z,execstack -static -Wl,--start-group jitter loader32 cache runtime arm_target syscall32_64 gdb -Wl,--end-group)
 
 add_executable(umeq-arm64 main.c start.S)
-target_link_libraries(umeq-arm64 -nostdlib -T${umeq_SOURCE_DIR}/src/custom.ld -Wl,-z,execstack -static -Wl,--start-group jitter loader64 cache runtime arm64_target syscall64_64 gdb softfloat_arm64 -Wl,--end-group)
+target_link_libraries(umeq-arm64 -nostdlib -Wl,-Ttext=0x8000000000 -Wl,-z,execstack -static -Wl,--start-group jitter loader64 cache runtime arm64_target syscall64_64 gdb softfloat_arm64 -Wl,--end-group)
