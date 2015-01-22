@@ -16,6 +16,14 @@
 #include "runtime.h"
 #include "cache.h"
 
+/* mozilla allocator take arm64 page size for computation => 64K pages.
+ * Unfortunaly when real size pages are 4K it can lead to wrong computations
+ * which can lead in some cases to allocate less memory than needed.
+ * So to workaround this bug we align kernel_cursor on FORCE_ALIGNMENT value.
+ * See https://bugzilla.mozilla.org/show_bug.cgi?id=1124580
+*/
+#define FORCE_ALIGNMENT                 (64 * 1024UL)
+
 #define MAPPING_START                   0x400000
 #define KERNEL_CHOOSE_START_ADDR        0x4000000000UL
 #define MAPPING_RESERVE_IN_SIGNAL_START 0x7000000000UL
@@ -388,6 +396,9 @@ static uint64_t find_vma_with_kernel_choose(uint64_t length)
         res = find_vma(length);
     } else {
         kernel_cursor = res + length;
+#ifdef FORCE_ALIGNMENT
+        kernel_cursor = (kernel_cursor + FORCE_ALIGNMENT - 1) & ~(FORCE_ALIGNMENT - 1);
+#endif
     }
 
     return res;
