@@ -102,6 +102,31 @@ int fegetround (void)
   return cw & 0xc00;
 }
 
+static void set_arm64_exception(uint64_t _regs, int excepts)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+
+    if (excepts & FE_INVALID)
+        regs->fpsr |= ARM64_FPSR_IOC;
+    if (excepts & FE_DIVBYZERO)
+        regs->fpsr |= ARM64_FPSR_DZC;
+    if (excepts & FE_OVERFLOW)
+        regs->fpsr |= ARM64_FPSR_OFC;
+    if (excepts & FE_UNDERFLOW)
+        regs->fpsr |= ARM64_FPSR_UFC;
+    if (excepts & FE_INEXACT)
+        regs->fpsr |= ARM64_FPSR_IXC;
+}
+
+static void set_host_rounding_mode_from_arm64(uint64_t _regs)
+{
+    const int arm64_rounding_mode_to_host[4] = {FE_TONEAREST, FE_UPWARD, FE_DOWNWARD, FE_TOWARDZERO};
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int arm64_rm = (regs->fpcr >> 22) & 3;
+
+    fesetround(arm64_rounding_mode_to_host[arm64_rm]);
+}
+
 static void dis_fcvt(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
