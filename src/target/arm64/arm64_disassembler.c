@@ -491,6 +491,29 @@ static uint64_t simd_immediate(int op, int cmode, int imm8_p)
     return imm64;
 }
 
+static void write_fpsr(struct irInstructionAllocator *ir, struct irRegister *value)
+{
+    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+
+    param[0] = value;
+
+    ir->add_call_void(ir, "arm64_hlp_write_fpsr",
+                          ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_write_fpsr),
+                          param);
+}
+
+static struct irRegister *read_fpsr(struct irInstructionAllocator *ir)
+{
+    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+    struct irRegister *res;
+
+    res = ir->add_call_32(ir, "arm64_hlp_read_fpsr",
+                          ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_read_fpsr),
+                          param);
+
+    return res;
+}
+
 /* op code generation */
 static int dis_load_store_pair(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -2252,7 +2275,7 @@ static int dis_msr_register(struct arm64_target *context, uint32_t insn, struct 
         ir->add_write_context_32(ir, read_w(ir, rt, ZERO_REG), offsetof(struct arm64_registers, fpcr));
     } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 1) {
         //fpsr
-        ir->add_write_context_32(ir, read_w(ir, rt, ZERO_REG), offsetof(struct arm64_registers, fpsr));
+        write_fpsr(ir, read_w(ir, rt, ZERO_REG));
     } else {
         fprintf(stderr, "op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\n", op0, op1, crn, crm, op2);
         fprintf(stderr, "pc = 0x%016lx\n", context->pc);
@@ -2283,7 +2306,7 @@ static int dis_mrs_register(struct arm64_target *context, uint32_t insn, struct 
         write_x(ir, rt, ir->add_read_context_32(ir, offsetof(struct arm64_registers, fpcr)), ZERO_REG);
     } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 1) {
         //fpsr
-        write_x(ir, rt, ir->add_read_context_32(ir, offsetof(struct arm64_registers, fpsr)), ZERO_REG);
+        write_x(ir, rt, read_fpsr(ir), ZERO_REG);
     } else if (op0 == 3 && op1 == 3 && crn == 0x0 && crm == 0 && op2 == 1) {
         //ctr_el0
         /* 32 byte I and D cacheline size, VIPT icache */

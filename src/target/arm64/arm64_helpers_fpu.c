@@ -15,9 +15,108 @@
 #include "arm64_helpers_simd_fpu_common.c"
 
 /* slolen from glibc */
+int feraiseexcept (int excepts)
+{
+  /* Raise exceptions represented by EXPECTS.  But we must raise only
+     one signal at a time.  It is important that if the overflow/underflow
+     exception and the inexact exception are given at the same time,
+     the overflow/underflow exception follows the inexact exception.  */
+
+  /* First: invalid exception.  */
+  if ((FE_INVALID & excepts) != 0)
+    {
+      /* One example of an invalid operation is 0.0 / 0.0.  */
+      float f = 0.0;
+
+      __asm__ __volatile__ ("divss %0, %0 " : : "x" (f));
+      (void) &f;
+    }
+
+  /* Next: division by zero.  */
+  if ((FE_DIVBYZERO & excepts) != 0)
+    {
+      float f = 1.0;
+      float g = 0.0;
+
+      __asm__ __volatile__ ("divss %1, %0" : : "x" (f), "x" (g));
+      (void) &f;
+    }
+
+  /* Next: overflow.  */
+  if ((FE_OVERFLOW & excepts) != 0)
+    {
+      /* XXX: Is it ok to only set the x87 FPU?  */
+      /* There is no way to raise only the overflow flag.  Do it the
+     hard way.  */
+      fenv_t temp;
+
+      /* Bah, we have to clear selected exceptions.  Since there is no
+     `fldsw' instruction we have to do it the hard way.  */
+      __asm__ __volatile__ ("fnstenv %0" : "=m" (*&temp));
+
+      /* Set the relevant bits.  */
+      temp.__status_word |= FE_OVERFLOW;
+
+      /* Put the new data in effect.  */
+      __asm__ __volatile__ ("fldenv %0" : : "m" (*&temp));
+
+      /* And raise the exception.  */
+      __asm__ __volatile__ ("fwait");
+    }
+
+  /* Next: underflow.  */
+  if ((FE_UNDERFLOW & excepts) != 0)
+    {
+      /* XXX: Is it ok to only set the x87 FPU?  */
+      /* There is no way to raise only the underflow flag.  Do it the
+     hard way.  */
+      fenv_t temp;
+
+      /* Bah, we have to clear selected exceptions.  Since there is no
+     `fldsw' instruction we have to do it the hard way.  */
+      __asm__ __volatile__ ("fnstenv %0" : "=m" (*&temp));
+
+      /* Set the relevant bits.  */
+      temp.__status_word |= FE_UNDERFLOW;
+
+      /* Put the new data in effect.  */
+      __asm__ __volatile__ ("fldenv %0" : : "m" (*&temp));
+
+      /* And raise the exception.  */
+      __asm__ __volatile__ ("fwait");
+    }
+
+  /* Last: inexact.  */
+  if ((FE_INEXACT & excepts) != 0)
+    {
+      /* XXX: Is it ok to only set the x87 FPU?  */
+      /* There is no way to raise only the inexact flag.  Do it the
+     hard way.  */
+      fenv_t temp;
+
+      /* Bah, we have to clear selected exceptions.  Since there is no
+     `fldsw' instruction we have to do it the hard way.  */
+      __asm__ __volatile__ ("fnstenv %0" : "=m" (*&temp));
+
+      /* Set the relevant bits.  */
+      temp.__status_word |= FE_INEXACT;
+
+      /* Put the new data in effect.  */
+      __asm__ __volatile__ ("fldenv %0" : : "m" (*&temp));
+
+      /* And raise the exception.  */
+      __asm__ __volatile__ ("fwait");
+    }
+
+  /* Success.  */
+  return 0;
+}
+
+/* slolen from glibc */
 int feclearexcept (int excepts)
 {
   fenv_t temp;
+  unsigned int mxcsr;
 
   /* Mask out unsupported bits/exceptions.  */
   excepts &= FE_ALL_EXCEPT;
@@ -32,20 +131,14 @@ int feclearexcept (int excepts)
   /* Put the new data in effect.  */
   __asm__ ("fldenv %0" : : "m" (*&temp));
 
-  /* If the CPU supports SSE, we clear the MXCSR as well.  */
-  if (1)
-    {
-      unsigned int xnew_exc;
+  /* And the same procedure for SSE.  */
+  __asm__ ("stmxcsr %0" : "=m" (*&mxcsr));
 
-      /* Get the current MXCSR.  */
-      __asm__ ("stmxcsr %0" : "=m" (*&xnew_exc));
+  /* Clear the relevant bits.  */
+  mxcsr &= ~excepts;
 
-      /* Clear the relevant bits.  */
-      xnew_exc &= ~excepts;
-
-      /* Put the new data in effect.  */
-      __asm__ ("ldmxcsr %0" : : "m" (*&xnew_exc));
-    }
+  /* And put them into effect.  */
+  __asm__ ("ldmxcsr %0" : : "m" (*&mxcsr));
 
   /* Success.  */
   return 0;
@@ -104,18 +197,8 @@ int fegetround (void)
 
 static void set_arm64_exception(uint64_t _regs, int excepts)
 {
-    struct arm64_registers *regs = (struct arm64_registers *) _regs;
-
-    if (excepts & FE_INVALID)
-        regs->fpsr |= ARM64_FPSR_IOC;
-    if (excepts & FE_DIVBYZERO)
-        regs->fpsr |= ARM64_FPSR_DZC;
-    if (excepts & FE_OVERFLOW)
-        regs->fpsr |= ARM64_FPSR_OFC;
-    if (excepts & FE_UNDERFLOW)
-        regs->fpsr |= ARM64_FPSR_UFC;
-    if (excepts & FE_INEXACT)
-        regs->fpsr |= ARM64_FPSR_IXC;
+    /* raise x86 execption which will be use to generate arm64 execeptions on fpsr read */
+    feraiseexcept(excepts);
 }
 
 static void set_host_rounding_mode_from_arm64(uint64_t _regs)
@@ -138,14 +221,10 @@ static void dis_fcvt(uint64_t _regs, uint32_t insn)
 
     if (type == 1 && opc == 0) {
         //fcvt Sd, Dn
-        feclearexcept(FE_ALL_EXCEPT);
         res.sf[0] = regs->v[rn].df[0];
-        set_arm64_exception(_regs, fetestexcept(FE_ALL_EXCEPT));
     } else if (type == 0 && opc == 1) {
         //fcvt Dd, Sn
-        feclearexcept(FE_ALL_EXCEPT);
         res.df[0] = regs->v[rn].sf[0];
-        set_arm64_exception(_regs, fetestexcept(FE_ALL_EXCEPT));
     } else if (type == 0 && opc ==3) {
         //fcvt Hd, Sn
         float_status dummy = {0};
@@ -379,7 +458,6 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
     union simd_register res = {0};
     int original_rounding_mode = fegetround();
 
-    feclearexcept(FE_ALL_EXCEPT);
     set_host_rounding_mode_from_arm64(_regs);
     if (is_double) {
         switch(opcode) {
@@ -448,7 +526,6 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
     }
     regs->v[rd] = res;
     fesetround(original_rounding_mode);
-    set_arm64_exception(_regs, fetestexcept(FE_ALL_EXCEPT));
 }
 
 void arm64_hlp_dirty_floating_point_immediate_simd(uint64_t _regs, uint32_t insn)
@@ -916,4 +993,51 @@ void arm64_hlp_dirty_conversion_between_floating_point_and_fixed_point(uint64_t 
         default:
             fatal("type0=%d / rmode=%d / opcode=%d\n", type0, rmode, opcode);
     }
+}
+
+/* We are lazy on fpsr exceptions status. We use x86 fpsr to handle them.
+ * This means that umeq code should not use fpu code except for helper code.
+ * You can still use fpu code outside helper but you have to be sure either
+ * to not generate exception or to save/restore x86 exception status.
+*/
+void arm64_hlp_write_fpsr(uint64_t _regs, uint32_t value)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int excepts = 0;
+
+    regs->fpsr = value;
+    /* we update x86 status registers according to arm64 fpsr */
+    if (regs->fpsr & ARM64_FPSR_IOC)
+        excepts |= FE_INVALID;
+    if (regs->fpsr & ARM64_FPSR_DZC)
+        excepts |= FE_DIVBYZERO;
+    if (regs->fpsr & ARM64_FPSR_OFC)
+        excepts |= FE_OVERFLOW;
+    if (regs->fpsr & ARM64_FPSR_UFC)
+        excepts |= FE_UNDERFLOW;
+    if (regs->fpsr & ARM64_FPSR_IXC)
+        excepts |= FE_INEXACT;
+    feclearexcept(FE_ALL_EXCEPT);
+    feraiseexcept(excepts);
+}
+
+uint32_t arm64_hlp_read_fpsr(uint64_t _regs)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int excepts = fetestexcept(FE_ALL_EXCEPT);
+
+    /* we update arm64 fpsr according to x86 status registers */
+    regs->fpsr &= ~(ARM64_FPSR_IOC | ARM64_FPSR_DZC | ARM64_FPSR_OFC | ARM64_FPSR_UFC | ARM64_FPSR_IXC);
+    if (excepts & FE_INVALID)
+        regs->fpsr |= ARM64_FPSR_IOC;
+    if (excepts & FE_DIVBYZERO)
+        regs->fpsr |= ARM64_FPSR_DZC;
+    if (excepts & FE_OVERFLOW)
+        regs->fpsr |= ARM64_FPSR_OFC;
+    if (excepts & FE_UNDERFLOW)
+        regs->fpsr |= ARM64_FPSR_UFC;
+    if (excepts & FE_INEXACT)
+        regs->fpsr |= ARM64_FPSR_IXC;
+
+    return regs->fpsr;
 }

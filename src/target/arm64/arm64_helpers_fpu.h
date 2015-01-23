@@ -23,6 +23,8 @@ extern void arm64_hlp_dirty_scvtf_scalar_integer_simd(uint64_t _regs, uint32_t i
 extern void arm64_hlp_dirty_ucvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_fcvtxx_scalar_integer_simd(uint64_t _regs, uint32_t insn);
 extern void arm64_hlp_dirty_conversion_between_floating_point_and_fixed_point(uint64_t _regs, uint32_t insn);
+extern void arm64_hlp_write_fpsr(uint64_t _regs, uint32_t value);
+extern uint32_t arm64_hlp_read_fpsr(uint64_t _regs);
 
 #endif
 
