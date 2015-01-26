@@ -416,12 +416,15 @@ static uint64_t find_vma_with_hint(uint64_t length, uint64_t hint_addr)
         uint64_t end_addr;
 
         hint_addr = PAGE_ALIGN_DOWN(hint_addr);
-        owner = find_address_owner(hint_addr);
-        end_addr = PAGE_ALIGN_UP(hint_addr + length);
+        /* don't assert in case hint_addr is invalid in case client give a buggy address */
+        owner = find_address_owner_without_assert(hint_addr);
+        if (owner) {
+            end_addr = PAGE_ALIGN_UP(hint_addr + length);
 
-        if (owner->type == VMA_UNMAP && end_addr <= owner->end_addr) {
-            insert_map_area(hint_addr, end_addr);
-            res = hint_addr;
+            if (owner->type == VMA_UNMAP && end_addr <= owner->end_addr) {
+                insert_map_area(hint_addr, end_addr);
+                res = hint_addr;
+            }
         }
     }
     /* if not already allocated using hint_addr then allocate somewhere else */
@@ -527,34 +530,36 @@ static long internal_mmap(uint64_t addr_p, uint64_t length_p, uint64_t prot_p,
         int fd = (int) fd_p;
         off_t offset = (off_t) offset_p;
 
-        /* first find and insert vma */
-        if (addr_p == 0) {
-            res_vma = find_vma_with_kernel_choose(length);
-
-            addr = (void *) g_2_h(res_vma);
-        } else if ((flags & MAP_FIXED) == 0) {
-            res_vma = find_vma_with_hint(length, addr_p);
-
-            addr = (void *) g_2_h(res_vma);
+        if (addr_p && (flags & MAP_FIXED)) {
+            /* try to map first */
+            res = mmap_syscall((void *) g_2_h(addr_p), length, prot, flags, fd, offset);
+            if (!is_syscall_error(res)) {
+                insert_map_area(addr_p, PAGE_ALIGN_UP(addr_p + length_p));
+            }
         } else {
-            res_vma = addr_p;
-            uint64_t end_addr = PAGE_ALIGN_UP(res_vma + length_p);
-            
-            addr = (void *) g_2_h(res_vma);
-            insert_map_area(res_vma, end_addr);
+            /* first find and insert vma */
+            if (addr_p == 0) {
+                res_vma = find_vma_with_kernel_choose(length);
+
+                addr = (void *) g_2_h(res_vma);
+            } else if ((flags & MAP_FIXED) == 0) {
+                res_vma = find_vma_with_hint(length, addr_p);
+
+                addr = (void *) g_2_h(res_vma);
+            } else
+                fatal("Should not be here");
+            /* if we find suitable memory area then try to map it */
+            if (res_vma != ENOMEM_64) {
+                res = mmap_syscall(addr, length, prot, flags | MAP_FIXED, fd, offset);
+                if (is_syscall_error(res)) {
+                    uint64_t end_addr = PAGE_ALIGN_UP(res_vma + length_p);
+
+                    insert_unmap_area(res_vma, end_addr);
+                } else if (is_end_of_vm_reach && (prot & PROT_NONE))
+                    cleanCaches(0, ~0);
+            } else
+                res = res_vma;
         }
-
-        /* if we find suitable memory area then try to map it */
-        if (res_vma != ENOMEM_64) {
-            res = mmap_syscall(addr, length, prot, flags | MAP_FIXED, fd, offset);
-            if (is_syscall_error(res)) {
-                uint64_t end_addr = PAGE_ALIGN_UP(res_vma + length_p);
-
-                insert_unmap_area(res_vma, end_addr);
-            } else if (is_end_of_vm_reach && (prot & PROT_NONE))
-                cleanCaches(0, ~0);
-        } else
-            res = res_vma;
     }
 
     return is_syscall_error(res)?res:h_2_g(res);
