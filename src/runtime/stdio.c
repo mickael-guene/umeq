@@ -192,6 +192,11 @@ int vfprintf(FILE *stream, const char *format, va_list args)
 	return print( 0, format, args );
 }
 
+int __vfprintf_chk(FILE * stream, int flag, const char *format, va_list args)
+{
+	return vfprintf(stream, format, args);
+}
+
 int printf(const char *format, ...)
 {
         va_list args;

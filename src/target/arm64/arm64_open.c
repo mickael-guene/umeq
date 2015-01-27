@@ -82,8 +82,11 @@ static int open_proc_self_auxv()
     fd = open(tmpName, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
 
     if (fd >= 0) {
+        ssize_t res;
+
         unlink(tmpName);
-        write(fd, auxv_start, auxv_end - auxv_start);
+        res = write(fd, auxv_start, auxv_end - auxv_start);
+        assert(res == auxv_end - auxv_start);
         lseek(fd, 0, SEEK_SET);
     }
 
@@ -92,7 +95,7 @@ static int open_proc_self_auxv()
 
 static long remote_read(int pid, void *from, void *to, char *buffer)
 {
-    long res;
+    long res = 0;
     long data;
     int i;
     int j;
@@ -146,8 +149,11 @@ static int open_proc_pid_auxv(const char *pathname)
     fd = open(tmpName, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
 
     if (fd >= 0) {
+        ssize_t res;
+
         unlink(tmpName);
-        write(fd, auxv_buffer, auxv_end_value - auxv_start_value);
+        res = write(fd, auxv_buffer, auxv_end_value - auxv_start_value);
+        assert(res == auxv_end_value - auxv_start_value);
         lseek(fd, 0, SEEK_SET);
     }
 
@@ -236,11 +242,14 @@ static void write_offset_proc_self_maps(int fd_orig, int fd_res)
         line_with_remove_addresses = split_line(line, &start_addr, &end_addr);
         if ((start_addr >= 0x400000) && (end_addr < 512 * 1024 * 1024 * 1024UL)) {
             char new_line[512];
+            ssize_t res;
+
             guest_ptr start_addr_guest = h_2_g(start_addr);
             guest_ptr end_addr_guest = h_2_g(end_addr);
 
             sprintf(new_line, "%08lx-%08lx %s", start_addr_guest, end_addr_guest, line_with_remove_addresses);
-            write(fd_res, new_line, strlen(new_line));
+            res = write(fd_res, new_line, strlen(new_line));
+            assert(res == strlen(new_line));
         }
     }
     lseek(fd_res, 0, SEEK_SET);

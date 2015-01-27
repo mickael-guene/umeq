@@ -3348,7 +3348,7 @@ void disassemble_thumb(struct target *target, struct irInstructionAllocator *ir,
 {
     struct arm_target *context = container_of(target, struct arm_target, target);
     int i;
-    int isExit; //unconditionnal exit
+    int isExit = 0; //unconditionnal exit
     uint16_t *pc_ptr = (uint16_t *) g_2_h(pc & ~1);
 
     assert((pc & 1) == 1);

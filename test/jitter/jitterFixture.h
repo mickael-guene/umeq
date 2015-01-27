@@ -8,7 +8,6 @@ class jitterFixture : public ::testing::Test {
     jitContext handle;
     struct irInstructionAllocator *ir;
     struct backend *backend;
-    char jitBuffer[4096];
     char contextBuffer[4096];
     char *beX86_64Memory[BE_X86_64_MIN_CONTEXT_SIZE];
     char *jitterMemory[JITTER_MIN_CONTEXT_SIZE];
@@ -21,6 +20,7 @@ class jitterFixture : public ::testing::Test {
 
     virtual uint64_t jitAndExcecute() {
         uint64_t res = ~0;
+        char jitBuffer[4096];
 
         ir->add_exit(ir, ir->add_mov_const_64(ir, 0));
         //displayIr(handle);

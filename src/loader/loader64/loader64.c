@@ -143,7 +143,8 @@ static void unmapSegment(int fd, Elf64_Phdr *segment)
 static void dl_copy_dl_name(int fd, Elf64_Phdr *segment, char *name)
 {
     if (lseek(fd, segment->p_offset, SEEK_SET) >= 0) {
-        read(fd, name, segment->p_filesz);
+        ssize_t res = read(fd, name, segment->p_filesz);
+        assert(res == segment->p_filesz);
         name[segment->p_filesz] = '\0';
     }
 }

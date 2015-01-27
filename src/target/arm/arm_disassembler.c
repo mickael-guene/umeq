@@ -2200,7 +2200,7 @@ void disassemble_arm(struct target *target, struct irInstructionAllocator *ir, u
 {
     struct arm_target *context = container_of(target, struct arm_target, target);
     int i;
-    int isExit; //unconditionnal exit
+    int isExit = 0; //unconditionnal exit
     uint32_t *pc_ptr = (uint32_t *) g_2_h(pc);
 
     assert((pc & 3) == 0);

@@ -90,8 +90,11 @@ static int open_proc_self_auxv()
     fd = open(tmpName, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
 
     if (fd >= 0) {
+        ssize_t res;
+
         unlink(tmpName);
-        write(fd, auxv_start, auxv_end - auxv_start);
+        res = write(fd, auxv_start, auxv_end - auxv_start);
+        assert(res == auxv_end - auxv_start);
         lseek(fd, 0, SEEK_SET);
     }
 
@@ -179,11 +182,14 @@ static void write_offset_proc_self_maps(int fd_orig, int fd_res)
         line_with_remove_addresses = split_line(line, &start_addr, &end_addr);
         if ((start_addr >= mmap_offset) && (start_addr < mmap_offset + 4 * 1024 * 1024 * 1024UL)) {
             char new_line[512];
+            ssize_t res;
+
             guest_ptr start_addr_guest = h_2_g(start_addr);
             guest_ptr end_addr_guest = h_2_g(end_addr);
 
             sprintf(new_line, "%08x-%08x %s", start_addr_guest, end_addr_guest, line_with_remove_addresses);
-            write(fd_res, new_line, strlen(new_line));
+            res = write(fd_res, new_line, strlen(new_line));
+            assert(res == strlen(new_line));
         }
     }
     lseek(fd_res, 0, SEEK_SET);
