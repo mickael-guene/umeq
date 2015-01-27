@@ -2,6 +2,8 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 
+#include <unistd.h>
+
 int close(int fd)
 {
     return syscall((long) SYS_close, (long) fd);

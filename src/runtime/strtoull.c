@@ -150,10 +150,10 @@ unsigned long long int strtoull(const char *nptr, char **endptr, int base)
 	}
 	if (any < 0) {
 		acc = ULLONG_MAX;
-		errno = ERANGE;
+		//errno = ERANGE;
 	} else if (!any) {
 noconv:
-		errno = EINVAL;
+		;//errno = EINVAL;
 	} else if (neg)
 		acc = -acc;
 	if (endptr != NULL)

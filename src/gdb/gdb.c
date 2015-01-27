@@ -45,7 +45,7 @@ static void gdb_startServer(int portNb)
     while(1) {
         len = sizeof(sockaddr);
         fd_dbg = accept(fd, (struct sockaddr *)&sockaddr, (socklen_t *) &len);
-        if (fd_dbg < 0 && errno != EINTR) {
+        if (fd_dbg < 0 && fd_dbg != -EINTR) {
             assert(0);
         } else if (fd_dbg >= 0) {
             break;
@@ -76,7 +76,7 @@ static void gdb_send_packet(char *packet, int len)
     while (len > 0) {
         ret = send(fd_dbg, packet, len, 0);
         if (ret < 0) {
-            if (errno != EINTR && errno != EAGAIN)
+            if (ret != -EINTR && ret != -EAGAIN)
                 assert(0);
         } else {
             packet += ret;

@@ -31,10 +31,12 @@ void clone_thread_trampoline_arm()
 static int clone_thread_arm(struct arm_target *context)
 {
     int res = -1;
+    guest_ptr guest_stack;
     void *stack;
 
     //allocate memory for stub thread stack
-    stack = mmap(NULL, MIN_CACHE_SIZE * 2, PROT_EXEC|PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_GROWSDOWN, -1, 0);
+    guest_stack = mmap_guest((uint64_t) NULL, MIN_CACHE_SIZE * 2, PROT_EXEC|PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_GROWSDOWN, -1, 0);
+    stack = g_2_h(guest_stack);
 
     if (stack) {//to be check what is return value of mmap
         stack = stack + MIN_CACHE_SIZE * 2 - sizeof(struct arm_target);
