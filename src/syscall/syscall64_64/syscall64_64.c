@@ -6,6 +6,7 @@
 #include <sched.h>
 #include <signal.h>
 #include <mqueue.h>
+#include <sys/wait.h>
 
 #include "syscall64_64.h"
 #include "syscall64_64_private.h"
