@@ -69,7 +69,7 @@ float sqrtf (float d)
   return res;
 }
 
-int __isnan (double x)
+int __isnan(double x)
 {
   int32_t hx, lx;
   EXTRACT_WORDS (hx, lx, x);

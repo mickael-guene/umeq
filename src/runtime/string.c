@@ -8,7 +8,7 @@ int __builtin_strcmp(const char *s1, const char *s2)
     return *(const unsigned char*)s1-*(const unsigned char*)s2;
 }
 
-/*int strncmp(const char *s1, const char *s2, size_t n)
+int __builtin_strncmp(const char *s1, const char *s2, size_t n)
 {
 	unsigned char c1 = '\0';
 	unsigned char c2 = '\0';
@@ -23,7 +23,7 @@ int __builtin_strcmp(const char *s1, const char *s2)
 	}
 
 	return c1 - c2;
-}*/
+}
 
 char *strcpy(char *dest, const char *src)
 {

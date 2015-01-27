@@ -2513,18 +2513,18 @@ static void dis_frecps(uint64_t _regs, uint32_t insn)
 
     if (is_double) {
         for(i = 0; i < (is_scalar?1:(q?2:1)); i++) {
-            if (isnanf(regs->v[rn].df[i]))
+            if (isnan(regs->v[rn].df[i]))
                 res.d[i] = (regs->v[rn].d[i]^0x8000000000000000UL) | (1UL << 51);
-            else if (isnanf(regs->v[rm].df[i]))
+            else if (isnan(regs->v[rm].df[i]))
                 res.d[i] = regs->v[rm].d[i] | (1UL << 51);
             else
                 res.df[i] = 2.0 - regs->v[rn].df[i] * regs->v[rm].df[i];
         }
     } else {
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
-            if (isnanf(regs->v[rn].sf[i]))
+            if (isnan(regs->v[rn].sf[i]))
                 res.s[i] = (regs->v[rn].s[i]^0x80000000) | (1 << 22);
-            else if (isnanf(regs->v[rm].sf[i]))
+            else if (isnan(regs->v[rm].sf[i]))
                 res.s[i] = regs->v[rm].s[i] | (1 << 22);
             else
                 res.sf[i] = 2.0 - regs->v[rn].sf[i] * regs->v[rm].sf[i];
@@ -2548,18 +2548,18 @@ static void dis_frsqrts(uint64_t _regs, uint32_t insn)
 
     if (is_double) {
         for(i = 0; i < (is_scalar?1:(q?2:1)); i++) {
-            if (isnanf(regs->v[rn].df[i]))
+            if (isnan(regs->v[rn].df[i]))
                 res.d[i] = (regs->v[rn].d[i]^0x8000000000000000UL) | (1UL << 51);
-            else if (isnanf(regs->v[rm].df[i]))
+            else if (isnan(regs->v[rm].df[i]))
                 res.d[i] = regs->v[rm].d[i] | (1UL << 51);
             else
                 res.df[i] = (3.0 - regs->v[rn].df[i] * regs->v[rm].df[i]) / 2.0;
         }
     } else {
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
-            if (isnanf(regs->v[rn].sf[i]))
+            if (isnan(regs->v[rn].sf[i]))
                 res.s[i] = (regs->v[rn].s[i]^0x80000000) | (1 << 22);
-            else if (isnanf(regs->v[rm].sf[i]))
+            else if (isnan(regs->v[rm].sf[i]))
                 res.s[i] = regs->v[rm].s[i] | (1 << 22);
             else
                 res.sf[i] = (3.0 - regs->v[rn].sf[i] * regs->v[rm].sf[i]) / 2.0;
