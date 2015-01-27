@@ -192,20 +192,7 @@ int vfprintf(FILE *stream, const char *format, va_list args)
 	return print( 0, format, args );
 }
 
-int __vfprintf_chk(FILE * stream, int flag, const char *format, va_list args)
-{
-	return vfprintf(stream, format, args);
-}
-
 int printf(const char *format, ...)
-{
-        va_list args;
-
-        va_start( args, format );
-        return print( 0, format, args );
-}
-
-int __printf_chk(int flag, const char *format, ...)
 {
         va_list args;
 
@@ -221,23 +208,7 @@ int fprintf(FILE *__restrict __stream, __const char *format, ...)
         return print( 0, format, args );
 }
 
-int __fprintf_chk(FILE *__restrict __stream, int flag, __const char *format, ...)
-{
-        va_list args;
-
-        va_start( args, format );
-        return print( 0, format, args );
-}
-
 int sprintf(char *out, const char *format, ...)
-{
-        va_list args;
-
-        va_start( args, format );
-        return print( &out, format, args );
-}
-
-int __sprintf_chk(char * out, int flag, size_t strlen, const char * format, ...)
 {
         va_list args;
 

@@ -71,11 +71,6 @@ void *memcpy(void *dest, const void *src, size_t n)
 	return dest;
 }
 
-void * __memcpy_chk(void * dest, const void * src, size_t len, size_t destlen)
-{
-    return memcpy(dest, src, len);
-}
-
 void *memset(void *s, int c, size_t n)
 {
 	char *dst = (char *) s;
@@ -83,9 +78,4 @@ void *memset(void *s, int c, size_t n)
 		*dst++ = c;
 
 	return s;
-}
-
-void * __memset_chk(void * dest, int c, size_t len, size_t destlen)
-{
-	return memset(dest, c, len);
 }

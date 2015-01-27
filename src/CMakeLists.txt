@@ -7,8 +7,8 @@ configure_file(
 	${CMAKE_BINARY_DIR}/generated/version/version.h
 )
 
-set(CMAKE_C_FLAGS "-fno-stack-protector -O2 -g -fPIC -Wall")
-set(CMAKE_CXX_FLAGS "-fno-stack-protector -O2 -g -fPIC -Wall")
+set(CMAKE_C_FLAGS "-fno-stack-protector -O2 -g -fPIC -Wall -U_FORTIFY_SOURCE")
+set(CMAKE_CXX_FLAGS "-fno-stack-protector -O2 -g -fPIC -Wall -U_FORTIFY_SOURCE")
 
 include_directories(${CMAKE_BINARY_DIR}/generated/version)
 include_directories(jitter)
