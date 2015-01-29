@@ -9,6 +9,11 @@
 #include "loader64.h"
 #include "runtime.h"
 
+/* FIXME: move this in global config */
+#ifndef EM_AARCH64
+#define EM_AARCH64 183
+#endif
+
 #define PAGE_SIZE                       4096
 #define PAGE_MASK                       (PAGE_SIZE - 1)
 #define DL_LOAD_ADDR                    0x40000000

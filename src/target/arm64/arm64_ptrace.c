@@ -16,6 +16,23 @@
 #include "runtime.h"
 #include "arm64_helpers.h"
 
+/* FIXME: move this in global config */
+#ifndef PTRACE_GETREGSET
+#define PTRACE_GETREGSET 0x4204
+#endif
+#ifndef NT_ARM_TLS
+#define NT_ARM_TLS 0x401
+#endif
+#ifndef NT_ARM_HW_BREAK
+#define NT_ARM_HW_BREAK 0x402
+#endif
+#ifndef NT_ARM_HW_WATCH
+#define NT_ARM_HW_WATCH 0x403
+#endif
+#ifndef PTRACE_SEIZE
+#define PTRACE_SEIZE 0x4206
+#endif
+
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
 
 #define NT_PRFPREG  2
