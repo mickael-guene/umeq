@@ -23,8 +23,6 @@
 #define KB  (1024)
 #define MB  (KB * KB)
 
-int isGdb = 0;
-
 struct tls_context {
     struct target *target;
     void *target_runtime;
@@ -92,9 +90,7 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
         int jitSize;
 
         resetJitter(handle);
-        if (isGdb && target->gdb(target)->isSingleStepping)
-            gdb_handle_breakpoint(target->gdb(target));
-        target->disassemble(target, ir, currentPc, (isGdb && target->gdb(target)->isSingleStepping)?1:nocache_memory_config.max_insn/*10*/);
+        target->disassemble(target, ir, currentPc, nocache_memory_config.max_insn);
         //displayIr(handle);
         jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
         if (jitSize > 0) {
@@ -180,7 +176,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
 
 int loop(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target)
 {
-    if (signum || isGdb)
+    if (signum)
         return loop_nocache(entry, stack_entry, signum, parent_target);
     else
         return loop_cache(entry, stack_entry, signum, parent_target);
@@ -210,10 +206,7 @@ int main(int argc, char **argv)
         These options must be set first.
     */
     while(argv[target_argv0_index]) {
-        if (strcmp("-g", argv[target_argv0_index]) == 0) {
-            isGdb = 1;
-            target_argv0_index++;
-        } else if (strcmp("-E", argv[target_argv0_index]) == 0) {
+        if (strcmp("-E", argv[target_argv0_index]) == 0) {
             additionnal_env[additionnal_env_index++] = argv[target_argv0_index + 1];
             target_argv0_index += 2;
         } else if (strcmp("-U", argv[target_argv0_index]) == 0) {

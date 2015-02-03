@@ -1,1 +1,0 @@
-add_library(gdb gdb.c breakpoints.c)

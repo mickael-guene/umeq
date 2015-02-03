@@ -6,7 +6,6 @@
 #include "arm_helpers.h"
 #include "runtime.h"
 #include "cache.h"
-#include "breakpoints.h"
 
 //#define DUMP_STATE  1
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
@@ -2084,20 +2083,7 @@ static int disassemble_insn(struct arm_target *context, uint32_t insn, struct ir
 {
     uint32_t cond;
     int isExit = 0;
-    int isBpReached = 0;
 
-
-    if (insn == 0xe7f001f1) {
-        struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
-
-        isBpReached = 1;
-        write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc));
-        ir->add_call_void(ir, "arm_hlp_gdb_handle_breakpoint",
-                          mk_64(ir, (uint64_t) arm_hlp_gdb_handle_breakpoint),
-                          params);
-
-        insn = gdb_get_opcode(context->pc & ~1);
-    }
     cond = INSN(31, 28);
     /* if instruction is conditionnal then test condition */
     if (cond < 14) {
@@ -2148,12 +2134,7 @@ static int disassemble_insn(struct arm_target *context, uint32_t insn, struct ir
         }
     }
 
-    if (isBpReached) {
-        write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc + 4));
-        ir->add_exit(ir, ir->add_mov_const_64(ir, context->pc + 4));
-    }
-
-    return isBpReached | isExit;
+    return isExit;
 }
 
 static int vdso_cmpxchg(struct arm_target *context, struct irInstructionAllocator *ir)

@@ -45,7 +45,6 @@ struct arm_target {
     uint64_t exclusive_value;
     uint32_t disa_itstate;
     uint32_t is_in_signal;
-    struct gdb gdb;
 };
 
 extern void disassemble_arm(struct target *target, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);

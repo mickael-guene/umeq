@@ -6,9 +6,6 @@
 #include "arm64_helpers.h"
 #include "arm64_helpers_simd.h"
 #include "arm64_helpers_fpu.h"
-#include "breakpoints.h"
-
-extern int isGdb;
 
 #define ZERO_REG    1
 #define SP_REG      0
@@ -4291,19 +4288,6 @@ static int dis_data_processing_simd_insn(struct arm64_target *context, uint32_t 
 static int disassemble_insn(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int isExit = 0;
-    int isBpReached = 0;
-
-    if (isGdb && insn == 0xd4200000) {
-        struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
-
-        isBpReached = 1;
-        write_pc(ir, ir->add_mov_const_64(ir, context->pc));
-        ir->add_call_void(ir, "arm64_hlp_gdb_handle_breakpoint",
-                          mk_64(ir, (uint64_t) arm64_hlp_gdb_handle_breakpoint),
-                          params);
-
-        insn = gdb_get_opcode(context->pc);
-    }
 
     if (INSN(28, 27) == 0) {
         //unallocated
@@ -4324,12 +4308,7 @@ static int disassemble_insn(struct arm64_target *context, uint32_t insn, struct 
     } else
         fatal("Unknow insn = 0x%08x\n", insn);
 
-    if (isBpReached) {
-        write_pc(ir, ir->add_mov_const_64(ir, context->pc + 4));
-        ir->add_exit(ir, ir->add_mov_const_64(ir, context->pc + 4));
-    }
-
-    return isBpReached | isExit;
+    return isExit;
 }
 
 /* api */

@@ -51,7 +51,6 @@ struct arm64_target {
     uint32_t exitStatus;
     uint32_t is_in_signal;
     __uint128_t exclusive_value;
-    struct gdb gdb;
 };
 
 extern void arm64_load_image(int argc, char **argv, void **additionnal_env, void **unset_env, void *target_argv0, uint64_t *entry, uint64_t *stack);

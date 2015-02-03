@@ -14,7 +14,6 @@
 #include "arm_private.h"
 #include "arm_helpers.h"
 #include "runtime.h"
-#include "gdb.h"
 
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
 #define INSN1(msb, lsb) INSN(msb+16, lsb+16)
@@ -60,13 +59,6 @@ static pid_t gettid()
 void arm_gdb_breakpoint_instruction(uint64_t regs)
 {
     tkill(gettid(), SIGILL);
-}
-
-void arm_hlp_gdb_handle_breakpoint(uint64_t regs)
-{
-    struct arm_target *context = container_of((void *) regs, struct arm_target, regs);
-
-    gdb_handle_breakpoint(&context->gdb);
 }
 
 void arm_hlp_vdso_cmpxchg(uint64_t _regs)
