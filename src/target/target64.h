@@ -14,6 +14,7 @@ typedef uint64_t guest_ptr;
 
 extern guest_ptr mmap_guest(guest_ptr addr, size_t length, int prot, int flags, int fd, off_t offset);
 extern int munmap_guest(guest_ptr addr, size_t length);
+extern void *munmap_guest_ongoing(guest_ptr addr, size_t length);
 
 #endif
 

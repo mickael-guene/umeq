@@ -14,7 +14,7 @@
 /* FIXME: we assume a x86_64 host */
 extern int loop(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *parent_target);
 extern int clone_asm(long number, ...);
-extern void clone_exit_asm(void *stack , long stacksize, int res);
+extern void clone_exit_asm(void *stack , long stacksize, int res, void *patch_address);
 
 void clone_thread_trampoline_arm()
 {
@@ -22,12 +22,14 @@ void clone_thread_trampoline_arm()
     struct arm_target *parent_context = (struct arm_target *) sp;
     int res;
     void *stack = sp + sizeof(struct arm_target) - mmap_size[memory_profile];
+    void *patch_address;
 
     res = loop(parent_context->regs.r[15], parent_context->regs.r[1], 0, &parent_context->target);
 
-    /* FIXME: Need to release vma descriptor */
+    /* release vma descr */
+    patch_address = munmap_guest_ongoing(h_2_g(stack), mmap_size[memory_profile]);
     /* unmap thread stack and exit without using stack */
-    clone_exit_asm(stack, mmap_size[memory_profile], res);
+    clone_exit_asm(stack, mmap_size[memory_profile], res, patch_address);
 }
 
 static int clone_thread_arm(struct arm_target *context)
