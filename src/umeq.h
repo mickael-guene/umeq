@@ -7,6 +7,9 @@ extern "C" {
 #ifndef __UMEQ__
 #define __UMEQ__ 1
 
+#define KB  (1024)
+#define MB  (KB * KB)
+
 struct target_arch {
     /* loader */
     void (*loader)(int argc, char **argv, void **additionnal_env, void **unset_env, void *target_argv0, uint64_t *entry, uint64_t *stack);
@@ -35,6 +38,8 @@ enum memory_profile {
 extern enum memory_profile memory_profile;
 extern struct target_arch current_target_arch;
 extern const char arch_name[];
+
+static const int mmap_size[MEM_PROFILE_NB] = {2 * MB, 4 * MB, 8 * MB, 16 * MB};
 
 #endif
 

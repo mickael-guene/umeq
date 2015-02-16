@@ -20,9 +20,6 @@
 #include "umeq.h"
 #include "version.h"
 
-#define KB  (1024)
-#define MB  (KB * KB)
-
 struct tls_context {
     struct target *target;
     void *target_runtime;

@@ -11,10 +11,6 @@
 #include "cache.h"
 #include "umeq.h"
 
-#define KB  (1024)
-#define MB  (KB * KB)
-const int mmap_size[MEM_PROFILE_NB] = {2 * MB, 4 * MB, 8 * MB, 16 * MB};
-
 /* FIXME: we assume a x86_64 host */
 extern int loop(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target);
 extern int clone_asm(long number, ...);
