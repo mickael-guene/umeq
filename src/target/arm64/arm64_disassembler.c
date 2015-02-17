@@ -511,6 +511,29 @@ static struct irRegister *read_fpsr(struct irInstructionAllocator *ir)
     return res;
 }
 
+static void write_fpcr(struct irInstructionAllocator *ir, struct irRegister *value)
+{
+    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+
+    param[0] = value;
+
+    ir->add_call_void(ir, "arm64_hlp_write_fpcr",
+                          ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_write_fpcr),
+                          param);
+}
+
+static struct irRegister *read_fpcr(struct irInstructionAllocator *ir)
+{
+    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+    struct irRegister *res;
+
+    res = ir->add_call_32(ir, "arm64_hlp_read_fpcr",
+                          ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_read_fpcr),
+                          param);
+
+    return res;
+}
+
 /* op code generation */
 static int dis_load_store_pair(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -2269,7 +2292,7 @@ static int dis_msr_register(struct arm64_target *context, uint32_t insn, struct 
         write_nzcv(ir, read_w(ir, rt, ZERO_REG));
     } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 0) {
         //fpcr
-        ir->add_write_context_32(ir, read_w(ir, rt, ZERO_REG), offsetof(struct arm64_registers, fpcr));
+        write_fpcr(ir, read_w(ir, rt, ZERO_REG));
     } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 1) {
         //fpsr
         write_fpsr(ir, read_w(ir, rt, ZERO_REG));
@@ -2300,7 +2323,7 @@ static int dis_mrs_register(struct arm64_target *context, uint32_t insn, struct 
         write_x(ir, rt, ir->add_32U_to_64(ir, read_nzcv(ir)), ZERO_REG);
     } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 0) {
         //fpcr
-        write_x(ir, rt, ir->add_read_context_32(ir, offsetof(struct arm64_registers, fpcr)), ZERO_REG);
+        write_x(ir, rt, read_fpcr(ir), ZERO_REG);
     } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 1) {
         //fpsr
         write_x(ir, rt, read_fpsr(ir), ZERO_REG);

@@ -275,9 +275,9 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
     int rn = INSN(9,5);
     int rd = INSN(4,0);
     union simd_register res = {0};
-    int original_rounding_mode = fegetround();
+    //int original_rounding_mode = fegetround();
 
-    set_host_rounding_mode_from_arm64(_regs);
+    //set_host_rounding_mode_from_arm64(_regs);
     if (is_double) {
         switch(opcode) {
             case 0://fmul
@@ -344,7 +344,7 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
         }
     }
     regs->v[rd] = res;
-    fesetround(original_rounding_mode);
+    //fesetround(original_rounding_mode);
 }
 
 void arm64_hlp_dirty_floating_point_immediate_simd(uint64_t _regs, uint32_t insn)
@@ -859,4 +859,19 @@ uint32_t arm64_hlp_read_fpsr(uint64_t _regs)
         regs->fpsr |= ARM64_FPSR_IXC;
 
     return regs->fpsr;
+}
+
+void arm64_hlp_write_fpcr(uint64_t _regs, uint32_t value)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+
+    regs->fpcr = value;
+    set_host_rounding_mode_from_arm64(_regs);
+}
+
+uint32_t arm64_hlp_read_fpcr(uint64_t _regs)
+{
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+
+    return regs->fpcr;
 }
