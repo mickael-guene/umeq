@@ -45,7 +45,7 @@ guest_ptr load32(const char *file, struct load_auxv_info_32 *auxv_info)
     int is_dl = 0;
 
     fd = open(file, O_RDONLY);
-    if (fd <= 0)
+    if (fd < 0)
         goto end;
     /* first read header and extrace entry point */
     entry = getEntry(fd, &elf_header);

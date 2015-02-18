@@ -165,7 +165,7 @@ static guest_ptr load64_internal(const char *file, struct load_auxv_info_64 *aux
     int is_share_object;
 
     fd = open(file, O_RDONLY);
-    if (fd <= 0)
+    if (fd < 0)
         goto end;
     /* first read header and extrace entry point */
     entry = getEntry(fd, &elf_header, is_dl);
