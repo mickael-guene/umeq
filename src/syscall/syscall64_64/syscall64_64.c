@@ -622,6 +622,11 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
         case PR_llistxattr:
             res = syscall(SYS_llistxattr, (char *) g_2_h(p0), (char *) g_2_h(p1), (size_t) p2);
             break;
+        case PR_process_vm_writev:
+            /* FIXME: offset support not easy to do. what if we return not implemented ? */
+            res = syscall(SYS_process_vm_writev, (pid_t) p0, (struct iovec *) p1, (unsigned long) p2,
+                                                (struct iovec *) p3, (unsigned long) p4, (unsigned long) p5);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }
