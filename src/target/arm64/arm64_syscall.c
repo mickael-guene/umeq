@@ -11,10 +11,12 @@
 #include "syscall64_64.h"
 #include "arm64_syscall.h"
 
+#define PROOT_SYSCALL_VOID      -2
+
 void arm64_hlp_syscall(uint64_t regs)
 {
     struct arm64_target *context = container_of((void *) regs, struct arm64_target, regs);
-    uint32_t no = context->regs.r[8];
+    uint32_t no;
     Sysnum no_neutral;
     Syshow how;
     long res = ENOSYS;
@@ -22,6 +24,18 @@ void arm64_hlp_syscall(uint64_t regs)
     /* syscall entry sequence */
     context->regs.is_in_syscall = 1;
     syscall((long) 313, 0);
+    /* read syscall number in case x8 has been change on syscall entry by a tracer.
+        Note that we don't follow the way kernel is doing it. Kernel is not re-reading
+       x8 but need PTRACE_SETREGSET/NT_ARM_SYSTEM_CALL ptrace call to change syscall number.
+       In out case we do it the other way, we re-read x8 but don't care about PTRACE_SETREGSET/NT_ARM_SYSTEM_CALL
+       since it's easier to do it this way
+    */
+    no = context->regs.r[8];
+    /* proot use number syscall PROOT_SYSCALL_VOID number to nullify syscall. */
+    if (no == PROOT_SYSCALL_VOID) {
+        res = 0;
+        goto skip_syscall;
+    }
     /* translate syscall nb into neutral no */
     if (no >= sysnums_arm64_nb)
         fatal("Out of range syscall number %d >= %d\n", no, sysnums_arm64_nb);
@@ -105,6 +119,7 @@ void arm64_hlp_syscall(uint64_t regs)
         fatal("Unknown how .... %d\n", how);
     }
 
+    skip_syscall:
     context->regs.r[0] = res;
     /* syscall exit sequence */
     context->regs.is_in_syscall = 2;

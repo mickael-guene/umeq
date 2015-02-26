@@ -33,6 +33,10 @@
 #define PTRACE_SEIZE 0x4206
 #endif
 
+#ifndef NT_ARM_SYSTEM_CALL
+#define NT_ARM_SYSTEM_CALL  0x404
+#endif
+
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
 
 #define NT_PRFPREG  2
@@ -148,6 +152,47 @@ static long read_gpr(int pid, struct user_pt_regs_arm64 *regs)
         regs->regs[7] = 1;
 
     read_gpr_error:
+    return res;
+}
+
+static long write_gpr(int pid, struct user_pt_regs_arm64 *regs)
+{
+    uint32_t is_in_syscall;
+    uint64_t regs_base;
+    uint64_t data;
+    long res;
+    int i;
+
+    res = get_regs_base(pid, &regs_base);
+    if (res)
+        goto write_gpr_error;
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, is_in_syscall), &data);
+    is_in_syscall = (uint32_t) data;
+    if (res)
+        goto write_gpr_error;
+
+    for(i=0;i<31;i++) {
+        if (!(i == 7 && is_in_syscall))
+            res = syscall(SYS_ptrace, PTRACE_POKEDATA, pid, regs_base + offsetof(struct arm64_registers, r[i]), regs->regs[i]);
+            if (res)
+                goto write_gpr_error;
+    }
+    res = syscall(SYS_ptrace, PTRACE_POKEDATA, pid, regs_base + offsetof(struct arm64_registers, r[31]), regs->sp);
+    if (res)
+        goto write_gpr_error;
+    res = syscall(SYS_ptrace, PTRACE_POKEDATA, pid, regs_base + offsetof(struct arm64_registers, pc), regs->pc);
+    if (res)
+        goto write_gpr_error;
+    /* update NZCV. For that we need to do read/modify/write sequence */
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, nzcv), &data);
+    if (res)
+        goto write_gpr_error;
+    data = (data & 0xffffffff00000000UL) | regs->pstate;
+    res = syscall(SYS_ptrace, PTRACE_POKEDATA, pid, regs_base + offsetof(struct arm64_registers, nzcv), data);
+    if (res)
+        goto write_gpr_error;
+
+    write_gpr_error:
     return res;
 }
 
@@ -275,6 +320,20 @@ long arm64_ptrace(struct arm64_target *context)
             } else
                 fatal("PTRACE_GETREGSET: addr = %d\n", addr);
             ptrace_getregset_error:
+            break;
+        case PTRACE_SETREGSET:
+            if (addr == NT_PRSTATUS) {
+                struct iovec *io = (struct iovec *) g_2_h(data);
+
+                assert(io->iov_len == sizeof(struct user_pt_regs_arm64));
+                res = write_gpr(pid, io->iov_base);
+            } else if (addr == NT_ARM_SYSTEM_CALL) {
+                /* here we do nothing since we re-read syscall number after x8 change */
+                /* see comment in arm64_syscall.c */
+                res = 0;
+            } else {
+                fatal("PTRACE_SETREGSET: addr = %d\n", addr);
+            }
             break;
         case PTRACE_SINGLESTEP:
             {
