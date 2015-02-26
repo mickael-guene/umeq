@@ -796,6 +796,31 @@ static int dis_uxtb(struct arm_target *context, uint32_t insn, struct irInstruct
     return 0;
 }
 
+static int dis_rbit(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(15,12);
+    int rm = INSN(3,0);
+    struct irRegister *w[6];
+    uint32_t c[] = {0x55555555, 0x33333333,
+                    0x0F0F0F0F, 0x00FF00FF,
+                    0x0000FFFF};
+    int i;
+
+    w[0] = read_reg(context, ir, rm);
+    for(i = 0; i < 5; i++) {
+        w[i+1] = ir->add_or_32(ir,
+                               ir->add_shl_32(ir,
+                                              ir->add_and_32(ir,w[i], mk_32(ir, c[i])),
+                                              mk_8(ir, 1 << i)),
+                               ir->add_shr_32(ir,
+                                              ir->add_and_32(ir,w[i], mk_32(ir, ~c[i])),
+                                              mk_8(ir, 1 << i)));
+    }
+    write_reg(context, ir, rd, w[5]);
+
+    return 0;
+}
+
 static int dis_uxth(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rd = INSN(15, 12);
@@ -1457,6 +1482,47 @@ static int dis_rev(struct arm_target *context, uint32_t insn, struct irInstructi
     return 0;
 }
 
+static int dis_rev16(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(3, 0);
+    struct irRegister *rn_reg = read_reg(context, ir, rn);
+    struct irRegister *result;
+
+    result = ir->add_or_32(ir,
+                           ir->add_shl_32(ir,
+                                          ir->add_and_32(ir, rn_reg, mk_32(ir, 0x00ff00ff)),
+                                          mk_8(ir, 8)),
+                           ir->add_shr_32(ir,
+                                          ir->add_and_32(ir, rn_reg, mk_32(ir, 0xff00ff00)),
+                                          mk_8(ir, 8)));
+    write_reg(context, ir, rd, result);
+
+    return 0;
+}
+
+static int dis_revsh(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(3, 0);
+    struct irRegister *rn_reg = read_reg(context, ir, rn);
+    struct irRegister *tmp;
+    struct irRegister *result;
+
+    tmp = ir->add_or_32(ir,
+                        ir->add_shl_32(ir,
+                                       ir->add_and_32(ir, rn_reg, mk_32(ir, 0x000000ff)),
+                                       mk_8(ir, 8)),
+                        ir->add_shr_32(ir,
+                                       ir->add_and_32(ir, rn_reg, mk_32(ir, 0x0000ff00)),
+                                       mk_8(ir, 8)));
+    result = ir->add_16S_to_32(ir, ir->add_32_to_16(ir, tmp));
+
+    write_reg(context, ir, rd, result);
+
+    return 0;
+}
+
 static int dis_mrs(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rd = INSN(15, 12);
@@ -1782,8 +1848,7 @@ static int dis_packing_A_unpacking_A_saturation_A_reversal(struct arm_target *co
                 else
                     assert(0);//sxtah
             } else if (op2 == 5) {
-                //rev16
-                assert(0);
+                isExit = dis_rev16(context, insn, ir);
             }
             break;
         case 6:
@@ -1797,16 +1862,14 @@ static int dis_packing_A_unpacking_A_saturation_A_reversal(struct arm_target *co
             break;
         case 7:
             if (op2 == 1) {
-                //rbit
-                assert(0);
+                isExit = dis_rbit(context, insn, ir);
             } else if (op2 == 3) {
                 if (a == 15)
                     isExit = dis_uxth(context, insn, ir);
                 else
                     assert(0 && "uxtah");
             } else if (op2 == 5) {
-                //revsh
-                assert(0);
+                isExit = dis_revsh(context, insn, ir);
             } else {
                 assert(0);
             }
