@@ -659,6 +659,33 @@ static uint32_t signedSat16(int32_t i)
         return i & 0xffff;
 }
 
+static uint32_t signedSat8(int32_t i)
+{
+    if (i > 127)
+        return 0x7f;
+    else if (i < -128)
+        return 0x80;
+    else
+        return i & 0xff;
+}
+
+static uint32_t signedSat32Q(int64_t i, int *isSat)
+{
+    uint32_t res;
+    *isSat = 0;
+
+    if (i > 2147483647L) {
+        res = 0x7fffffff;
+        *isSat = 1;
+    } else if (i < -2147483648L) {
+        res = 0x80000000;
+        *isSat = 1;
+    } else
+        res = (uint32_t) i;
+
+    return res;
+}
+
 static void uadd8(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -707,6 +734,81 @@ static void qadd16_a1(uint64_t _regs, uint32_t insn)
         sum[i] = (int32_t)(int16_t)((regs->r[rn] >> (i * 16)) & 0xffff) + (int32_t)(int16_t)((regs->r[rm] >> (i * 16)) & 0xffff);
     }
     regs->r[rd] = (signedSat16(sum[1]) << 16) | signedSat16(sum[0]);
+}
+
+static void qasx_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int32_t res[2];
+
+
+    res[0] = (int32_t)(int16_t)((regs->r[rn] >> (0 * 16)) & 0xffff) - (int32_t)(int16_t)((regs->r[rm] >> (1 * 16)) & 0xffff);
+    res[1] = (int32_t)(int16_t)((regs->r[rn] >> (1 * 16)) & 0xffff) + (int32_t)(int16_t)((regs->r[rm] >> (0 * 16)) & 0xffff);
+
+    regs->r[rd] = (signedSat16(res[1]) << 16) | signedSat16(res[0]);
+}
+
+static void qsax_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int32_t res[2];
+
+
+    res[0] = (int32_t)(int16_t)((regs->r[rn] >> (0 * 16)) & 0xffff) + (int32_t)(int16_t)((regs->r[rm] >> (1 * 16)) & 0xffff);
+    res[1] = (int32_t)(int16_t)((regs->r[rn] >> (1 * 16)) & 0xffff) - (int32_t)(int16_t)((regs->r[rm] >> (0 * 16)) & 0xffff);
+
+    regs->r[rd] = (signedSat16(res[1]) << 16) | signedSat16(res[0]);
+}
+
+static void qsub16_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int32_t sum[2];
+    int i;
+
+    for(i = 0; i < 2; i++) {
+        sum[i] = (int32_t)(int16_t)((regs->r[rn] >> (i * 16)) & 0xffff) - (int32_t)(int16_t)((regs->r[rm] >> (i * 16)) & 0xffff);
+    }
+    regs->r[rd] = (signedSat16(sum[1]) << 16) | signedSat16(sum[0]);
+}
+
+static void qadd8_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int32_t sum[4];
+    int i;
+
+    for(i = 0; i < 4; i++) {
+        sum[i] = (int32_t)(int8_t)((regs->r[rn] >> (i * 8)) & 0xff) + (int32_t)(int8_t)((regs->r[rm] >> (i * 8)) & 0xff);
+    }
+    regs->r[rd] = (signedSat8(sum[3]) << 24) | (signedSat8(sum[2]) << 16) | (signedSat8(sum[1]) << 8) | signedSat8(sum[0]);
+}
+
+static void qsub8_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int32_t sum[4];
+    int i;
+
+    for(i = 0; i < 4; i++) {
+        sum[i] = (int32_t)(int8_t)((regs->r[rn] >> (i * 8)) & 0xff) - (int32_t)(int8_t)((regs->r[rm] >> (i * 8)) & 0xff);
+    }
+    regs->r[rd] = (signedSat8(sum[3]) << 24) | (signedSat8(sum[2]) << 16) | (signedSat8(sum[1]) << 8) | signedSat8(sum[0]);
 }
 
 void thumb_hlp_t2_unsigned_parallel(uint64_t regs, uint32_t insn)
@@ -759,6 +861,21 @@ void arm_hlp_signed_parallel(uint64_t regs, uint32_t insn)
             switch(op2) {
                 case 0:
                     qadd16_a1(regs, insn);
+                    break;
+                case 1:
+                    qasx_a1(regs, insn);
+                    break;
+                case 2:
+                    qsax_a1(regs, insn);
+                    break;
+                case 3:
+                    qsub16_a1(regs, insn);
+                    break;
+                case 4:
+                    qadd8_a1(regs, insn);
+                    break;
+                case 7:
+                    qsub8_a1(regs, insn);
                     break;
                 default:
                     fatal("op2 = %d(0x%x)\n", op2, op2);
@@ -853,7 +970,7 @@ void hlp_dirty_vpush(uint64_t _regs, uint32_t insn)
     regs->r[rn] = regs->r[rn] - imm32;
 }
 
-static void qadd(uint64_t _regs, uint32_t insn)
+static void qadd_a1(uint64_t _regs, uint32_t insn)
 {
     int rd = INSN(15, 12);
     int rm = INSN(3, 0);
@@ -861,15 +978,64 @@ static void qadd(uint64_t _regs, uint32_t insn)
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int64_t unsat = (int64_t)(int32_t) regs->r[rm] + (int64_t)(int32_t) regs->r[rn];
     uint32_t res;
+    int sat;
 
-    if (unsat > 2147483647L) {
-        res = 0x7fffffff;
+    res = signedSat32Q(unsat, &sat);
+    if (sat)
         regs->cpsr |= 1 << 27;
-    } else if (unsat < -2147483648L) {
-        res = 0x80000000;
+
+    regs->r[rd] = res;
+}
+
+static void qsub_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rm = INSN(3, 0);
+    int rn = INSN(19, 16);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int64_t unsat = (int64_t)(int32_t) regs->r[rm] - (int64_t)(int32_t) regs->r[rn];
+    uint32_t res;
+    int sat;
+
+    res = signedSat32Q(unsat, &sat);
+    if (sat)
         regs->cpsr |= 1 << 27;
-    } else
-        res = (uint32_t) unsat;
+
+    regs->r[rd] = res;
+}
+
+static void qdadd_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rm = INSN(3, 0);
+    int rn = INSN(19, 16);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    uint32_t doubled;
+    uint32_t res;
+    int sat1, sat2;
+
+    doubled = signedSat32Q(2 * (int64_t)(int32_t) regs->r[rn], &sat1);
+    res = signedSat32Q((int64_t)(int32_t) regs->r[rm] + (int64_t)(int32_t) doubled, &sat2);
+    if (sat1 || sat2)
+        regs->cpsr |= 1 << 27;
+
+    regs->r[rd] = res;
+}
+
+static void qdsub_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rm = INSN(3, 0);
+    int rn = INSN(19, 16);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    uint32_t doubled;
+    uint32_t res;
+    int sat1, sat2;
+
+    doubled = signedSat32Q(2 * (int64_t)(int32_t) regs->r[rn], &sat1);
+    res = signedSat32Q((int64_t)(int32_t) regs->r[rm] - (int64_t)(int32_t) doubled, &sat2);
+    if (sat1 || sat2)
+        regs->cpsr |= 1 << 27;
 
     regs->r[rd] = res;
 }
@@ -880,7 +1046,16 @@ void arm_hlp_dirty_saturating(uint64_t regs, uint32_t insn)
 
     switch(op) {
         case 0:
-            qadd(regs, insn);
+            qadd_a1(regs, insn);
+            break;
+        case 1:
+            qsub_a1(regs, insn);
+            break;
+        case 2:
+            qdadd_a1(regs, insn);
+            break;
+        case 3:
+            qdsub_a1(regs, insn);
             break;
         default:
             fatal("op = %d(0x%x)\n", op, op);
