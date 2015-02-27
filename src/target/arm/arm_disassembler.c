@@ -1603,7 +1603,7 @@ static int dis_pkh(struct arm_target *context, uint32_t insn, struct irInstructi
 static int dis_msr_immediate(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int mask = INSN(19, 18);
-    int imm12 = INSN(11, 12);
+    int imm12 = INSN(11, 0);
     uint32_t imm32 = armExpandImm(imm12);
     uint32_t mask32 = 0;
 
