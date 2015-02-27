@@ -1487,6 +1487,7 @@ static int dis_t2_sel(struct arm_target *context, uint32_t insn, struct irInstru
     struct irRegister *params[4];
     struct irRegister *result;
 
+    assert(rn != 15);
     assert(rm != 15);
     assert(rd != 15);
 
