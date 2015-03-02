@@ -750,6 +750,8 @@ static void sadd16_ssub16_a1(uint64_t _regs, uint32_t insn)
     int32_t res[2];
     int i;
 
+    //clear ge
+    regs->cpsr &= 0xfff0ffff;
     for(i = 0; i < 2; i++) {
         if (is_sub)
             res[i] = (int32_t)(int16_t)((regs->r[rn] >> (i * 16)) & 0xffff) - (int32_t)(int16_t)((regs->r[rm] >> (i * 16)) & 0xffff);
@@ -771,6 +773,8 @@ static void sasx_ssax_a1(uint64_t _regs, uint32_t insn)
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t op1, op2;
 
+    //clear ge
+    regs->cpsr &= 0xfff0ffff;
     if (is_diff_first) {
         op1 = (int32_t)(int16_t)((regs->r[rn] >> (0 * 16)) & 0xffff) - (int32_t)(int16_t)((regs->r[rm] >> (1 * 16)) & 0xffff);
         op2  = (int32_t)(int16_t)((regs->r[rn] >> (1 * 16)) & 0xffff) + (int32_t)(int16_t)((regs->r[rm] >> (0 * 16)) & 0xffff);
@@ -796,6 +800,8 @@ static void sadd8_ssub8_a1(uint64_t _regs, uint32_t insn)
     int32_t res[4];
     int i;
 
+    //clear ge
+    regs->cpsr &= 0xfff0ffff;
     for(i = 0; i < 4; i++) {
         if (is_sub)
             res[i] = (int32_t)(int8_t)((regs->r[rn] >> (i * 8)) & 0xff) - (int32_t)(int8_t)((regs->r[rm] >> (i * 8)) & 0xff);
