@@ -1511,7 +1511,7 @@ static void dis_ssat_a1(uint64_t _regs, uint32_t insn)
 
     switch(shift_mode) {
         case 0:
-            operand = (int64_t)(int32_t)regs->r[rn] << shift_value;
+            operand = (int64_t)(int32_t)(regs->r[rn] << shift_value);
             break;
         case 2:
             operand = (int64_t)(int32_t)regs->r[rn] >> (shift_value?shift_value:32);
