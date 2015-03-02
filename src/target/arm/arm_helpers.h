@@ -46,6 +46,8 @@ extern void arm_hlp_signed_parallel(uint64_t regs, uint32_t insn);
 extern void arm_hlp_halfword_mult_and_mult_acc(uint64_t regs, uint32_t insn);
 extern void arm_hlp_signed_multiplies(uint64_t regs, uint32_t insn);
 extern void arm_hlp_saturation(uint64_t regs, uint32_t insn);
+extern void arm_hlp_umaal(uint64_t regs, uint32_t rdhi, uint32_t rdlow, uint32_t rn, uint32_t rm);
+extern void arm_hlp_sum_absolute_difference(uint64_t regs, uint32_t insn);
 
 #endif
 

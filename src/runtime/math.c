@@ -162,3 +162,8 @@ int fegetround (void)
 
     return cw & 0xc00;
 }
+
+int abs(int j)
+{
+    return j>=0?j:-j;
+}

@@ -639,14 +639,40 @@ void arm_hlp_memory_barrier(uint64_t regs)
     __sync_synchronize();
 }
 
-static uint32_t unsignedSat8(int32_t i)
+static int64_t unsignedSatQ(int64_t i, int n, int *isSat)
 {
-    if (i > 255)
-        return 255;
-    else if (i < 0)
-        return 0;
-    else
-        return i;
+    int64_t sat_pos = (1UL << n) - 1;
+    int64_t sat_neg = 0;
+    int64_t res;
+    *isSat = 0;
+
+    if (i > sat_pos) {
+        res = sat_pos;
+        *isSat = 1;
+    } else if (i < sat_neg) {
+        res  = sat_neg;
+        *isSat = 1;
+    } else
+        res = i;
+
+    return res;
+}
+
+static int64_t unsignedSat(int64_t i, int n)
+{
+    int isSatDummy;
+
+    return unsignedSatQ(i, n, &isSatDummy);
+}
+
+static int32_t unsignedSat8(int32_t i)
+{
+    return unsignedSat(i, 8);
+}
+
+static int32_t unsignedSat16(int32_t i)
+{
+    return unsignedSat(i, 16);
 }
 
 static uint32_t signedSat16(int32_t i)
@@ -705,22 +731,147 @@ static int64_t signedSatQ(int64_t i, int n, int *isSat)
     return res;
 }
 
-static void uadd8(uint64_t _regs, uint32_t insn)
+static void uadd16_usub16_a1(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
-    int rn = INSN1(3, 0);
-    int rd = INSN2(11, 8);
-    int rm = INSN2(3, 0);
-    uint32_t sum[4];
+    int rn = INSN(19, 16);
+    int rd = INSN(15, 12);
+    int rm = INSN(3, 0);
+    int is_sub = INSN(5, 5);
+    int32_t res[2];
+    int i;
+
+    //clear ge
+    regs->cpsr &= 0xfff0ffff;
+    for(i = 0; i < 2; i++) {
+        if (is_sub) {
+            res[i] = ((regs->r[rn] >> (i * 16)) & 0xffff) - ((regs->r[rm] >> (i * 16)) & 0xffff);
+            regs->cpsr |= (res[i] >= 0)?(0x30000 << (i * 2)):0;
+        } else {
+            res[i] = ((regs->r[rn] >> (i * 16)) & 0xffff) + ((regs->r[rm] >> (i * 16)) & 0xffff);
+            regs->cpsr |= (res[i] >= 0x10000)?(0x30000 << (i * 2)):0;
+        }
+    }
+    regs->r[rd] = ((res[1] & 0xffff) << 16) + (res[0] & 0xffff);
+}
+
+static void uasx_usax_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    int is_diff_first = INSN(5, 5);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int32_t op1, op2;
+
+    //clear ge
+    regs->cpsr &= 0xfff0ffff;
+    if (is_diff_first) {
+        op1 = ((regs->r[rn] >> (0 * 16)) & 0xffff) - ((regs->r[rm] >> (1 * 16)) & 0xffff);
+        op2 = ((regs->r[rn] >> (1 * 16)) & 0xffff) + ((regs->r[rm] >> (0 * 16)) & 0xffff);
+    } else {
+        op1 = ((regs->r[rn] >> (0 * 16)) & 0xffff) + ((regs->r[rm] >> (1 * 16)) & 0xffff);
+        op2 = ((regs->r[rn] >> (1 * 16)) & 0xffff) - ((regs->r[rm] >> (0 * 16)) & 0xffff);
+    }
+    if (is_diff_first) {
+        if (op1 >= 0)
+            regs->cpsr |= 3 << 16;
+        if (op2 >= 0x10000)
+            regs->cpsr |= 3 << 18;
+    } else {
+        if (op1 >= 0x10000)
+            regs->cpsr |= 3 << 16;
+        if (op2 >= 0)
+            regs->cpsr |= 3 << 18;
+    }
+
+    regs->r[rd] = (((uint16_t)op2) << 16) | ((uint16_t)op1);
+}
+
+static void uadd8_usub8(uint64_t _regs, int rd, int rn, int rm, int is_sub)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int32_t res[4];
     int i;
 
     //clear ge
     regs->cpsr &= 0xfff0ffff;
     for(i = 0; i < 4; i++) {
-        sum[i] = ((regs->r[rn] >> (i * 8)) & 0xff) + ((regs->r[rm] >> (i * 8)) & 0xff);
-        regs->cpsr |= (sum[i] >= 0x100)?(0x10000 << i):0;
+        if (is_sub) {
+            res[i] = ((regs->r[rn] >> (i * 8)) & 0xff) - ((regs->r[rm] >> (i * 8)) & 0xff);
+            regs->cpsr |= (res[i] >= 0)?(0x10000 << i):0;
+        } else {
+            res[i] = ((regs->r[rn] >> (i * 8)) & 0xff) + ((regs->r[rm] >> (i * 8)) & 0xff);
+            regs->cpsr |= (res[i] >= 0x100)?(0x10000 << i):0;
+        }
     }
-    regs->r[rd] = ((sum[3] & 0xff) << 24) + ((sum[2] & 0xff) << 16) + ((sum[1] & 0xff) << 8) + (sum[0] & 0xff);
+    regs->r[rd] = ((res[3] & 0xff) << 24) + ((res[2] & 0xff) << 16) + ((res[1] & 0xff) << 8) + (res[0] & 0xff);
+}
+
+static void uadd8_t1(uint64_t _regs, uint32_t insn)
+{
+    uadd8_usub8(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0), 0);
+}
+
+static void uadd8_usub8_a1(uint64_t _regs, uint32_t insn)
+{
+    uadd8_usub8(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0), INSN(5, 5));
+}
+
+static void uqadd16_uqsub16_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    int is_sub = INSN(5, 5);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    uint32_t res[2];
+    int i;
+
+    for(i = 0; i < 2; i++) {
+        if (is_sub)
+            res[i] = ((regs->r[rn] >> (i * 16)) & 0xffff) - ((regs->r[rm] >> (i * 16)) & 0xffff);
+        else
+            res[i] = ((regs->r[rn] >> (i * 16)) & 0xffff) + ((regs->r[rm] >> (i * 16)) & 0xffff);
+    }
+
+    regs->r[rd] =  (unsignedSat16(res[1]) << 16) | unsignedSat16(res[0]);
+}
+
+static void uqasx_uqsax_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    int is_diff_first = INSN(5, 5);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    uint32_t res[2];
+
+    if (is_diff_first) {
+        res[0] = ((regs->r[rn] >> (0 * 16)) & 0xffff) - ((regs->r[rm] >> (1 * 16)) & 0xffff);
+        res[1] = ((regs->r[rn] >> (1 * 16)) & 0xffff) + ((regs->r[rm] >> (0 * 16)) & 0xffff);
+    } else {
+        res[0] = ((regs->r[rn] >> (0 * 16)) & 0xffff) + ((regs->r[rm] >> (1 * 16)) & 0xffff);
+        res[1] = ((regs->r[rn] >> (1 * 16)) & 0xffff) - ((regs->r[rm] >> (0 * 16)) & 0xffff); 
+    }
+
+    regs->r[rd] =  (unsignedSat16(res[1]) << 16) | unsignedSat16(res[0]);
+}
+
+static void uqadd8_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    uint32_t res[4];
+    int i;
+
+    for(i = 0; i < 4; i++) {
+        res[i] = ((regs->r[rn] >> (i * 8)) & 0xff) + ((regs->r[rm] >> (i * 8)) & 0xff);
+    }
+
+    regs->r[rd] =  (unsignedSat8(res[3]) << 24) | (unsignedSat8(res[2]) << 16) | (unsignedSat8(res[1]) << 8) | unsignedSat8(res[0]);
 }
 
 static void uqsub8(uint64_t _regs, int rd, int rn, int rm)
@@ -738,6 +889,70 @@ static void uqsub8(uint64_t _regs, int rd, int rn, int rm)
 static void uqsub8_a1(uint64_t _regs, uint32_t insn)
 {
     uqsub8(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void uhadd16_uhsub16_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    int is_sub = INSN(5, 5);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    uint32_t sum[2];
+    int i;
+
+    for(i = 0; i < 2; i++) {
+        if (is_sub)
+            sum[i] = ((regs->r[rn] >> (i * 16)) & 0xffff) - ((regs->r[rm] >> (i * 16)) & 0xffff);
+        else
+            sum[i] = ((regs->r[rn] >> (i * 16)) & 0xffff) + ((regs->r[rm] >> (i * 16)) & 0xffff);
+        sum[i] >>= 1;
+    }
+
+    regs->r[rd] = ((uint16_t)(sum[1]) << 16) | (uint16_t)(sum[0]);
+}
+
+static void uhasx_uhsax_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    int is_diff_first = INSN(5, 5);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    uint32_t res[2];
+
+    if (is_diff_first) {
+        res[0] = ((regs->r[rn] >> (0 * 16)) & 0xffff) - ((regs->r[rm] >> (1 * 16)) & 0xffff);
+        res[1] = ((regs->r[rn] >> (1 * 16)) & 0xffff) + ((regs->r[rm] >> (0 * 16)) & 0xffff);
+    } else {
+        res[0] = ((regs->r[rn] >> (0 * 16)) & 0xffff) + ((regs->r[rm] >> (1 * 16)) & 0xffff);
+        res[1] = ((regs->r[rn] >> (1 * 16)) & 0xffff) - ((regs->r[rm] >> (0 * 16)) & 0xffff);
+    }
+    res[0] >>= 1;
+    res[1] >>= 1;
+
+    regs->r[rd] = ((uint16_t)(res[1]) << 16) | (uint16_t)(res[0]);
+}
+
+static void uhsub8_uhadd8_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    int is_sub = INSN(5, 5);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    uint32_t sum[4];
+    int i;
+
+    for(i = 0; i < 4; i++) {
+        if (is_sub)
+            sum[i] = ((regs->r[rn] >> (i * 8)) & 0xff) - ((regs->r[rm] >> (i * 8)) & 0xff);
+        else
+            sum[i] = ((regs->r[rn] >> (i * 8)) & 0xff) + ((regs->r[rm] >> (i * 8)) & 0xff);
+        sum[i] >>= 1;
+    }
+
+    regs->r[rd] = ((uint8_t)(sum[3]) << 24) | ((uint8_t)(sum[2]) << 16) | ((uint8_t)(sum[1]) << 8) | (uint8_t)(sum[0]);
 }
 
 static void sadd16_ssub16_a1(uint64_t _regs, uint32_t insn)
@@ -1012,7 +1227,7 @@ void thumb_hlp_t2_unsigned_parallel(uint64_t regs, uint32_t insn)
     if (op2 == 0) {
         switch(op1) {
             case 0:
-                uadd8(regs, insn);
+                uadd8_t1(regs, insn);
                 break;
             default:
                 fatal("op1 = %d(0x%x)\n", op1, op1);
@@ -1027,20 +1242,68 @@ void arm_hlp_unsigned_parallel(uint64_t regs, uint32_t insn)
     int op1 = INSN(21, 20);
     int op2 = INSN(7, 5);
 
-    if (op1 == 1) {
-        assert(0);
-    } else if (op1 == 2) {
-        switch(op2) {
-            case 7:
-                uqsub8_a1(regs, insn);
-                break;
-            default:
-                fatal("op2 = %d(0x%x)\n", op2, op2);
-        }
-    } else if (op1 == 3) {
-        assert(0);
-    } else
-        assert(0);
+    switch(op1) {
+        case 1:
+            switch(op2) {
+                case 0:
+                case 3:
+                    uadd16_usub16_a1(regs, insn);
+                    break;
+                case 1:
+                case 2:
+                    uasx_usax_a1(regs, insn);
+                    break;
+                case 4:
+                case 7:
+                    uadd8_usub8_a1(regs, insn);
+                    break;
+                default:
+                    fatal("op1 = %d / op2 = %d(0x%x)\n", op1, op2, op2);
+            }
+            break;
+        case 2:
+            switch(op2) {
+                case 0:
+                    uqadd16_uqsub16_a1(regs, insn);
+                    break;
+                case 1:
+                case 2:
+                    uqasx_uqsax_a1(regs, insn);
+                    break;
+                case 3:
+                    uqadd16_uqsub16_a1(regs, insn);
+                    break;
+                case 4:
+                    uqadd8_a1(regs, insn);
+                    break;
+                case 7:
+                    uqsub8_a1(regs, insn);
+                    break;
+                default:
+                    fatal("op1 = %d / op2 = %d(0x%x)\n", op1, op2, op2);
+            }
+            break;
+        case 3:
+            switch(op2) {
+                case 0:
+                case 3:
+                    uhadd16_uhsub16_a1(regs, insn);
+                    break;
+                case 1:
+                case 2:
+                    uhasx_uhsax_a1(regs, insn);
+                    break;
+                case 4:
+                case 7:
+                    uhsub8_uhadd8_a1(regs, insn);
+                    break;
+                default:
+                    fatal("op1 = %d / op2 = %d(0x%x)\n", op1, op2, op2);
+            }
+            break;
+        default:
+            fatal("op1 = %d / op2 = %d(0x%x)\n", op1, op2, op2);
+    }
 }
 
 void arm_hlp_signed_parallel(uint64_t regs, uint32_t insn)
@@ -1533,6 +1796,36 @@ static void dis_ssat_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = result;
 }
 
+static void dis_usat_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(3, 0);
+    int shift_mode = INSN(6, 5);
+    int shift_value = INSN(11, 7);
+    int saturate_to = INSN(20, 16);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int64_t operand;
+    int64_t result;
+    int isSat;
+
+    switch(shift_mode) {
+        case 0:
+            operand = (int64_t)(int32_t)(regs->r[rn] << shift_value);
+            break;
+        case 2:
+            operand = (int64_t)(int32_t)regs->r[rn] >> (shift_value?shift_value:32);
+            break;
+        default:
+            fatal("Invalid shift mode %d\n", shift_mode);
+    }
+
+    result = unsignedSatQ(operand, saturate_to, &isSat);
+    if (isSat)
+        regs->cpsr |= 1 << 27;
+
+    regs->r[rd] = result;
+}
+
 static void dis_ssat16_a1(uint64_t _regs, uint32_t insn)
 {
     int rd = INSN(15, 12);
@@ -1544,6 +1837,23 @@ static void dis_ssat16_a1(uint64_t _regs, uint32_t insn)
 
     result1 = signedSatQ((int64_t)(int16_t)regs->r[rn], saturate_to, &isSat1);
     result2 = signedSatQ((int64_t)(int16_t)(regs->r[rn] >> 16), saturate_to, &isSat2);
+    if (isSat1 || isSat2)
+        regs->cpsr |= 1 << 27;
+
+    regs->r[rd] = (result2 << 16) | (result1 & 0xffff);
+}
+
+static void dis_usat16_a1(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(3, 0);
+    int saturate_to = INSN(19, 16);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int64_t result1, result2;
+    int isSat1, isSat2;
+
+    result1 = unsignedSatQ((int64_t)(int16_t)regs->r[rn], saturate_to, &isSat1);
+    result2 = unsignedSatQ((int64_t)(int16_t)(regs->r[rn] >> 16), saturate_to, &isSat2);
     if (isSat1 || isSat2)
         regs->cpsr |= 1 << 27;
 
@@ -1644,7 +1954,53 @@ void arm_hlp_saturation(uint64_t regs, uint32_t insn)
             } else
                 assert(0);
             break;
+        case 6:
+            if ((op2 & 1) == 0) {
+                dis_usat_a1(regs, insn);
+            } else if (op2 == 1) {
+                dis_usat16_a1(regs, insn);
+            } else
+                assert(0);
+            break;
+        case 7:
+            if ((op2 & 1) == 0) {
+                dis_usat_a1(regs, insn);
+            } else
+                assert(0);
+            break;
         default:
             fatal("op1 = %d(0x%x)\n", op1, op1);
     }
+}
+
+void arm_hlp_umaal(uint64_t _regs, uint32_t rdhi_nb, uint32_t rdlo_nb, uint32_t rn_nb, uint32_t rm_nb)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    uint64_t rdhi = regs->r[rdhi_nb];
+    uint64_t rdlo = regs->r[rdlo_nb];
+    uint64_t rn = regs->r[rn_nb];
+    uint64_t rm = regs->r[rm_nb];
+    uint64_t result = rn * rm + rdhi + rdlo;
+
+    regs->r[rdhi_nb] = result >> 32;
+    regs->r[rdlo_nb] = result;
+}
+
+void arm_hlp_sum_absolute_difference(uint64_t _regs, uint32_t insn)
+{
+    int rd = INSN(19, 16);
+    int rn = INSN(3, 0);
+    int rm = INSN(11, 8);
+    int ra = INSN(15, 12);
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    uint32_t result = 0;
+    int i;
+
+    for(i = 0; i < 4; i++) {
+        result += abs(((regs->r[rn] >> (i * 8)) & 0xff) - ((regs->r[rm] >> (i * 8)) & 0xff));
+    }
+    if (ra != 15)
+        result += regs->r[ra];
+
+    regs->r[rd] = result;
 }

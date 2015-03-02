@@ -780,6 +780,53 @@ static int dis_clz(struct arm_target *context, uint32_t insn, struct irInstructi
     return 0;
 }
 
+static int dis_uxtb16(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(15, 12);
+    int rm = INSN(3, 0);
+    int rotation = INSN(11, 10) << 3;
+    struct irRegister *rm_reg = read_reg(context, ir, rm);
+    struct irRegister *rm_rotated;
+    struct irRegister *lsb, *msb;
+    struct irRegister *result;
+
+    rm_rotated = mk_media_rotate(ir, rm_reg, rotation);
+    lsb = ir->add_8U_to_16(ir, ir->add_32_to_8(ir, rm_rotated));
+    msb = ir->add_8U_to_16(ir, ir->add_32_to_8(ir, ir->add_shr_32(ir, rm_rotated, mk_8(ir, 16))));
+    result = ir->add_or_32(ir,
+                           ir->add_16U_to_32(ir, lsb),
+                           ir->add_shl_32(ir, ir->add_16U_to_32(ir, msb), mk_8(ir, 16)));
+    write_reg(context, ir, rd, result);
+
+    return 0;
+}
+
+static int dis_uxtab16(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    int rotation = INSN(11, 10) << 3;
+    struct irRegister *rm_reg = read_reg(context, ir, rm);
+    struct irRegister *rn_reg = read_reg(context, ir, rn);
+    struct irRegister *rm_rotated;
+    struct irRegister *lsb, *msb;
+    struct irRegister *result;
+
+    rm_rotated = mk_media_rotate(ir, rm_reg, rotation);
+    lsb = ir->add_add_16(ir, ir->add_32_to_16(ir, rn_reg),
+                             ir->add_8U_to_16(ir, ir->add_32_to_8(ir, rm_rotated)));
+    msb = ir->add_add_16(ir, ir->add_32_to_16(ir, ir->add_shr_32(ir, rn_reg, mk_8(ir, 16))),
+                             ir->add_8U_to_16(ir, ir->add_32_to_8(ir,
+                                                                  ir->add_shr_32(ir, rm_rotated, mk_8(ir, 16)))));
+    result = ir->add_or_32(ir,
+                           ir->add_16U_to_32(ir, lsb),
+                           ir->add_shl_32(ir, ir->add_16U_to_32(ir, msb), mk_8(ir, 16)));
+    write_reg(context, ir, rd, result);
+
+    return 0;
+}
+
 static int dis_uxtb(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rd = INSN(15, 12);
@@ -792,6 +839,24 @@ static int dis_uxtb(struct arm_target *context, uint32_t insn, struct irInstruct
     rm_rotated = mk_media_rotate(ir, rm_reg, rotation);
     /* mask and assign */
     write_reg(context, ir, rd, ir->add_and_32(ir, rm_rotated, mk_32(ir, 0xff)));
+
+    return 0;
+}
+
+static int dis_uxtab(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    int rotation = INSN(11, 10) << 3;
+    struct irRegister *rm_reg = read_reg(context, ir, rm);
+    struct irRegister *rm_rotated;
+    struct irRegister *result;
+
+    rm_rotated = mk_media_rotate(ir, rm_reg, rotation);
+    result = ir->add_add_32(ir, read_reg(context, ir, rn),
+                                ir->add_8U_to_32(ir, ir->add_32_to_8(ir, rm_rotated)));
+    write_reg(context, ir, rd, result);
 
     return 0;
 }
@@ -833,6 +898,24 @@ static int dis_uxth(struct arm_target *context, uint32_t insn, struct irInstruct
     rm_rotated = mk_media_rotate(ir, rm_reg, rotation);
     /* mask and assign */
     write_reg(context, ir, rd, ir->add_and_32(ir, rm_rotated, mk_32(ir, 0xffff)));
+
+    return 0;
+}
+
+static int dis_uxtah(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    int rotation = INSN(11, 10) << 3;
+    struct irRegister *rm_reg = read_reg(context, ir, rm);
+    struct irRegister *rm_rotated;
+    struct irRegister *result;
+
+    rm_rotated = mk_media_rotate(ir, rm_reg, rotation);
+    result = ir->add_add_32(ir, read_reg(context, ir, rn),
+                                ir->add_16U_to_32(ir, ir->add_32_to_16(ir, rm_rotated)));
+    write_reg(context, ir, rd, result);
 
     return 0;
 }
@@ -887,6 +970,26 @@ static int dis_mla(struct arm_target *context, uint32_t insn, struct irInstructi
     }
 
     write_reg(context, ir, rd, res);
+
+    return 0;
+}
+
+static int dis_umaal(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rdhi = INSN(19, 16);
+    int rdlo = INSN(15,12);
+    int rn = INSN(3, 0);
+    int rm = INSN(11, 8);
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, rdhi);
+    params[1] = mk_32(ir, rdlo);
+    params[2] = mk_32(ir, rn);
+    params[3] = mk_32(ir, rm);
+
+    ir->add_call_void(ir, "arm_hlp_umaal",
+                           mk_64(ir, (uint64_t) arm_hlp_umaal),
+                           params);
 
     return 0;
 }
@@ -1794,6 +1897,9 @@ static int dis_mult_and_mult_acc_insn(struct arm_target *context, uint32_t insn,
         case 0 ... 3:
             isExit = dis_mla(context, insn, ir);
             break;
+        case 4:
+            isExit = dis_umaal(context, insn, ir);
+            break;
         case 6:
             isExit = dis_mls(context, insn, ir);
             break;
@@ -2017,23 +2123,33 @@ static int dis_packing_A_unpacking_A_saturation_A_reversal(struct arm_target *co
                 isExit = dis_rev16(context, insn, ir);
             }
             break;
+        case 4:
+            if (a == 15)
+                isExit = dis_uxtb16(context, insn, ir);
+            else
+                isExit = dis_uxtab16(context, insn, ir);
+            break;
         case 6:
-            if (op2 == 3) {
+            if ((op2 & 1) == 0 || op2 == 1) {
+                isExit = dis_saturation(context, insn, ir);
+            } else if (op2 == 3) {
                 if (a == 15)
                     isExit = dis_uxtb(context, insn, ir);
                 else
-                    assert(0);
+                    isExit = dis_uxtab(context, insn, ir);
             } else
                 fatal("op2 = %d(0x%x)\n", op2, op2);
             break;
         case 7:
-            if (op2 == 1) {
+            if ((op2 & 1) == 0) {
+                isExit = dis_saturation(context, insn, ir);
+            } else if (op2 == 1) {
                 isExit = dis_rbit(context, insn, ir);
             } else if (op2 == 3) {
                 if (a == 15)
                     isExit = dis_uxth(context, insn, ir);
                 else
-                    assert(0 && "uxtah");
+                    isExit = dis_uxtah(context, insn, ir);
             } else if (op2 == 5) {
                 isExit = dis_revsh(context, insn, ir);
             } else {
@@ -2058,6 +2174,22 @@ static int dis_signed_multiplies(struct arm_target *context, uint32_t insn, stru
 
     ir->add_call_void(ir, "arm_hlp_signed_multiplies",
                            ir->add_mov_const_64(ir, (uint64_t) arm_hlp_signed_multiplies),
+                           params);
+
+    return 0;
+}
+
+static int dis_sum_absolute_difference(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "arm_hlp_sum_absolute_difference",
+                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_sum_absolute_difference),
                            params);
 
     return 0;
@@ -2216,6 +2348,9 @@ static int dis_media_insn(struct arm_target *context, uint32_t insn, struct irIn
             break;
         case 16 ... 23:
             isExit = dis_signed_multiplies(context, insn, ir);
+            break;
+        case 24:
+            isExit = dis_sum_absolute_difference(context, insn, ir);
             break;
         case 26 ... 27:
             isExit = dis_sbfx(context, insn, ir);
