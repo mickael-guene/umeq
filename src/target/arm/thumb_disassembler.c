@@ -5,6 +5,7 @@
 #include "arm_private.h"
 #include "arm_helpers.h"
 #include "runtime.h"
+#include "cache.h"
 
 //#define DUMP_STATE  1
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
@@ -434,6 +435,15 @@ static struct irRegister *mk_mul_u_msb(struct arm_target *context, struct irInst
     return ir->add_call_32(ir, "arm_hlp_multiply_unsigned_msb",
                            ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_unsigned_msb),
                            param);
+}
+
+static void mk_gdb_breakpoint_instruction(struct irInstructionAllocator *ir)
+{
+    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+
+    ir->add_call_32(ir, "arm_gdb_breakpoint_instruction",
+                        ir->add_mov_const_64(ir, (uint64_t) arm_gdb_breakpoint_instruction),
+                        param);
 }
 
 /* disassembler to ir */
@@ -2420,6 +2430,21 @@ static int dis_t2_vpush(struct arm_target *context, uint32_t insn, struct irInst
     return 0;
 }
 
+static int dis_gdb_breakpoint(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    //set pc to correct location before sending sigill signal
+    write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc));
+    //will send a SIGILL signal
+    mk_gdb_breakpoint_instruction(ir);
+
+    //clean caches since code has been modify to remove/insert breakpoints
+    cleanCaches(0,~0);
+    //reexecute same instructions since opcode has been updated by gdb
+    ir->add_exit(ir, ir->add_mov_const_64(ir, context->pc));
+
+    return 1;
+}
+
  /* pure disassembler */
 static int dis_t1_shift_A_add_A_substract_A_move_A_compare(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -2625,8 +2650,8 @@ static int dis_t1_cond_branch_A_svc(struct arm_target *context, uint32_t insn, s
     if (opcode == 15) {
         isExit = dis_t1_svc(context, insn, ir);
     } else if (opcode == 14){
-        //undefined
-        assert(0);
+        /* permanently undefined and so use for gdb breakpoints */
+        isExit = dis_gdb_breakpoint(context, insn, ir);
     } else {
         isExit = dis_t1_b_t1(context, insn, ir);
     }
@@ -2749,6 +2774,9 @@ static int dis_t2_branches_A_misc(struct arm_target *context, uint32_t insn, str
 
     if (op1 == 5 || op1 == 7) {
         isExit = dis_t2_branch_with_link(context, insn, ir);
+    } else if (op1 == 2 && op == 127) {
+        /* permanently undefined and so use for gdb breakpoints */
+        isExit = dis_gdb_breakpoint(context, insn, ir);
     } else if (op1 == 0 || op1 == 2) {
         if ((op & 0x38) == 0x38) {
             switch(op) {

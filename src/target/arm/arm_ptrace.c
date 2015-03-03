@@ -168,7 +168,7 @@ int arm_ptrace(struct arm_target *context)
                     user_regs_arm->uregs[i] = (unsigned int) data_reg;
                 }
                 res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + 16 * 4, &data_reg);
-                user_regs_arm->uregs[16] = (unsigned int) data_reg;
+                user_regs_arm->uregs[16] = (unsigned int) data_reg + ((user_regs_arm->uregs[15] & 1)?0x20:0);
                 user_regs_arm->uregs[17] = user_regs_arm->uregs[0];
                 res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + 20 * 4, &data_reg);
                 is_in_syscall = (unsigned int) data_reg;
