@@ -582,6 +582,16 @@ static int dis_t1_sxth(struct arm_target *context, uint32_t insn, struct irInstr
     return 0;
 }
 
+static int dis_t1_sxtb(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rm = INSN(5, 3);
+    int rd = INSN(2, 0);
+
+    write_reg(context, ir, rd, ir->add_8S_to_32(ir, ir->add_32_to_8(ir, read_reg(context, ir, rm))));
+
+    return 0;
+}
+
 static int dis_t1_uxth(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rm = INSN(5, 3);
@@ -1587,6 +1597,47 @@ static int dis_t1_rev(struct arm_target *context, uint32_t insn, struct irInstru
     return 0;
 }
 
+static int dis_t1_rev16(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(2, 0);
+    int rn = INSN(5, 3);
+    struct irRegister *rn_reg = read_reg(context, ir, rn);
+    struct irRegister *result;
+
+    result = ir->add_or_32(ir,
+                           ir->add_shl_32(ir,
+                                          ir->add_and_32(ir, rn_reg, mk_32(ir, 0x00ff00ff)),
+                                          mk_8(ir, 8)),
+                           ir->add_shr_32(ir,
+                                          ir->add_and_32(ir, rn_reg, mk_32(ir, 0xff00ff00)),
+                                          mk_8(ir, 8)));
+    write_reg(context, ir, rd, result);
+
+    return 0;
+}
+
+static int dis_t1_revsh(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rd = INSN(2, 0);
+    int rn = INSN(5, 3);
+    struct irRegister *rn_reg = read_reg(context, ir, rn);
+    struct irRegister *tmp;
+    struct irRegister *result;
+
+    tmp = ir->add_or_32(ir,
+                        ir->add_shl_32(ir,
+                                       ir->add_and_32(ir, rn_reg, mk_32(ir, 0x000000ff)),
+                                       mk_8(ir, 8)),
+                        ir->add_shr_32(ir,
+                                       ir->add_and_32(ir, rn_reg, mk_32(ir, 0x0000ff00)),
+                                       mk_8(ir, 8)));
+    result = ir->add_16S_to_32(ir, ir->add_32_to_16(ir, tmp));
+
+    write_reg(context, ir, rd, result);
+
+    return 0;
+}
+
 static int dis_t2_str_imm12(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int size = INSN1(6, 5);
@@ -2431,6 +2482,9 @@ static int dis_t1_misc_16_bits(struct arm_target *context, uint32_t insn, struct
         case 16 ... 17:
             isExit = dis_t1_sxth(context, insn, ir);
             break;
+        case 18 ... 19:
+            isExit = dis_t1_sxtb(context, insn, ir);
+            break;
         case 20 ... 21:
             isExit = dis_t1_uxth(context, insn, ir);
             break; 
@@ -2448,6 +2502,12 @@ static int dis_t1_misc_16_bits(struct arm_target *context, uint32_t insn, struct
             break;
         case 80 ... 81:
             isExit = dis_t1_rev(context, insn, ir);
+            break;
+        case 82 ... 83:
+            isExit = dis_t1_rev16(context, insn, ir);
+            break;
+        case 86 ... 87:
+            isExit = dis_t1_revsh(context, insn, ir);
             break;
         case 96 ... 111:
             isExit = dis_t1_pop(context, insn, ir);
