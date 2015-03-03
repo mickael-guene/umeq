@@ -731,13 +731,9 @@ static int64_t signedSatQ(int64_t i, int n, int *isSat)
     return res;
 }
 
-static void uadd16_usub16_a1(uint64_t _regs, uint32_t insn)
+static void uadd16_usub16(uint64_t _regs, int is_sub, int rd, int rn, int rm)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
-    int rn = INSN(19, 16);
-    int rd = INSN(15, 12);
-    int rm = INSN(3, 0);
-    int is_sub = INSN(5, 5);
     int32_t res[2];
     int i;
 
@@ -755,12 +751,18 @@ static void uadd16_usub16_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = ((res[1] & 0xffff) << 16) + (res[0] & 0xffff);
 }
 
-static void uasx_usax_a1(uint64_t _regs, uint32_t insn)
+static void uadd16_usub16_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
-    int is_diff_first = INSN(5, 5);
+    uadd16_usub16(_regs, INSN(5, 5), INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void uadd16_usub16_t32(uint64_t _regs, uint32_t insn)
+{
+    uadd16_usub16(_regs, INSN1(6, 6), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void uasx_usax(uint64_t _regs, int is_diff_first, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t op1, op2;
 
@@ -788,6 +790,16 @@ static void uasx_usax_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = (((uint16_t)op2) << 16) | ((uint16_t)op1);
 }
 
+static void uasx_usax_a1(uint64_t _regs, uint32_t insn)
+{
+    uasx_usax(_regs, INSN(5, 5), INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void uasx_usax_t32(uint64_t _regs, uint32_t insn)
+{
+    uasx_usax(_regs, 1 - INSN1(6, 6), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
 static void uadd8_usub8(uint64_t _regs, int rd, int rn, int rm, int is_sub)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -808,22 +820,18 @@ static void uadd8_usub8(uint64_t _regs, int rd, int rn, int rm, int is_sub)
     regs->r[rd] = ((res[3] & 0xff) << 24) + ((res[2] & 0xff) << 16) + ((res[1] & 0xff) << 8) + (res[0] & 0xff);
 }
 
-static void uadd8_t1(uint64_t _regs, uint32_t insn)
-{
-    uadd8_usub8(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0), 0);
-}
-
 static void uadd8_usub8_a1(uint64_t _regs, uint32_t insn)
 {
     uadd8_usub8(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0), INSN(5, 5));
 }
 
-static void uqadd16_uqsub16_a1(uint64_t _regs, uint32_t insn)
+static void uadd8_usub8_t32(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
-    int is_sub = INSN(5, 5);
+    uadd8_usub8(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0), INSN1(6, 6));
+}
+
+static void uqadd16_uqsub16(uint64_t _regs, int is_sub, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     uint32_t res[2];
     int i;
@@ -838,12 +846,18 @@ static void uqadd16_uqsub16_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] =  (unsignedSat16(res[1]) << 16) | unsignedSat16(res[0]);
 }
 
-static void uqasx_uqsax_a1(uint64_t _regs, uint32_t insn)
+static void uqadd16_uqsub16_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
-    int is_diff_first = INSN(5, 5);
+    uqadd16_uqsub16(_regs, INSN(5, 5), INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void uqadd16_uqsub16_t32(uint64_t _regs, uint32_t insn)
+{
+    uqadd16_uqsub16(_regs, INSN1(6, 6), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void uqasx_uqsax(uint64_t _regs, int is_diff_first, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     uint32_t res[2];
 
@@ -858,11 +872,18 @@ static void uqasx_uqsax_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] =  (unsignedSat16(res[1]) << 16) | unsignedSat16(res[0]);
 }
 
-static void uqadd8_a1(uint64_t _regs, uint32_t insn)
+static void uqasx_uqsax_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
+    uqasx_uqsax(_regs, INSN(5, 5), INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void uqasx_uqsax_t32(uint64_t _regs, uint32_t insn)
+{
+    uqasx_uqsax(_regs, 1 - INSN1(6, 6), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void uqadd8(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     uint32_t res[4];
     int i;
@@ -872,6 +893,16 @@ static void uqadd8_a1(uint64_t _regs, uint32_t insn)
     }
 
     regs->r[rd] =  (unsignedSat8(res[3]) << 24) | (unsignedSat8(res[2]) << 16) | (unsignedSat8(res[1]) << 8) | unsignedSat8(res[0]);
+}
+
+static void uqadd8_a1(uint64_t _regs, uint32_t insn)
+{
+    uqadd8(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void uqadd8_t32(uint64_t _regs, uint32_t insn)
+{
+    uqadd8(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
 }
 
 static void uqsub8(uint64_t _regs, int rd, int rn, int rm)
@@ -891,12 +922,13 @@ static void uqsub8_a1(uint64_t _regs, uint32_t insn)
     uqsub8(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
 }
 
-static void uhadd16_uhsub16_a1(uint64_t _regs, uint32_t insn)
+static void uqsub8_t32(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
-    int is_sub = INSN(5, 5);
+    uqsub8(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void uhadd16_uhsub16(uint64_t _regs, int is_sub, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     uint32_t sum[2];
     int i;
@@ -912,12 +944,18 @@ static void uhadd16_uhsub16_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = ((uint16_t)(sum[1]) << 16) | (uint16_t)(sum[0]);
 }
 
-static void uhasx_uhsax_a1(uint64_t _regs, uint32_t insn)
+static void uhadd16_uhsub16_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
-    int is_diff_first = INSN(5, 5);
+    uhadd16_uhsub16(_regs, INSN(5, 5), INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void uhadd16_uhsub16_t32(uint64_t _regs, uint32_t insn)
+{
+    uhadd16_uhsub16(_regs, INSN1(6, 6), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void uhasx_uhsax(uint64_t _regs, int is_diff_first, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     uint32_t res[2];
 
@@ -934,12 +972,18 @@ static void uhasx_uhsax_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = ((uint16_t)(res[1]) << 16) | (uint16_t)(res[0]);
 }
 
-static void uhsub8_uhadd8_a1(uint64_t _regs, uint32_t insn)
+static void uhasx_uhsax_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
-    int is_sub = INSN(5, 5);
+    uhasx_uhsax(_regs, INSN(5, 5), INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void uhasx_uhsax_t32(uint64_t _regs, uint32_t insn)
+{
+    uhasx_uhsax(_regs, 1 - INSN1(6, 6), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void uhsub8_uhadd8(uint64_t _regs, int is_sub, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     uint32_t sum[4];
     int i;
@@ -955,12 +999,18 @@ static void uhsub8_uhadd8_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = ((uint8_t)(sum[3]) << 24) | ((uint8_t)(sum[2]) << 16) | ((uint8_t)(sum[1]) << 8) | (uint8_t)(sum[0]);
 }
 
-static void sadd16_ssub16_a1(uint64_t _regs, uint32_t insn)
+static void uhsub8_uhadd8_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
-    int is_sub = INSN(5, 5);
+    uhsub8_uhadd8(_regs, INSN(5, 5), INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void uhsub8_uhadd8_t32(uint64_t _regs, uint32_t insn)
+{
+    uhsub8_uhadd8(_regs, INSN1(6, 6), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void sadd16_ssub16(uint64_t _regs, int is_sub, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t res[2];
     int i;
@@ -979,12 +1029,18 @@ static void sadd16_ssub16_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = (((uint16_t)res[1]) << 16) | ((uint16_t)res[0]);
 }
 
-static void sasx_ssax_a1(uint64_t _regs, uint32_t insn)
+static void sadd16_ssub16_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
-    int is_diff_first = INSN(5, 5);
+    sadd16_ssub16(_regs, INSN(5, 5), INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void sadd16_ssub16_t32(uint64_t _regs, uint32_t insn)
+{
+    sadd16_ssub16(_regs, INSN1(6, 6), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void sasx_ssax(uint64_t _regs, int is_diff_first, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t op1, op2;
 
@@ -1005,12 +1061,18 @@ static void sasx_ssax_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = (((uint16_t)op2) << 16) | ((uint16_t)op1);
 }
 
-static void sadd8_ssub8_a1(uint64_t _regs, uint32_t insn)
+static void sasx_ssax_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
-    int is_sub = INSN(5, 5);
+    sasx_ssax(_regs, INSN(5, 5), INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void sasx_ssax_t32(uint64_t _regs, uint32_t insn)
+{
+    sasx_ssax(_regs, 1 - INSN1(6, 6), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void sadd8_ssub8(uint64_t _regs, int is_sub, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t res[4];
     int i;
@@ -1029,11 +1091,18 @@ static void sadd8_ssub8_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = (((uint8_t)res[3]) << 24) |(((uint8_t)res[2]) << 16) | (((uint8_t)res[1]) << 8) | ((uint8_t)res[0]);
 }
 
-static void qadd16_a1(uint64_t _regs, uint32_t insn)
+static void sadd8_ssub8_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
+    sadd8_ssub8(_regs, INSN(5, 5), INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void sadd8_ssub8_t32(uint64_t _regs, uint32_t insn)
+{
+    sadd8_ssub8(_regs, INSN1(6, 6), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void qadd16(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t sum[2];
     int i;
@@ -1044,11 +1113,18 @@ static void qadd16_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = (signedSat16(sum[1]) << 16) | signedSat16(sum[0]);
 }
 
-static void qasx_a1(uint64_t _regs, uint32_t insn)
+static void qadd16_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
+    qadd16(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void qadd16_t32(uint64_t _regs, uint32_t insn)
+{
+    qadd16(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void qasx(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t res[2];
 
@@ -1059,11 +1135,18 @@ static void qasx_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = (signedSat16(res[1]) << 16) | signedSat16(res[0]);
 }
 
-static void qsax_a1(uint64_t _regs, uint32_t insn)
+static void qasx_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
+    qasx(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void qasx_t32(uint64_t _regs, uint32_t insn)
+{
+    qasx(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void qsax(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t res[2];
 
@@ -1074,11 +1157,18 @@ static void qsax_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = (signedSat16(res[1]) << 16) | signedSat16(res[0]);
 }
 
-static void qsub16_a1(uint64_t _regs, uint32_t insn)
+static void qsax_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
+    qsax(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void qsax_t32(uint64_t _regs, uint32_t insn)
+{
+    qsax(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void qsub16(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t sum[2];
     int i;
@@ -1089,11 +1179,18 @@ static void qsub16_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = (signedSat16(sum[1]) << 16) | signedSat16(sum[0]);
 }
 
-static void qadd8_a1(uint64_t _regs, uint32_t insn)
+static void qsub16_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
+    qsub16(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void qsub16_t32(uint64_t _regs, uint32_t insn)
+{
+    qsub16(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void qadd8(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t sum[4];
     int i;
@@ -1104,11 +1201,18 @@ static void qadd8_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = (signedSat8(sum[3]) << 24) | (signedSat8(sum[2]) << 16) | (signedSat8(sum[1]) << 8) | signedSat8(sum[0]);
 }
 
-static void qsub8_a1(uint64_t _regs, uint32_t insn)
+static void qadd8_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
+    qadd8(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void qadd8_t32(uint64_t _regs, uint32_t insn)
+{
+    qadd8(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void qsub8(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t sum[4];
     int i;
@@ -1119,11 +1223,18 @@ static void qsub8_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = (signedSat8(sum[3]) << 24) | (signedSat8(sum[2]) << 16) | (signedSat8(sum[1]) << 8) | signedSat8(sum[0]);
 }
 
-static void shadd16_a1(uint64_t _regs, uint32_t insn)
+static void qsub8_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
+    qsub8(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void qsub8_t32(uint64_t _regs, uint32_t insn)
+{
+    qsub8(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void shadd16(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t sum[2];
     int i;
@@ -1136,11 +1247,18 @@ static void shadd16_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = ((uint16_t)(sum[1]) << 16) | (uint16_t)(sum[0]);
 }
 
-static void shasx_a1(uint64_t _regs, uint32_t insn)
+static void shadd16_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
+    shadd16(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void shadd16_t32(uint64_t _regs, uint32_t insn)
+{
+    shadd16(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void shasx(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t diff, sum;
 
@@ -1152,11 +1270,18 @@ static void shasx_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = ((uint16_t)(sum) << 16) | (uint16_t)(diff);
 }
 
-static void shsax_a1(uint64_t _regs, uint32_t insn)
+static void shasx_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
+    shasx(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void shasx_t32(uint64_t _regs, uint32_t insn)
+{
+    shasx(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void shsax(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t diff, sum;
 
@@ -1168,11 +1293,18 @@ static void shsax_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = ((uint16_t)(diff) << 16) | (uint16_t)(sum);
 }
 
-static void shsub16_a1(uint64_t _regs, uint32_t insn)
+static void shsax_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
+    shsax(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void shsax_t32(uint64_t _regs, uint32_t insn)
+{
+    shsax(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void shsub16(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t diff[2];
     int i;
@@ -1185,11 +1317,18 @@ static void shsub16_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = ((uint16_t)(diff[1]) << 16) | (uint16_t)(diff[0]);
 }
 
-static void shadd8_a1(uint64_t _regs, uint32_t insn)
+static void shsub16_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
+    shsub16(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void shsub16_t32(uint64_t _regs, uint32_t insn)
+{
+    shsub16(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void shadd8(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t sum[4];
     int i;
@@ -1202,11 +1341,18 @@ static void shadd8_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = ((uint8_t)(sum[3]) << 24) | ((uint8_t)(sum[2]) << 16) | ((uint8_t)(sum[1]) << 8) | (uint8_t)(sum[0]);
 }
 
-static void shsub8_a1(uint64_t _regs, uint32_t insn)
+static void shadd8_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(19, 16);
-    int rm = INSN(3, 0);
+    shadd8(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void shadd8_t32(uint64_t _regs, uint32_t insn)
+{
+    shadd8(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void shsub8(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int32_t diff[4];
     int i;
@@ -1219,6 +1365,16 @@ static void shsub8_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = ((uint8_t)(diff[3]) << 24) | ((uint8_t)(diff[2]) << 16) | ((uint8_t)(diff[1]) << 8) | (uint8_t)(diff[0]);
 }
 
+static void shsub8_a1(uint64_t _regs, uint32_t insn)
+{
+    shsub8(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void shsub8_t32(uint64_t _regs, uint32_t insn)
+{
+    shsub8(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
 void thumb_hlp_t2_unsigned_parallel(uint64_t regs, uint32_t insn)
 {
     int op1 = INSN1(6, 4);
@@ -1226,8 +1382,45 @@ void thumb_hlp_t2_unsigned_parallel(uint64_t regs, uint32_t insn)
 
     if (op2 == 0) {
         switch(op1) {
+            case 0: case 4:
+                uadd8_usub8_t32(regs, insn);
+                break;
+            case 1: case 5:
+                uadd16_usub16_t32(regs, insn);
+                break;
+            case 2: case 6:
+                uasx_usax_t32(regs, insn);
+                break;
+            default:
+                fatal("op1 = %d(0x%x)\n", op1, op1);
+        }
+    } else if (op2 == 1) {
+        switch(op1) {
             case 0:
-                uadd8_t1(regs, insn);
+                uqadd8_t32(regs, insn);
+                break;
+            case 1: case 5:
+                uqadd16_uqsub16_t32(regs, insn);
+                break;
+            case 2: case 6:
+                uqasx_uqsax_t32(regs, insn);
+                break;
+            case 4:
+                uqsub8_t32(regs, insn);
+                break;
+            default:
+                fatal("op1 = %d(0x%x)\n", op1, op1);
+        }
+    } else if (op2 == 2) {
+        switch(op1) {
+            case 0: case 4:
+                uhsub8_uhadd8_t32(regs, insn);
+                break;
+            case 1: case 5:
+                uhadd16_uhsub16_t32(regs, insn);
+                break;
+            case 2: case 6:
+                uhasx_uhsax_t32(regs, insn);
                 break;
             default:
                 fatal("op1 = %d(0x%x)\n", op1, op1);
@@ -1470,11 +1663,8 @@ void hlp_dirty_vpush(uint64_t _regs, uint32_t insn)
     regs->r[rn] = regs->r[rn] - imm32;
 }
 
-static void qadd_a1(uint64_t _regs, uint32_t insn)
+static void qadd(uint64_t _regs, int rd, int rn, int rm)
 {
-    int rd = INSN(15, 12);
-    int rm = INSN(3, 0);
-    int rn = INSN(19, 16);
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int64_t unsat = (int64_t)(int32_t) regs->r[rm] + (int64_t)(int32_t) regs->r[rn];
     uint32_t res;
@@ -1487,11 +1677,18 @@ static void qadd_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = res;
 }
 
-static void qsub_a1(uint64_t _regs, uint32_t insn)
+static void qadd_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rm = INSN(3, 0);
-    int rn = INSN(19, 16);
+    qadd(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void qadd_t32(uint64_t _regs, uint32_t insn)
+{
+    qadd(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void qsub(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int64_t unsat = (int64_t)(int32_t) regs->r[rm] - (int64_t)(int32_t) regs->r[rn];
     uint32_t res;
@@ -1504,11 +1701,18 @@ static void qsub_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = res;
 }
 
-static void qdadd_a1(uint64_t _regs, uint32_t insn)
+static void qsub_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rm = INSN(3, 0);
-    int rn = INSN(19, 16);
+    qsub(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void qsub_t32(uint64_t _regs, uint32_t insn)
+{
+    qsub(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void qdadd(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     uint32_t doubled;
     uint32_t res;
@@ -1522,11 +1726,18 @@ static void qdadd_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = res;
 }
 
-static void qdsub_a1(uint64_t _regs, uint32_t insn)
+static void qdadd_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rm = INSN(3, 0);
-    int rn = INSN(19, 16);
+    qdadd(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void qdadd_t32(uint64_t _regs, uint32_t insn)
+{
+    qdadd(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void qdsub(uint64_t _regs, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     uint32_t doubled;
     uint32_t res;
@@ -1540,14 +1751,18 @@ static void qdsub_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = res;
 }
 
-static void smlaxy_a1(uint64_t _regs, uint32_t insn)
+static void qdsub_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(19, 16);
-    int rn = INSN(3, 0);
-    int rm = INSN(11, 8);
-    int ra = INSN(15, 12);
-    int n = INSN(5, 5);
-    int m = INSN(6, 6);
+    qdsub(_regs, INSN(15, 12), INSN(19, 16), INSN(3, 0));
+}
+
+static void qdsub_t32(uint64_t _regs, uint32_t insn)
+{
+    qdsub(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void smlaxy(uint64_t _regs, int n, int m, int rd, int rn, int rm, int ra)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int64_t operand1, operand2;
     int64_t res;
@@ -1562,12 +1777,18 @@ static void smlaxy_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = res;
 }
 
-static void smulwy_a1(uint64_t _regs, uint32_t insn)
+static void smlaxy_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(19, 16);
-    int rn = INSN(3, 0);
-    int rm = INSN(11, 8);
-    int m = INSN(6, 6);
+    smlaxy(_regs, INSN(5, 5), INSN(6, 6), INSN(19, 16), INSN(3, 0), INSN(11, 8), INSN(15, 12));
+}
+
+static void smlaxy_t32(uint64_t _regs, uint32_t insn)
+{
+    smlaxy(_regs, INSN2(5, 5), INSN2(4, 4), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0), INSN2(15, 12));
+}
+
+static void smulwy(uint64_t _regs, int m, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int64_t operand2;
     int64_t res;
@@ -1579,13 +1800,18 @@ static void smulwy_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = res >> 16;
 }
 
-static void smlawy_a1(uint64_t _regs, uint32_t insn)
+static void smulwy_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(19, 16);
-    int rn = INSN(3, 0);
-    int rm = INSN(11, 8);
-    int ra = INSN(15, 12);
-    int m = INSN(6, 6);
+    smulwy(_regs, INSN(6, 6), INSN(19, 16), INSN(3, 0), INSN(11, 8));
+}
+
+static void smulwy_t32(uint64_t _regs, uint32_t insn)
+{
+    smulwy(_regs, INSN2(4, 4), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void smlawy(uint64_t _regs, int m, int rd, int rn, int rm, int ra)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int64_t operand2;
     int64_t res;
@@ -1599,14 +1825,18 @@ static void smlawy_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = res >> 16;
 }
 
-static void smlalxy_a1(uint64_t _regs, uint32_t insn)
+static void smlawy_a1(uint64_t _regs, uint32_t insn)
 {
-    int rdlo = INSN(15, 12);
-    int rdhi = INSN(19, 16);
-    int rn = INSN(3, 0);
-    int rm = INSN(11, 8);
-    int n = INSN(5, 5);
-    int m = INSN(6, 6);
+    smlawy(_regs, INSN(6, 6), INSN(19, 16), INSN(3, 0), INSN(11, 8), INSN(15, 12));
+}
+
+static void smlawy_t32(uint64_t _regs, uint32_t insn)
+{
+    smlawy(_regs, INSN2(4, 4), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0), INSN2(15, 12));
+}
+
+static void smlalxy(uint64_t _regs, int n, int m, int rdlo, int rdhi, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int64_t operand1, operand2;
     int64_t acc = ((uint64_t) regs->r[rdhi] << 32) + regs->r[rdlo];
@@ -1621,13 +1851,18 @@ static void smlalxy_a1(uint64_t _regs, uint32_t insn)
     regs->r[rdlo] = res;
 }
 
-static void smulxy_a1(uint64_t _regs, uint32_t insn)
+static void smlalxy_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(19, 16);
-    int rn = INSN(3, 0);
-    int rm = INSN(11, 8);
-    int n = INSN(5, 5);
-    int m = INSN(6, 6);
+    smlalxy(_regs, INSN(5, 5), INSN(6, 6), INSN(15, 12), INSN(19, 16), INSN(3, 0), INSN(11, 8));
+}
+
+static void smlalxy_t32(uint64_t _regs, uint32_t insn)
+{
+    smlalxy(_regs, INSN2(5, 5), INSN2(4, 4), INSN2(15, 12), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void smulxy(uint64_t _regs, int n, int m, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int64_t operand1, operand2;
     int64_t res;
@@ -1640,13 +1875,18 @@ static void smulxy_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = res;
 }
 
-static void smuad_smusd_a1(uint64_t _regs, uint32_t insn)
+static void smulxy_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(19, 16);
-    int rn = INSN(3, 0);
-    int rm = INSN(11, 8);
-    int m = INSN(5, 5);
-    int is_sub = INSN(6, 6);
+    smulxy(_regs, INSN(5, 5), INSN(6, 6), INSN(19, 16), INSN(3, 0), INSN(11, 8));
+}
+
+static void smulxy_t32(uint64_t _regs, uint32_t insn)
+{
+    smulxy(_regs, INSN2(5, 5), INSN2(4, 4), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void smuad_smusd(uint64_t _regs, int is_sub, int m, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     uint32_t operand2 = regs->r[rm];
     int64_t product1, product2;
@@ -1666,14 +1906,18 @@ static void smuad_smusd_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = res;
 }
 
-static void smlad_smlsd_a1(uint64_t _regs, uint32_t insn)
+static void smuad_smusd_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(19, 16);
-    int rn = INSN(3, 0);
-    int rm = INSN(11, 8);
-    int ra = INSN(15, 12);
-    int m = INSN(5, 5);
-    int is_sub = INSN(6,6);
+    smuad_smusd(_regs, INSN(6, 6), INSN(5, 5), INSN(19, 16), INSN(3, 0), INSN(11, 8));
+}
+
+static void smuad_smusd_t32(uint64_t _regs, uint32_t insn)
+{
+    smuad_smusd(_regs, INSN1(6, 6), INSN2(4, 4), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void smlad_smlsd(uint64_t _regs, int is_sub, int m, int rd, int rn, int rm, int ra)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     uint32_t operand2 = regs->r[rm];
     int64_t product1, product2;
@@ -1694,14 +1938,18 @@ static void smlad_smlsd_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = res;
 }
 
-static void smlald_smlsld_a1(uint64_t _regs, uint32_t insn)
+static void smlad_smlsd_a1(uint64_t _regs, uint32_t insn)
 {
-    int rdlo = INSN(15, 12);
-    int rdhi = INSN(19, 16);
-    int rn = INSN(3, 0);
-    int rm = INSN(11, 8);
-    int m = INSN(5, 5);
-    int is_sub = INSN(6, 6);
+    smlad_smlsd(_regs, INSN(6,6), INSN(5, 5), INSN(19, 16), INSN(3, 0), INSN(11, 8), INSN(15, 12));
+}
+
+static void smlad_smlsd_t32(uint64_t _regs, uint32_t insn)
+{
+    smlad_smlsd(_regs, INSN1(6,6), INSN2(4, 4), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0), INSN2(15, 12));
+}
+
+static void smlald_smlsld(uint64_t _regs, int is_sub, int m, int rdlo, int rdhi, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     uint32_t operand2 = regs->r[rm];
     int64_t product1, product2;
@@ -1724,12 +1972,18 @@ static void smlald_smlsld_a1(uint64_t _regs, uint32_t insn)
     regs->r[rdlo] = res;
 }
 
-static void smmul_a1(uint64_t _regs, uint32_t insn)
+static void smlald_smlsld_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(19, 16);
-    int rn = INSN(3, 0);
-    int rm = INSN(11, 8);
-    int r = INSN(5, 5);
+    smlald_smlsld(_regs, INSN(6, 6), INSN(5, 5), INSN(15, 12), INSN(19, 16), INSN(3, 0), INSN(11, 8));
+}
+
+static void smlald_smlsld_t32(uint64_t _regs, uint32_t insn)
+{
+    smlald_smlsld(_regs, INSN1(4, 4), INSN2(4, 4), INSN2(15, 12), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void smmul(uint64_t _regs, int r, int rd, int rn, int rm)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int64_t product1 = (int32_t)regs->r[rn];
     int64_t product2 = (int32_t)regs->r[rm];
@@ -1742,14 +1996,18 @@ static void smmul_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = res >> 32;
 }
 
-static void smmla_smmls_a1(uint64_t _regs, uint32_t insn)
+static void smmul_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(19, 16);
-    int rn = INSN(3, 0);
-    int rm = INSN(11, 8);
-    int ra = INSN(15, 12);
-    int r = INSN(5, 5);
-    int is_sub = INSN(6, 6);
+    smmul(_regs, INSN(5, 5), INSN(19, 16), INSN(3, 0), INSN(11, 8));
+}
+
+static void smmul_t32(uint64_t _regs, uint32_t insn)
+{
+    smmul(_regs, INSN2(4, 4), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0));
+}
+
+static void smmla_smmls(uint64_t _regs, int is_sub, int r, int rd, int rn , int rm, int ra)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int64_t acc = (int64_t)regs->r[ra] << 32;
     int64_t product1 = (int32_t)regs->r[rn];
@@ -1766,13 +2024,18 @@ static void smmla_smmls_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = res >> 32;
 }
 
-static void dis_ssat_a1(uint64_t _regs, uint32_t insn)
+static void smmla_smmls_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(3, 0);
-    int shift_mode = INSN(6, 5);
-    int shift_value = INSN(11, 7);
-    int saturate_to = INSN(20, 16) + 1;
+    smmla_smmls(_regs, INSN(6, 6), INSN(5, 5), INSN(19, 16), INSN(3, 0), INSN(11, 8), INSN(15, 12));
+}
+
+static void smmla_smmls_t32(uint64_t _regs, uint32_t insn)
+{
+    smmla_smmls(_regs, INSN1(5, 5), INSN2(4, 4), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0), INSN2(15, 12));
+}
+
+static void dis_ssat(uint64_t _regs, int saturate_to, int shift_mode, int shift_value, int rd, int rn)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int64_t operand;
     int64_t result;
@@ -1796,13 +2059,18 @@ static void dis_ssat_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = result;
 }
 
-static void dis_usat_a1(uint64_t _regs, uint32_t insn)
+static void dis_ssat_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(3, 0);
-    int shift_mode = INSN(6, 5);
-    int shift_value = INSN(11, 7);
-    int saturate_to = INSN(20, 16);
+    dis_ssat(_regs, INSN(20, 16) + 1, INSN(6, 5), INSN(11, 7), INSN(15, 12), INSN(3, 0));
+}
+
+static void dis_ssat_t32(uint64_t _regs, uint32_t insn)
+{
+    dis_ssat(_regs, INSN2(4, 0) + 1, INSN1(5, 4), (INSN2(14, 12) << 2) | INSN2(7, 6), INSN2(11, 8), INSN1(3, 0));
+}
+
+static void dis_usat(uint64_t _regs, int saturate_to, int shift_mode, int shift_value, int rd, int rn)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int64_t operand;
     int64_t result;
@@ -1826,11 +2094,18 @@ static void dis_usat_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = result;
 }
 
-static void dis_ssat16_a1(uint64_t _regs, uint32_t insn)
+static void dis_usat_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(3, 0);
-    int saturate_to = INSN(19, 16) + 1;
+    dis_usat(_regs, INSN(20, 16), INSN(6, 5), INSN(11, 7), INSN(15, 12), INSN(3, 0));
+}
+
+static void dis_usat_t32(uint64_t _regs, uint32_t insn)
+{
+    dis_usat(_regs, INSN2(4, 0), INSN1(5, 4), (INSN2(14, 12) << 2) | INSN2(7, 6), INSN2(11, 8), INSN1(3, 0));
+}
+
+static void dis_ssat16(uint64_t _regs, int saturate_to, int rd, int rn)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int64_t result1, result2;
     int isSat1, isSat2;
@@ -1843,11 +2118,18 @@ static void dis_ssat16_a1(uint64_t _regs, uint32_t insn)
     regs->r[rd] = (result2 << 16) | (result1 & 0xffff);
 }
 
-static void dis_usat16_a1(uint64_t _regs, uint32_t insn)
+static void dis_ssat16_a1(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(15, 12);
-    int rn = INSN(3, 0);
-    int saturate_to = INSN(19, 16);
+    dis_ssat16(_regs, INSN(19, 16) + 1, INSN(15, 12), INSN(3, 0));
+}
+
+static void dis_ssat16_t32(uint64_t _regs, uint32_t insn)
+{
+    dis_ssat16(_regs, INSN2(3, 0) + 1, INSN2(11, 8), INSN1(3, 0));
+}
+
+static void dis_usat16(uint64_t _regs, int saturate_to, int rd, int rn)
+{
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int64_t result1, result2;
     int isSat1, isSat2;
@@ -1858,6 +2140,36 @@ static void dis_usat16_a1(uint64_t _regs, uint32_t insn)
         regs->cpsr |= 1 << 27;
 
     regs->r[rd] = (result2 << 16) | (result1 & 0xffff);
+}
+
+static void dis_usat16_a1(uint64_t _regs, uint32_t insn)
+{
+    dis_usat16(_regs, INSN(19, 16), INSN(15, 12), INSN(3, 0));
+}
+
+static void dis_usat16_t32(uint64_t _regs, uint32_t insn)
+{
+    dis_usat16(_regs, INSN2(3, 0), INSN2(11, 8), INSN1(3, 0));
+}
+
+static void usad8_usada8(uint64_t _regs, int rd, int rn, int rm, int ra)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    uint32_t result = 0;
+    int i;
+
+    for(i = 0; i < 4; i++) {
+        result += abs(((regs->r[rn] >> (i * 8)) & 0xff) - ((regs->r[rm] >> (i * 8)) & 0xff));
+    }
+    if (ra != 15)
+        result += regs->r[ra];
+
+    regs->r[rd] = result;
+}
+
+static void usad8_usada8_t32(uint64_t _regs, uint32_t insn)
+{
+    usad8_usada8(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0), INSN2(15, 12));
 }
 
 void arm_hlp_dirty_saturating(uint64_t regs, uint32_t insn)
@@ -1973,6 +2285,34 @@ void arm_hlp_saturation(uint64_t regs, uint32_t insn)
     }
 }
 
+void t32_hlp_saturation(uint64_t regs, uint32_t insn)
+{
+    int op = INSN1(8, 4);
+
+    switch(op) {
+        case 16:
+            dis_ssat_t32(regs, insn);
+            break;
+        case 18:
+            if (INSN2(14, 12) || INSN2(7, 6))
+                dis_ssat_t32(regs, insn);
+            else
+                dis_ssat16_t32(regs, insn);
+            break;
+        case 24:
+            dis_usat_t32(regs, insn);
+            break;
+        case 26:
+            if (INSN2(14, 12) || INSN2(7, 6))
+                dis_usat_t32(regs, insn);
+            else
+                dis_usat16_t32(regs, insn);
+            break;
+        default:
+            fatal("op = %d(0x%x)\n", op, op);
+    }
+}
+
 void arm_hlp_umaal(uint64_t _regs, uint32_t rdhi_nb, uint32_t rdlo_nb, uint32_t rn_nb, uint32_t rm_nb)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -1988,19 +2328,183 @@ void arm_hlp_umaal(uint64_t _regs, uint32_t rdhi_nb, uint32_t rdlo_nb, uint32_t 
 
 void arm_hlp_sum_absolute_difference(uint64_t _regs, uint32_t insn)
 {
-    int rd = INSN(19, 16);
-    int rn = INSN(3, 0);
-    int rm = INSN(11, 8);
-    int ra = INSN(15, 12);
-    struct arm_registers *regs = (struct arm_registers *) _regs;
-    uint32_t result = 0;
-    int i;
+    usad8_usada8(_regs, INSN(19, 16), INSN(3, 0), INSN(11, 8), INSN(15, 12));
+}
 
-    for(i = 0; i < 4; i++) {
-        result += abs(((regs->r[rn] >> (i * 8)) & 0xff) - ((regs->r[rm] >> (i * 8)) & 0xff));
+void thumb_hlp_t2_misc_saturating(uint64_t regs, uint32_t insn)
+{
+    int op2 = INSN2(5, 4);
+
+    switch(op2) {
+        case 0:
+            qadd_t32(regs, insn);
+            break;
+        case 1:
+            qdadd_t32(regs, insn);
+            break;
+        case 2:
+            qsub_t32(regs, insn);
+            break;
+        case 3:
+            qdsub_t32(regs, insn);
+            break;
+        default:
+            fatal("op2 = %d(0x%x)\n", op2, op2);
     }
-    if (ra != 15)
-        result += regs->r[ra];
+}
 
-    regs->r[rd] = result;
+void thumb_hlp_t2_signed_parallel(uint64_t regs, uint32_t insn)
+{
+    int op1 = INSN1(6, 4);
+    int op2 = INSN2(5, 4);
+
+    switch(op2) {
+        case 0:
+            switch(op1) {
+                case 0: case 4:
+                    sadd8_ssub8_t32(regs, insn);
+                    break;
+                case 1: case 5:
+                    sadd16_ssub16_t32(regs, insn);
+                    break;
+                case 2:
+                    sasx_ssax_t32(regs, insn);
+                    break;
+                case 6:
+                    sasx_ssax_t32(regs, insn);
+                    break;
+                default:
+                    fatal("op1 = %d(0x%x)\n", op1, op1);
+            }
+            break;
+        case 1:
+            switch(op1) {
+                case 0:
+                    qadd8_t32(regs, insn);
+                    break;
+                case 1:
+                    qadd16_t32(regs, insn);
+                    break;
+                case 2:
+                    qasx_t32(regs, insn);
+                    break;
+                case 4:
+                    qsub8_t32(regs, insn);
+                    break;
+                case 5:
+                    qsub16_t32(regs, insn);
+                    break;
+                case 6:
+                    qsax_t32(regs, insn);
+                    break;
+                default:
+                    fatal("op1 = %d(0x%x)\n", op1, op1);
+            }
+            break;
+        case 2:
+            switch(op1) {
+                case 0:
+                    shadd8_t32(regs, insn);
+                    break;
+                case 1:
+                    shadd16_t32(regs, insn);
+                    break;
+                case 2:
+                    shasx_t32(regs, insn);
+                    break;
+                case 4:
+                    shsub8_t32(regs, insn);
+                    break;
+                case 5:
+                    shsub16_t32(regs, insn);
+                    break;
+                case 6:
+                    shsax_t32(regs, insn);
+                    break;
+                default:
+                    fatal("op1 = %d(0x%x)\n", op1, op1);
+            }
+            break;
+        default:
+            fatal("op2 = %d(0x%x)\n", op2, op2);
+    }
+}
+
+void thumb_hlp_t2_mult_A_mult_acc_A_abs_diff(uint64_t regs, uint32_t insn)
+{
+    int op1 = INSN1(6, 4);
+    //int op2 = INSN2(5, 4);
+    int ra = INSN2(15, 12);
+
+    switch(op1) {
+        case 1:
+            if (ra == 15)
+                smulxy_t32(regs, insn);
+            else
+                smlaxy_t32(regs, insn);
+            break;
+        case 2:
+            if (ra == 15)
+                smuad_smusd_t32(regs, insn);
+            else
+                smlad_smlsd_t32(regs, insn);
+            break;
+        case 3:
+            if (ra == 15)
+                smulwy_t32(regs, insn);
+            else
+                smlawy_t32(regs, insn);
+            break;
+        case 4:
+            if (ra == 15)
+                smuad_smusd_t32(regs, insn);
+            else
+                smlad_smlsd_t32(regs, insn);
+            break;
+        case 5:
+            if (ra == 15)
+                smmul_t32(regs, insn);
+            else
+                smmla_smmls_t32(regs, insn);
+            break;
+        case 6:
+            if (ra == 15)
+                assert(0);
+            else
+                smmla_smmls_t32(regs, insn);
+            break;
+        case 7:
+            usad8_usada8_t32(regs, insn);
+            break;
+        default:
+           fatal("op1 = %d(0x%x)\n", op1, op1);
+    }
+}
+
+void thumb_hlp_t2_long_mult_A_long_mult_acc_A_div(uint64_t regs, uint32_t insn)
+{
+    int op1 = INSN1(6, 4);
+    int op2 = INSN2(7, 4);
+
+    switch(op1) {
+        case 4:
+            if ((op2 & 0xc) == 0x8)
+                smlalxy_t32(regs, insn);
+            else if ((op2 & 0xe) == 0xc)
+                smlald_smlsld_t32(regs, insn);
+            else
+                assert(0);
+            break;
+        case 5:
+            smlald_smlsld_t32(regs, insn);
+            break;
+        case 6:
+            if (op2)
+                arm_hlp_umaal(regs, INSN2(11, 8), INSN2(15, 12), INSN1(3, 0), INSN2(3, 0));
+            else
+                assert(0);
+            break;
+        default:
+           fatal("op1 = %d(0x%x)\n", op1, op1);
+    }
 }
