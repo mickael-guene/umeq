@@ -1586,7 +1586,6 @@ static int dis_t2_data_processing_register_shift(struct arm_target *context, uin
     int rn = INSN1(3, 0);
     int rd = INSN2(11, 8);
     int rm = INSN2(3, 0);
-    int opcode = INSN1(7, 3);
     struct irRegister *result;
     struct irRegister *rn_reg;
     struct irRegister *rm_reg;
@@ -1622,9 +1621,10 @@ static int dis_t2_data_processing_register_shift(struct arm_target *context, uin
             assert(0);
     }
     /* update sco registers */
+    /* we set bit4 since we want register behaviour */
     if (s) {
         write_sco(context, ir, mk_sco(context, ir,
-                                               mk_32(ir, (shift_mode << 5)),
+                                               mk_32(ir, (shift_mode << 5) | 0x10),
                                                rn_reg,
                                                ir->add_32_to_8(ir, rm_reg)));
     }
@@ -1633,7 +1633,7 @@ static int dis_t2_data_processing_register_shift(struct arm_target *context, uin
         struct irRegister *params[4];
 
         params[0] = ir->add_or_32(ir,
-                                  ir->add_mov_const_32(ir, opcode),
+                                  ir->add_mov_const_32(ir, 0/* use lsl opcode which is a no-op */),
                                   read_sco(context, ir));
         params[1] = result;
         params[2] = result;
