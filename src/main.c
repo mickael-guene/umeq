@@ -81,12 +81,12 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     struct tls_context *current_tls_context;
 
     /* setup tls area if not yet set */
-    syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
-    if (!tlsareaAddress) {
+    if (signum == 0) {
         syscall(SYS_arch_prctl, ARCH_SET_FS, alloca(sizeof(struct tls_context)));
         syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
         assert(tlsareaAddress != 0);
-    }
+    } else
+        syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
     current_tls_context =  (struct tls_context *) tlsareaAddress;
 
     /* allocate jitter and target context */
@@ -141,12 +141,12 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     char *cacheMemory = alloca(cache_memory_config[memory_profile].cache_size);
 
     /* setup tls area if not yet set */
-    syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
-    if (!tlsareaAddress) {
+    if (signum == 0) {
         syscall(SYS_arch_prctl, ARCH_SET_FS, alloca(sizeof(struct tls_context)));
         syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
         assert(tlsareaAddress != 0);
-    }
+    } else
+        syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
     current_tls_context =  (struct tls_context *) tlsareaAddress;
 
     /* allocate jitter and target context */
