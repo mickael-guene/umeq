@@ -52,7 +52,7 @@ How to build umeq
 =================
 ::
 
- > git clone FIXME
+ > git clone https://github.com/mickael-guene/umeq.git
  > cd umeq
  > mkdir build
  > cd build
