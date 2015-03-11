@@ -5421,6 +5421,7 @@ void arm64_hlp_dirty_advanced_simd_scalar_shift_by_immediate_simd(uint64_t _regs
             break;
         case 18:
             dis_sqrshrn_sqshrn_uqrshrn_uqshrn(_regs, insn);
+            break;
         case 19:
             dis_sqrshrn_sqshrn_uqrshrn_uqshrn(_regs, insn);
             break;
