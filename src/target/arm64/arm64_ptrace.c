@@ -192,10 +192,11 @@ static long write_gpr(int pid, struct user_pt_regs_arm64 *regs)
         goto write_gpr_error;
 
     for(i=0;i<31;i++) {
-        if (!(i == 7 && is_in_syscall))
+        if (!(i == 7 && is_in_syscall)) {
             res = syscall(SYS_ptrace, PTRACE_POKEDATA, pid, regs_base + offsetof(struct arm64_registers, r[i]), regs->regs[i]);
             if (res)
                 goto write_gpr_error;
+        }
     }
     res = syscall(SYS_ptrace, PTRACE_POKEDATA, pid, regs_base + offsetof(struct arm64_registers, r[31]), regs->sp);
     if (res)
