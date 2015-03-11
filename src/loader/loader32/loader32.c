@@ -33,6 +33,8 @@
 #define PAGE_MASK                       (PAGE_SIZE - 1)
 #define DL_LOAD_ADDR                    0x40000000
 
+#define DL_NAME_MAX_SIZE                256
+
 unsigned int startbrk;
 static guest_ptr load_AT_PHDR_init = 0;
 
@@ -64,6 +66,7 @@ guest_ptr load32(const char *file, struct load_auxv_info_32 *auxv_info)
     int i = 0;
     int is_dl = 0;
 
+    elf_header.e_phnum = 0;
     fd = open(file, O_RDONLY);
     if (fd < 0)
         goto end;
@@ -86,7 +89,7 @@ guest_ptr load32(const char *file, struct load_auxv_info_32 *auxv_info)
                     goto end;
                 }
             } else if (segment.p_type == PT_INTERP) {
-                char dl_name[256];
+                char dl_name[DL_NAME_MAX_SIZE];
                 struct load_auxv_info_32 dl_auxv_info;
 
                 dl_copy_dl_name(fd, &segment, dl_name);
@@ -109,7 +112,7 @@ end:
         }
     }
 
-    if (fd > 0)
+    if (fd >= 0)
         close(fd);
 
     return dl_entry?dl_entry:entry;
@@ -117,9 +120,13 @@ end:
 
 static void dl_copy_dl_name(int fd, Elf32_Phdr *segment, char *name)
 {
+    unsigned int p_filesz = segment->p_filesz;
+
+    if (p_filesz > DL_NAME_MAX_SIZE)
+        p_filesz = DL_NAME_MAX_SIZE;
     if (lseek(fd, segment->p_offset, SEEK_SET) >= 0) {
-        ssize_t res = read(fd, name, segment->p_filesz);
-        assert(res == segment->p_filesz);
+        ssize_t res = read(fd, name, p_filesz);
+        assert(res == p_filesz);
         name[segment->p_filesz] = '\0';
     }
 }

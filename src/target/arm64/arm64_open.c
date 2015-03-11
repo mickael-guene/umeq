@@ -291,6 +291,7 @@ static long open_proc_self_maps()
             unlink(tmpName);
             write_offset_proc_self_maps(fd_proc_self_maps, fd_res);
         }
+        close(fd_proc_self_maps);
     } else
         fd_res = fd_proc_self_maps;
 

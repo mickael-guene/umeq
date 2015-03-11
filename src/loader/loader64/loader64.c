@@ -39,6 +39,8 @@
 #define DL_LOAD_ADDR                    0x40000000
 #define DL_SHARE_ADDR                   0x20000000
 
+#define DL_NAME_MAX_SIZE                256
+
 guest_ptr startbrk_64;
 static guest_ptr load_AT_PHDR_init = 0;
 
@@ -70,7 +72,7 @@ static guest_ptr getEntry(int fd, Elf64_Ehdr *hdr, int is_dl)
     return entry;
 }
 
-static int getSegment(int fd, Elf64_Ehdr *hdr, int idx, Elf64_Phdr *segment)
+static int getSegment(int fd, Elf64_Ehdr *hdr, unsigned int idx, Elf64_Phdr *segment)
 {
     int status = 0;
 
@@ -167,9 +169,13 @@ static void unmapSegment(int fd, Elf64_Phdr *segment)
 
 static void dl_copy_dl_name(int fd, Elf64_Phdr *segment, char *name)
 {
+    unsigned int p_filesz = segment->p_filesz;
+
+    if (p_filesz > DL_NAME_MAX_SIZE)
+        p_filesz = DL_NAME_MAX_SIZE;
     if (lseek(fd, segment->p_offset, SEEK_SET) >= 0) {
-        ssize_t res = read(fd, name, segment->p_filesz);
-        assert(res == segment->p_filesz);
+        ssize_t res = read(fd, name, p_filesz);
+        assert(res == p_filesz);
         name[segment->p_filesz] = '\0';
     }
 }
@@ -184,6 +190,7 @@ static guest_ptr load64_internal(const char *file, struct load_auxv_info_64 *aux
     int i = 0;
     int is_share_object;
 
+    elf_header.e_phnum = 0;
     fd = open(file, O_RDONLY);
     if (fd < 0)
         goto end;
@@ -206,7 +213,7 @@ static guest_ptr load64_internal(const char *file, struct load_auxv_info_64 *aux
                     goto end;
                 }
             } else if (segment.p_type == PT_INTERP) {
-                char dl_name[256];
+                char dl_name[DL_NAME_MAX_SIZE];
                 struct load_auxv_info_64 dl_auxv_info;
 
                 dl_copy_dl_name(fd, &segment, dl_name);
@@ -233,7 +240,7 @@ end:
         }
     }
 
-    if (fd > 0)
+    if (fd >= 0)
         close(fd);
 
     return entry?(dl_entry?dl_entry:entry):0;
