@@ -8,6 +8,8 @@ Build status
 ============
 .. image:: https://travis-ci.org/mickael-guene/umeq.svg?branch=master
     :target: https://travis-ci.org/mickael-guene/umeq
+.. image:: https://scan.coverity.com/projects/4488/badge.svg
+    :target: https://scan.coverity.com/projects/4488
 
 How to use it
 =============
