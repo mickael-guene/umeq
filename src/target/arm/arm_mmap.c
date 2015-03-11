@@ -105,12 +105,12 @@ int arm_mmap2(struct arm_target *context)
 
     if (context->is_in_signal) {
         res = internal_mmap_signal(context->regs.r[0], context->regs.r[1], context->regs.r[2],
-                                   context->regs.r[3], context->regs.r[4], context->regs.r[5] * 4096);
+                                   context->regs.r[3], context->regs.r[4], (uint64_t)context->regs.r[5] * 4096);
     } else {
         assert(context->is_in_signal == 0);
         pthread_mutex_lock(&ll_big_mutex);
         res = internal_mmap(context->regs.r[0], context->regs.r[1], context->regs.r[2],
-                             context->regs.r[3], context->regs.r[4], context->regs.r[5] * 4096);
+                             context->regs.r[3], context->regs.r[4], (uint64_t)context->regs.r[5] * 4096);
         if (!desc_next_memory)
             allocate_more_desc_memory();
         pthread_mutex_unlock(&ll_big_mutex);

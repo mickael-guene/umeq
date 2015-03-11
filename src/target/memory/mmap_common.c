@@ -528,7 +528,7 @@ static long internal_mmap(uint64_t addr_p, uint64_t length_p, uint64_t prot_p,
                     uint64_t end_addr = PAGE_ALIGN_UP(res_vma + length_p);
 
                     insert_unmap_area(res_vma, end_addr);
-                } else if (is_end_of_vm_reach && (prot & PROT_NONE))
+                } else if (is_end_of_vm_reach && (prot & PROT_EXEC))
                     cleanCaches(0, ~0);
             } else
                 res = res_vma;

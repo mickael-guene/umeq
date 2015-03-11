@@ -303,6 +303,8 @@ static struct irRegister *mk_extend_reg_64(struct irInstructionAllocator *ir, in
         case 7:
             unshifted = read_x(ir, rm, ZERO_REG);
             break;
+        default:
+            fatal("bug. Should not be reach\n");
     }
     /* do the shift */
     if (shift)
@@ -349,6 +351,8 @@ static struct irRegister *mk_extend_reg_32(struct irInstructionAllocator *ir, in
         case 7:
             unshifted = read_w(ir, rm, ZERO_REG);
             break;
+        default:
+            fatal("bug. Should not be reach\n");
     }
     /* do the shift */
     if (shift)

@@ -246,18 +246,26 @@ static int print(char **out, const char *format, va_list args)
 /* public api */
 int printf(const char *format, ...)
 {
-        va_list args;
+    int res;
+    va_list args;
 
-        va_start( args, format );
-        return print(0, format, args );
+    va_start( args, format );
+    res = print(0, format, args );
+    va_end( args );
+
+    return res;
 }
 
 int fprintf(FILE *__restrict __stream, __const char *format, ...)
 {
-        va_list args;
+    int res;
+    va_list args;
 
-        va_start( args, format );
-        return print(0, format, args );
+    va_start( args, format );
+    res = print(0, format, args );
+    va_end( args );
+
+    return res;
 }
 
 int vfprintf(FILE *stream, const char *format, va_list args)
@@ -267,8 +275,12 @@ int vfprintf(FILE *stream, const char *format, va_list args)
 
 int sprintf(char *out, const char *format, ...)
 {
+    int res;
     va_list args;
 
     va_start( args, format );
-    return print(&out, format, args );
+    res = print(&out, format, args );
+    va_end( args );
+
+    return res;
 }

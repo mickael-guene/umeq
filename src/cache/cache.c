@@ -184,23 +184,23 @@ struct cache *createCache(void *memory, int size, int nb_of_pc_bit_to_drop)
 {
     struct internal_cache *acache;
 
+    assert(memory);
     assert(size >= MIN_CACHE_SIZE);
     acache = (struct internal_cache *) memory;
-    if (acache) {
-        acache->next = NULL;
-        acache->cache.lookup = lookup;
-        acache->cache.append = append;
-        acache->config.nb_of_pc_bit_to_drop = nb_of_pc_bit_to_drop;
-        /* we measure around 300 bytes per entry => we reserve around 1/16 of cache for entries */
-        acache->config.cache_entry_nb = size / ( 16 * CACHE_WAY * sizeof(struct cache_entry));
-        acache->config.cache_entry_size = CACHE_WAY * acache->config.cache_entry_nb * sizeof(struct cache_entry);
-        acache->config.jitter_area_size = size - sizeof(struct internal_cache) - acache->config.cache_entry_size;
-        acache->info.write_pos = 0;
-        acache->info.eject_pos = 0;
-        acache->info.clean = 0;
-        acache->entry = (struct cache_entry *) (memory + sizeof(struct internal_cache));
-        acache->area = (char *) (memory + sizeof(struct internal_cache) + acache->config.cache_entry_size);
-    }
+    /* init acache */
+    acache->next = NULL;
+    acache->cache.lookup = lookup;
+    acache->cache.append = append;
+    acache->config.nb_of_pc_bit_to_drop = nb_of_pc_bit_to_drop;
+    /* we measure around 300 bytes per entry => we reserve around 1/16 of cache for entries */
+    acache->config.cache_entry_nb = size / ( 16 * CACHE_WAY * sizeof(struct cache_entry));
+    acache->config.cache_entry_size = CACHE_WAY * acache->config.cache_entry_nb * sizeof(struct cache_entry);
+    acache->config.jitter_area_size = size - sizeof(struct internal_cache) - acache->config.cache_entry_size;
+    acache->info.write_pos = 0;
+    acache->info.eject_pos = 0;
+    acache->info.clean = 0;
+    acache->entry = (struct cache_entry *) (memory + sizeof(struct internal_cache));
+    acache->area = (char *) (memory + sizeof(struct internal_cache) + acache->config.cache_entry_size);
 
     ll_append_cache(acache);
 

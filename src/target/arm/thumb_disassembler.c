@@ -240,9 +240,21 @@ static int mk_data_processing_modified(struct arm_target *context, struct irInst
     int rn = INSN1(3, 0);
     int s = INSN1(4, 4);
     int isExit = (rd == 15)?1:0;
-    struct irRegister *op1 = read_reg(context, ir, rn);
+    struct irRegister *op1;
     struct irRegister *result = NULL;
     struct irRegister *nextCpsr = NULL;
+
+    /* avoid dead code generation */
+    if ((opcode == 2 && rn == 15) || (opcode == 3 && rn == 15))
+        op1 = NULL;
+    else if (s)
+        op1 = read_reg(context, ir, rn);
+    else if ((opcode == 4 && rd == 15) ||
+             (opcode == 8 && rd == 15) ||
+             (opcode == 13 && rd == 15))
+        op1 = NULL;
+    else
+        op1 = read_reg(context, ir, rn);
 
     if (s) {
         struct irRegister *params[4];
@@ -2963,7 +2975,7 @@ static int dis_t2_vpush(struct arm_target *context, uint32_t insn, struct irInst
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_32(ir, "hlp_dirty_vpush",
+    ir->add_call_void(ir, "hlp_dirty_vpush",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_dirty_vpush),
                         params);
 
