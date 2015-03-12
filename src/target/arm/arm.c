@@ -64,6 +64,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.reg_itstate = 0;
         context->disa_itstate = 0;
         context->regs.is_in_syscall = 0;
+        context->regs.fpscr = 0;
         context->is_in_signal = 1;
     } else if (param) {
         /* new thread */
@@ -80,6 +81,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         assert(context->regs.reg_itstate == 0);
         context->disa_itstate = 0;
         context->regs.is_in_syscall = 0;
+        context->regs.fpscr = 0;
         context->is_in_signal = 0;
     } else if (stack_ptr) {
         /* main thread */
@@ -92,6 +94,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.reg_itstate = 0;
         context->disa_itstate = 0;
         context->is_in_signal = 0;
+        context->regs.fpscr = 0;
         /* syscall execve exit sequence */
          /* this will be translated into sysexec exit */
         context->regs.is_in_syscall = 2;

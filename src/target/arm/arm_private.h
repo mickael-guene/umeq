@@ -48,10 +48,12 @@ struct arm_registers {
         2 : inside syscall exit sequence
     */
     uint32_t is_in_syscall;
-    uint32_t dummy;
+    uint32_t fpscr;
     union {
         uint64_t d[32];
         uint32_t s[64];
+        double df[32];
+        float sf[64];
     } e;
 };
 

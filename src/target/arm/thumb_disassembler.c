@@ -147,6 +147,16 @@ static void write_reg_s(struct arm_target *context, struct irInstructionAllocato
     ir->add_write_context_32(ir, value, offsetof(struct arm_registers, e.s[index]));
 }
 
+static struct irRegister *read_reg_d(struct arm_target *context, struct irInstructionAllocator *ir, int index)
+{
+    return ir->add_read_context_64(ir, offsetof(struct arm_registers, e.d[index]));
+}
+
+static void write_reg_d(struct arm_target *context, struct irInstructionAllocator *ir, int index, struct irRegister *value)
+{
+    ir->add_write_context_64(ir, value, offsetof(struct arm_registers, e.d[index]));
+}
+
 static struct irRegister *read_cpsr(struct arm_target *context, struct irInstructionAllocator *ir)
 {
     return ir->add_read_context_32(ir, offsetof(struct arm_registers, cpsr));
@@ -550,7 +560,8 @@ static void mk_gdb_breakpoint_instruction(struct irInstructionAllocator *ir)
 }
 
 /* disassembler to ir */
- /**/
+#define COMMON_THUMB        1
+#include "arm_common_disassembler.c"
 
  /* code generators */
 static int dis_t2_b_t3(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1425,14 +1436,17 @@ static int dis_t2_ldr_register(struct arm_target *context, uint32_t insn, struct
     int shift_imm = INSN2(5, 4);
     struct irRegister *address;
 
-    assert(rt != 15 && "implement me");
-
     address = ir->add_add_32(ir, read_reg(context, ir, rn),
                                  ir->add_shl_32(ir,
                                                 read_reg(context, ir, rm),
                                                 mk_8(ir, shift_imm)));
 
     write_reg(context, ir, rt, ir->add_load_32(ir, mk_address(ir, address)));
+
+    if (rt == 15) {
+        ir->add_exit(ir, ir->add_32U_to_64(ir, ir->add_read_context_32(ir, offsetof(struct arm_registers, r[15]))));
+        isExit = 1;
+    }
 
     return isExit;
 }
@@ -1527,6 +1541,27 @@ static int dis_t2_load_store_double_immediate_offset(struct arm_target *context,
         newVal = address_register_offset(context, ir, rn, (u==1?offset:-offset));
         write_reg(context, ir, rn, newVal);
     }
+
+    return 0;
+}
+
+static int dis_t2_ldrd_literal(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rt = INSN2(15, 12);
+    int rt2 = INSN2(11, 8);
+    int is_add = INSN1(7, 7);
+    uint32_t imm32 = INSN2(7, 0) << 2;
+    struct irRegister *address;
+    struct irRegister *address2;
+
+    assert(rt != 13 && rt != 15);
+    assert(rt2 != 13 && rt2 != 15);
+    assert(rt != rt2);
+
+    address = mk_address(ir, mk_32(ir, ((context->pc + 4) & ~3) + (is_add?imm32:-imm32)));
+    address2 = mk_address(ir, mk_32(ir, ((context->pc + 4) & ~3) + 4 + (is_add?imm32:-imm32)));
+    write_reg(context, ir, rt, ir->add_load_32(ir, address));
+    write_reg(context, ir, rt2, ir->add_load_32(ir, address2));
 
     return 0;
 }
@@ -2019,6 +2054,30 @@ static int dis_t1_load_literal(struct arm_target *context, uint32_t insn, struct
     write_reg(context, ir, rt, ir->add_load_32(ir, mk_address(ir, mk_32(ir, address))));
 
     return isExit;
+}
+
+static int dis_t1_stmia(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rn = INSN(10,8);
+    int reglist = INSN(7 ,0);
+    struct irRegister *start_address;
+    int offset = 0;
+    int i;
+
+    start_address = read_reg(context, ir, rn);
+    /* store regs */
+    for(i=0;i<8;i++) {
+        if ((reglist >> i) & 1) {
+            ir->add_store_32(ir, read_reg(context, ir, i),
+                                 mk_address(ir, ir->add_add_32(ir, start_address,
+                                                                   mk_32(ir, offset))));
+            offset += 4;
+        }
+    }
+    /* write back address register */
+    write_reg(context, ir, rn, ir->add_add_32(ir, start_address, mk_32(ir, offset)));
+
+    return 0;
 }
 
 static int dis_t1_ldmia(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -2966,22 +3025,6 @@ static int dis_t2_sxtab(struct arm_target *context, uint32_t insn, struct irInst
     return 0;
 }
 
-static int dis_t2_vpush(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    struct irRegister *params[4];
-
-    params[0] = mk_32(ir, insn);
-    params[1] = NULL;
-    params[2] = NULL;
-    params[3] = NULL;
-
-    ir->add_call_void(ir, "hlp_dirty_vpush",
-                        ir->add_mov_const_64(ir, (uint64_t) hlp_dirty_vpush),
-                        params);
-
-    return 0;
-}
-
 static int dis_gdb_breakpoint(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     //set pc to correct location before sending sigill signal
@@ -3279,6 +3322,9 @@ static int disassemble_thumb1_insn(struct arm_target *context, uint32_t insn, st
             break;
         case 44 ... 47:
             isExit = dis_t1_misc_16_bits(context, insn, ir);
+            break;
+        case 48 ... 49:
+            isExit = dis_t1_stmia(context, insn, ir);
             break;
         case 50 ... 51:
             isExit = dis_t1_ldmia(context, insn, ir);
@@ -3627,8 +3673,7 @@ static int dis_t2_ldrd_strd_A_ldrex_strex_A_table_branch(struct arm_target *cont
         isExit = dis_t2_load_store_double_immediate_offset(context, insn, ir);
     } else {
         if (rn == 15) {
-            //ldrd literral
-            assert(0);
+            isExit = dis_t2_ldrd_literal(context, insn, ir);
         } else {
             isExit = dis_t2_load_store_double_immediate_offset(context, insn, ir);
         }
@@ -3914,46 +3959,18 @@ static int dis_t2_long_mult_A_long_mult_acc_A_div(struct arm_target *context, ui
     return isExit;
 }
 
-static int dis_t2_extension_register_load_store(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
-{
-    int isExit = 0;
-    int opcode = INSN1(8, 4);
-    int rn = INSN1(3, 0);
-
-    if ((opcode & 0x1b) == 0x12) {
-        if (rn == 13)
-            isExit = dis_t2_vpush(context, insn, ir);
-        else
-            assert(0);
-    } else
-        fatal("opcode = %d(0x%x)", opcode, opcode);
-
-    return isExit;
-}
-
 static int dis_t2_64_bits_transfert_between_arm_and_extension(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int C = INSN2(8, 8);
-    int op = INSN2(7, 4);
+    int isExit = 0;
 
     if (C) {
-        int to_arm_registers = INSN1(4, 4);
-        int rt = INSN2(15, 12);
-        int rt2 = INSN1(3, 0);
-        int m = (INSN2(5, 5) << 4) | INSN2(3, 0);
-
-        if (to_arm_registers) {
-            write_reg(context, ir, rt, read_reg_s(context, ir, m * 2));
-            write_reg(context, ir, rt2, read_reg_s(context, ir, m * 2 + 1));
-        } else {
-            write_reg_s(context, ir, m * 2, read_reg(context, ir, rt));
-            write_reg_s(context, ir, m * 2 + 1, read_reg(context, ir, rt2));
-        }
+        isExit = dis_common_vmov_two_arm_core_and_d_insn(context, insn, ir);
     } else {
-        fatal("C = %d / op = %d\n", C, op);
+        isExit = dis_common_vmov_two_arm_core_and_two_s_insn(context, insn, ir);
     }
 
-    return 0;
+    return isExit;
 }
 
 static int dis_t2_coprocessor_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -3964,10 +3981,12 @@ static int dis_t2_coprocessor_insn(struct arm_target *context, uint32_t insn, st
     int coproc = INSN2(11, 8);
     //int rn = INSN1(3, 0);
 
-    if ((op1 & 0x30) == 0x20) {
+    if ((op1 & 0x30) == 0x30) {
+        isExit = dis_common_adv_simd_data_preocessing_insn(context, insn, ir);
+    } else if ((op1 & 0x30) == 0x20) {
         if (op) {
             if ((coproc & 0xe) == 0xa) {
-                assert(0);
+                isExit = dis_common_transfert_arm_core_and_extension_registers_insn(context, insn, ir);
             } else {
                 if (op1 & 1) {
                     isExit = dis_t2_mrc(context, insn, ir);
@@ -3977,7 +3996,7 @@ static int dis_t2_coprocessor_insn(struct arm_target *context, uint32_t insn, st
             }
         } else {
             if ((coproc & 0xe) == 0xa) {
-                assert(0);
+                isExit = dis_common_vfp_data_processing_insn(context, insn, ir);
             } else {
                 assert(0);
             }
@@ -3985,7 +4004,7 @@ static int dis_t2_coprocessor_insn(struct arm_target *context, uint32_t insn, st
     } else {
         if ((coproc & 0xe) == 0xa) {
             if ((op1 & 0x30) == 0x10 || (op1 & 0x38) == 0x08 || (op1 & 0x3a) == 0x02) {
-                isExit = dis_t2_extension_register_load_store(context, insn, ir);
+                isExit = dis_common_extension_register_load_store_insn(context, insn, ir);
             } else if ((op1 & 0x3e) == 0x4) {
                 isExit = dis_t2_64_bits_transfert_between_arm_and_extension(context, insn, ir);
             } else {

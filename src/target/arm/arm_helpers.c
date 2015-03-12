@@ -30,6 +30,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <signal.h>
+#include <math.h>
 
 #include "arm_private.h"
 #include "arm_helpers.h"
@@ -39,6 +40,42 @@
 #define INSN1(msb, lsb) INSN(msb+16, lsb+16)
 #define INSN2(msb, lsb) INSN(msb, lsb)
 //#define DUMP_STACK 1
+
+/*static double ssat64_d(double a)
+{
+    if (a > 0x7fffffffffffffffUL)
+        return 0x7fffffffffffffffUL;
+    else if (a < (int64_t)0x8000000000000000UL)
+        return (int64_t)0x8000000000000000UL;
+    return a;
+}*/
+
+static double ssat32_d(double a)
+{
+    if (a > 0x7fffffff)
+        return 0x7fffffff;
+    else if (a < (int32_t)0x80000000)
+        return (int32_t)0x80000000;
+    return a;
+}
+
+/*static double usat64_d(double a)
+{
+    if (a > 0xffffffffffffffffUL)
+        return 0xffffffffffffffffUL;
+    else if (a < 0)
+        return 0;
+    return a;
+}*/
+
+static double usat32_d(double a)
+{
+    if (a > 0xffffffff)
+        return 0xffffffff;
+    else if (a < 0)
+        return 0;
+    return a;
+}
 
 static int tkill(int pid, int sig)
 {
@@ -1664,23 +1701,99 @@ uint32_t arm_hlp_multiply_accumulate_signed_msb(uint64_t context, int32_t op1, i
     return (uint32_t) (res >> 32);
 }
 
-void hlp_dirty_vpush(uint64_t _regs, uint32_t insn)
+void vstm(uint64_t _regs, uint32_t insn, int is_thumb)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
-    int isDouble = INSN(8, 8);
-    int d = (INSN(22, 22) << 4) | INSN(15, 12);
-    int rn = 13;
-    int regss = INSN(7, 0);
-    uint32_t imm32 = INSN(7, 0) << 2;
-    uint32_t *address = (uint32_t *) g_2_h(regs->r[rn] - imm32);
+    //int p = INSN(24, 24);
+    int add = INSN(23, 23);
+    int D = INSN(22, 22);
+    int w = INSN(21, 21);
+    int rn = INSN(19, 16);
+    int vd = INSN(15, 12);
+    int is_64 = INSN(8, 8);
+    uint32_t imm8 = INSN(7, 0);
+    uint32_t imm32 = imm8 << 2;
     int r;
+    int d;
 
-    assert(isDouble == 1 && ((regss & 1) == 0));
-    for(r = 0; r < regss; r++) {
-        *address++ = regs->e.s[d + r];
+    assert(rn != 15);
+
+    if (is_64) {
+        int regs_nb = imm8 >> 1;
+        uint32_t address = regs->r[rn];
+
+        d = (D << 4) + vd;
+        if (!add)
+            address -= imm32;
+        if (w)
+            regs->r[rn] += add?imm32:-imm32;
+        for(r = 0; r < regs_nb; r++) {
+            uint64_t *addr = (uint64_t *) g_2_h(address);
+            *addr = regs->e.d[d + r];
+            address += 8;
+        }
+    } else {
+        int regs_nb = imm8;
+        uint32_t address = regs->r[rn];
+
+        d = (vd << 1) + D;
+        if (!add)
+            address -= imm32;
+        if (w)
+            regs->r[rn] += add?imm32:-imm32;
+        for(r = 0; r < regs_nb; r++) {
+            uint32_t *addr = (uint32_t *) g_2_h(address);
+            *addr = regs->e.s[d + r];
+            address += 4;
+        }
     }
+}
 
-    regs->r[rn] = regs->r[rn] - imm32;
+void vldm(uint64_t _regs, uint32_t insn, int is_thumb)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    //int p = INSN(24, 24);
+    int add = INSN(23, 23);
+    int D = INSN(22, 22);
+    int w = INSN(21, 21);
+    int rn = INSN(19, 16);
+    int vd = INSN(15, 12);
+    int is_64 = INSN(8, 8);
+    uint32_t imm8 = INSN(7, 0);
+    uint32_t imm32 = imm8 << 2;
+    int r;
+    int d;
+
+    assert(rn != 15);
+    if (is_64) {
+        int regs_nb = imm8 >> 1;
+        uint32_t address = regs->r[rn];
+
+        d = (D << 4) + vd;
+        if (!add)
+            address -= imm32;
+        if (w)
+            regs->r[rn] += add?imm32:-imm32;
+        for(r = 0; r < regs_nb; r++) {
+            uint64_t *addr = (uint64_t *) g_2_h(address);
+            regs->e.d[d + r] = *addr;
+            address += 8;
+        }
+    } else {
+        int regs_nb = imm8;
+        uint32_t address = regs->r[rn];
+
+        d = (vd << 1) + D;
+        if (!add)
+            address -= imm32;
+        if (w)
+            regs->r[rn] += add?imm32:-imm32;
+        for(r = 0; r < regs_nb; r++) {
+            uint32_t *addr = (uint32_t *) g_2_h(address);
+            regs->e.s[d + r] = *addr;
+            address += 4;
+        }
+    }
 }
 
 static void qadd(uint64_t _regs, int rd, int rn, int rm)
@@ -2192,6 +2305,263 @@ static void usad8_usada8_t32(uint64_t _regs, uint32_t insn)
     usad8_usada8(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0), INSN2(15, 12));
 }
 
+static void dis_common_vcmp_vcmpe_vfp(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int is_with_zero = INSN(16, 16);
+    int vd = INSN(15, 12);
+    int is_double = INSN(8, 8);
+    //int E = INSN(7, 7);
+    int M = INSN(5, 5);
+    int vm = INSN(3, 0);
+    int d, m;
+    uint32_t fpscr_nzcv = 0;
+
+    if (is_double) {
+        d = (D << 4) + vd;
+        m = (M << 4) + vm;
+    } else {
+        d = (vd << 1) + D;
+        m = (vm << 1) + M;
+    }
+    if (is_double) {
+        double op1 = regs->e.df[d];
+        double op2 = is_with_zero?0.0:regs->e.df[m];
+
+        if (isnan(op1) || isnan(op2))
+            fpscr_nzcv = 0x30000000;
+        else if (op1 == op2)
+            fpscr_nzcv = 0x60000000;
+        else if (op1 > op2)
+            fpscr_nzcv = 0x20000000;
+        else
+            fpscr_nzcv = 0x80000000;
+    } else {
+        float op1 = regs->e.sf[d];
+        float op2 = is_with_zero?0.0:regs->e.sf[m];
+
+        if (__isnanf(op1) || __isnanf(op2))
+            fpscr_nzcv = 0x30000000;
+        else if (op1 == op2)
+            fpscr_nzcv = 0x60000000;
+        else if (op1 > op2)
+            fpscr_nzcv = 0x20000000;
+        else
+            fpscr_nzcv = 0x80000000;
+    }
+
+    regs->fpscr = (regs->fpscr & 0x0fffffff) + fpscr_nzcv;
+}
+
+static void dis_common_vcvt_double_single_vfp(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int vd = INSN(15, 12);
+    int is_double_to_single = INSN(8, 8);
+    int M = INSN(5, 5);
+    int vm = INSN(3, 0);
+    int d, m;
+
+    if (is_double_to_single) {
+        d = (vd << 1) + D;
+        m = (M << 4) + vm;
+
+        regs->e.sf[d] = regs->e.df[m];
+    } else {
+        d = (D << 4) + vd;
+        m = (vm << 1) + M;
+
+        regs->e.df[d] = regs->e.sf[m];
+    }
+}
+
+static void dis_common_vcvt_vcvtr_floating_integer_vfp(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int is_to_integer = INSN(18, 18);
+    int vd = INSN(15, 12);
+    int is_double = INSN(8, 8);
+    int op = INSN(7, 7);
+    int M = INSN(5, 5);
+    int vm = INSN(3, 0);
+    int is_signed;
+    int d;
+    int m;
+
+    if (is_to_integer) {
+        is_signed = INSN(16, 16);
+        d = (vd << 1) + D;
+        m = is_double?((M << 4) + vm):((vm << 1) + M);
+
+        assert(op == 1);
+        if (is_double) {
+            if (is_signed)
+                regs->e.s[d] = (int32_t) ssat32_d(regs->e.df[m]);
+            else
+                regs->e.s[d] = (uint32_t) usat32_d(regs->e.df[m]);
+        } else {
+            if (is_signed)
+                regs->e.s[d] = (int32_t) ssat32_d(regs->e.sf[m]);
+            else
+                regs->e.s[d] = (uint32_t) usat32_d(regs->e.sf[m]);
+        }
+    } else {
+        is_signed = op;
+        m = (vm << 1) + M;
+        d = is_double?((D << 4) + vd):((vd << 1) + D);
+
+        if (is_double) {
+            if (is_signed)
+                regs->e.df[d] = (int32_t) regs->e.s[m];
+            else
+                regs->e.df[d] = (uint32_t) regs->e.s[m];
+        } else {
+            if (is_signed)
+                regs->e.sf[d] = (int32_t) regs->e.s[m];
+            else
+                regs->e.sf[d] = (uint32_t) regs->e.s[m];
+        }
+    }
+}
+
+static void dis_common_vmla_vmls_vfp(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int vn = INSN(19, 16);
+    int vd = INSN(15, 12);
+    int is_double = INSN(8, 8);
+    int N = INSN(7, 7);
+    int is_sub = INSN(6, 6);
+    int M = INSN(5, 5);
+    int vm = INSN(3, 0);
+    int d, n, m;
+
+    if (is_double) {
+        d = (D << 4) + vd;
+        n = (N << 4) + vn;
+        m = (M << 4) + vm;
+        if (is_sub)
+            regs->e.df[d] -= regs->e.df[n] * regs->e.df[m];
+        else
+            regs->e.df[d] += regs->e.df[n] * regs->e.df[m];
+    } else {
+        d = (vd << 1) + D;
+        n = (vn << 1) + N;
+        m = (vm << 1) + M;
+        if (is_sub)
+            regs->e.sf[d] -= regs->e.sf[n] * regs->e.sf[m];
+        else
+            regs->e.sf[d] += regs->e.sf[n] * regs->e.sf[m];
+    }
+}
+
+static void dis_common_vmul_vfp(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int vn = INSN(19, 16);
+    int vd = INSN(15, 12);
+    int is_double = INSN(8, 8);
+    int N = INSN(7, 7);
+    int M = INSN(5, 5);
+    int vm = INSN(3, 0);
+    int d, n, m;
+
+    if (is_double) {
+        d = (D << 4) + vd;
+        n = (N << 4) + vn;
+        m = (M << 4) + vm;
+        regs->e.df[d] = regs->e.df[n] * regs->e.df[m];
+    } else {
+        d = (vd << 1) + D;
+        n = (vn << 1) + N;
+        m = (vm << 1) + M;
+        regs->e.sf[d] = regs->e.sf[n] * regs->e.sf[m];
+    }
+}
+
+static void dis_common_vadd_vsub_vfp(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int vn = INSN(19, 16);
+    int vd = INSN(15, 12);
+    int is_double = INSN(8, 8);
+    int N = INSN(7, 7);
+    int is_sub = INSN(6, 6);
+    int M = INSN(5, 5);
+    int vm = INSN(3, 0);
+    int d, n, m;
+
+    if (is_double) {
+        d = (D << 4) + vd;
+        n = (N << 4) + vn;
+        m = (M << 4) + vm;
+        if (is_sub)
+            regs->e.df[d] = regs->e.df[n] - regs->e.df[m];
+        else
+            regs->e.df[d] = regs->e.df[n] + regs->e.df[m];
+    } else {
+        d = (vd << 1) + D;
+        n = (vn << 1) + N;
+        m = (vm << 1) + M;
+        if (is_sub)
+            regs->e.sf[d] = regs->e.sf[n] - regs->e.sf[m];
+        else
+            regs->e.sf[d] = regs->e.sf[n] + regs->e.sf[m];
+    }
+}
+
+static void dis_common_vdiv_vfp(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int vn = INSN(19, 16);
+    int vd = INSN(15, 12);
+    int is_double = INSN(8, 8);
+    int N = INSN(7, 7);
+    int M = INSN(5, 5);
+    int vm = INSN(3, 0);
+    int d, n, m;
+
+    if (is_double) {
+        d = (D << 4) + vd;
+        n = (N << 4) + vn;
+        m = (M << 4) + vm;
+        regs->e.df[d] = regs->e.df[n] / regs->e.df[m];
+    } else {
+        d = (vd << 1) + D;
+        n = (vn << 1) + N;
+        m = (vm << 1) + M;
+        regs->e.sf[d] = regs->e.sf[n] / regs->e.sf[m];
+    }
+}
+
+static void dis_common_vneg_vfp(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int vd = INSN(15, 12);
+    int is_double = INSN(8, 8);
+    int M = INSN(5, 5);
+    int vm = INSN(3, 0);
+    int d, m;
+
+    if (is_double) {
+        d = (D << 4) + vd;
+        m = (M << 4) + vm;
+        regs->e.df[d] = -regs->e.df[m];
+    } else {
+        d = (vd << 1) + D;
+        m = (vm << 1) + M;
+        regs->e.sf[d] = -regs->e.sf[m];
+    }
+}
+
 void arm_hlp_dirty_saturating(uint64_t regs, uint32_t insn)
 {
     int op = INSN(22, 21);
@@ -2526,5 +2896,64 @@ void thumb_hlp_t2_long_mult_A_long_mult_acc_A_div(uint64_t regs, uint32_t insn)
             break;
         default:
            fatal("op1 = %d(0x%x)\n", op1, op1);
+    }
+}
+
+void hlp_arm_vldm(uint64_t regs, uint32_t insn, uint32_t is_thumb)
+{
+    vldm(regs, insn, is_thumb);
+}
+
+void hlp_arm_vstm(uint64_t regs, uint32_t insn, uint32_t is_thumb)
+{
+    vstm(regs, insn, is_thumb);
+}
+
+void hlp_common_vfp_data_processing_insn(uint64_t regs, uint32_t insn)
+{
+    int opc1 = INSN(23, 20);
+    int opc2 = INSN(19, 16);
+    int opc3_1 = INSN(7, 7);
+    int opc3_0 = INSN(6, 6);
+
+    switch(opc1) {
+        case 0: case 4:
+            dis_common_vmla_vmls_vfp(regs, insn);
+            break;
+        case 2: case 6:
+            if (opc3_0)
+                assert(0);
+            else
+                dis_common_vmul_vfp(regs, insn);
+            break;
+        case 3: case 7:
+            dis_common_vadd_vsub_vfp(regs, insn);
+            break;
+        case 8: case 12:
+            dis_common_vdiv_vfp(regs, insn);
+            break;
+        case 11: case 15:
+            switch(opc2) {
+                case 1:
+                    if (opc3_1)
+                        assert(0);
+                    else
+                        dis_common_vneg_vfp(regs, insn);
+                    break;
+                case 4: case 5:
+                    dis_common_vcmp_vcmpe_vfp(regs, insn);
+                    break;
+                case 7:
+                    dis_common_vcvt_double_single_vfp(regs, insn);
+                    break;
+                case 8: case 12: case 13:
+                    dis_common_vcvt_vcvtr_floating_integer_vfp(regs, insn);
+                    break;
+                default:
+                    fatal("opc2 = %d(0x%x)\n", opc2, opc2);
+            }
+            break;
+        default:
+            fatal("opc1 = %d(0x%x)\n", opc1, opc1);
     }
 }

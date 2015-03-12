@@ -93,6 +93,26 @@ static void write_reg(struct arm_target *context, struct irInstructionAllocator 
     ir->add_write_context_32(ir, value, offsetof(struct arm_registers, r[index]));
 }
 
+static struct irRegister *read_reg_s(struct arm_target *context, struct irInstructionAllocator *ir, int index)
+{
+    return ir->add_read_context_32(ir, offsetof(struct arm_registers, e.s[index]));
+}
+
+static void write_reg_s(struct arm_target *context, struct irInstructionAllocator *ir, int index, struct irRegister *value)
+{
+    ir->add_write_context_32(ir, value, offsetof(struct arm_registers, e.s[index]));
+}
+
+static struct irRegister *read_reg_d(struct arm_target *context, struct irInstructionAllocator *ir, int index)
+{
+    return ir->add_read_context_64(ir, offsetof(struct arm_registers, e.d[index]));
+}
+
+static void write_reg_d(struct arm_target *context, struct irInstructionAllocator *ir, int index, struct irRegister *value)
+{
+    ir->add_write_context_64(ir, value, offsetof(struct arm_registers, e.d[index]));
+}
+
 static struct irRegister *read_cpsr(struct arm_target *context, struct irInstructionAllocator *ir)
 {
     return ir->add_read_context_32(ir, offsetof(struct arm_registers, cpsr));
@@ -385,7 +405,8 @@ static void mk_gdb_breakpoint_instruction(struct irInstructionAllocator *ir)
 }
 
 /* disassembler to ir */
- /**/
+#define COMMON_ARM          1
+#include "arm_common_disassembler.c"
 
  /* code generators */
 static int dis_bl(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1603,7 +1624,20 @@ static int dis_load_signed_halfword_byte_register_offset(struct arm_target *cont
 
 static int dis_ldrd_literal(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    assert(0);
+    int rt = INSN(15, 12);
+    int is_add = INSN(23, 23);
+    uint32_t imm32 = (INSN(11, 8) << 4) + INSN(3, 0);
+    int rt2 = rt + 1;
+    struct irRegister *address;
+    struct irRegister *address2;
+
+    assert(rt % 2 == 0);
+    assert(rt2 != 15);
+
+    address = mk_address(ir, mk_32(ir, context->pc + 8 + (is_add?imm32:-imm32)));
+    address2 = mk_address(ir, mk_32(ir, context->pc + 8 + 4 + (is_add?imm32:-imm32)));
+    write_reg(context, ir, rt, ir->add_load_32(ir, address));
+    write_reg(context, ir, rt2, ir->add_load_32(ir, address2));
 
     return 0;
 }
@@ -1991,6 +2025,9 @@ static int dis_extra_load_store_insn(struct arm_target *context, uint32_t insn, 
             break;
         case 3:
             switch(op1 & 0x5) {
+                case 0:
+                    isExit = dis_load_store_double_register_offset(context, insn, ir);
+                    break;
                 case 1:
                     isExit = dis_load_signed_halfword_byte_register_offset(context, insn, ir);
                     break;
@@ -2413,8 +2450,11 @@ static int dis_system_call_and_coprocessor_insn(struct arm_target *context, uint
         isExit = dis_swi(context, insn, ir);
     } else if ((opt1 & 0x30) == 0x20) {
         if ((coproc & 0xe) == 0xa) {
-            //advanced simd and vfp
-            assert(0);
+            if (op)
+                isExit = dis_common_transfert_arm_core_and_extension_registers_insn(context, insn, ir);
+            else {
+                isExit = dis_common_vfp_data_processing_insn(context, insn, ir);
+            }
         } else {
             if (op) {
                 if (opt1 & 1)
@@ -2427,7 +2467,30 @@ static int dis_system_call_and_coprocessor_insn(struct arm_target *context, uint
             }
         }
     } else {
-        assert(0);
+        if (opt1 == 0 || opt1 == 1) {
+            fatal("undefined\n");
+        } else if ((opt1 & 0x3a) == 0) {
+            if ((coproc & 0xe) == 0xa) {
+                if (coproc == 10)
+                    isExit = dis_common_vmov_two_arm_core_and_two_s_insn(context, insn, ir);
+                else
+                    isExit = dis_common_vmov_two_arm_core_and_d_insn(context, insn, ir);
+            } else if (opt1 == 4) {
+                fatal("mcrr, mcrr2\n");
+            } else if (opt1 == 5) {
+                fatal("mrrc, mrrc2\n");
+            } else
+                fatal("bug. Should not be here\n");
+        } else {
+            if ((coproc & 0xe) == 0xa) {
+                isExit = dis_common_extension_register_load_store_insn(context, insn, ir);
+            } else if ((opt1 & 0x21) == 0) {
+                fatal("stc, stc2\n");
+            } else if ((opt1 & 0x21) == 0) {
+                fatal("ldc, ldc2\n");
+            } else
+                fatal("bug. Should not be here\n");
+        }
     }
 
     return isExit;
@@ -2457,6 +2520,8 @@ static int dis_misc_A_memory_hints_A_adv_simd_insn(struct arm_target *context, u
             default:
                 assert(0);
         }
+    } else if ((op1 & 0x60) == 0x20) {
+        isExit = dis_common_adv_simd_data_preocessing_insn(context, insn, ir);
     } else if ((op1 & 0x77) == 0x55) {
         //pld. nothing to do
     } else

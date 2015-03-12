@@ -59,7 +59,6 @@ extern uint32_t arm_hlp_multiply_accumulate_unsigned_msb(uint64_t context, uint3
 extern uint32_t arm_hlp_multiply_accumulate_signed_msb(uint64_t context, int32_t op1, int32_t op2, uint32_t rdhi, uint32_t rdlo);
 extern uint32_t thumb_hlp_compute_next_flags_data_processing(uint64_t context, uint32_t opcode, uint32_t rn, uint32_t op, uint32_t oldcpsr);
 extern uint32_t thumb_t2_hlp_compute_sco(uint64_t context, uint32_t insn, uint32_t rm, uint32_t op, uint32_t oldcpsr);
-extern void hlp_dirty_vpush(uint64_t regs, uint32_t insn);
 extern void arm_gdb_breakpoint_instruction(uint64_t regs);
 extern void arm_hlp_dirty_saturating(uint64_t regs, uint32_t insn);
 extern void arm_hlp_signed_parallel(uint64_t regs, uint32_t insn);
@@ -73,6 +72,10 @@ extern void thumb_hlp_t2_signed_parallel(uint64_t regs, uint32_t insn);
 extern void thumb_hlp_t2_mult_A_mult_acc_A_abs_diff(uint64_t regs, uint32_t insn);
 extern void thumb_hlp_t2_long_mult_A_long_mult_acc_A_div(uint64_t regs, uint32_t insn);
 extern void t32_hlp_saturation(uint64_t regs, uint32_t insn);
+extern void hlp_arm_vldm(uint64_t regs, uint32_t insn, uint32_t is_thumb);
+extern void hlp_arm_vstm(uint64_t regs, uint32_t insn, uint32_t is_thumb);
+extern void arm_hlp_common_vcvt_vcvtr_floating_integer(uint64_t regs, uint32_t insn);
+extern void hlp_common_vfp_data_processing_insn(uint64_t regs, uint32_t insn);
 
 #endif
 
