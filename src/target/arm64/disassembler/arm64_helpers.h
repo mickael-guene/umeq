@@ -56,6 +56,7 @@ enum rm {
 };
 
 extern void arm64_hlp_dump(uint64_t regs);
+extern void arm64_hlp_gdb_handle_breakpoint(uint64_t regs);
 extern void arm64_gdb_breakpoint_instruction(uint64_t regs);
 extern void arm64_gdb_stepin_instruction(uint64_t regs);
 extern void arm64_clean_caches(uint64_t regs);

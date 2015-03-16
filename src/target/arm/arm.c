@@ -492,6 +492,60 @@ static uint32_t getExitStatus(struct target *target)
     return context->exitStatus;
 }
 
+/* gdb stuff */
+static struct gdb *gdb(struct target *target)
+{
+    struct arm_target *context = container_of(target, struct arm_target, target);
+
+    return &context->gdb;
+}
+
+static void gdb_read_registers(struct gdb *gdb, char *buf)
+{
+    struct arm_target *context = container_of(gdb, struct arm_target, gdb);
+    int i ,j;
+    unsigned int val;
+    uint32_t pc = context->regs.r[15];
+
+    for(i=0;i<16;i++) {
+        if (i == 15)
+            val = context->regs.r[i] & ~1;
+        else
+            val = context->regs.r[i];
+        for(j=0;j<4;j++) {
+            unsigned int byte = (val >> (j * 8)) & 0xff;
+            unsigned int hnibble = (byte >> 4);
+            unsigned int lnibble = (byte & 0xf);
+
+            buf[1] = gdb_tohex(lnibble);
+            buf[0] = gdb_tohex(hnibble);
+
+            buf += 2;
+        }
+    }
+    for(i=0;i<25;i++) {
+        for(j=0;j<4;j++) {
+            buf[0] = buf[1] = gdb_tohex(0);
+            buf += 2;
+        }
+    }
+
+    val = context->regs.cpsr;
+    if (pc & 1)
+        val |= 0x20;
+    for(j=0;j<4;j++) {
+        unsigned int byte = (val >> (j * 8)) & 0xff;
+        unsigned int hnibble = (byte >> 4);
+        unsigned int lnibble = (byte & 0xf);
+
+        buf[1] = gdb_tohex(lnibble);
+        buf[0] = gdb_tohex(hnibble);
+
+        buf += 2;
+    }
+    *buf = '\0';
+}
+
 static int getArmContextSize()
 {
     return ARM_CONTEXT_SIZE;
@@ -509,6 +563,12 @@ static armContext createArmContext(void *memory, struct backend *backend)
         context->target.isLooping = isLooping_firstcall;
         context->target.getExitStatus = getExitStatus;
         context->backend = backend;
+        context->target.gdb = gdb;
+        context->gdb.state = GDB_STATE_SYNCHRO;
+        context->gdb.commandPos = 0;
+        context->gdb.isContinue = 0;
+        context->gdb.isSingleStepping = 1;
+        context->gdb.read_registers = gdb_read_registers;
     }
 
     return (armContext) context;

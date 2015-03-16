@@ -86,6 +86,7 @@ struct arm64_target {
     uint64_t sas_ss_sp;
     uint64_t sas_ss_size;
     int start_on_sig_stack;
+    struct gdb gdb;
 };
 
 /* globals */

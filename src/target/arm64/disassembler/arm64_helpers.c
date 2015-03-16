@@ -54,6 +54,13 @@ void arm64_hlp_dump(uint64_t regs)
 #endif
 }
 
+void arm64_hlp_gdb_handle_breakpoint(uint64_t regs)
+{
+    struct arm64_target *context = container_of((void *) regs, struct arm64_target, regs);
+
+    gdb_handle_breakpoint(&context->gdb);
+}
+
 static int tkill(int pid, int sig)
 {
     return syscall(SYS_tkill, (long) pid, (long) sig);

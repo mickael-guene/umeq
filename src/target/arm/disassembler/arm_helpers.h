@@ -34,6 +34,7 @@ extern "C" {
 
 extern void arm_hlp_dump(uint64_t regs);
 extern void arm_hlp_dump_and_assert(uint64_t regs);
+extern void arm_hlp_gdb_handle_breakpoint(uint64_t regs);
 extern void arm_hlp_vdso_cmpxchg(uint64_t _regs);
 extern void arm_hlp_vdso_cmpxchg64(uint64_t _regs);
 extern uint32_t arm_hlp_compute_flags_pred(uint64_t context, uint32_t cond, uint32_t cpsr);

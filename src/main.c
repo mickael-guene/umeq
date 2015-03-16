@@ -43,6 +43,7 @@
 char *exe_filename;
 int is_under_proot = 0;
 int maybe_ptraced = 0;
+int isGdb = 0;
 
 struct memory_config {
     int max_insn;
@@ -83,7 +84,9 @@ static void loop_common(struct target *target, struct backend *backend, struct c
             int jitSize;
 
             resetJitter(handle);
-            target->disassemble(target, ir, currentPc, max_insn);
+            if (isGdb && target->gdb(target)->isSingleStepping)
+                gdb_handle_breakpoint(target->gdb(target));
+            target->disassemble(target, ir, currentPc, (isGdb && target->gdb(target)->isSingleStepping)?1:max_insn);
             //displayIr(handle);
             jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
             if (jitSize > 0) {
@@ -185,7 +188,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
 
 int loop(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target)
 {
-    if (signum)
+    if (signum || isGdb)
         return loop_nocache(entry, stack_entry, signum, parent_target);
     else
         return loop_cache(entry, stack_entry, signum, parent_target);
@@ -216,7 +219,10 @@ int main(int argc, char **argv)
         These options must be set first.
     */
     while(argv[target_argv0_index]) {
-        if (strcmp("-E", argv[target_argv0_index]) == 0) {
+        if (strcmp("-g", argv[target_argv0_index]) == 0) {
+            isGdb = 1;
+            target_argv0_index++;
+        } else if (strcmp("-E", argv[target_argv0_index]) == 0) {
             additionnal_env[additionnal_env_index++] = argv[target_argv0_index + 1];
             target_argv0_index += 2;
             is_under_proot = 1;

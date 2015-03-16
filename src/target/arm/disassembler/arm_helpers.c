@@ -38,6 +38,7 @@
 #include "softfloat.h"
 #include "arm_softfloat.h"
 #include "umeq.h"
+#include "gdb.h"
 
 #ifndef __SIZEOF_INT128__
 typedef struct int128_t {
@@ -1778,6 +1779,13 @@ static pid_t gettid()
 void arm_gdb_breakpoint_instruction(uint64_t regs)
 {
     tkill(gettid(), SIGILL);
+}
+
+void arm_hlp_gdb_handle_breakpoint(uint64_t regs)
+{
+    struct arm_target *context = container_of((void *) regs, struct arm_target, regs);
+
+    gdb_handle_breakpoint(&context->gdb);
 }
 
 void arm_hlp_vdso_cmpxchg(uint64_t _regs)
