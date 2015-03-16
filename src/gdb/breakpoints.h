@@ -1,7 +1,7 @@
 #ifndef GDB_BREAKPOINTS_H
 #define GDB_BREAKPOINTS_H
 
-#if 0
+#if 1
 void gdb_insert_breakpoint(unsigned int addr, int len, int type);
 void gdb_remove_breakpoint(unsigned int addr, int len, int type);
 void gdb_remove_all();
