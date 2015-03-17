@@ -2248,7 +2248,7 @@ static int dis_t1_data_processing(struct arm_target *context, uint32_t insn, str
     int rdn = INSN(2, 0);
     int rm = INSN(5, 3);
     int opcode = INSN(9, 6);
-    int s = !inItBlock(context);
+    int s = !inItBlock(context) || opcode == 8 || opcode == 10 || opcode == 11;
     struct irRegister *params[4];
     struct irRegister *nextCpsr;
     struct irRegister *result = NULL;
