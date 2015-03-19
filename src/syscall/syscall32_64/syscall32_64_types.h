@@ -304,6 +304,12 @@ struct tms_32 {
     uint32_t tms_cstime;
 };
 
+struct epoll_event_32 {
+	uint32_t events;
+	uint32_t __pad0;
+	uint64_t data;
+};
+
 #endif
 
 #ifdef __cplusplus
