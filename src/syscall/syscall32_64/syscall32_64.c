@@ -252,7 +252,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             break;
         case PR_recvfrom:
             res = syscall(SYS_recvfrom, (int) p0, (void *) g_2_h(p1), (size_t) p2, (int) p3,
-                                        p4?(struct sockaddr *) g_2_h(p4):NULL, (socklen_t) p5);
+                                        p4?(struct sockaddr *) g_2_h(p4):NULL, p5?(socklen_t *) g_2_h(p5):NULL);
             break;
         case PR_getsockopt:
             res = syscall(SYS_getsockopt, (int) p0, (int) p1, (int) p2,
