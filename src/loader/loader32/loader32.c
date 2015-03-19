@@ -32,15 +32,16 @@
 #define PAGE_SIZE                       4096
 #define PAGE_MASK                       (PAGE_SIZE - 1)
 #define DL_LOAD_ADDR                    0x40000000
+#define DL_SHARE_ADDR                   0x20000000
 
 #define DL_NAME_MAX_SIZE                256
 
 unsigned int startbrk;
 static guest_ptr load_AT_PHDR_init = 0;
 
-static guest_ptr getEntry(int fd, Elf32_Ehdr *hdr);
+static guest_ptr getEntry(int fd, Elf32_Ehdr *hdr, int is_dl);
 static int getSegment(int fd, Elf32_Ehdr *hdr, int idx, Elf32_Phdr *segment);
-static int mapSegment(int fd, Elf32_Phdr *segment, struct load_auxv_info_32 *auxv_info, int is_dl);
+static int mapSegment(int fd, Elf32_Phdr *segment, struct load_auxv_info_32 *auxv_info, int is_dl, int is_share_object);
 static int elfToMapProtection(uint32_t flags);
 static void unmapSegment(int fd, Elf32_Phdr *segment);
 static void dl_copy_dl_name(int fd, Elf32_Phdr *segment, char *name);
@@ -56,7 +57,7 @@ static void dl_copy_dl_name(int fd, Elf32_Phdr *segment, char *name);
     return NULL in case of error
 */
 
-guest_ptr load32(const char *file, struct load_auxv_info_32 *auxv_info)
+static guest_ptr load32_internal(const char *file, struct load_auxv_info_32 *auxv_info, int is_dl)
 {
     Elf32_Ehdr elf_header;
     Elf32_Phdr segment;
@@ -64,17 +65,17 @@ guest_ptr load32(const char *file, struct load_auxv_info_32 *auxv_info)
     guest_ptr entry = 0;
     int fd;
     int i = 0;
-    int is_dl = 0;
+    int is_share_object;
 
     elf_header.e_phnum = 0;
     fd = open(file, O_RDONLY);
     if (fd < 0)
         goto end;
     /* first read header and extrace entry point */
-    entry = getEntry(fd, &elf_header);
+    entry = getEntry(fd, &elf_header, is_dl);
     if (entry == 0)
         goto end;
-    is_dl = (elf_header.e_type == ET_DYN)?1:0;
+    is_share_object = (elf_header.e_type == ET_DYN)?1:0;
 
     load_AT_PHDR_init = elf_header.e_phoff;
     auxv_info->load_AT_PHENT = elf_header.e_phentsize;
@@ -84,7 +85,7 @@ guest_ptr load32(const char *file, struct load_auxv_info_32 *auxv_info)
     for(i=0; i< elf_header.e_phnum; i++) {
         if (getSegment(fd, &elf_header, i, &segment)) {
             if (segment.p_type == PT_LOAD) {
-                if (!mapSegment(fd, &segment, auxv_info, is_dl)) {
+                if (!mapSegment(fd, &segment, auxv_info, is_dl, is_share_object)) {
                     entry = 0;
                     goto end;
                 }
@@ -93,7 +94,11 @@ guest_ptr load32(const char *file, struct load_auxv_info_32 *auxv_info)
                 struct load_auxv_info_32 dl_auxv_info;
 
                 dl_copy_dl_name(fd, &segment, dl_name);
-                dl_entry = load32(dl_name, &dl_auxv_info);
+                dl_entry = load32_internal(dl_name, &dl_auxv_info, 1);
+                if (!dl_entry) {
+                    entry = 0;
+                    goto end;
+                }
             }
         } else {
             entry = 0;
@@ -115,7 +120,12 @@ end:
     if (fd >= 0)
         close(fd);
 
-    return dl_entry?dl_entry:entry;
+    return entry?(dl_entry?dl_entry:entry):0;
+}
+
+guest_ptr load32(const char *file, struct load_auxv_info_32 *auxv_info)
+{
+    return load32_internal(file, auxv_info, 0);
 }
 
 static void dl_copy_dl_name(int fd, Elf32_Phdr *segment, char *name)
@@ -154,10 +164,12 @@ static void unmapSegment(int fd, Elf32_Phdr *segment)
     munmap_guest(segment->p_vaddr, segment->p_memsz);
 }
 
-static int mapSegment(int fd, Elf32_Phdr *segment, struct load_auxv_info_32 *auxv_info, int is_dl)
+static int mapSegment(int fd, Elf32_Phdr *segment, struct load_auxv_info_32 *auxv_info, int is_dl, int is_share_object)
 {
     if (is_dl)
         segment->p_vaddr += DL_LOAD_ADDR;
+    else if (is_share_object)
+        segment->p_vaddr += DL_SHARE_ADDR;
 
     int status = 0;
     uint32_t vaddr = segment->p_vaddr & ~PAGE_MASK;
@@ -224,7 +236,7 @@ static int getSegment(int fd, Elf32_Ehdr *hdr, int idx, Elf32_Phdr *segment)
     return status;
 }
 
-static guest_ptr getEntry(int fd, Elf32_Ehdr *hdr)
+static guest_ptr getEntry(int fd, Elf32_Ehdr *hdr, int is_dl)
 {
     guest_ptr entry = 0;
 
@@ -239,7 +251,12 @@ static guest_ptr getEntry(int fd, Elf32_Ehdr *hdr)
                 hdr->e_ident[EI_DATA] == ELFDATA2LSB &&
                 (hdr->e_type == ET_EXEC || hdr->e_type == ET_DYN) &&
                 hdr->e_machine == EM_ARM) {
-                    entry = ((hdr->e_type == ET_DYN)?hdr->e_entry+DL_LOAD_ADDR:hdr->e_entry);
+                    if (is_dl)
+                        entry = hdr->e_entry+DL_LOAD_ADDR;
+                    else if (hdr->e_type == ET_DYN)
+                        entry = hdr->e_entry+DL_SHARE_ADDR;
+                    else
+                        entry = hdr->e_entry;
             }
         }
     }
