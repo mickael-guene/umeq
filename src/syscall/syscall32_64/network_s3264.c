@@ -55,6 +55,10 @@ int recvmsg_s3264(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
     msg.msg_flags = msg_guest->msg_flags;
 
     res = syscall(SYS_recvmsg, sockfd, &msg, flags);
+    if (res >= 0) {
+        msg_guest->msg_namelen = msg.msg_namelen;
+        msg_guest->msg_controllen = msg.msg_controllen;
+    }
 
     return res;
 }
