@@ -32,6 +32,8 @@ extern long execve_s6464(uint64_t filename_p, uint64_t argv_p, uint64_t envp_p);
 extern long futex_s6464(uint64_t uaddr_p, uint64_t op_p, uint64_t val_p, uint64_t timeout_p, uint64_t uaddr2_p, uint64_t val3_p);
 extern long pselect6_s6464(uint64_t nfds_p, uint64_t readfds_p, uint64_t writefds_p, uint64_t exceptfds_p, uint64_t timeout_p, uint64_t data_p);
 extern long semctl_s6464(uint64_t semid_p, uint64_t semnum_p, uint64_t cmd_p, uint64_t arg_p);
+extern long epoll_ctl_s6464(uint64_t epfd_p, uint64_t op_p, uint64_t fd_p, uint64_t event_p);
+extern long epoll_pwait_s6464(uint64_t epfd_p, uint64_t events_p, uint64_t maxevents_p, uint64_t timeout_p, uint64_t sigmask_p, uint64_t sigmask_size_p);
 
 #endif
 

@@ -481,7 +481,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_capget, (uint64_t/*cap_user_header_t*/) p0, IS_NULL(p1, void));
             break;
         case PR_epoll_ctl:
-            res = syscall(SYS_epoll_ctl, (int) p0, (int) p1, (int) p2, (struct epoll_event *) g_2_h(p3));
+            res = epoll_ctl_s6464(p0, p1, p2, p3);
             break;
         case PR_epoll_create1:
             res = syscall(SYS_epoll_create1, (int) p0);
@@ -630,8 +630,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_readahead, (int) p0, (off64_t) p1, (size_t) p2);
             break;
         case PR_epoll_pwait:
-            res = syscall(SYS_epoll_pwait, (int) p0, (struct epoll_event *) g_2_h(p1), (int) p2,
-                                           (int) p3, IS_NULL(p4, sigset_t), (size_t) p5);
+            res = epoll_pwait_s6464(p0, p1, p2, p3, p4, p5);
             break;
         case PR_quotactl:
             res = syscall(SYS_quotactl, (int) p0, (char *) g_2_h(p1), (int) p2, (void *) g_2_h(p3));
