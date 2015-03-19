@@ -88,6 +88,8 @@ int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
                 }
             }
             break;
+        case F_SETLK:
+            /* Fallthrough */
         case F_SETLKW:
             {
                 struct flock_32 *lock_guest = (struct flock_32 *) g_2_h(opt_p);
@@ -101,7 +103,7 @@ int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
                     lock.l_start = lock_guest->l_start;
                     lock.l_len = lock_guest->l_len;
                     lock.l_pid = lock_guest->l_pid;
-                    res = syscall(SYS_fcntl, fd, F_SETLKW, &lock);
+                    res = syscall(SYS_fcntl, fd, cmd, &lock);
                 }
             }
             break;

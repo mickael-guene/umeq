@@ -480,6 +480,15 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_setsockopt:
             res = syscall(SYS_setsockopt, (int) p0, (int) p1, (int) p2, (void *) g_2_h(p3), (socklen_t) p4);
             break;
+        case PR_setresgid32:
+            res = syscall(SYS_setresgid, (gid_t) p0, (gid_t) p1, (gid_t) p2);
+            break;
+        case PR_setregid32:
+            res = syscall(SYS_setregid, (gid_t) p0, (gid_t) p1);
+            break;
+        case PR_setresuid32:
+            res = syscall(SYS_setresuid, (uid_t) p0, (uid_t) p1, (uid_t) p2);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
