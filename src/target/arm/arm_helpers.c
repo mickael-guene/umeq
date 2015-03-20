@@ -2459,6 +2459,63 @@ static void dis_common_vmla_vmls_vfp(uint64_t _regs, uint32_t insn)
     }
 }
 
+static void dis_common_vnmla_vnmls_vfp(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int vn = INSN(19, 16);
+    int vd = INSN(15, 12);
+    int is_double = INSN(8, 8);
+    int N = INSN(7, 7);
+    int is_sub = INSN(6, 6);
+    int M = INSN(5, 5);
+    int vm = INSN(3, 0);
+    int d, n, m;
+
+    if (is_double) {
+        d = (D << 4) + vd;
+        n = (N << 4) + vn;
+        m = (M << 4) + vm;
+        if (is_sub)
+            regs->e.df[d] = -regs->e.df[d] - regs->e.df[n] * regs->e.df[m];
+        else
+            regs->e.df[d] = -regs->e.df[d] + regs->e.df[n] * regs->e.df[m];
+    } else {
+        d = (vd << 1) + D;
+        n = (vn << 1) + N;
+        m = (vm << 1) + M;
+        if (is_sub)
+            regs->e.sf[d] = -regs->e.sf[d] - regs->e.sf[n] * regs->e.sf[m];
+        else
+            regs->e.sf[d] = -regs->e.sf[d] + regs->e.sf[n] * regs->e.sf[m];
+    }
+}
+
+static void dis_common_vnmul_vfp(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int vn = INSN(19, 16);
+    int vd = INSN(15, 12);
+    int is_double = INSN(8, 8);
+    int N = INSN(7, 7);
+    int M = INSN(5, 5);
+    int vm = INSN(3, 0);
+    int d, n, m;
+
+    if (is_double) {
+        d = (D << 4) + vd;
+        n = (N << 4) + vn;
+        m = (M << 4) + vm;
+        regs->e.df[d] = -regs->e.df[n] * regs->e.df[m];
+    } else {
+        d = (vd << 1) + D;
+        n = (vn << 1) + N;
+        m = (vm << 1) + M;
+        regs->e.sf[d] = -regs->e.sf[n] * regs->e.sf[m];
+    }
+}
+
 static void dis_common_vmul_vfp(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -2538,6 +2595,55 @@ static void dis_common_vdiv_vfp(uint64_t _regs, uint32_t insn)
         n = (vn << 1) + N;
         m = (vm << 1) + M;
         regs->e.sf[d] = regs->e.sf[n] / regs->e.sf[m];
+    }
+}
+
+static void dis_common_vabs_vfp(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int vd = INSN(15, 12);
+    int is_double = INSN(8, 8);
+    int M = INSN(5, 5);
+    int vm = INSN(3, 0);
+    int d, m;
+
+    if (is_double) {
+        d = (D << 4) + vd;
+        m = (M << 4) + vm;
+        regs->e.d[d] = regs->e.d[m]&0x8000000000000000UL?regs->e.d[m]^0x8000000000000000UL:regs->e.d[m];
+
+    } else {
+        d = (vd << 1) + D;
+        m = (vm << 1) + M;
+        regs->e.s[d] = regs->e.s[m]&0x80000000?regs->e.s[m]^0x80000000:regs->e.s[m];
+    }
+}
+
+static void dis_common_vsqrt_vfp(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int vd = INSN(15, 12);
+    int is_double = INSN(8, 8);
+    int M = INSN(5, 5);
+    int vm = INSN(3, 0);
+    int d, m;
+
+    if (is_double) {
+        d = (D << 4) + vd;
+        m = (M << 4) + vm;
+        if (regs->e.d[m]&0x8000000000000000UL)
+            regs->e.df[d] = NAN;
+        else
+            regs->e.df[d] = sqrt(regs->e.df[m]);
+    } else {
+        d = (vd << 1) + D;
+        m = (vm << 1) + M;
+        if (regs->e.s[m]&0x80000000)
+            regs->e.sf[d] = NAN;
+        else
+            regs->e.sf[d] = sqrtf(regs->e.sf[m]);
     }
 }
 
@@ -2920,9 +3026,12 @@ void hlp_common_vfp_data_processing_insn(uint64_t regs, uint32_t insn)
         case 0: case 4:
             dis_common_vmla_vmls_vfp(regs, insn);
             break;
+        case 1: case 5:
+            dis_common_vnmla_vnmls_vfp(regs, insn);
+            break;
         case 2: case 6:
             if (opc3_0)
-                assert(0);
+                dis_common_vnmul_vfp(regs, insn);
             else
                 dis_common_vmul_vfp(regs, insn);
             break;
@@ -2934,9 +3043,12 @@ void hlp_common_vfp_data_processing_insn(uint64_t regs, uint32_t insn)
             break;
         case 11: case 15:
             switch(opc2) {
+                case 0:
+                    dis_common_vabs_vfp(regs, insn);
+                    break;
                 case 1:
                     if (opc3_1)
-                        assert(0);
+                        dis_common_vsqrt_vfp(regs, insn);
                     else
                         dis_common_vneg_vfp(regs, insn);
                     break;

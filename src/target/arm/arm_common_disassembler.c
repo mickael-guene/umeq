@@ -361,6 +361,9 @@ static int dis_common_vfp_data_processing_insn(struct arm_target *context, uint3
         case 0: case 4:
             isExit = mk_common_vfp_data_processing_insn(context, insn, ir);
             break;
+        case 1: case 5:
+            isExit = mk_common_vfp_data_processing_insn(context, insn, ir);
+            break;
         case 2: case 6:
             isExit = mk_common_vfp_data_processing_insn(context, insn, ir);
             break;
@@ -375,7 +378,7 @@ static int dis_common_vfp_data_processing_insn(struct arm_target *context, uint3
                 switch(opc2) {
                     case 0:
                         if (opc3_1)
-                            fatal("vabs\n");
+                            isExit = mk_common_vfp_data_processing_insn(context, insn, ir);
                         else
                             isExit = dis_common_vmov_register(context, insn, ir);
                         break;
