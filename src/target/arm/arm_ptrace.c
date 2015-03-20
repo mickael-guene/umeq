@@ -26,6 +26,7 @@
 #include <asm/prctl.h>
 #include <sys/prctl.h>
 #include <sys/user.h>
+#include <sys/uio.h>
 
 #include <stdio.h>
 
@@ -55,28 +56,28 @@ typedef struct siginfo_arm {
             sigval_t_arm _si_sigval;
         } _timer;
         /* POSIX.1b signals */
-	    struct {
-	        uint32_t _si_pid;
-	        uint32_t _si_uid;
-	        sigval_t_arm _si_sigval;
-	    } _rt;
+        struct {
+            uint32_t _si_pid;
+            uint32_t _si_uid;
+            sigval_t_arm _si_sigval;
+        } _rt;
         /* SIGCHLD */
-	    struct {
-	        uint32_t _si_pid;
-	        uint32_t _si_uid;
-	        uint32_t _si_status;
-	        uint32_t _si_utime;
-	        uint32_t _si_stime;
-	    } _sigchld;
+        struct {
+            uint32_t _si_pid;
+            uint32_t _si_uid;
+            uint32_t _si_status;
+            uint32_t _si_utime;
+            uint32_t _si_stime;
+        } _sigchld;
         /* SIGILL, SIGFPE, SIGSEGV, SIGBUS */
-	    struct {
-	        uint32_t _si_addr;
-	    } _sigfault;
+        struct {
+            uint32_t _si_addr;
+        } _sigfault;
         /* SIGPOLL */
-	    struct {
-	        uint32_t _si_band;
-	        uint32_t _si_fd;
-	    } _sigpoll;
+        struct {
+            uint32_t _si_band;
+            uint32_t _si_fd;
+        } _sigpoll;
     } _sifields;
 } siginfo_t_arm;
 
@@ -85,17 +86,22 @@ struct user_regs_arm
     uint32_t uregs[18];
 };
 
+struct iovec_32 {
+    uint32_t iov_base;
+    uint32_t iov_len;
+};
+
 int arm_ptrace(struct arm_target *context)
 {
- 	int res;
+    int res;
     int request = context->regs.r[0];
     int pid = context->regs.r[1];
     unsigned int addr = context->regs.r[2];
     unsigned int data = context->regs.r[3];
 
     switch(request) {
-    	case PTRACE_TRACEME:
-    	case PTRACE_CONT:
+        case PTRACE_TRACEME:
+        case PTRACE_CONT:
         case PTRACE_SETOPTIONS:
         case PTRACE_KILL:
         case PTRACE_SYSCALL:
@@ -220,11 +226,45 @@ int arm_ptrace(struct arm_target *context)
         case 29:/* PTRACE_GETHBPREGS */
             res = -EIO;
             break;
-    	default:
+        case 0x4206: /* PTRACE_SEIZE */
+            /* we don't support SEIZE */
+            res = -EIO;
+            break;
+        case 0x4204: /* PTRACE_GETREGSET */
+            /* can be supported but we clain to not support it */
+            res = -EIO;
+            break;
+        default:
             fprintf(stderr, "ptrace unknown command : %d / 0x%x\n", request, request);
             res = -EIO;
             break;
     }
+
+    return res;
+}
+
+int process_vm_readv_s3264(uint32_t pid_p, uint32_t local_iov_p, uint32_t liovcnt_p, uint32_t remote_iov_p, uint32_t riovcnt_p, uint32_t flags_p)
+{
+    int res;
+    pid_t pid = (pid_t) pid_p;
+    struct iovec_32 *local_iov_guest = (struct iovec_32 *) g_2_h(local_iov_p);
+    unsigned long liovcnt = (unsigned long) liovcnt_p;
+    struct iovec_32 *remote_iov_guest = (struct iovec_32 *) g_2_h(remote_iov_p);
+    unsigned long riovcnt = (unsigned long) riovcnt_p;
+    unsigned long flags = (unsigned long) flags_p;
+    struct iovec *local_iov = (struct iovec *) alloca(liovcnt * sizeof(struct iovec));
+    struct iovec *remote_iov = (struct iovec *) alloca(riovcnt * sizeof(struct iovec));
+    int i;
+
+    for(i = 0; i < liovcnt; i++) {
+        local_iov[i].iov_base = (void *) g_2_h(local_iov_guest[i].iov_base);
+        local_iov[i].iov_len = local_iov_guest[i].iov_len;
+    }
+    for(i = 0; i < riovcnt; i++) {
+        remote_iov[i].iov_base = (void *) g_2_h(remote_iov_guest[i].iov_base);
+        remote_iov[i].iov_len = remote_iov_guest[i].iov_len;
+    }
+    res = syscall(SYS_process_vm_readv, pid, local_iov, liovcnt, remote_iov, riovcnt, flags);
 
     return res;
 }
