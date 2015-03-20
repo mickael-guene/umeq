@@ -93,3 +93,36 @@ int sendmsg_s3264(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
 
     return res;
 }
+
+int sendmmsg_s3264(uint32_t sockfd_p, uint32_t msgvec_p, uint32_t vlen_p, uint32_t flags_p)
+{
+    int res;
+    int sockfd = (int) sockfd_p;
+    struct mmsghdr_32 *msgvec_guest = (struct mmsghdr_32 *) g_2_h(msgvec_p);
+    unsigned int vlen = (unsigned int) vlen_p;
+    unsigned int flags = (unsigned int) flags_p;
+    struct mmsghdr *msgvec = (struct mmsghdr *) alloca(vlen * sizeof(struct mmsghdr));
+    int i, j;
+
+    for(i = 0; i < vlen; i++) {
+        msgvec[i].msg_hdr.msg_name = msgvec_guest[i].msg_hdr.msg_name?(void *) g_2_h(msgvec_guest[i].msg_hdr.msg_name):NULL;
+        msgvec[i].msg_hdr.msg_namelen = msgvec_guest[i].msg_hdr.msg_namelen;
+        msgvec[i].msg_hdr.msg_iov = (struct iovec *) alloca(msgvec_guest[i].msg_hdr.msg_iovlen * sizeof(struct iovec));
+        for(j = 0; j < msgvec_guest[i].msg_hdr.msg_iovlen; j++) {
+            struct iovec_32 *iovec_guest = (struct iovec_32 *) g_2_h(msgvec_guest[i].msg_hdr.msg_iov + sizeof(struct iovec_32) * j);
+
+            msgvec[i].msg_hdr.msg_iov[j].iov_base = (void *) g_2_h(iovec_guest->iov_base);
+            msgvec[i].msg_hdr.msg_iov[j].iov_len = iovec_guest->iov_len;
+        }
+        msgvec[i].msg_hdr.msg_iovlen = msgvec_guest[i].msg_hdr.msg_iovlen;
+        msgvec[i].msg_hdr.msg_control = (void *) g_2_h(msgvec_guest[i].msg_hdr.msg_control);
+        msgvec[i].msg_hdr.msg_controllen = msgvec_guest[i].msg_hdr.msg_controllen;
+        msgvec[i].msg_hdr.msg_flags = msgvec_guest[i].msg_hdr.msg_flags;
+        msgvec[i].msg_len = msgvec_guest[i].msg_len;
+    }
+    res = syscall(SYS_sendmmsg, sockfd, msgvec, vlen, flags);
+    for(i = 0; i < vlen; i++)
+        msgvec_guest[i].msg_len = msgvec[i].msg_len;
+
+    return res;
+}

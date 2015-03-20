@@ -170,6 +170,11 @@ struct msghdr_32 {
     uint32_t msg_flags;
 };
 
+struct mmsghdr_32 {
+	struct msghdr_32 msg_hdr;
+	uint32_t msg_len;
+};
+
 struct sysinfo_32 {
     int32_t uptime;
     uint32_t loads[3];

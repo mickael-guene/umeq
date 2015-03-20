@@ -38,10 +38,10 @@ HOW_not_yet_supported, HOW_custom_implementation, HOW_not_yet_supported, HOW_not
 HOW_32_to_64, HOW_32_to_64, HOW_not_yet_supported, HOW_32_to_64, HOW_not_yet_supported,  /*30..34*/
 HOW_not_yet_supported, HOW_32_to_64, HOW_32_to_64, HOW_32_to_64, HOW_not_yet_supported,  /*35..39*/
 HOW_custom_implementation, HOW_32_to_64, HOW_32_to_64, HOW_not_yet_supported, HOW_not_yet_supported,  /*40..44*/
-HOW_not_yet_supported, HOW_32_to_64, HOW_32_to_64, HOW_not_yet_supported, HOW_32_to_64,  /*45..49*/
+HOW_not_yet_supported, HOW_32_to_64, HOW_32_to_64, HOW_32_to_64, HOW_32_to_64,  /*45..49*/
 HOW_not_yet_supported, HOW_32_to_64, HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_64,  /*50..54*/
 HOW_not_yet_supported, HOW_32_to_64, HOW_32_to_64, HOW_32_to_64, HOW_custom_implementation,  /*55..59*/
-HOW_32_to_64, HOW_32_to_64, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*60..64*/
+HOW_32_to_64, HOW_32_to_64, HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_64,  /*60..64*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_64, HOW_32_to_64, HOW_32_to_64,  /*65..69*/
 HOW_not_yet_supported, HOW_32_to_64, HOW_32_to_64, HOW_not_yet_supported, HOW_32_to_64,  /*70..74*/
 HOW_32_to_64, HOW_32_to_64, HOW_32_to_64, HOW_32_to_64, HOW_not_yet_supported,  /*75..79*/
@@ -55,7 +55,7 @@ HOW_32_to_64, HOW_not_yet_supported, HOW_32_to_64, HOW_32_to_64, HOW_not_yet_sup
 HOW_32_to_64, HOW_32_to_64, HOW_not_yet_supported, HOW_32_to_64, HOW_not_yet_supported,  /*115..119*/
 HOW_32_to_64, HOW_not_yet_supported, HOW_32_to_64, HOW_not_yet_supported, HOW_32_to_64,  /*120..124*/
 HOW_32_to_64, HOW_32_to_64, HOW_32_to_64, HOW_not_yet_supported, HOW_32_to_64,  /*125..129*/
-HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_64,  /*130..134*/
+HOW_32_to_64, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_64,  /*130..134*/
 HOW_32_to_64, HOW_32_to_64, HOW_32_to_64, HOW_not_yet_supported, HOW_not_yet_supported,  /*135..139*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_64, HOW_not_yet_supported,  /*140..144*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*145..149*/
@@ -85,7 +85,7 @@ HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_64, HOW_32_to_64, HOW_no
 HOW_32_to_64, HOW_32_to_64, HOW_32_to_64, HOW_not_yet_supported, HOW_not_yet_supported,  /*265..269*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_64, HOW_32_to_64,  /*270..274*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_64, HOW_32_to_64, HOW_32_to_64,  /*275..279*/
-HOW_not_yet_supported, HOW_32_to_64, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*280..284*/
+HOW_not_yet_supported, HOW_32_to_64, HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_64,  /*280..284*/
 HOW_32_to_64, HOW_32_to_64, HOW_not_yet_supported, HOW_32_to_64, HOW_not_yet_supported,  /*285..289*/
 HOW_32_to_64, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*290..294*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*295..299*/

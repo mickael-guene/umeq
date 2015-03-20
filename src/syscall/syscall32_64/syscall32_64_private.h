@@ -70,6 +70,7 @@ extern int clock_nanosleep_s3264(uint32_t clock_id_p, uint32_t flags_p, uint32_t
 extern int times_s3264(uint32_t buf_p);
 extern int epoll_ctl_s3264(uint32_t epfd_p, uint32_t op_p, uint32_t fd_p, uint32_t event_p);
 extern int epoll_wait_s3264(uint32_t epfd_p, uint32_t events_p, uint32_t maxevents_p, uint32_t timeout_p);
+extern int sendmmsg_s3264(uint32_t sockfd_p, uint32_t msgvec_p, uint32_t vlen_p, uint32_t flags_p);
 
 #endif
 
