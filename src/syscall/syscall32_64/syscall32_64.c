@@ -510,6 +510,18 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_listen:
             res = syscall(SYS_listen, (int) p0, (int) p1);
             break;
+        case PR_accept:
+            res = syscall(SYS_accept, (int) p0, p1?(struct sockaddr *)g_2_h(p1):NULL, p2?(socklen_t *)g_2_h(p2):NULL);
+            break;
+        case PR_msgget:
+            res = syscall(SYS_msgget, (key_t) p0, (int) p1);
+            break;
+        case PR_pwrite64:
+            res = syscall(SYS_pwrite64, (int) p0, (void *) g_2_h(p1), (size_t) p2, (off_t) p3);
+            break;
+        case PR_getitimer:
+            res = getitimer_s3264(p0, p1);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }

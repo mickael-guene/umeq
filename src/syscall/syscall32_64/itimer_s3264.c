@@ -57,3 +57,18 @@ int setitimer_s3264(uint32_t which_p, uint32_t new_value_p, uint32_t old_value_p
     return res;
 }
 
+int getitimer_s3264(uint32_t which_p, uint32_t curr_value_p)
+{
+    int res;
+    int which = (int) which_p;
+    struct itimerval_32 *curr_value_guest = (struct itimerval_32 *) g_2_h(curr_value_p);
+    struct itimerval curr_value;
+
+    res = syscall(SYS_getitimer, which, &curr_value);
+    curr_value_guest->it_interval.tv_sec = curr_value.it_interval.tv_sec;
+    curr_value_guest->it_interval.tv_usec = curr_value.it_interval.tv_usec;
+    curr_value_guest->it_value.tv_sec = curr_value.it_value.tv_sec;
+    curr_value_guest->it_value.tv_usec = curr_value.it_value.tv_usec;
+
+    return res;
+}

@@ -71,6 +71,7 @@ extern int times_s3264(uint32_t buf_p);
 extern int epoll_ctl_s3264(uint32_t epfd_p, uint32_t op_p, uint32_t fd_p, uint32_t event_p);
 extern int epoll_wait_s3264(uint32_t epfd_p, uint32_t events_p, uint32_t maxevents_p, uint32_t timeout_p);
 extern int sendmmsg_s3264(uint32_t sockfd_p, uint32_t msgvec_p, uint32_t vlen_p, uint32_t flags_p);
+extern int getitimer_s3264(uint32_t which_p, uint32_t curr_value_p);
 
 #endif
 
