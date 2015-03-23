@@ -243,15 +243,15 @@ int arm_ptrace(struct arm_target *context)
     return res;
 }
 
-int process_vm_readv_s3264(uint32_t pid_p, uint32_t local_iov_p, uint32_t liovcnt_p, uint32_t remote_iov_p, uint32_t riovcnt_p, uint32_t flags_p)
+int arm_process_vm_readv(struct arm_target *context)
 {
     int res;
-    pid_t pid = (pid_t) pid_p;
-    struct iovec_32 *local_iov_guest = (struct iovec_32 *) g_2_h(local_iov_p);
-    unsigned long liovcnt = (unsigned long) liovcnt_p;
-    struct iovec_32 *remote_iov_guest = (struct iovec_32 *) g_2_h(remote_iov_p);
-    unsigned long riovcnt = (unsigned long) riovcnt_p;
-    unsigned long flags = (unsigned long) flags_p;
+    pid_t pid = (pid_t) context->regs.r[0];
+    struct iovec_32 *local_iov_guest = (struct iovec_32 *) g_2_h(context->regs.r[1]);
+    unsigned long liovcnt = (unsigned long) context->regs.r[2];
+    struct iovec_32 *remote_iov_guest = (struct iovec_32 *) g_2_h(context->regs.r[3]);
+    unsigned long riovcnt = (unsigned long) context->regs.r[4];
+    unsigned long flags = (unsigned long) context->regs.r[5];
     struct iovec *local_iov = (struct iovec *) alloca(liovcnt * sizeof(struct iovec));
     struct iovec *remote_iov = (struct iovec *) alloca(riovcnt * sizeof(struct iovec));
     int i;

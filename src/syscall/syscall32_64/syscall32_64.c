@@ -501,8 +501,14 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_fallocate:
             res = syscall(SYS_fallocate, (int) p0, (int) p1, (off_t) p2, (off_t) p3);
             break;
-        case PR_process_vm_readv:
-            res = process_vm_readv_s3264(p0, p1, p2, p3, p4, p5);
+        case PR_capget:
+            res = syscall(SYS_capget, (void *) g_2_h(p0), p1?(void *) g_2_h(p1):NULL);
+            break;
+        case PR_truncate64:
+            res = syscall(SYS_truncate, (char *) g_2_h(p0), (loff_t) p1);
+            break;
+        case PR_listen:
+            res = syscall(SYS_listen, (int) p0, (int) p1);
             break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
