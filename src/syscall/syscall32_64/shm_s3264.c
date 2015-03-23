@@ -191,6 +191,13 @@ int semctl_s3264(uint32_t semid_p, uint32_t semnum_p, uint32_t cmd_p, uint32_t a
                 arg_guest->sem_nsems = buf.sem_nsems;
             }
             break;
+        case SETALL:
+            {
+                unsigned short *array = (unsigned short *) g_2_h(arg0_p);
+
+                res = syscall(SYS_semctl, semid, semnum, cmd, array);
+            }
+            break;
         default:
             fatal("semctl_s3264: unsupported command %d\n", cmd);
     }
