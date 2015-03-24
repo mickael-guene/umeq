@@ -315,6 +315,11 @@ struct epoll_event_32 {
 	uint64_t data;
 };
 
+struct msgbuf_32 {
+	uint32_t mtype;
+	char mtext[1];
+};
+
 #endif
 
 #ifdef __cplusplus
