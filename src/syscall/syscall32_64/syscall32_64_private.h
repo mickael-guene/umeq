@@ -74,6 +74,7 @@ extern int sendmmsg_s3264(uint32_t sockfd_p, uint32_t msgvec_p, uint32_t vlen_p,
 extern int getitimer_s3264(uint32_t which_p, uint32_t curr_value_p);
 extern int msgsnd_s3264(uint32_t msqid_t, uint32_t msgp_t, uint32_t msgsz_t, uint32_t msgflg_t);
 extern int msgrcv_s3264(uint32_t msqid_t, uint32_t msgp_t, uint32_t msgsz_t, uint32_t msgtyp_t, uint32_t msgflg_t);
+extern int msgctl_s3264(uint32_t msqid_p, uint32_t cmd_p, uint32_t buf_p);
 
 #endif
 

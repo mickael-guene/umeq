@@ -29,19 +29,20 @@
 
 #include "syscall32_64_types.h"
 #include "syscall32_64_private.h"
+#include "runtime.h"
 
 struct msgbuf_64 {
     uint64_t mtype;
     char mtext[1];
 };
 
-int msgsnd_s3264(uint32_t msqid_t, uint32_t msgp_t, uint32_t msgsz_t, uint32_t msgflg_t)
+int msgsnd_s3264(uint32_t msqid_p, uint32_t msgp_p, uint32_t msgsz_p, uint32_t msgflg_p)
 {
     int res;
-    int msqid = (int) msqid_t;
-    struct msgbuf_32 *msgp_guest = (struct msgbuf_32 *) g_2_h(msgp_t);
-    size_t msgsz = (size_t) msgsz_t;
-    int msgflg = (int) msgflg_t;
+    int msqid = (int) msqid_p;
+    struct msgbuf_32 *msgp_guest = (struct msgbuf_32 *) g_2_h(msgp_p);
+    size_t msgsz = (size_t) msgsz_p;
+    int msgflg = (int) msgflg_p;
     struct msgbuf_64 *msgp;
 
     msgp = (struct msgbuf_64 *) alloca(sizeof(uint64_t) + msgsz);
@@ -54,14 +55,14 @@ int msgsnd_s3264(uint32_t msqid_t, uint32_t msgp_t, uint32_t msgsz_t, uint32_t m
     return res;
 }
 
-int msgrcv_s3264(uint32_t msqid_t, uint32_t msgp_t, uint32_t msgsz_t, uint32_t msgtyp_t, uint32_t msgflg_t)
+int msgrcv_s3264(uint32_t msqid_p, uint32_t msgp_p, uint32_t msgsz_p, uint32_t msgtyp_p, uint32_t msgflg_p)
 {
     int res;
-    int msqid = (int) msqid_t;
-    struct msgbuf_32 *msgp_guest = (struct msgbuf_32 *) g_2_h(msgp_t);
-    size_t msgsz = (size_t) msgsz_t;
-    long msgtyp = (int) msgtyp_t;
-    int msgflg = (int) msgflg_t;
+    int msqid = (int) msqid_p;
+    struct msgbuf_32 *msgp_guest = (struct msgbuf_32 *) g_2_h(msgp_p);
+    size_t msgsz = (size_t) msgsz_p;
+    long msgtyp = (int) msgtyp_p;
+    int msgflg = (int) msgflg_p;
     struct msgbuf_64 *msgp;
 
     msgp = (struct msgbuf_64 *) alloca(sizeof(uint64_t) + msgsz);
@@ -71,6 +72,21 @@ int msgrcv_s3264(uint32_t msqid_t, uint32_t msgp_t, uint32_t msgsz_t, uint32_t m
     if (res >= 0) {
         msgp_guest->mtype = msgp->mtype;
         memcpy(msgp_guest->mtext, msgp->mtext, res);
+    }
+
+    return res;
+}
+
+int msgctl_s3264(uint32_t msqid_p, uint32_t cmd_p, uint32_t buf_p)
+{
+    int res;
+    int msqid = (int) msqid_p;
+    int cmd = (int) cmd_p;
+
+    (void) msqid;
+    switch(cmd) {
+        default:
+            fatal("msgctl_s3264: unsupported command %d\n", cmd);
     }
 
     return res;
