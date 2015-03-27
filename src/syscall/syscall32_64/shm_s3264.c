@@ -142,6 +142,8 @@ int semctl_s3264(uint32_t semid_p, uint32_t semnum_p, uint32_t cmd_p, uint32_t a
 
     cmd &= ~IPC_64;
     switch(cmd) {
+        case GETVAL:
+        case GETNCNT:
         case IPC_RMID:
             res = syscall(SYS_semctl, semid, semnum, cmd);
             break;
