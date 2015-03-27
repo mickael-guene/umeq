@@ -53,3 +53,25 @@ int msgsnd_s3264(uint32_t msqid_t, uint32_t msgp_t, uint32_t msgsz_t, uint32_t m
 
     return res;
 }
+
+int msgrcv_s3264(uint32_t msqid_t, uint32_t msgp_t, uint32_t msgsz_t, uint32_t msgtyp_t, uint32_t msgflg_t)
+{
+    int res;
+    int msqid = (int) msqid_t;
+    struct msgbuf_32 *msgp_guest = (struct msgbuf_32 *) g_2_h(msgp_t);
+    size_t msgsz = (size_t) msgsz_t;
+    long msgtyp = (int) msgtyp_t;
+    int msgflg = (int) msgflg_t;
+    struct msgbuf_64 *msgp;
+
+    msgp = (struct msgbuf_64 *) alloca(sizeof(uint64_t) + msgsz);
+    assert(msgp != NULL);
+    msgp->mtype = msgp_guest->mtype;
+    res = syscall(SYS_msgrcv, msqid, msgp, msgsz, msgtyp, msgflg);
+    if (res >= 0) {
+        msgp_guest->mtype = msgp->mtype;
+        memcpy(msgp_guest->mtext, msgp->mtext, res);
+    }
+
+    return res;
+}

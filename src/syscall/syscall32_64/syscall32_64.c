@@ -531,6 +531,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_msgsnd:
             res = msgsnd_s3264(p0, p1, p2, p3);
             break;
+        case PR_msgrcv:
+            res = msgrcv_s3264(p0, p1, p2, p3, p4);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
