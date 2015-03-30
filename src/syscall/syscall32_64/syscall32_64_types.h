@@ -296,6 +296,23 @@ struct semid_ds_32 {
     uint32_t __unused4;
 };
 
+struct msqid_ds_32 {
+	struct ipc_perm_32 msg_perm;
+	uint32_t msg_stime;
+	uint32_t __unused1;
+	uint32_t msg_rtime;
+	uint32_t __unused2;
+	uint32_t msg_ctime;
+	uint32_t __unused3;
+	uint32_t __msg_cbytes;
+	uint32_t msg_qnum;
+	uint32_t msg_qbytes;
+	uint32_t msg_lspid;
+	uint32_t msg_lrpid;
+	uint32_t __unused4;
+	uint32_t __unused5;
+};
+
 struct sembuf_32 {
     uint16_t sem_num;
     int16_t sem_op;
