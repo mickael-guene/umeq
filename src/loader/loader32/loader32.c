@@ -25,6 +25,7 @@
 #include <elf.h>
 #include <sys/mman.h>
 #include <assert.h>
+#include <string.h>
 
 #include "loader32.h"
 #include "runtime.h"
@@ -41,10 +42,13 @@ static guest_ptr load_AT_PHDR_init = 0;
 
 static guest_ptr getEntry(int fd, Elf32_Ehdr *hdr, int is_dl);
 static int getSegment(int fd, Elf32_Ehdr *hdr, int idx, Elf32_Phdr *segment);
-static int mapSegment(int fd, Elf32_Phdr *segment, struct load_auxv_info_32 *auxv_info, int is_dl, int is_share_object);
+static int mapSegment(int fd, Elf32_Phdr *segment, struct elf_loader_info_32 *auxv_info, int is_dl, int is_share_object);
 static int elfToMapProtection(uint32_t flags);
 static void unmapSegment(int fd, Elf32_Phdr *segment);
 static void dl_copy_dl_name(int fd, Elf32_Phdr *segment, char *name);
+static int getSection(int fd, Elf32_Ehdr *hdr, int idx, Elf32_Shdr *section);
+static int elf_is_fdpic(Elf32_Ehdr *hdr);
+static guest_ptr get_fdpic_dynamic_addr(int fd, Elf32_Ehdr *hdr, struct elf32_fdpic_loadmap *loadmap);
 
 /*
     Basic static binary arm elf loader
@@ -57,7 +61,7 @@ static void dl_copy_dl_name(int fd, Elf32_Phdr *segment, char *name);
     return NULL in case of error
 */
 
-static guest_ptr load32_internal(const char *file, struct load_auxv_info_32 *auxv_info, int is_dl)
+static guest_ptr load32_internal(const char *file, struct elf_loader_info_32 *auxv_info, int is_dl)
 {
     Elf32_Ehdr elf_header;
     Elf32_Phdr segment;
@@ -81,6 +85,9 @@ static guest_ptr load32_internal(const char *file, struct load_auxv_info_32 *aux
     auxv_info->load_AT_PHENT = elf_header.e_phentsize;
     auxv_info->load_AT_PHNUM = elf_header.e_phnum;
     auxv_info->load_AT_ENTRY = entry;
+
+    memset((void *) &auxv_info->fdpic_info, 0, sizeof(struct fdpic_info_32));
+    auxv_info->fdpic_info.is_fdpic = elf_is_fdpic(&elf_header);
     /* map all segments */
     for(i=0; i< elf_header.e_phnum; i++) {
         if (getSegment(fd, &elf_header, i, &segment)) {
@@ -91,7 +98,7 @@ static guest_ptr load32_internal(const char *file, struct load_auxv_info_32 *aux
                 }
             } else if (segment.p_type == PT_INTERP) {
                 char dl_name[DL_NAME_MAX_SIZE];
-                struct load_auxv_info_32 dl_auxv_info;
+                struct elf_loader_info_32 dl_auxv_info;
 
                 dl_copy_dl_name(fd, &segment, dl_name);
                 dl_entry = load32_internal(dl_name, &dl_auxv_info, 1);
@@ -99,11 +106,23 @@ static guest_ptr load32_internal(const char *file, struct load_auxv_info_32 *aux
                     entry = 0;
                     goto end;
                 }
+                /* copy interpreter information */
+                memcpy(&auxv_info->fdpic_info.dl, &dl_auxv_info.fdpic_info.dl, sizeof(struct elf32_fdpic_loadmap));
+                auxv_info->fdpic_info.dl_dynamic_section_addr = dl_auxv_info.fdpic_info.dl_dynamic_section_addr;
+                auxv_info->fdpic_info.dl_load_addr = dl_auxv_info.fdpic_info.dl_load_addr;
+            } else if (!is_dl && auxv_info->fdpic_info.is_fdpic && segment.p_type == PT_GNU_STACK) {
+                auxv_info->fdpic_info.stack_size = segment.p_memsz;
             }
         } else {
             entry = 0;
             goto end;
         }
+    }
+
+    /* find fdpic interpreter information */
+    if (is_dl && auxv_info->fdpic_info.is_fdpic) {
+        auxv_info->fdpic_info.dl_dynamic_section_addr = get_fdpic_dynamic_addr(fd, &elf_header, &auxv_info->fdpic_info.dl);
+        auxv_info->fdpic_info.dl_load_addr = DL_LOAD_ADDR;
     }
 
 end:
@@ -123,7 +142,7 @@ end:
     return entry?(dl_entry?dl_entry:entry):0;
 }
 
-guest_ptr load32(const char *file, struct load_auxv_info_32 *auxv_info)
+guest_ptr load32(const char *file, struct elf_loader_info_32 *auxv_info)
 {
     return load32_internal(file, auxv_info, 0);
 }
@@ -164,7 +183,7 @@ static void unmapSegment(int fd, Elf32_Phdr *segment)
     munmap_guest(segment->p_vaddr, segment->p_memsz);
 }
 
-static int mapSegment(int fd, Elf32_Phdr *segment, struct load_auxv_info_32 *auxv_info, int is_dl, int is_share_object)
+static int mapSegment(int fd, Elf32_Phdr *segment, struct elf_loader_info_32 *auxv_info, int is_dl, int is_share_object)
 {
     if (is_dl)
         segment->p_vaddr += DL_LOAD_ADDR;
@@ -216,6 +235,16 @@ static int mapSegment(int fd, Elf32_Phdr *segment, struct load_auxv_info_32 *aux
             status = 1;
     }
 
+    if (auxv_info->fdpic_info.is_fdpic) {
+        struct elf32_fdpic_loadmap *loadmap = is_dl?&auxv_info->fdpic_info.dl:&auxv_info->fdpic_info.executable;
+
+        assert(loadmap->nsegs < 2);
+        loadmap->segs[loadmap->nsegs].addr = segment->p_vaddr;
+        loadmap->segs[loadmap->nsegs].p_vaddr = segment->p_vaddr - (is_dl?DL_LOAD_ADDR:0);
+        loadmap->segs[loadmap->nsegs].p_memsz = segment->p_memsz;
+        loadmap->nsegs++;
+    }
+
 exit:
     return status;
 }
@@ -229,6 +258,22 @@ static int getSegment(int fd, Elf32_Ehdr *hdr, int idx, Elf32_Phdr *segment)
 
         if (lseek(fd, seekOffset, SEEK_SET) >= 0) {
             if (read(fd, segment, sizeof(*segment)) == sizeof(*segment))
+                status = 1;
+        }
+    }
+
+    return status;
+}
+
+static int getSection(int fd, Elf32_Ehdr *hdr, int idx, Elf32_Shdr *section)
+{
+    int status = 0;
+
+    if (idx < hdr->e_shnum) {
+        off_t seekOffset = hdr->e_shoff + idx * hdr->e_shentsize;
+
+        if (lseek(fd, seekOffset, SEEK_SET) >= 0) {
+            if (read(fd, section, sizeof(*section)) == sizeof(*section))
                 status = 1;
         }
     }
@@ -264,3 +309,31 @@ static guest_ptr getEntry(int fd, Elf32_Ehdr *hdr, int is_dl)
     return entry;
 }
 
+static int elf_is_fdpic(Elf32_Ehdr *hdr)
+{
+    return hdr->e_flags & 0x00001000;
+}
+
+static guest_ptr get_fdpic_dynamic_addr(int fd, Elf32_Ehdr *hdr, struct elf32_fdpic_loadmap *loadmap)
+{
+    Elf32_Shdr section;
+    int i;
+
+    /* find dynamic section */
+    for(i=0; i< hdr->e_shnum; i++) {
+        if (getSection(fd, hdr, i, &section)) {
+            if (section.sh_type == SHT_DYNAMIC)
+                break;
+        }
+    }
+    assert(i < hdr->e_shnum);
+    /* find in which segment this section belong to */
+    for(i=0; i< 2; i++) {
+        if (section.sh_addr >= loadmap->segs[i].p_vaddr &&
+            section.sh_addr + section.sh_size <= loadmap->segs[i].p_vaddr + loadmap->segs[i].p_memsz) {
+                return section.sh_addr - loadmap->segs[i].p_vaddr + loadmap->segs[i].addr;
+        }
+    }
+
+    fatal("We found dynamic section but it does not belong to any segment ?\n");
+}

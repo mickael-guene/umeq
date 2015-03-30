@@ -22,6 +22,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "loader32.h"
 #include "target.h"
 
 #ifdef __cplusplus
@@ -67,12 +68,14 @@ struct arm_target {
     uint64_t exclusive_value;
     uint32_t disa_itstate;
     uint32_t is_in_signal;
+    struct fdpic_info_32 fdpic_info;
 };
 
 extern void disassemble_arm(struct target *target, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);
 extern void disassemble_thumb(struct target *target, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);
 extern void arm_setup_brk(void);
 extern void arm_load_image(int argc, char **argv, void **additionnal_env, void **unset_env, void *target_argv0, uint64_t *entry, uint64_t *stack);
+extern uint32_t get_got_handler(int signum);
 
 #endif
 

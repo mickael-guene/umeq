@@ -58,6 +58,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.r[0] = signum;
         context->regs.r[1] = (uint32_t)(long) param; /* siginfo_t * */
         context->regs.r[2] = 0; /* void * */
+        context->regs.r[9] = get_got_handler(signum);
         context->regs.r[13] = sp;
         context->regs.r[14] = sp;
         context->regs.r[15] = (uint32_t) entry;
@@ -66,6 +67,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.is_in_syscall = 0;
         context->regs.fpscr = 0;
         context->is_in_signal = 1;
+        context->fdpic_info = prev_context->fdpic_info;
     } else if (param) {
         /* new thread */
         struct arm_target *parent_context = container_of(param, struct arm_target, target);
@@ -83,8 +85,12 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.is_in_syscall = 0;
         context->regs.fpscr = 0;
         context->is_in_signal = 0;
+        context->fdpic_info = parent_context->fdpic_info;
     } else if (stack_ptr) {
         /* main thread */
+        /* get host pointer on fdpic info save on guest stack */
+        struct fdpic_info_32 *fdpic_info = g_2_h(*((uint32_t *)g_2_h(stack_ptr-4)));
+        /* init context */
         for(i = 0; i < 15; i++)
             context->regs.r[i] = 0;
         context->regs.r[13] = (uint32_t) stack_ptr;
@@ -95,6 +101,15 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->disa_itstate = 0;
         context->is_in_signal = 0;
         context->regs.fpscr = 0;
+        context->fdpic_info = *fdpic_info;
+        if (fdpic_info->is_fdpic) {
+            /* see arm fdpic abi */
+            context->regs.r[7] = h_2_g(&fdpic_info->executable);
+            if (fdpic_info->dl.nsegs) {
+                context->regs.r[8] = h_2_g(&fdpic_info->dl);
+                context->regs.r[9] = fdpic_info->dl_dynamic_section_addr;
+            }
+        }
         /* syscall execve exit sequence */
          /* this will be translated into sysexec exit */
         context->regs.is_in_syscall = 2;

@@ -106,14 +106,26 @@ typedef struct stack_arm {
     uint32_t ss_size;
 } stack_t_arm;
 
+struct arm_fdpic_handler {
+    uint32_t handler;
+    uint32_t entry;
+    uint32_t got;
+};
+
 /* global array to hold guest signal handlers. not translated */
-static uint32_t guest_signals_handler[NSIG];
+static struct arm_fdpic_handler guest_signals_handler[NSIG];
 static stack_t_arm ss = {0, SS_DISABLE, 0};
+
+/* allow to read got value for fdpic binaries */
+uint32_t get_got_handler(int signum)
+{
+    return guest_signals_handler[signum].got;
+}
 
 /* signal wrapper functions */
 void wrap_signal_handler(int signum)
 {
-    loop(guest_signals_handler[signum], ss.ss_flags?0:ss.ss_sp, signum, NULL);
+    loop(guest_signals_handler[signum].entry, ss.ss_flags?0:ss.ss_sp, signum, NULL);
 }
 
 /* FIXME: BUG: Avoid usage of mmap_guest/munmap_guest since we can deadlock if we were already inside
@@ -172,7 +184,7 @@ void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
             default:
                 fatal("si_code %d not yet implemented, signum = %d\n", siginfo->si_code, signum);
         }
-        loop(guest_signals_handler[signum], ss.ss_flags?0:ss.ss_sp, signum, (void *)(uint64_t) siginfo_guest);
+        loop(guest_signals_handler[signum].entry, ss.ss_flags?0:ss.ss_sp, signum, (void *)(uint64_t) siginfo_guest);
         munmap_guest(siginfo_guest, sizeof(siginfo_t_arm));
     }
 }
@@ -211,15 +223,30 @@ int arm_rt_sigaction(struct arm_target *context)
         }
 
         if (oldact_p) {
-            oldact_guest->_sa_handler = guest_signals_handler[signum];
+            oldact_guest->_sa_handler = guest_signals_handler[signum].handler;
         }
 
         //QUESTION : since setting guest handler and host handler is not atomic here is a problem ?
         //           if yes then this syscall must be redirecting towards proot (but is all threads stopped
         //            when we are ptracing a process ?)
         //setup guest syscall handler
-        if (act_p)
-            guest_signals_handler[signum] = act_guest->_sa_handler;
+        if (act_p) {
+            guest_signals_handler[signum].handler = act_guest->_sa_handler;
+            if (context->fdpic_info.is_fdpic) {
+                if (act_guest->_sa_handler != (uint32_t)(uint64_t)SIG_ERR &&
+                    act_guest->_sa_handler != (uint32_t)(uint64_t)SIG_DFL &&
+                    act_guest->_sa_handler != (uint32_t)(uint64_t)SIG_IGN) {
+                    guest_signals_handler[signum].entry = *((uint32_t *) g_2_h(guest_signals_handler[signum].handler + 0));
+                    guest_signals_handler[signum].got = *((uint32_t *) g_2_h(guest_signals_handler[signum].handler + 4));
+                } else {
+                    guest_signals_handler[signum].entry = -1;
+                    guest_signals_handler[signum].got = -1;
+                }
+            } else {
+                guest_signals_handler[signum].entry = act_guest->_sa_handler;
+                guest_signals_handler[signum].got = 0;
+            }
+        }
 
         res = syscall(SYS_rt_sigaction, signum, act_p?&act:NULL, oldact_p?&oldact:NULL, _NSIG / 8);
 

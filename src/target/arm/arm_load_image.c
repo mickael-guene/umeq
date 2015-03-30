@@ -78,7 +78,7 @@ static guest_ptr allocate_stack()
         assert(0);
 }
 
-static void compute_emulated_stack_space(int argc, char **argv, struct load_auxv_info_32 *auxv_info, void **additionnal_env,
+static void compute_emulated_stack_space(int argc, char **argv, struct elf_loader_info_32 *auxv_info, void **additionnal_env,
                                          void **unset_env, void *target_argv0, int *string_area_size, int *pointer_area_size)
 {
     void **pos = (void **) &argv[0];
@@ -140,6 +140,9 @@ static void compute_emulated_stack_space(int argc, char **argv, struct load_auxv
     *pointer_area_size += sizeof(*auxv);
     *pointer_area_size += sizeof(*auxv);
     *pointer_area_size += sizeof(*auxv);
+    // AT_BASE / need for fdpic
+    if (auxv_info->fdpic_info.is_fdpic)
+        *pointer_area_size += sizeof(*auxv);
     // end of auxv
     *pointer_area_size += sizeof(*auxv);
 
@@ -148,7 +151,7 @@ static void compute_emulated_stack_space(int argc, char **argv, struct load_auxv
     *string_area_size = (*string_area_size + 4096) & ~0xfff;
 }
 
-static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv, struct load_auxv_info_32 *auxv_info,
+static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv, struct elf_loader_info_32 *auxv_info,
                                          void **additionnal_env, void **unset_env, void *target_argv0)
 {
     uint32_t *ptr_area;
@@ -159,9 +162,15 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
     int string_area_size;
     int pointer_area_size;
 
+    /* copy fdpic info structure on guest stack */
+    stack = stack - sizeof(struct fdpic_info_32);
+    memcpy(g_2_h(stack), &auxv_info->fdpic_info, sizeof(struct fdpic_info_32));
+    /* continue normal processing */
     compute_emulated_stack_space(argc, argv, auxv_info, additionnal_env, unset_env, target_argv0, &string_area_size, &pointer_area_size);
     ptr_area = (uint32_t *) g_2_h(stack - string_area_size - pointer_area_size);
     str_area = stack - string_area_size;
+    /* we store guest address of fdpic info structure */
+    *(ptr_area-1) = stack;
     /* setup argument number */
     *ptr_area++ = argc;
     /* special handling of first argument */
@@ -236,6 +245,12 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
     auxv_target->a_type = AT_ENTRY;
     auxv_target->a_un.a_val = (unsigned int)(long) auxv_info->load_AT_ENTRY;
     auxv_target++;
+    //fdpic need AT_BASE
+    if (auxv_info->fdpic_info.is_fdpic) {
+        auxv_target->a_type = AT_BASE;
+        auxv_target->a_un.a_val = auxv_info->fdpic_info.dl_load_addr;
+        auxv_target++;
+    }
     // end of auxv
     auxv_target->a_type = AT_NULL;
     auxv_target++;
@@ -244,7 +259,7 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
     return stack - string_area_size - pointer_area_size;
 }
 
-static guest_ptr arm_load_program(const char *file, struct load_auxv_info_32 *auxv_info)
+static guest_ptr arm_load_program(const char *file, struct elf_loader_info_32 *auxv_info)
 {
     guest_ptr res;
 
@@ -253,7 +268,7 @@ static guest_ptr arm_load_program(const char *file, struct load_auxv_info_32 *au
     return res;
 }
 
-static guest_ptr arm_allocate_and_populate_stack(int argc, char **argv, struct load_auxv_info_32 *auxv_info, void **additionnal_env, void **unset_env, void *target_argv0)
+static guest_ptr arm_allocate_and_populate_stack(int argc, char **argv, struct elf_loader_info_32 *auxv_info, void **additionnal_env, void **unset_env, void *target_argv0)
 {
     guest_ptr emulated_stack = allocate_stack();
 
@@ -265,7 +280,7 @@ static guest_ptr arm_allocate_and_populate_stack(int argc, char **argv, struct l
 void arm_load_image(int argc, char **argv, void **additionnal_env, void **unset_env, void *target_argv0,
                     uint64_t *entry, uint64_t *stack)
 {
-    struct load_auxv_info_32 auxv_info;
+    struct elf_loader_info_32 auxv_info;
 
     *entry = arm_load_program(argv[0], &auxv_info);
     if (*entry) {

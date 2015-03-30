@@ -23,14 +23,40 @@
 
 #include "target32.h"
 
-struct load_auxv_info_32 {
-	guest_ptr load_AT_PHDR; /* Program headers for program */
-	unsigned int load_AT_PHENT; /* Size of program header entry */
-	unsigned int load_AT_PHNUM; /* Number of program headers */
-	guest_ptr load_AT_ENTRY; /* Entry point of program */
+struct elf32_fdpic_loadseg
+{
+  /* Core address to which the segment is mapped.  */
+  guest_ptr addr;
+  /* VMA recorded in the program header.  */
+  guest_ptr p_vaddr;
+  /* Size of this segment in memory.  */
+  uint32_t p_memsz;
 };
 
-extern guest_ptr load32(const char *file, struct load_auxv_info_32 *auxv_info);
+struct elf32_fdpic_loadmap {
+  uint16_t version;
+  uint16_t nsegs;
+  struct elf32_fdpic_loadseg segs[2];
+};
+
+struct fdpic_info_32 {
+    int is_fdpic;
+    uint32_t stack_size;
+    guest_ptr dl_dynamic_section_addr;
+    guest_ptr dl_load_addr;
+    struct elf32_fdpic_loadmap executable;
+    struct elf32_fdpic_loadmap dl;
+};
+
+struct elf_loader_info_32 {
+    guest_ptr load_AT_PHDR; /* Program headers for program */
+    unsigned int load_AT_PHENT; /* Size of program header entry */
+    unsigned int load_AT_PHNUM; /* Number of program headers */
+    guest_ptr load_AT_ENTRY; /* Entry point of program */
+    struct fdpic_info_32 fdpic_info;
+};
+
+extern guest_ptr load32(const char *file, struct elf_loader_info_32 *auxv_info);
 
 #endif
 
