@@ -537,6 +537,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_msgctl:
             res = msgctl_s3264(p0, p1, p2);
             break;
+        case PR_sched_setaffinity:
+            res = syscall(SYS_sched_setaffinity, (pid_t) p0, (size_t) p1, (cpu_set_t *) g_2_h(p2));
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
