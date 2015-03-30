@@ -1127,7 +1127,7 @@ static int dis_t1_svc(struct arm_target *context, uint32_t insn, struct irInstru
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
 
     /* be sure pc as the correct value so clone syscall can use pc value */
-    write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc));
+    write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc + 2));
     ir->add_call_void(ir, "arm_hlp_syscall",
                       ir->add_mov_const_64(ir, (uint64_t) arm_hlp_syscall),
                       param);
