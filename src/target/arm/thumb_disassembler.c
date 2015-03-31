@@ -3934,8 +3934,14 @@ static int dis_t2_long_mult_A_long_mult_acc_A_div(struct arm_target *context, ui
         case 0:
             isExit = dis_t2_umull_smull_umlal_smlal(context, insn, ir);
             break;
+        case 1:
+            isExit = mk_dis_t2_long_mult_A_long_mult_acc_A_div(context, insn, ir);
+            break;
         case 2:
             isExit = dis_t2_umull_smull_umlal_smlal(context, insn, ir);
+            break;
+        case 3:
+            isExit = mk_dis_t2_long_mult_A_long_mult_acc_A_div(context, insn, ir);
             break;
         case 4:
             if (op2 == 0)

@@ -1968,6 +1968,34 @@ static void smlawy_t32(uint64_t _regs, uint32_t insn)
     smlawy(_regs, INSN2(4, 4), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0), INSN2(15, 12));
 }
 
+static void sdiv(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int rn = INSN1(3, 0);
+    int rd = INSN2(11, 8);
+    int rm = INSN2(3, 0);
+    int32_t res = 0;
+
+    if (regs->r[rm])
+        res = (int32_t)regs->r[rn] / (int32_t)regs->r[rm];
+
+    regs->r[rd] = res;
+}
+
+static void udiv(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int rn = INSN1(3, 0);
+    int rd = INSN2(11, 8);
+    int rm = INSN2(3, 0);
+    uint32_t res = 0;
+
+    if (regs->r[rm])
+        res = regs->r[rn] / regs->r[rm];
+
+    regs->r[rd] = res;
+}
+
 static void smlalxy(uint64_t _regs, int n, int m, int rdlo, int rdhi, int rn, int rm)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -2983,6 +3011,12 @@ void thumb_hlp_t2_long_mult_A_long_mult_acc_A_div(uint64_t regs, uint32_t insn)
     int op2 = INSN2(7, 4);
 
     switch(op1) {
+        case 1:
+            sdiv(regs, insn);
+            break;
+        case 3:
+            udiv(regs, insn);
+            break;
         case 4:
             if ((op2 & 0xc) == 0x8)
                 smlalxy_t32(regs, insn);
