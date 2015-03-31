@@ -77,6 +77,7 @@ extern int msgrcv_s3264(uint32_t msqid_t, uint32_t msgp_t, uint32_t msgsz_t, uin
 extern int msgctl_s3264(uint32_t msqid_p, uint32_t cmd_p, uint32_t buf_p);
 extern int stat_s3264(uint32_t pathname_p, uint32_t buf_p);
 extern int fstat_s3264(uint32_t fd_p, uint32_t buf_p);
+extern int fnctl_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p);
 
 #endif
 

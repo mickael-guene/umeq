@@ -113,3 +113,20 @@ int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
 
     return res;
 }
+
+int fnctl_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
+{
+    int res = -EINVAL;
+    int fd = fd_p;
+    int cmd = cmd_p;
+
+    switch(cmd) {
+        case F_SETFD:
+            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
+            break;
+        default:
+            fatal("unsupported fnctl command %d\n", cmd);
+    }
+
+    return res;
+}
