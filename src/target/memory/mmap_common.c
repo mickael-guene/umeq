@@ -737,7 +737,7 @@ static long internal_mmap_signal(uint64_t addr_p, uint64_t length_p, uint64_t pr
         addr = (void *) signal_cursor;
         signal_cursor += length;
         assert((uint64_t) signal_cursor < MAPPING_RESERVE_IN_SIGNAL_END);
-        res = mmap_syscall(addr, length, prot, flags | MAP_FIXED, fd, offset);
+        res = mmap_syscall(g_2_h(addr), length, prot, flags | MAP_FIXED, fd, offset);
     }
 
     return is_syscall_error(res)?res:h_2_g(res);
