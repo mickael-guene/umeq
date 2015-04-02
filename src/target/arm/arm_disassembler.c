@@ -1677,7 +1677,7 @@ static int dis_bfc(struct arm_target *context, uint32_t insn, struct irInstructi
     int msb = INSN(20, 16);
     int lsb = INSN(11, 7);
     int width = msb - lsb + 1;
-    int mask = ~(((1 << width) - 1) << lsb);
+    int mask = ~(((1UL << width) - 1) << lsb);
 
     assert(rd != 15);
 
@@ -1695,7 +1695,7 @@ static int dis_bfi(struct arm_target *context, uint32_t insn, struct irInstructi
     int msb = INSN(20, 16);
     int lsb = INSN(11, 7);
     int width = msb - lsb + 1;
-    uint32_t mask_rn = (((1 << width) - 1) << lsb);
+    uint32_t mask_rn = (((1UL << width) - 1) << lsb);
     uint32_t mask_rd = ~mask_rn;
     struct irRegister *op1;
     struct irRegister *op2;
