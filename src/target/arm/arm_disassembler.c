@@ -1648,7 +1648,7 @@ static int dis_ubfx(struct arm_target *context, uint32_t insn, struct irInstruct
     int rd = INSN(15, 12);
     int lsb = INSN(11, 7);
     int rn = INSN(3, 0);
-    uint32_t mask = (1 << (widthm1 + 1)) - 1;
+    uint32_t mask = (1UL << (widthm1 + 1)) - 1;
 
     write_reg(context, ir, rd, ir->add_and_32(ir,
                                               ir->add_shr_32(ir, read_reg(context, ir, rn), mk_8(ir, lsb)),
