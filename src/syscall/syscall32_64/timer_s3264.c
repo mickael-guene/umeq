@@ -36,11 +36,11 @@
 
 int timer_create_s3264(uint32_t clockid_p, uint32_t sevp_p, uint32_t timerid_p)
 {
-	int res;
-	clockid_t clockid = (clockid_t) clockid_p;
-	struct sigevent_32 *sevp_guest = (struct sigevent_32 *) g_2_h(sevp_p);
-	timer_t *timerid = (timer_t *) g_2_h(timerid_p);
-	struct sigevent evp;
+    int res;
+    clockid_t clockid = (clockid_t) clockid_p;
+    struct sigevent_32 *sevp_guest = (struct sigevent_32 *) g_2_h(sevp_p);
+    timer_t *timerid = (timer_t *) g_2_h(timerid_p);
+    struct sigevent evp;
 
     if (sevp_p) {
         switch(sevp_guest->sigev_notify) {
@@ -67,12 +67,12 @@ int timer_create_s3264(uint32_t clockid_p, uint32_t sevp_p, uint32_t timerid_p)
 
 int timer_settime_s3264(uint32_t timerid_p, uint32_t flags_p, uint32_t new_value_p, uint32_t old_value_p)
 {
-	int res;
-	timer_t timerid = (timer_t)(long) timerid_p;
-	int flags = (int) flags_p;
-	struct itimerspec_32 *new_value_guest = (struct itimerspec_32 *) g_2_h(new_value_p);
-	struct itimerspec_32 *old_value_guest = (struct itimerspec_32 *) g_2_h(old_value_p);
-	struct itimerspec new_value;
+    int res;
+    timer_t timerid = (timer_t)(long) timerid_p;
+    int flags = (int) flags_p;
+    struct itimerspec_32 *new_value_guest = (struct itimerspec_32 *) g_2_h(new_value_p);
+    struct itimerspec_32 *old_value_guest = (struct itimerspec_32 *) g_2_h(old_value_p);
+    struct itimerspec new_value;
     struct itimerspec old_value;
 
     new_value.it_interval.tv_sec = new_value_guest->it_interval.tv_sec;
@@ -87,6 +87,24 @@ int timer_settime_s3264(uint32_t timerid_p, uint32_t flags_p, uint32_t new_value
         old_value_guest->it_interval.tv_nsec = old_value.it_interval.tv_nsec;
         old_value_guest->it_value.tv_sec = old_value.it_value.tv_sec;
         old_value_guest->it_value.tv_nsec = old_value.it_value.tv_nsec;
+    }
+
+    return res;
+}
+
+int timer_gettime_s3264(uint32_t timerid_p, uint32_t curr_value_p)
+{
+    int res;
+    timer_t timerid = (timer_t)(long) timerid_p;
+    struct itimerspec_32 *curr_value_guest = (struct itimerspec_32 *) g_2_h(curr_value_p);
+    struct itimerspec curr_value;
+
+    res = syscall(SYS_timer_gettime, timerid, &curr_value);
+    if (curr_value_p) {
+        curr_value_guest->it_interval.tv_sec = curr_value.it_interval.tv_sec;
+        curr_value_guest->it_interval.tv_nsec = curr_value.it_interval.tv_nsec;
+        curr_value_guest->it_value.tv_sec = curr_value.it_value.tv_sec;
+        curr_value_guest->it_value.tv_nsec = curr_value.it_value.tv_nsec;
     }
 
     return res;
