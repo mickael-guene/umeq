@@ -561,6 +561,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_sched_getscheduler:
             res = syscall(SYS_sched_getscheduler, (pid_t) p0);
             break;
+        case PR_sched_rr_get_interval:
+            res = sched_rr_get_interval_s3264(p0, p1);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
