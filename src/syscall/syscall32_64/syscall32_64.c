@@ -567,6 +567,10 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_timer_gettime:
             res = timer_gettime_s3264(p0, p1);
             break;
+        case PR_timer_getoverrun:
+            /* see comment in timer_s3264 */
+            res = syscall(SYS_timer_getoverrun, p0);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
