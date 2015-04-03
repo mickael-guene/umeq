@@ -35,7 +35,7 @@
 #include "runtime.h"
 #include "cache.h"
 
-extern int isGdb;
+#define IS_NULL(px,type) ((px)?(type *)g_2_h((px)):NULL)
 
 int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5)
 {
@@ -577,6 +577,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             break;
         case PR_clock_settime:
             res = clock_settime_s3264(p0, p1);
+            break;
+        case PR_mq_open:
+            res = syscall(SYS_mq_open, (char *) g_2_h(p0), (int) p1, (mode_t) p2, IS_NULL(p3, struct mq_attr));
             break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
