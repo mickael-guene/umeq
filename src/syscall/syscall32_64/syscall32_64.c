@@ -602,6 +602,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_setrlimit:
             res = setrlimit_s3264(p0, p1);
             break;
+        case PR_ftruncate:
+            res = syscall(SYS_ftruncate, (int) p0, (off_t) p1);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
