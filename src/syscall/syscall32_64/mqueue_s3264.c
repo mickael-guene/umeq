@@ -28,6 +28,26 @@
 #include "syscall32_64_private.h"
 #include "runtime.h"
 
+int mq_open_s3264(uint32_t name_p, uint32_t oflag_p, uint32_t mode_p, uint32_t attr_p)
+{
+    int res;
+    char *name = (char *) g_2_h(name_p);
+    int oflag = (int) oflag_p;
+    mode_t mode = (mode_t) mode_p;
+    struct mq_attr_32 *attr_guest = (struct mq_attr_32 *) g_2_h(attr_p);
+    struct mq_attr attr;
+
+    if (attr_guest) {
+        attr.mq_flags = attr_guest->mq_flags;
+        attr.mq_maxmsg = attr_guest->mq_maxmsg;
+        attr.mq_msgsize = attr_guest->mq_msgsize;
+        attr.mq_curmsgs = attr_guest->mq_curmsgs;
+    }    
+    res = syscall(SYS_mq_open, name, oflag, mode, attr_p?&attr:NULL);
+
+    return res;
+}
+
 int mq_timedsend_s3264(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t msg_len_p, uint32_t msg_prio_p, uint32_t abs_timeout_p)
 {
     int res;

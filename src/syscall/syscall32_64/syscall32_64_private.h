@@ -81,6 +81,7 @@ extern int fnctl_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p);
 extern int sched_rr_get_interval_s3264(uint32_t pid_p, uint32_t tp_p);
 extern int timer_gettime_s3264(uint32_t timerid_p, uint32_t curr_value_p);
 extern int clock_settime_s3264(uint32_t clk_id_p, uint32_t tp_p);
+extern int mq_open_s3264(uint32_t name_p, uint32_t oflag_p, uint32_t mode_p, uint32_t attr_p);
 extern int mq_timedsend_s3264(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t msg_len_p, uint32_t msg_prio_p, uint32_t abs_timeout_p);
 extern int mq_timedreceive_s3264(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t msg_len_p, uint32_t msg_prio_p, uint32_t abs_timeout_p);
 extern int mq_notify_s3264(uint32_t mqdes_p, uint32_t sevp_p);

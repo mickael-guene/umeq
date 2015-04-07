@@ -579,7 +579,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = clock_settime_s3264(p0, p1);
             break;
         case PR_mq_open:
-            res = syscall(SYS_mq_open, (char *) g_2_h(p0), (int) p1, (mode_t) p2, IS_NULL(p3, struct mq_attr));
+            res = mq_open_s3264(p0, p1, p2, p3);
             break;
         case PR_mq_unlink:
             res = syscall(SYS_mq_unlink, (char *) g_2_h(p0));
