@@ -358,6 +358,14 @@ struct stat_32 {
     uint32_t __unused5;
 };
 
+struct mq_attr_32 {
+    uint32_t mq_flags;
+    uint32_t mq_maxmsg;
+    uint32_t mq_msgsize;
+    uint32_t mq_curmsgs;
+    uint32_t __reserved[4];
+};
+
 #endif
 
 #ifdef __cplusplus

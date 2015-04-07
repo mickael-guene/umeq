@@ -95,3 +95,29 @@ int mq_notify_s3264(uint32_t mqdes_p, uint32_t sevp_p)
 
     return res;
 }
+
+int mq_getsetattr_s3264(uint32_t mqdes_p, uint32_t newattr_p, uint32_t oldattr_p)
+{
+    int res;
+    mqd_t mqdes = (mqd_t) mqdes_p;
+    struct mq_attr_32 *newattr_guest = (struct mq_attr_32 *) g_2_h(newattr_p);
+    struct mq_attr_32 *oldattr_guest = (struct mq_attr_32 *) g_2_h(oldattr_p);
+    struct mq_attr newattr;
+    struct mq_attr oldattr;
+
+    if (newattr_p) {
+        newattr.mq_flags = newattr_guest->mq_flags;
+        newattr.mq_maxmsg = newattr_guest->mq_maxmsg;
+        newattr.mq_msgsize = newattr_guest->mq_msgsize;
+        newattr.mq_curmsgs = newattr_guest->mq_curmsgs;
+    }
+    res = syscall(SYS_mq_getsetattr, mqdes, newattr_p?&newattr:NULL, oldattr_p?&oldattr:NULL);
+    if (oldattr_p) {
+        oldattr_guest->mq_flags = oldattr.mq_flags;
+        oldattr_guest->mq_maxmsg = oldattr.mq_maxmsg;
+        oldattr_guest->mq_msgsize = oldattr.mq_msgsize;
+        oldattr_guest->mq_curmsgs = oldattr.mq_curmsgs;
+    }
+
+    return res;
+}
