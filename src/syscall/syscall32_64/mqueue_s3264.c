@@ -37,7 +37,7 @@ int mq_open_s3264(uint32_t name_p, uint32_t oflag_p, uint32_t mode_p, uint32_t a
     struct mq_attr_32 *attr_guest = (struct mq_attr_32 *) g_2_h(attr_p);
     struct mq_attr attr;
 
-    if (attr_guest) {
+    if (attr_p) {
         attr.mq_flags = attr_guest->mq_flags;
         attr.mq_maxmsg = attr_guest->mq_maxmsg;
         attr.mq_msgsize = attr_guest->mq_msgsize;
