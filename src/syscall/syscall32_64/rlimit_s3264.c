@@ -47,6 +47,20 @@ int ugetrlimit_s3264(uint32_t resource_p, uint32_t rlim_p)
     return res;
 }
 
+int setrlimit_s3264(uint32_t resource_p, uint32_t rlim_p)
+{
+    int res;
+    int ressource = (int) resource_p;
+    struct rlimit_32 *rlim_guest = (struct rlimit_32 *) g_2_h(rlim_p);
+    struct rlimit rlim;
+
+    rlim.rlim_cur = rlim_guest->rlim_cur;
+    rlim.rlim_max = rlim_guest->rlim_max;
+    res = syscall(SYS_setrlimit, ressource, &rlim);
+
+    return res;
+}
+
 int prlimit64_s3264(uint32_t pid_p, uint32_t resource_p, uint32_t new_limit_p, uint32_t old_limit_p)
 {
     int res = 0;
