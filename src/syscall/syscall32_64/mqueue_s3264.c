@@ -26,6 +26,7 @@
 
 #include "syscall32_64_types.h"
 #include "syscall32_64_private.h"
+#include "runtime.h"
 
 int mq_timedsend_s3264(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t msg_len_p, uint32_t msg_prio_p, uint32_t abs_timeout_p)
 {
@@ -61,6 +62,36 @@ int mq_timedreceive_s3264(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t msg_len
         abs_timeout.tv_nsec = abs_timeout_guest->tv_nsec;
     }
     res = syscall(SYS_mq_timedsend, mqdes, msg_ptr, msg_len, msg_prio_p?msg_prio:NULL, abs_timeout_p?&abs_timeout:NULL);
+
+    return res;
+}
+
+int mq_notify_s3264(uint32_t mqdes_p, uint32_t sevp_p)
+{
+    int res;
+    mqd_t mqdes = (mqd_t) mqdes_p;
+    struct sigevent_32 *sevp_guest = (struct sigevent_32 *) g_2_h(sevp_p);
+    struct sigevent evp;
+
+    if (sevp_p) {
+        switch(sevp_guest->sigev_notify) {
+            case SIGEV_NONE:
+                evp.sigev_notify = SIGEV_NONE;
+                break;
+            case SIGEV_SIGNAL:
+                evp.sigev_notify = SIGEV_SIGNAL;
+                evp.sigev_signo = sevp_guest->sigev_signo;
+                /* FIXME: need to check kernel since doc is not clear which union part is use */
+                //evp.sigev_value.sival_ptr = (void *) g_2_h(sevp_guest->sigev_value.sival_ptr);
+                evp.sigev_value.sival_int = sevp_guest->sigev_value.sival_int;
+                break;
+            default:
+                /* FIXME : add SIGEV_THREAD + SIGEV_THREAD_ID support */
+                assert(0);
+        }
+    }
+
+    res = syscall(SYS_mq_notify, mqdes, sevp_p?&evp:NULL);
 
     return res;
 }

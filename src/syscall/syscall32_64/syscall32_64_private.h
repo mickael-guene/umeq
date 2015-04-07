@@ -83,6 +83,7 @@ extern int timer_gettime_s3264(uint32_t timerid_p, uint32_t curr_value_p);
 extern int clock_settime_s3264(uint32_t clk_id_p, uint32_t tp_p);
 extern int mq_timedsend_s3264(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t msg_len_p, uint32_t msg_prio_p, uint32_t abs_timeout_p);
 extern int mq_timedreceive_s3264(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t msg_len_p, uint32_t msg_prio_p, uint32_t abs_timeout_p);
+extern int mq_notify_s3264(uint32_t mqdes_p, uint32_t sevp_p);
 
 #endif
 
