@@ -81,7 +81,7 @@ int mq_timedreceive_s3264(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t msg_len
         abs_timeout.tv_sec = abs_timeout_guest->tv_sec;
         abs_timeout.tv_nsec = abs_timeout_guest->tv_nsec;
     }
-    res = syscall(SYS_mq_timedsend, mqdes, msg_ptr, msg_len, msg_prio_p?msg_prio:NULL, abs_timeout_p?&abs_timeout:NULL);
+    res = syscall(SYS_mq_timedreceive, mqdes, msg_ptr, msg_len, msg_prio_p?msg_prio:NULL, abs_timeout_p?&abs_timeout:NULL);
 
     return res;
 }
