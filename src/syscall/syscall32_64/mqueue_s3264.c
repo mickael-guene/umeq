@@ -45,3 +45,22 @@ int mq_timedsend_s3264(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t msg_len_p,
 
     return res;
 }
+
+int mq_timedreceive_s3264(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t msg_len_p, uint32_t msg_prio_p, uint32_t abs_timeout_p)
+{
+    int res;
+    mqd_t mqdes = (mqd_t) mqdes_p;
+    char *msg_ptr = (char *) g_2_h(msg_ptr_p);
+    size_t msg_len = (size_t) msg_len_p;
+    unsigned int *msg_prio = (unsigned int *) g_2_h(msg_prio_p);
+    struct timespec_32 *abs_timeout_guest = (struct timespec_32 *) g_2_h(abs_timeout_p);
+    struct timespec abs_timeout;
+
+    if (abs_timeout_p) {
+        abs_timeout.tv_sec = abs_timeout_guest->tv_sec;
+        abs_timeout.tv_nsec = abs_timeout_guest->tv_nsec;
+    }
+    res = syscall(SYS_mq_timedsend, mqdes, msg_ptr, msg_len, msg_prio_p?msg_prio:NULL, abs_timeout_p?&abs_timeout:NULL);
+
+    return res;
+}
