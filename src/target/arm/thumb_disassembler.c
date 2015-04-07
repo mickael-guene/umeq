@@ -1335,11 +1335,18 @@ static int dis_t2_ldr_literal(struct arm_target *context, uint32_t insn, struct 
 
 static int dis_t2_ldr_immediate_t3(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
+    int isExit = 0;
     int rt = INSN2(15, 12);
     int rn = INSN1(3, 0);
     uint32_t imm32 = INSN2(11, 0);
 
-    return mk_load_store_word_immediate(context, insn, ir, 1, rt, rn, imm32);
+    isExit = mk_load_store_word_immediate(context, insn, ir, 1, rt, rn, imm32);
+    if (rt == 15) {
+        ir->add_exit(ir, ir->add_32U_to_64(ir, ir->add_read_context_32(ir, offsetof(struct arm_registers, r[15]))));
+        isExit = 1;
+    }
+
+    return isExit;
 }
 
 static int dis_t32_ldrh_ldrsh_literal(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
