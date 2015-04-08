@@ -146,6 +146,9 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_process_vm_readv:
                 res = arm_process_vm_readv(context);
                 break;
+            case PR_rt_sigqueueinfo:
+                res = arm_rt_sigqueueinfo(context);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }
