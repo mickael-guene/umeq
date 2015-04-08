@@ -128,7 +128,6 @@ long arm64_rt_sigaction(struct arm64_target *context)
     return res;
 }
 
-/* FIXME : need to handle SS_ONSTACK case ? (EPERM) */
 long arm64_sigaltstack(struct arm64_target *context)
 {
     uint64_t ss_p = context->regs.r[0];
@@ -139,13 +138,15 @@ long arm64_sigaltstack(struct arm64_target *context)
 
     if (oss_p) {
         oss_guest->ss_sp = ss.ss_sp;
-        oss_guest->ss_flags = ss.ss_flags;
+        oss_guest->ss_flags = ss.ss_flags + (context->is_in_signal&2?SS_ONSTACK:0);
         oss_guest->ss_size = ss.ss_size;
     }
     if (ss_p) {
         if (ss_guest->ss_flags == 0) {
             if (ss_guest->ss_size < MINSTKSZ) {
                 res = -ENOMEM;
+            } else if (context->is_in_signal&2) {
+                res = -EPERM;
             } else {
                 ss.ss_sp = ss_guest->ss_sp;
                 ss.ss_flags = ss_guest->ss_flags;

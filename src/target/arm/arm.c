@@ -69,7 +69,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->disa_itstate = 0;
         context->regs.is_in_syscall = 0;
         context->regs.fpscr = 0;
-        context->is_in_signal = 1;
+        context->is_in_signal = 1 + (stack_ptr?2:0);
         context->fdpic_info = prev_context->fdpic_info;
     } else if (param) {
         /* new thread */

@@ -205,7 +205,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         }
 
         context->regs.is_in_syscall = 0;
-        context->is_in_signal = 1;
+        context->is_in_signal = 1 + (stack_ptr?2:0);
         context->regs.is_stepin = 0;
     } else if (param) {
         /* new thread */
