@@ -51,7 +51,10 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
                                       0xe320f000, //nop
                                       0xeafffffd};//b svc
 
-        sp = (prev_context->regs.r[13] - 4 * 16 - sizeof(return_code)) & ~7;
+        if (stack_ptr)
+            sp = stack_ptr & ~15UL;
+        else
+            sp = (prev_context->regs.r[13] - 4 * 16 - sizeof(return_code)) & ~7;
         for(i = 0, dst = (unsigned int *)g_2_h(sp);i < sizeof(return_code)/sizeof(return_code[0]); i++)
             *dst++ = return_code[i];
         context->regs.c13_tls2 = prev_context->regs.c13_tls2;

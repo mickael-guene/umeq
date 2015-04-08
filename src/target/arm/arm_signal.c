@@ -114,6 +114,7 @@ struct arm_fdpic_handler {
 
 /* global array to hold guest signal handlers. not translated */
 static struct arm_fdpic_handler guest_signals_handler[NSIG];
+static uint32_t sa_flags[NSIG];
 static stack_t_arm ss = {0, SS_DISABLE, 0};
 
 /* allow to read got value for fdpic binaries */
@@ -125,7 +126,9 @@ uint32_t get_got_handler(int signum)
 /* signal wrapper functions */
 void wrap_signal_handler(int signum)
 {
-    loop(guest_signals_handler[signum].entry, ss.ss_flags?0:ss.ss_sp, signum, NULL);
+    uint64_t stack_entry = (sa_flags[signum]&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
+
+    loop(guest_signals_handler[signum].entry, stack_entry, signum, NULL);
 }
 
 /* FIXME: BUG: Avoid usage of mmap_guest/munmap_guest since we can deadlock if we were already inside
@@ -134,6 +137,7 @@ void wrap_signal_handler(int signum)
  */
 void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
 {
+    uint64_t stack_entry = (sa_flags[signum]&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
     guest_ptr siginfo_guest = mmap_guest(0, sizeof(siginfo_t_arm), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS , -1, 0);
     siginfo_t_arm *siginfo_arm = (siginfo_t_arm *) g_2_h(siginfo_guest);
 
@@ -184,7 +188,7 @@ void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
             default:
                 fatal("si_code %d not yet implemented, signum = %d\n", siginfo->si_code, signum);
         }
-        loop(guest_signals_handler[signum].entry, ss.ss_flags?0:ss.ss_sp, signum, (void *)(uint64_t) siginfo_guest);
+        loop(guest_signals_handler[signum].entry, stack_entry, signum, (void *)(uint64_t) siginfo_guest);
         munmap_guest(siginfo_guest, sizeof(siginfo_t_arm));
     }
 }
@@ -231,6 +235,7 @@ int arm_rt_sigaction(struct arm_target *context)
         //            when we are ptracing a process ?)
         //setup guest syscall handler
         if (act_p) {
+            sa_flags[signum] = act_guest->sa_flags;
             guest_signals_handler[signum].handler = act_guest->_sa_handler;
             if (context->fdpic_info.is_fdpic) {
                 if (act_guest->_sa_handler != (uint32_t)(uint64_t)SIG_ERR &&
