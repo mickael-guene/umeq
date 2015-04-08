@@ -206,7 +206,7 @@ int arm_rt_sigaction(struct arm_target *context)
     struct kernel_sigaction act;
     struct kernel_sigaction oldact;
 
-    if (signum >= NSIG)
+    if (signum < 1 || signum >= NSIG)
         res = -EINVAL;
     else {
         memset(&act, 0, sizeof(act));

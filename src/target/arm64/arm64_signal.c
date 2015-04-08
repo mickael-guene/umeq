@@ -80,7 +80,7 @@ long arm64_rt_sigaction(struct arm64_target *context)
     struct kernel_sigaction act;
     struct kernel_sigaction oldact;
 
-    if (signum >= NSIG)
+    if (signum < 1 || signum >= NSIG)
         res = -EINVAL;
     else if (act_p == ~0 || oldact_p == ~0)
         res = -EFAULT;
