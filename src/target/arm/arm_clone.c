@@ -25,6 +25,8 @@
 #include <assert.h>
 #include <sys/mman.h>
 #include <string.h>
+#include <asm/prctl.h>
+#include <sys/prctl.h>
 
 #include "arm_private.h"
 #include "arm_syscall.h"
@@ -38,11 +40,16 @@ extern void clone_exit_asm(void *stack , long stacksize, int res, void *patch_ad
 
 void clone_thread_trampoline_arm()
 {
-    void *sp = __builtin_frame_address(0) + 8;//rbp has been push on stack
-    struct arm_target *parent_context = (struct arm_target *) sp;
-    int res;
-    void *stack = sp + sizeof(struct arm_target) - mmap_size[memory_profile];
+    struct tls_context *new_thread_tls_context;
+    struct arm_target *parent_context;
+    void *stack;
     void *patch_address;
+    int res;
+
+    syscall(SYS_arch_prctl, ARCH_GET_FS, &new_thread_tls_context);
+    assert(new_thread_tls_context != NULL);
+    stack = (void *) new_thread_tls_context - mmap_size[memory_profile] + sizeof(struct tls_context);
+    parent_context = (void *) new_thread_tls_context - sizeof(struct arm_target);
 
     res = loop(parent_context->regs.r[15], parent_context->regs.r[1], 0, &parent_context->target);
 
@@ -63,15 +70,30 @@ static int clone_thread_arm(struct arm_target *context)
     stack = g_2_h(guest_stack);
 
     if (stack) {//to be check what is return value of mmap
-        stack = stack + mmap_size[memory_profile] - sizeof(struct arm_target);
+        struct tls_context *new_thread_tls_context;
+        struct arm_target *parent_target;
+
+        stack = stack + mmap_size[memory_profile] - sizeof(struct arm_target) - sizeof(struct tls_context);
         //copy arm context onto stack
         memcpy(stack, context, sizeof(struct arm_target));
+        //setup new_thread_tls_context
+        parent_target = stack;
+        new_thread_tls_context = stack + sizeof(struct arm_target);
+        new_thread_tls_context->target = &parent_target->target;
+        new_thread_tls_context->target_runtime = &parent_target->regs;
+        //in case new created thread take a signal before thread context is setup, it will use
+        //context of parent but with the stack of the new thread. Yet this is confuse but it allow
+        //to take a signal before new guest thread context is init. Perhaps it will be a better idea
+        //to prepare new thread context here and just do a copy in arm init ?
+        parent_target->regs.r[13] = context->regs.r[1];
+        // do the same for c13_tls2 so it has the correct value
+        parent_target->regs.c13_tls2 = context->regs.r[3];
         //clone
         res = clone_asm(SYS_clone, (unsigned long) context->regs.r[0],
                                     stack,
                                     context->regs.r[2]?g_2_h(context->regs.r[2]):NULL,//ptid
                                     context->regs.r[4]?g_2_h(context->regs.r[4]):NULL,//ctid
-                                    NULL); //host will not have tls area, target tls area will be set later using r[3] content
+                                    new_thread_tls_context);
         // only parent return here
     }
 

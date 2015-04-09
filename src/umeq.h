@@ -55,6 +55,11 @@ enum memory_profile {
     MEM_PROFILE_NB
 };
 
+struct tls_context {
+    struct target *target;
+    void *target_runtime;
+};
+
 extern enum memory_profile memory_profile;
 extern struct target_arch current_target_arch;
 extern const char arch_name[];

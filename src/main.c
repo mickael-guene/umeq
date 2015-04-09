@@ -40,11 +40,6 @@
 #include "umeq.h"
 #include "version.h"
 
-struct tls_context {
-    struct target *target;
-    void *target_runtime;
-};
-
 struct memory_config {
     int max_insn;
     int jitter_context_size;
@@ -62,6 +57,14 @@ const struct memory_config cache_memory_config[MEM_PROFILE_NB] = {
     {40, 256 * KB, 256 * KB, 14 * MB},
 };
 
+static void setup_thread_area(struct tls_context *main_thread_tls_context)
+{
+    main_thread_tls_context->target = NULL;
+    main_thread_tls_context->target_runtime = NULL;
+
+    syscall(SYS_arch_prctl, ARCH_SET_FS, main_thread_tls_context);
+}
+
 /* FIXME: try to factorize loop_nocache and loop_cache */
 static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target)
 {
@@ -76,18 +79,11 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     struct target *target;
     void *target_runtime;
     uint64_t currentPc = entry;
-    unsigned long tlsareaAddress;
     struct tls_context parent_tls_context;
     struct tls_context *current_tls_context;
 
-    /* setup tls area if not yet set */
-    if (signum == 0) {
-        syscall(SYS_arch_prctl, ARCH_SET_FS, alloca(sizeof(struct tls_context)));
-        syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
-        assert(tlsareaAddress != 0);
-    } else
-        syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
-    current_tls_context =  (struct tls_context *) tlsareaAddress;
+    /* get current tls context */
+    syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
 
     /* allocate jitter and target context */
     backend = createX86_64Backend(beX86_64Memory, nocache_memory_config.be_context_size);
@@ -96,12 +92,13 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     targetHandle = current_target_arch.create_target_context(context_memory);
     target = current_target_arch.get_target_structure(targetHandle);
     target_runtime = current_target_arch.get_target_runtime(targetHandle);
-    /* save parent tls context content and setup current one */
+    /* init target */
+    target->init(target, current_tls_context->target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
+    /* now that new context is ready to run, setup as the current one */
     parent_tls_context = *current_tls_context;
     current_tls_context->target = target;
     current_tls_context->target_runtime = target_runtime;
-    /* init target */
-    target->init(target, parent_tls_context.target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
+
     /* enter main loop */
     while(target->isLooping(target)) {
         int jitSize;
@@ -134,20 +131,13 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     struct target *target;
     void *target_runtime;
     uint64_t currentPc = entry;
-    unsigned long tlsareaAddress;
     struct tls_context parent_tls_context;
     struct tls_context *current_tls_context;
     struct cache *cache = NULL;
     char *cacheMemory = alloca(cache_memory_config[memory_profile].cache_size);
 
-    /* setup tls area if not yet set */
-    if (signum == 0) {
-        syscall(SYS_arch_prctl, ARCH_SET_FS, alloca(sizeof(struct tls_context)));
-        syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
-        assert(tlsareaAddress != 0);
-    } else
-        syscall(SYS_arch_prctl, ARCH_GET_FS, &tlsareaAddress);
-    current_tls_context =  (struct tls_context *) tlsareaAddress;
+    /* get current tls context */
+    syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
 
     /* allocate jitter and target context */
     backend = createX86_64Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
@@ -156,13 +146,13 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     targetHandle = current_target_arch.create_target_context(context_memory);
     target = current_target_arch.get_target_structure(targetHandle);
     target_runtime = current_target_arch.get_target_runtime(targetHandle);
-    /* save parent tls context content and setup current one */
+    /* init target */
+    target->init(target, current_tls_context->target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
+    cache = createCache(cacheMemory, cache_memory_config[memory_profile].cache_size, current_target_arch.get_nb_of_pc_bit_to_drop());
+    /* now that new context is ready to run, setup as the current one */
     parent_tls_context = *current_tls_context;
     current_tls_context->target = target;
     current_tls_context->target_runtime = target_runtime;
-    /* init target */
-    target->init(target, parent_tls_context.target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
-    cache = createCache(cacheMemory, cache_memory_config[memory_profile].cache_size, current_target_arch.get_nb_of_pc_bit_to_drop());
 
     while(target->isLooping(target)) {
         void *cache_area;
@@ -217,6 +207,7 @@ int main(int argc, char **argv)
     int res = 0;
     uint64_t entry = 0;
     uint64_t stack;
+    struct tls_context main_thread_tls_context;
 
     /* capture umeq arguments.
         This consist on -E, -U and -0 option of qemu.
@@ -245,6 +236,7 @@ int main(int argc, char **argv)
     current_target_arch.loader(argc - target_argv0_index, argv + target_argv0_index,
                                 additionnal_env, unset_env, target_argv0, &entry, &stack);
     if (entry) {
+        setup_thread_area(&main_thread_tls_context);
         res = loop(entry, stack, 0, NULL);
     } else {
         info("Unable to open %s\n", argv[target_argv0_index]);
