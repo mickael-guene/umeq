@@ -68,6 +68,7 @@ struct arm_target {
     uint64_t exclusive_value;
     uint32_t disa_itstate;
     uint32_t is_in_signal;
+    uint32_t trigger_exec;
     struct fdpic_info_32 fdpic_info;
 };
 

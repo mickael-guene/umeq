@@ -70,6 +70,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.is_in_syscall = 0;
         context->regs.fpscr = 0;
         context->is_in_signal = 1 + (stack_ptr?2:0);
+        context->trigger_exec = 0;
         context->fdpic_info = prev_context->fdpic_info;
     } else if (param) {
         /* new thread */
@@ -88,6 +89,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.is_in_syscall = 0;
         context->regs.fpscr = 0;
         context->is_in_signal = 0;
+        context->trigger_exec = 0;
         context->fdpic_info = parent_context->fdpic_info;
     } else if (stack_ptr) {
         /* main thread */
@@ -113,13 +115,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
                 context->regs.r[9] = fdpic_info->dl_dynamic_section_addr;
             }
         }
-        /* syscall execve exit sequence */
-         /* this will be translated into sysexec exit */
-        context->regs.is_in_syscall = 2;
-        syscall((long) 313, 1);
-         /* this will be translated into SIGTRAP */
-        context->regs.is_in_syscall = 0;
-        syscall((long) 313, 2);
+        context->trigger_exec = 1;
     } else {
         //fork;
         //nothing to do
@@ -137,6 +133,17 @@ static void disassemble(struct target *target, struct irInstructionAllocator *ir
 static uint32_t isLooping(struct target *target)
 {
     struct arm_target *context = container_of(target, struct arm_target, target);
+
+    if (context->trigger_exec) {
+        /* syscall execve exit sequence */
+         /* this will be translated into sysexec exit */
+        context->regs.is_in_syscall = 2;
+        syscall((long) 313, 1);
+         /* this will be translated into SIGTRAP */
+        context->regs.is_in_syscall = 0;
+        syscall((long) 313, 2);
+        context->trigger_exec = 0;
+    }
 
     return context->isLooping;
 }

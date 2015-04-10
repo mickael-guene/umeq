@@ -70,6 +70,7 @@ struct arm64_target {
     uint32_t isLooping;
     uint32_t exitStatus;
     uint32_t is_in_signal;
+    uint32_t trigger_exec;
     __uint128_t exclusive_value;
 };
 
