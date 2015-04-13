@@ -30,6 +30,7 @@
 
 #include "arm_syscall.h"
 #include "runtime.h"
+#include "arm_signal_types.h"
 
 #define SA_RESTORER 0x04000000
 #define MINSTKSZ    2048
@@ -45,152 +46,41 @@ struct kernel_sigaction {
     sigset_t sa_mask;
 };
 
-struct sigaction_arm {
-    uint32_t _sa_handler;
-    uint32_t sa_flags;
-    uint32_t sa_restorer;
-    uint32_t sa_mask[0];
-} __attribute__ ((packed));
-
-typedef union sigval_arm {
-    uint32_t sival_int;
-    uint32_t sival_ptr;
-} sigval_t_arm;
-
-typedef struct siginfo_arm {
-    uint32_t si_signo;
-    uint32_t si_errno;
-    uint32_t si_code;
-    union {
-        uint32_t _pad[29];
-        /* kill */
-        struct {
-            uint32_t _si_pid;
-            uint32_t _si_uid;
-        } _kill;
-        /* POSIX.1b timers */
-        struct {
-            uint32_t _si_tid;
-            uint32_t _si_overrun;
-            sigval_t_arm _si_sigval;
-        } _timer;
-        /* POSIX.1b signals */
-        struct {
-            uint32_t _si_pid;
-            uint32_t _si_uid;
-            sigval_t_arm _si_sigval;
-        } _rt;
-        /* SIGCHLD */
-        struct {
-            uint32_t _si_pid;
-            uint32_t _si_uid;
-            uint32_t _si_status;
-            uint32_t _si_utime;
-            uint32_t _si_stime;
-        } _sigchld;
-        /* SIGILL, SIGFPE, SIGSEGV, SIGBUS */
-        struct {
-            uint32_t _si_addr;
-        } _sigfault;
-        /* SIGPOLL */
-        struct {
-            uint32_t _si_band;
-            uint32_t _si_fd;
-        } _sigpoll;
-    } _sifields;
-} siginfo_t_arm;
-
-typedef struct stack_arm {
-    uint32_t ss_sp;
-    uint32_t ss_flags;
-    uint32_t ss_size;
-} stack_t_arm;
-
-struct arm_fdpic_handler {
-    uint32_t handler;
-    uint32_t entry;
-    uint32_t got;
-};
-
 /* global array to hold guest signal handlers. not translated */
-static struct arm_fdpic_handler guest_signals_handler[NSIG];
-static uint32_t sa_flags[NSIG];
+static struct umeq_signal_handler_arm handlers[NSIG];
 static stack_t_arm ss = {0, SS_DISABLE, 0};
-
-/* allow to read got value for fdpic binaries */
-uint32_t get_got_handler(int signum)
-{
-    return guest_signals_handler[signum].got;
-}
 
 /* signal wrapper functions */
 void wrap_signal_handler(int signum)
 {
-    uint64_t stack_entry = (sa_flags[signum]&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
+    uint32_t sa_flags = handlers[signum].guest.sa_flags;
+    uint64_t stack_entry = (sa_flags&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
+    struct umeq_arm_signal_param param;
 
-    loop(guest_signals_handler[signum].entry, stack_entry, signum, NULL);
+    param.siginfo = NULL;
+    param.handler = handlers[signum];
+    if (handlers[signum].is_fdpic) {
+        struct fdpic_funcdesc *funcdesc = (struct fdpic_funcdesc *) g_2_h(handlers[signum].guest._sa_handler);
+
+        loop(funcdesc->fct, stack_entry, signum, &param);
+    } else
+        loop(handlers[signum].guest._sa_handler, stack_entry, signum, &param);
 }
 
-/* FIXME: BUG: Avoid usage of mmap_guest/munmap_guest since we can deadlock if we were already inside
-   mmap_guest/munmap_guest when signal is generated. Solution is to allocate this structure from
-   parent guest stack.
- */
 void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
 {
-    uint64_t stack_entry = (sa_flags[signum]&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
-    guest_ptr siginfo_guest = mmap_guest(0, sizeof(siginfo_t_arm), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS , -1, 0);
-    siginfo_t_arm *siginfo_arm = (siginfo_t_arm *) g_2_h(siginfo_guest);
+    uint32_t sa_flags = handlers[signum].guest.sa_flags;
+    uint64_t stack_entry = (sa_flags&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
+    struct umeq_arm_signal_param param;
 
-    if (siginfo_arm) {
-        siginfo_arm->si_signo = siginfo->si_signo;
-        siginfo_arm->si_errno = siginfo->si_errno;
-        siginfo_arm->si_code = siginfo->si_code;
-        switch(siginfo->si_code) {
-            case SI_USER:
-            case SI_TKILL:
-                siginfo_arm->_sifields._rt._si_pid = siginfo->si_pid;
-                siginfo_arm->_sifields._rt._si_uid = siginfo->si_uid;
-                break;
-            case SI_KERNEL:
-                if (signum == SIGPOLL) {
-                    siginfo_arm->_sifields._sigpoll._si_band = siginfo->si_band;
-                    siginfo_arm->_sifields._sigpoll._si_fd = siginfo->si_fd;
-                } else if (signum == SIGCHLD) {
-                    siginfo_arm->_sifields._sigchld._si_pid = siginfo->si_pid;
-                    siginfo_arm->_sifields._sigchld._si_uid = siginfo->si_uid;
-                    siginfo_arm->_sifields._sigchld._si_status = siginfo->si_status;
-                    siginfo_arm->_sifields._sigchld._si_utime = siginfo->si_utime;
-                    siginfo_arm->_sifields._sigchld._si_stime = siginfo->si_stime;
-                } else {
-                    siginfo_arm->_sifields._sigfault._si_addr = h_2_g(siginfo->si_addr);
-                }
-                break;
-            case SI_QUEUE:
-                siginfo_arm->_sifields._rt._si_pid = siginfo->si_pid;
-                siginfo_arm->_sifields._rt._si_uid = siginfo->si_uid;
-                siginfo_arm->_sifields._rt._si_sigval.sival_int = siginfo->si_int;
-                siginfo_arm->_sifields._rt._si_sigval.sival_ptr = (uint64_t) siginfo->si_ptr;
-                break;
-            case SI_TIMER:
-                siginfo_arm->_sifields._timer._si_tid = siginfo->si_timerid;
-                siginfo_arm->_sifields._timer._si_overrun = siginfo->si_overrun;
-                siginfo_arm->_sifields._timer._si_sigval.sival_int = siginfo->si_int;
-                siginfo_arm->_sifields._timer._si_sigval.sival_ptr = (uint64_t) siginfo->si_ptr;
-                break;
-            case SI_MESGQ:
-                siginfo_arm->_sifields._rt._si_sigval.sival_int = siginfo->si_int;
-                siginfo_arm->_sifields._rt._si_sigval.sival_ptr = (uint64_t) siginfo->si_ptr;
-                break;
-            case SI_SIGIO:
-            case SI_ASYNCIO:
-                assert(0);
-                break;
-            default:
-                fatal("si_code %d not yet implemented, signum = %d\n", siginfo->si_code, signum);
-        }
-        loop(guest_signals_handler[signum].entry, stack_entry, signum, (void *)(uint64_t) siginfo_guest);
-        munmap_guest(siginfo_guest, sizeof(siginfo_t_arm));
-    }
+    param.siginfo = siginfo;
+    param.handler = handlers[signum];
+    if (handlers[signum].is_fdpic) {
+        struct fdpic_funcdesc *funcdesc = (struct fdpic_funcdesc *) g_2_h(handlers[signum].guest._sa_handler);
+
+        loop(funcdesc->fct, stack_entry, signum, &param);
+    } else
+        loop(handlers[signum].guest._sa_handler, stack_entry, signum, &param);
 }
 
 /* signal syscall handling */
@@ -204,15 +94,20 @@ int arm_rt_sigaction(struct arm_target *context)
     struct sigaction_arm *act_guest = (struct sigaction_arm *) g_2_h(act_p);
     struct sigaction_arm *oldact_guest = (struct sigaction_arm *) g_2_h(oldact_p);
     struct kernel_sigaction act;
-    struct kernel_sigaction oldact;
 
     if (signum < 1 || signum >= NSIG)
         res = -EINVAL;
     else {
         memset(&act, 0, sizeof(act));
-        memset(&oldact, 0, sizeof(oldact));
+        
         //translate structure
+        if (oldact_p) {
+            *oldact_guest = handlers[signum].guest;
+        }
         if (act_p) {
+            handlers[signum].guest = *act_guest;
+            handlers[signum].is_fdpic = context->fdpic_info.is_fdpic;
+            /* now handle host handler to setup */
             if (act_guest->_sa_handler == (uint32_t)(uint64_t)SIG_ERR ||
                 act_guest->_sa_handler == (uint32_t)(uint64_t)SIG_DFL ||
                 act_guest->_sa_handler == (uint32_t)(uint64_t)SIG_IGN) {
@@ -226,41 +121,11 @@ int arm_rt_sigaction(struct arm_target *context)
             }
         }
 
-        if (oldact_p) {
-            oldact_guest->_sa_handler = guest_signals_handler[signum].handler;
-        }
-
-        //QUESTION : since setting guest handler and host handler is not atomic here is a problem ?
-        //           if yes then this syscall must be redirecting towards proot (but is all threads stopped
-        //            when we are ptracing a process ?)
-        //setup guest syscall handler
-        if (act_p) {
-            sa_flags[signum] = act_guest->sa_flags;
-            guest_signals_handler[signum].handler = act_guest->_sa_handler;
-            if (context->fdpic_info.is_fdpic) {
-                if (act_guest->_sa_handler != (uint32_t)(uint64_t)SIG_ERR &&
-                    act_guest->_sa_handler != (uint32_t)(uint64_t)SIG_DFL &&
-                    act_guest->_sa_handler != (uint32_t)(uint64_t)SIG_IGN) {
-                    guest_signals_handler[signum].entry = *((uint32_t *) g_2_h(guest_signals_handler[signum].handler + 0));
-                    guest_signals_handler[signum].got = *((uint32_t *) g_2_h(guest_signals_handler[signum].handler + 4));
-                } else {
-                    guest_signals_handler[signum].entry = -1;
-                    guest_signals_handler[signum].got = -1;
-                }
-            } else {
-                guest_signals_handler[signum].entry = act_guest->_sa_handler;
-                guest_signals_handler[signum].got = 0;
-            }
-        }
-
-        res = syscall(SYS_rt_sigaction, signum, act_p?&act:NULL, oldact_p?&oldact:NULL, _NSIG / 8);
-
-        if (oldact_p) {
-            //TODO : add guest restorer support
-            oldact_guest->sa_flags = oldact.sa_flags & ~SA_RESTORER;
-            oldact_guest->sa_mask[0] = oldact.sa_mask.__val[0];
-            oldact_guest->sa_restorer = (long)NULL;
-        }
+        /* now register handler */
+        if (act_p)
+            res = syscall(SYS_rt_sigaction, signum, act_p?&act:NULL, NULL, _NSIG / 8);
+        else
+            res = 0;
     }
 
     return res;
