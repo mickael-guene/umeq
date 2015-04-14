@@ -93,6 +93,7 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_clone:
                 res = arm_clone(context);
                 break;
+            case PR_rt_sigreturn:
             case PR_sigreturn:
                 context->isLooping = 0;
                 context->exitStatus = 0;
