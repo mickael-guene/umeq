@@ -38,6 +38,14 @@ extern int loop(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *par
 extern int clone_asm(long number, ...);
 extern void clone_exit_asm(void *stack , long stacksize, int res, void *patch_address);
 
+static int is_syscall_error(int res)
+{
+    if (res < 0 && res > -4096)
+        return 1;
+    else
+        return 0;
+}
+
 void clone_thread_trampoline_arm()
 {
     struct tls_context *new_thread_tls_context;
@@ -67,6 +75,8 @@ static int clone_thread_arm(struct arm_target *context)
 
     //allocate memory for stub thread stack
     guest_stack = mmap_guest((uint64_t) NULL, mmap_size[memory_profile], PROT_EXEC|PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_GROWSDOWN, -1, 0);
+    if (is_syscall_error(guest_stack))
+        return guest_stack;
     stack = g_2_h(guest_stack);
 
     if (stack) {//to be check what is return value of mmap
