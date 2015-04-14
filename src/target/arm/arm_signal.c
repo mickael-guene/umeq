@@ -94,12 +94,13 @@ int arm_rt_sigaction(struct arm_target *context)
     struct sigaction_arm *act_guest = (struct sigaction_arm *) g_2_h(act_p);
     struct sigaction_arm *oldact_guest = (struct sigaction_arm *) g_2_h(oldact_p);
     struct kernel_sigaction act;
+    struct kernel_sigaction oldact;
 
     if (signum < 1 || signum >= NSIG)
         res = -EINVAL;
     else {
         memset(&act, 0, sizeof(act));
-        
+        memset(&oldact, 0, sizeof(oldact));
         //translate structure
         if (oldact_p) {
             *oldact_guest = handlers[signum].guest;
@@ -122,10 +123,10 @@ int arm_rt_sigaction(struct arm_target *context)
         }
 
         /* now register handler */
-        if (act_p)
-            res = syscall(SYS_rt_sigaction, signum, act_p?&act:NULL, NULL, _NSIG / 8);
-        else
-            res = 0;
+        res = syscall(SYS_rt_sigaction, signum, act_p?&act:NULL, oldact_p?&oldact:NULL, _NSIG / 8);
+        if (oldact_p) {
+            oldact_guest->sa_mask[0] = oldact.sa_mask.__val[0];
+        }
     }
 
     return res;
