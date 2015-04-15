@@ -30,7 +30,8 @@
 #define PAGE_MASK                       (PAGE_SIZE - 1)
 #define MIN_BRK_SIZE					(16 * 1024 * 1024)
 
-extern unsigned int startbrk; //from loader
+extern guest_ptr startbrk; //from loader
+static guest_ptr startbrk_aligned;
 static unsigned int curbrk;
 static unsigned int mapbrk;
 
@@ -41,12 +42,14 @@ void arm_setup_brk()
 	if (!curbrk) {
 		unsigned int map_result;
 
-		curbrk = startbrk;
-		mapbrk = ((startbrk + PAGE_SIZE) & ~PAGE_MASK);
+		startbrk_aligned = ((startbrk + PAGE_SIZE - 1) & ~PAGE_MASK);
+		curbrk = startbrk_aligned;
+		mapbrk = startbrk_aligned;
 		map_result = mmap_guest(mapbrk, MIN_BRK_SIZE, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
 		if (map_result == mapbrk) {
 			mapbrk = mapbrk + MIN_BRK_SIZE;
-		}
+		} else
+			assert(0);
 	}
 }
 
@@ -55,7 +58,7 @@ int arm_brk(struct arm_target *context)
 	unsigned int new_brk = context->regs.r[0];
 
 	//sanity check
-	if (new_brk < startbrk)
+	if (new_brk < startbrk_aligned)
 		goto out;
 	if (new_brk) {
 		// need to map new memory ?
