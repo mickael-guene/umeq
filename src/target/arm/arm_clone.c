@@ -120,11 +120,15 @@ static int clone_fork_arm(struct arm_target *context)
 {
     /* just do the syscall */
     int res = syscall(SYS_clone,
-                        (unsigned long) context->regs.r[0],
-                        context->regs.r[1]?g_2_h(context->regs.r[1]):NULL,
+                        (unsigned long) (context->regs.r[0] & ~(CLONE_VM | CLONE_SETTLS)),
+                        NULL, //host fork use a new stack
                         context->regs.r[2]?g_2_h(context->regs.r[2]):NULL,
                         context->regs.r[4]?g_2_h(context->regs.r[4]):NULL,
-                        context->regs.r[3]?g_2_h(context->regs.r[3]):NULL);
+                        NULL); //continue to use parent tls settings
+
+    /* support use of a new guest stack */
+    if (res == 0 && context->regs.r[1])
+        context->regs.r[13] = context->regs.r[1];
 
     return res;
 }
