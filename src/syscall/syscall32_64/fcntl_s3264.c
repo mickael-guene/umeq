@@ -54,6 +54,9 @@ int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
         case F_SETFL:
             res = syscall(SYS_fcntl, fd, cmd, armToX86Flags(opt_p));
             break;
+        case F_SETOWN:
+            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
+            break;
         case 13://F_SETLK64
             {
                 struct flock64_32 *lock_guest = (struct flock64_32 *) g_2_h(opt_p);
