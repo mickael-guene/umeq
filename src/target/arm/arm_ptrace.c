@@ -91,6 +91,18 @@ struct iovec_32 {
     uint32_t iov_len;
 };
 
+int write_32(int pid, uint32_t data, void *addr)
+{
+    int res;
+    unsigned long data_long;
+
+    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, addr, &data_long);
+    data_long = (data_long & 0xffffffff00000000UL) | data;
+    res = syscall(SYS_ptrace, PTRACE_POKETEXT, pid, addr, data_long);
+
+    return res;
+}
+
 int arm_ptrace(struct arm_target *context)
 {
     int res;
@@ -187,7 +199,7 @@ int arm_ptrace(struct arm_target *context)
                 uint32_t is_in_syscall;
 
                 /* FIXME: Need rework with a framework to handle tlsarea usage */
-                res = syscall(SYS_ptrace, request, pid, addr, &user_regs);
+                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
                 res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
                 for(i=0;i<16;i++) {
                     res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + i * 4, &data_reg);
@@ -204,6 +216,24 @@ int arm_ptrace(struct arm_target *context)
                 } else if (is_in_syscall == 2) {
                     user_regs_arm->uregs[12] = 1;
                 }
+
+                res = 0;
+            }
+            break;
+        case PTRACE_SETREGS:
+            {
+                struct user_regs_arm *user_regs_arm = (struct user_regs_arm *) g_2_h(data);
+                struct user_regs_struct user_regs;
+                unsigned long data_long;
+                int i;
+
+                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
+                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+                for(i=0;i<15;i++) {
+                    res = write_32(pid, user_regs_arm->uregs[i], (void *) (data_long + i * 4));
+                }
+                res = write_32(pid, user_regs_arm->uregs[15] | (user_regs_arm->uregs[16]&0x20?1:0), (void *) (data_long + 15 * 4));
+                res = write_32(pid, user_regs_arm->uregs[16] & 0xffffff00, (void *) (data_long + 16 * 4));
 
                 res = 0;
             }
