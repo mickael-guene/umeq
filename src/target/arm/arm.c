@@ -291,6 +291,8 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         /* main thread */
         /* get host pointer on fdpic info save on guest stack */
         struct fdpic_info_32 *fdpic_info = g_2_h(*((uint32_t *)g_2_h(stack_ptr-4)));
+        fdpic_info->executable_addr = h_2_g(&fdpic_info->executable);
+        fdpic_info->dl_addr = h_2_g(&fdpic_info->dl);
         /* init context */
         for(i = 0; i < 15; i++)
             context->regs.r[i] = 0;
@@ -305,9 +307,9 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->fdpic_info = *fdpic_info;
         if (fdpic_info->is_fdpic) {
             /* see arm fdpic abi */
-            context->regs.r[7] = h_2_g(&fdpic_info->executable);
+            context->regs.r[7] = fdpic_info->executable_addr;
             if (fdpic_info->dl.nsegs) {
-                context->regs.r[8] = h_2_g(&fdpic_info->dl);
+                context->regs.r[8] = fdpic_info->dl_addr;
                 context->regs.r[9] = fdpic_info->dl_dynamic_section_addr;
             }
         }

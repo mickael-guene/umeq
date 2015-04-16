@@ -46,6 +46,8 @@ struct fdpic_info_32 {
     guest_ptr dl_load_addr;
     struct elf32_fdpic_loadmap executable;
     struct elf32_fdpic_loadmap dl;
+    guest_ptr executable_addr;
+    guest_ptr dl_addr;
 };
 
 struct elf_loader_info_32 {

@@ -33,6 +33,12 @@
 #include "arm_private.h"
 #include "arm_syscall.h"
 
+#ifndef PTRACE_GETFDPIC
+#define PTRACE_GETFDPIC 31 /* get the ELF fdpic loadmap address */
+#define PTRACE_GETFDPIC_EXEC    0 /* [addr] request the executable loadmap */
+#define PTRACE_GETFDPIC_INTERP  1 /* [addr] request the interpreter loadmap */
+#endif
+
 typedef union sigval_arm {
     uint32_t sival_int;
     uint32_t sival_ptr;
@@ -90,6 +96,17 @@ struct iovec_32 {
     uint32_t iov_base;
     uint32_t iov_len;
 };
+
+int read_32(int pid, uint32_t *data, void *addr)
+{
+    int res;
+    unsigned long data_long;
+
+    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, addr, &data_long);
+    *data = data_long;
+
+    return res;
+}
 
 int write_32(int pid, uint32_t data, void *addr)
 {
@@ -255,6 +272,23 @@ int arm_ptrace(struct arm_target *context)
             break;
         case 29:/* PTRACE_GETHBPREGS */
             res = -EIO;
+            break;
+        case PTRACE_GETFDPIC:
+            {
+                struct arm_target *arm_target_tracee;
+                struct user_regs_struct user_regs;
+                unsigned long data_long;
+                void *addr_tracee;
+
+                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
+                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+                arm_target_tracee = container_of((void *)data_long, struct arm_target, regs);
+                if (addr == PTRACE_GETFDPIC_INTERP)
+                    addr_tracee = &arm_target_tracee->fdpic_info.dl_addr;
+                else
+                    addr_tracee = &arm_target_tracee->fdpic_info.executable_addr;
+                res = read_32(pid, g_2_h(data), addr_tracee);
+            }
             break;
         case 0x4206: /* PTRACE_SEIZE */
             /* we don't support SEIZE */
