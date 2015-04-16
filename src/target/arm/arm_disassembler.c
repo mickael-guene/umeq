@@ -2447,7 +2447,10 @@ static int dis_system_call_and_coprocessor_insn(struct arm_target *context, uint
     int isExit = 0;
 
     if ((opt1 & 0x30) == 0x30) {
-        isExit = dis_swi(context, insn, ir);
+        if (insn == 0xef9f0001)
+            isExit = dis_gdb_breakpoint(context, insn, ir);
+        else
+            isExit = dis_swi(context, insn, ir);
     } else if ((opt1 & 0x30) == 0x20) {
         if ((coproc & 0xe) == 0xa) {
             if (op)
