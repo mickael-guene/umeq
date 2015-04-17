@@ -638,6 +638,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_accept4:
             res = syscall(SYS_accept4, (int) p0, IS_NULL(p1, struct sockaddr), IS_NULL(p2, socklen_t), (int) p3);
             break;
+        case PR_getgid:
+            res = syscall(SYS_getgid);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
