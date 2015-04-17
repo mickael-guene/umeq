@@ -617,6 +617,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_setgroups32:
             res = syscall(SYS_setgroups, (int) p0, (gid_t *) g_2_h(p1));
             break;
+        case PR_getuid:
+            res = syscall(SYS_getuid);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
