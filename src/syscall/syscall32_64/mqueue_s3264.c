@@ -107,7 +107,7 @@ int mq_notify_s3264(uint32_t mqdes_p, uint32_t sevp_p)
                 break;
             default:
                 /* FIXME : add SIGEV_THREAD + SIGEV_THREAD_ID support */
-                assert(0);
+                fatal("sigev_notify = %d\n", sevp_guest->sigev_notify);
         }
     }
 
