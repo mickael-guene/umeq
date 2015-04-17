@@ -626,6 +626,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_add_key:
             res = syscall(SYS_add_key, (char *) g_2_h(p0), IS_NULL(p1, char), IS_NULL(p2, void), (size_t) p3, p4);
             break;
+        case PR_mknodat:
+            res = syscall(SYS_mknodat, (int) p0, (char *) g_2_h(p1), (mode_t) p2, (dev_t) p3);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
