@@ -650,6 +650,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_creat:
             res = syscall(SYS_creat, (char *) g_2_h(p0), (mode_t) p1);
             break;
+        case PR_chroot:
+            res = syscall(SYS_chroot, (char *) g_2_h(p0));
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
