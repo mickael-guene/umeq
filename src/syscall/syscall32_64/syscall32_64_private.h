@@ -87,6 +87,7 @@ extern int mq_timedreceive_s3264(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t 
 extern int mq_notify_s3264(uint32_t mqdes_p, uint32_t sevp_p);
 extern int mq_getsetattr_s3264(uint32_t mqdes_p, uint32_t newattr_p, uint32_t oldattr_p);
 extern int setrlimit_s3264(uint32_t resource_p, uint32_t rlim_p);
+extern int futimesat_s3264(uint32_t dirfd_p, uint32_t pathname_p, uint32_t times_p);
 
 #endif
 

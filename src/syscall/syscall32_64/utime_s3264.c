@@ -69,3 +69,22 @@ int utimensat_s3264(uint32_t dirfd_p, uint32_t pathname_p, uint32_t times_p, uin
 
     return res;
 }
+
+int futimesat_s3264(uint32_t dirfd_p, uint32_t pathname_p, uint32_t times_p)
+{
+    int res;
+    int dirfd = (int) dirfd_p;
+    char * pathname = (char *) g_2_h(pathname_p);
+    struct timespec_32 *times_guest = (struct timespec_32 *) g_2_h(times_p);
+    struct timespec times[2];
+
+    if (times_p) {
+        times[0].tv_sec = times_guest[0].tv_sec;
+        times[0].tv_nsec = times_guest[0].tv_nsec;
+        times[1].tv_sec = times_guest[1].tv_sec;
+        times[1].tv_nsec = times_guest[1].tv_nsec;
+    }
+    res = syscall(SYS_futimesat, dirfd, pathname_p?pathname:NULL, (times_p?times:NULL));
+
+    return res;
+}

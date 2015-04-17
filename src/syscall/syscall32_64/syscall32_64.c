@@ -629,6 +629,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_mknodat:
             res = syscall(SYS_mknodat, (int) p0, (char *) g_2_h(p1), (mode_t) p2, (dev_t) p3);
             break;
+        case PR_futimesat:
+            res = futimesat_s3264(p0, p1, p2);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
