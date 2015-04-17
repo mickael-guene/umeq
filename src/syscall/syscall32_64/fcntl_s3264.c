@@ -27,6 +27,12 @@
 #include "syscall32_64_types.h"
 #include "syscall32_64_private.h"
 
+#ifndef F_SETSIG
+# define F_SETSIG   10  /* Set number of signal to be sent.  */
+#endif
+#ifndef F_GETSIG
+# define F_GETSIG   11  /* Get number of signal to be sent.  */
+#endif
 #ifndef F_SETLEASE
 # define F_SETLEASE     1024    /* Set a lease.  */
 #endif
@@ -75,6 +81,12 @@ int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
             res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
             break;
         case F_GETOWN:
+            res = syscall(SYS_fcntl, fd, cmd);
+            break;
+        case F_SETSIG:
+            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
+            break;
+        case F_GETSIG:
             res = syscall(SYS_fcntl, fd, cmd);
             break;
         case 12://F_GETLK64:
