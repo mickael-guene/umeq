@@ -30,6 +30,12 @@
 #ifndef F_SETLEASE
 # define F_SETLEASE     1024    /* Set a lease.  */
 #endif
+#ifndef F_GETLEASE
+# define F_GETLEASE 1025    /* Enquire what lease is active.  */
+#endif
+#ifndef F_SETPIPE_SZ
+# define F_SETPIPE_SZ   1031    /* Set pipe page size array.  */
+#endif
 #ifndef F_GETPIPE_SZ
 # define F_GETPIPE_SZ   1032    /* Set pipe page size array.  */
 #endif
@@ -68,7 +74,10 @@ int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
         case F_SETOWN:
             res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
             break;
-        case F_GETLK64:
+        case F_GETOWN:
+            res = syscall(SYS_fcntl, fd, cmd);
+            break;
+        case 12://F_GETLK64:
             {
                 struct flock64_32 *lock_guest = (struct flock64_32 *) g_2_h(opt_p);
                 struct flock lock;
@@ -124,6 +133,28 @@ int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
                 }
             }
             break;
+        case F_GETLK:
+            {
+                struct flock_32 *lock_guest = (struct flock_32 *) g_2_h(opt_p);
+                struct flock lock;
+
+                if (opt_p == 0 || opt_p == 0xffffffff)
+                    res = -EFAULT;
+                else {
+                    lock.l_type = lock_guest->l_type;
+                    lock.l_whence = lock_guest->l_whence;
+                    lock.l_start = lock_guest->l_start;
+                    lock.l_len = lock_guest->l_len;
+                    lock.l_pid = lock_guest->l_pid;
+                    res = syscall(SYS_fcntl, fd, F_GETLK, &lock);
+                    lock_guest->l_type = lock.l_type;
+                    lock_guest->l_whence = lock.l_whence;
+                    lock_guest->l_start = lock.l_start;
+                    lock_guest->l_len = lock.l_len;
+                    lock_guest->l_pid = lock.l_pid;
+                }
+            }
+            break;
         case F_SETLK:
             /* Fallthrough */
         case F_SETLKW:
@@ -147,6 +178,15 @@ int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
             res = syscall(SYS_fcntl, fd, cmd, (struct f_owner_ex *) g_2_h(opt_p));
             break;
         case F_SETLEASE:
+            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
+            break;
+        case F_GETLEASE:
+            res = syscall(SYS_fcntl, fd, cmd);
+            break;
+        case F_DUPFD_CLOEXEC:
+            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
+            break;
+        case F_SETPIPE_SZ:
             res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
             break;
         case F_GETPIPE_SZ:
