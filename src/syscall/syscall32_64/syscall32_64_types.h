@@ -381,6 +381,17 @@ struct mq_attr_32 {
     uint32_t __reserved[4];
 };
 
+struct msginfo_32 {
+    uint32_t msgpool;
+    uint32_t msgmap;
+    uint32_t msgmax;
+    uint32_t msgmnb;
+    uint32_t msgmni;
+    uint32_t msgssz;
+    uint32_t msgtql;
+    uint16_t msgseg;
+};
+
 #endif
 
 #ifdef __cplusplus

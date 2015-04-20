@@ -26,6 +26,7 @@
 #include <sys/msg.h>
 #include <assert.h>
 #include <string.h>
+#include <errno.h>
 
 #include "syscall32_64_types.h"
 #include "syscall32_64_private.h"
@@ -84,31 +85,146 @@ int msgctl_s3264(uint32_t msqid_p, uint32_t cmd_p, uint32_t buf_p)
     int res;
     int msqid = (int) msqid_p;
     int cmd = (int) cmd_p;
-    struct msqid_ds_32 *buf_guest = (struct msqid_ds_32 *) g_2_h(buf_p);
-    struct msqid_ds buf;
 
     cmd &= ~IPC_64;
     switch(cmd) {
         case IPC_RMID:
             res = syscall(SYS_msgctl, msqid, cmd, NULL/*not use*/);
             break;
+        case IPC_SET:
+            {
+                struct msqid_ds_32 *buf_guest = (struct msqid_ds_32 *) g_2_h(buf_p);
+                struct msqid_ds buf;
+
+                if (buf_p == 0 || buf_p == 0xffffffff)
+                    res = -EFAULT;
+                else {
+                    buf.msg_perm.__key = buf_guest->msg_perm.__key;
+                    buf.msg_perm.uid = buf_guest->msg_perm.uid;
+                    buf.msg_perm.gid = buf_guest->msg_perm.gid;
+                    buf.msg_perm.cuid = buf_guest->msg_perm.cuid;
+                    buf.msg_perm.cgid = buf_guest->msg_perm.cgid;
+                    buf.msg_perm.mode = buf_guest->msg_perm.mode;
+                    buf.msg_perm.__seq = buf_guest->msg_perm.__seq;
+                    buf.msg_stime = buf_guest->msg_stime;
+                    buf.msg_rtime = buf_guest->msg_rtime;
+                    buf.msg_ctime = buf_guest->msg_ctime;
+                    buf.__msg_cbytes = buf_guest->__msg_cbytes;
+                    buf.msg_qnum = buf_guest->msg_qnum;
+                    buf.msg_qbytes = buf_guest->msg_qbytes;
+                    buf.msg_lspid = buf_guest->msg_lspid;
+                    buf.msg_lrpid = buf_guest->msg_lrpid;
+                    res = syscall(SYS_msgctl, msqid, cmd , &buf);
+                    buf_guest->msg_perm.__key = buf.msg_perm.__key;
+                    buf_guest->msg_perm.uid = buf.msg_perm.uid;
+                    buf_guest->msg_perm.gid = buf.msg_perm.gid;
+                    buf_guest->msg_perm.cuid = buf.msg_perm.cuid;
+                    buf_guest->msg_perm.cgid = buf.msg_perm.cgid;
+                    buf_guest->msg_perm.mode = buf.msg_perm.mode;
+                    buf_guest->msg_perm.__seq = buf.msg_perm.__seq;
+                    buf_guest->msg_stime = buf.msg_stime;
+                    buf_guest->msg_rtime = buf.msg_rtime;
+                    buf_guest->msg_ctime = buf.msg_ctime;
+                    buf_guest->__msg_cbytes = buf.__msg_cbytes;
+                    buf_guest->msg_qnum = buf.msg_qnum;
+                    buf_guest->msg_qbytes = buf.msg_qbytes;
+                    buf_guest->msg_lspid = buf.msg_lspid;
+                    buf_guest->msg_lrpid = buf.msg_lrpid;
+                }
+            }
+            break;
         case IPC_STAT:
-            res = syscall(SYS_msgctl, msqid, cmd , &buf);
-            buf_guest->msg_perm.__key = buf.msg_perm.__key;
-            buf_guest->msg_perm.uid = buf.msg_perm.uid;
-            buf_guest->msg_perm.gid = buf.msg_perm.gid;
-            buf_guest->msg_perm.cuid = buf.msg_perm.cuid;
-            buf_guest->msg_perm.cgid = buf.msg_perm.cgid;
-            buf_guest->msg_perm.mode = buf.msg_perm.mode;
-            buf_guest->msg_perm.__seq = buf.msg_perm.__seq;
-            buf_guest->msg_stime = buf.msg_stime;
-            buf_guest->msg_rtime = buf.msg_rtime;
-            buf_guest->msg_ctime = buf.msg_ctime;
-            buf_guest->__msg_cbytes = buf.__msg_cbytes;
-            buf_guest->msg_qnum = buf.msg_qnum;
-            buf_guest->msg_qbytes = buf.msg_qbytes;
-            buf_guest->msg_lspid = buf.msg_lspid;
-            buf_guest->msg_lrpid = buf.msg_lrpid;
+            {
+                struct msqid_ds_32 *buf_guest = (struct msqid_ds_32 *) g_2_h(buf_p);
+                struct msqid_ds buf;
+
+                if (buf_p == 0 || buf_p == 0xffffffff)
+                    res = -EFAULT;
+                else {
+                    res = syscall(SYS_msgctl, msqid, cmd , &buf);
+                    buf_guest->msg_perm.__key = buf.msg_perm.__key;
+                    buf_guest->msg_perm.uid = buf.msg_perm.uid;
+                    buf_guest->msg_perm.gid = buf.msg_perm.gid;
+                    buf_guest->msg_perm.cuid = buf.msg_perm.cuid;
+                    buf_guest->msg_perm.cgid = buf.msg_perm.cgid;
+                    buf_guest->msg_perm.mode = buf.msg_perm.mode;
+                    buf_guest->msg_perm.__seq = buf.msg_perm.__seq;
+                    buf_guest->msg_stime = buf.msg_stime;
+                    buf_guest->msg_rtime = buf.msg_rtime;
+                    buf_guest->msg_ctime = buf.msg_ctime;
+                    buf_guest->__msg_cbytes = buf.__msg_cbytes;
+                    buf_guest->msg_qnum = buf.msg_qnum;
+                    buf_guest->msg_qbytes = buf.msg_qbytes;
+                    buf_guest->msg_lspid = buf.msg_lspid;
+                    buf_guest->msg_lrpid = buf.msg_lrpid;
+                }
+            }
+            break;
+        case IPC_INFO:
+            {
+                struct msginfo_32 *buf_guest = (struct msginfo_32 *) g_2_h(buf_p);
+                struct msginfo buf;
+
+                if (buf_p == 0 || buf_p == 0xffffffff)
+                    res = -EFAULT;
+                else {
+                    res = syscall(SYS_msgctl, msqid, cmd , &buf);
+                    buf_guest->msgpool = buf.msgpool;
+                    buf_guest->msgmap = buf.msgmap;
+                    buf_guest->msgmax = buf.msgmax;
+                    buf_guest->msgmnb = buf.msgmnb;
+                    buf_guest->msgmni = buf.msgmni;
+                    buf_guest->msgssz = buf.msgssz;
+                    buf_guest->msgtql = buf.msgtql;
+                    buf_guest->msgseg = buf.msgseg;
+                }
+            }
+        case MSG_STAT:
+            {
+                struct msqid_ds_32 *buf_guest = (struct msqid_ds_32 *) g_2_h(buf_p);
+                struct msqid_ds buf;
+
+                if (buf_p == 0 || buf_p == 0xffffffff)
+                    res = -EFAULT;
+                else {
+                    res = syscall(SYS_msgctl, msqid, cmd , &buf);
+                    buf_guest->msg_perm.__key = buf.msg_perm.__key;
+                    buf_guest->msg_perm.uid = buf.msg_perm.uid;
+                    buf_guest->msg_perm.gid = buf.msg_perm.gid;
+                    buf_guest->msg_perm.cuid = buf.msg_perm.cuid;
+                    buf_guest->msg_perm.cgid = buf.msg_perm.cgid;
+                    buf_guest->msg_perm.mode = buf.msg_perm.mode;
+                    buf_guest->msg_perm.__seq = buf.msg_perm.__seq;
+                    buf_guest->msg_stime = buf.msg_stime;
+                    buf_guest->msg_rtime = buf.msg_rtime;
+                    buf_guest->msg_ctime = buf.msg_ctime;
+                    buf_guest->__msg_cbytes = buf.__msg_cbytes;
+                    buf_guest->msg_qnum = buf.msg_qnum;
+                    buf_guest->msg_qbytes = buf.msg_qbytes;
+                    buf_guest->msg_lspid = buf.msg_lspid;
+                    buf_guest->msg_lrpid = buf.msg_lrpid;
+                }
+            }
+            break;
+        case MSG_INFO:
+            {
+                struct msginfo_32 *buf_guest = (struct msginfo_32 *) g_2_h(buf_p);
+                struct msginfo buf;
+
+                if (buf_p == 0 || buf_p == 0xffffffff)
+                    res = -EFAULT;
+                else {
+                    res = syscall(SYS_msgctl, msqid, cmd , &buf);
+                    buf_guest->msgpool = buf.msgpool;
+                    buf_guest->msgmap = buf.msgmap;
+                    buf_guest->msgmax = buf.msgmax;
+                    buf_guest->msgmnb = buf.msgmnb;
+                    buf_guest->msgmni = buf.msgmni;
+                    buf_guest->msgssz = buf.msgssz;
+                    buf_guest->msgtql = buf.msgtql;
+                    buf_guest->msgseg = buf.msgseg;
+                }
+            }
             break;
         default:
             fatal("msgctl_s3264: unsupported command %d\n", cmd);
