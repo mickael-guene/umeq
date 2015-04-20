@@ -98,6 +98,8 @@ int arm_rt_sigaction(struct arm_target *context)
 
     if (signum < 1 || signum >= NSIG)
         res = -EINVAL;
+    else if (act_p == 0xffffffff || oldact_p == 0xffffffff)
+        res = -EFAULT;
     else {
         memset(&act, 0, sizeof(act));
         memset(&oldact, 0, sizeof(oldact));
