@@ -680,6 +680,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_setuid:
             res = syscall(SYS_setuid, (uid_t) p0);
             break;
+        case PR_tee:
+            res = syscall(SYS_tee, (int) p0, (int) p1, (size_t) p2, (unsigned int) p3);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
