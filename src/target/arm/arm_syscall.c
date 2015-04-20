@@ -107,6 +107,11 @@ void arm_hlp_syscall(uint64_t regs)
                                            (size_t) context->regs.r[2],
                                            (off_t) (((unsigned long)context->regs.r[5] << 32) + (unsigned long) context->regs.r[4]));
                 break;
+            case PR_pwrite64:
+                res = syscall(SYS_pwrite64, (int) context->regs.r[0], (void *) g_2_h(context->regs.r[1]),
+                                           (size_t) context->regs.r[2],
+                                           (off_t) (((unsigned long)context->regs.r[5] << 32) + (unsigned long) context->regs.r[4]));
+                break;
             case PR_ftruncate64:
                 res = syscall(SYS_ftruncate, (int) context->regs.r[0],
                                              (off_t) (((unsigned long)context->regs.r[3] << 32) + (unsigned long)context->regs.r[2]));
