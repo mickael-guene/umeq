@@ -81,7 +81,7 @@ int pselect6_s3264(uint32_t nfds_p, uint32_t readfds_p, uint32_t writefds_p, uin
     };
 
     /* FIXME: what if data_p NULL ? */
-    data.ss = (const sigset_t *) g_2_h(data_guest->ss);
+    data.ss = (const sigset_t *) (data_guest->ss?g_2_h(data_guest->ss):NULL);
     data.ss_len = data_guest->ss_len;
     res = syscall(SYS_pselect6, nfds, readfds_p?readfds:NULL, writefds_p?writefds:NULL,
                   exceptfds_p?exceptfds:NULL, timeout_p?&timeout:NULL, &data);
