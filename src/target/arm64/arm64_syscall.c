@@ -134,7 +134,7 @@ void arm64_hlp_syscall(uint64_t regs)
     } else if (how == HOW_not_yet_supported) {
         fatal("Syscall not yet implemented no=%d/no_neutral=%d\n", no, no_neutral);
     } else if (how == HOW_not_implemented) {
-        res = ENOSYS;
+        res = -ENOSYS;
     } else {
         fatal("Unknown how .... %d\n", how);
     }
