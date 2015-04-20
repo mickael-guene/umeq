@@ -90,6 +90,7 @@ extern int setrlimit_s3264(uint32_t resource_p, uint32_t rlim_p);
 extern int futimesat_s3264(uint32_t dirfd_p, uint32_t pathname_p, uint32_t times_p);
 extern int getgroups_s3264(uint32_t size_p, uint32_t list_p);
 extern int sendfile_s3264(uint32_t out_fd_p, uint32_t in_fd_p, uint32_t offset_p, uint32_t count_p);
+extern int ppoll_s3264(uint32_t fds_p, uint32_t nfds_p, uint32_t timeout_ts_p, uint32_t sigmask_p, uint32_t sigsetsize_p);
 
 #endif
 
