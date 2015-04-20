@@ -122,7 +122,7 @@ struct rusage_32 {
 
 struct iovec_32 {
     uint32_t iov_base;
-    uint32_t iov_len;
+    int32_t iov_len;
 };
 
 typedef struct {
