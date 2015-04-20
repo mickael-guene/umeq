@@ -48,6 +48,9 @@ int msgsnd_s3264(uint32_t msqid_p, uint32_t msgp_p, uint32_t msgsz_p, uint32_t m
     int msgflg = (int) msgflg_p;
     struct msgbuf_64 *msgp;
 
+    if ((int)msgsz < 0)
+        return -EINVAL;
+
     msgp = (struct msgbuf_64 *) alloca(sizeof(uint64_t) + msgsz);
     assert(msgp != NULL);
     msgp->mtype = msgp_guest->mtype;
@@ -67,6 +70,9 @@ int msgrcv_s3264(uint32_t msqid_p, uint32_t msgp_p, uint32_t msgsz_p, uint32_t m
     long msgtyp = (int) msgtyp_p;
     int msgflg = (int) msgflg_p;
     struct msgbuf_64 *msgp;
+
+    if ((int)msgsz < 0)
+        return -EINVAL;
 
     msgp = (struct msgbuf_64 *) alloca(sizeof(uint64_t) + msgsz);
     assert(msgp != NULL);
