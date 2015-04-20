@@ -556,7 +556,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = fnctl_s3264(p0,p1,p2);
             break;
         case PR_sched_getparam:
-            res = syscall(SYS_sched_getparam, (pid_t) p0, (struct sched_param *) g_2_h(p1));
+            res = syscall(SYS_sched_getparam, (pid_t) p0, IS_NULL(p1, struct sched_param));
             break;
         case PR_sched_getscheduler:
             res = syscall(SYS_sched_getscheduler, (pid_t) p0);
