@@ -705,6 +705,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             /* This one is deprecated since 2.6 and p1 is no more use */
             res = 0;
             break;
+        case PR_mincore:
+            res = syscall(SYS_mincore, (void *) g_2_h(p0), (size_t) p1, (char *) g_2_h(p2));
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
