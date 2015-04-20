@@ -499,7 +499,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = sendmmsg_s3264(p0, p1, p2, p3);
             break;
         case PR_fallocate:
-            res = syscall(SYS_fallocate, (int) p0, (int) p1, (off_t) p2, (off_t) p3);
+            res = syscall(SYS_fallocate, (int) p0, (int) p1, (off_t) ((uint64_t)p2 + ((uint64_t)p3 << 32)), (off_t) ((uint64_t)p4 + ((uint64_t)p5 << 32)));
             break;
         case PR_capget:
             res = syscall(SYS_capget, (void *) g_2_h(p0), p1?(void *) g_2_h(p1):NULL);
