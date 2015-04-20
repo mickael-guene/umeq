@@ -147,7 +147,7 @@ struct statfs_32 {
 struct flock_32 {
     uint16_t  l_type;
     uint16_t  l_whence;
-    uint32_t l_start;
+    int32_t l_start;
     uint32_t l_len;
     int  l_pid;
 };

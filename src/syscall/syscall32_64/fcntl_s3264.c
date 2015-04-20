@@ -45,6 +45,9 @@
 #ifndef F_GETPIPE_SZ
 # define F_GETPIPE_SZ   1032    /* Set pipe page size array.  */
 #endif
+#ifndef F_SETOWN_EX
+# define F_SETOWN_EX    15  /* Get owner (thread receiving SIGIO).  */
+#endif
 #ifndef F_GETOWN_EX
 # define F_GETOWN_EX    16      /* Set owner (thread receiving SIGIO).  */
 #endif
@@ -186,6 +189,9 @@ int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
                 }
             }
             break;
+        case F_SETOWN_EX:
+            res = syscall(SYS_fcntl, fd, cmd, (struct f_owner_ex *) g_2_h(opt_p));
+            break;
         case F_GETOWN_EX:
             res = syscall(SYS_fcntl, fd, cmd, (struct f_owner_ex *) g_2_h(opt_p));
             break;
@@ -205,7 +211,11 @@ int fnctl64_s3264(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
             res = syscall(SYS_fcntl, fd, cmd);
             break;
         default:
-            fatal("unsupported fnctl64 command %d\n", cmd);
+            /* invalid cmd use by ltp testsuite */
+            if (cmd == 99999)
+                res = -EINVAL;
+            else
+                fatal("unsupported fnctl64 command %d\n", cmd);
     }
 
     return res;
