@@ -157,7 +157,7 @@ int lstat64_s3264(uint32_t pathname_p, uint32_t buf_p)
 int statfs64_s3264(uint32_t path_p, uint32_t dummy_p, uint32_t buf_p)
 {
     const char *path = (const char *) g_2_h(path_p);
-    struct statfs_32 *buf_guest = (struct statfs_32 *) g_2_h(buf_p);
+    struct statfs64_32 *buf_guest = (struct statfs64_32 *) g_2_h(buf_p);
     struct statfs buf;
     int res;
 
@@ -215,7 +215,7 @@ int statfs_s3264(uint32_t path_p, uint32_t buf_p)
 int fstatfs64_s3264(uint32_t fd_p, uint32_t dummy_p, uint32_t buf_p)
 {
     int fd = (int) fd_p;
-    struct statfs_32 *buf_guest = (struct statfs_32 *) g_2_h(buf_p);
+    struct statfs64_32 *buf_guest = (struct statfs64_32 *) g_2_h(buf_p);
     struct statfs buf;
     int res;
 
