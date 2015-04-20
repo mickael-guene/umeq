@@ -89,6 +89,7 @@ extern int mq_getsetattr_s3264(uint32_t mqdes_p, uint32_t newattr_p, uint32_t ol
 extern int setrlimit_s3264(uint32_t resource_p, uint32_t rlim_p);
 extern int futimesat_s3264(uint32_t dirfd_p, uint32_t pathname_p, uint32_t times_p);
 extern int getgroups_s3264(uint32_t size_p, uint32_t list_p);
+extern int sendfile_s3264(uint32_t out_fd_p, uint32_t in_fd_p, uint32_t offset_p, uint32_t count_p);
 
 #endif
 
