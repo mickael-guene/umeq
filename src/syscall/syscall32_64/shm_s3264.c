@@ -145,6 +145,8 @@ int semctl_s3264(uint32_t semid_p, uint32_t semnum_p, uint32_t cmd_p, uint32_t a
         case GETVAL:
         case GETNCNT:
         case IPC_RMID:
+        case GETPID:
+        case GETZCNT:
             res = syscall(SYS_semctl, semid, semnum, cmd);
             break;
         case IPC_SET:
@@ -152,45 +154,62 @@ int semctl_s3264(uint32_t semid_p, uint32_t semnum_p, uint32_t cmd_p, uint32_t a
                 struct semid_ds buf;
                 struct semid_ds_32 *arg_guest = (struct semid_ds_32 *) g_2_h(arg0_p);
 
-                buf.sem_perm.__key = arg_guest->sem_perm.__key;
-                buf.sem_perm.uid = arg_guest->sem_perm.uid;
-                buf.sem_perm.gid = arg_guest->sem_perm.gid;
-                buf.sem_perm.cuid = arg_guest->sem_perm.cuid;
-                buf.sem_perm.cgid = arg_guest->sem_perm.cgid;
-                buf.sem_perm.mode = arg_guest->sem_perm.mode;
-                buf.sem_perm.__seq = arg_guest->sem_perm.__seq;
-                buf.sem_otime = arg_guest->sem_otime;
-                buf.sem_ctime = arg_guest->sem_ctime;
-                buf.sem_nsems = arg_guest->sem_nsems;
-                res = syscall(SYS_semctl, semid, semnum, cmd, &buf);
-                arg_guest->sem_perm.__key = buf.sem_perm.__key;
-                arg_guest->sem_perm.uid = buf.sem_perm.uid;
-                arg_guest->sem_perm.gid = buf.sem_perm.gid;
-                arg_guest->sem_perm.cuid = buf.sem_perm.cuid;
-                arg_guest->sem_perm.cgid = buf.sem_perm.cgid;
-                arg_guest->sem_perm.mode = buf.sem_perm.mode;
-                arg_guest->sem_perm.__seq = buf.sem_perm.__seq;
-                arg_guest->sem_otime = buf.sem_otime;
-                arg_guest->sem_ctime = buf.sem_ctime;
-                arg_guest->sem_nsems = buf.sem_nsems;
+                if (arg0_p == 0 || arg0_p == 0xffffffff)
+                    res = -EFAULT;
+                else {
+                    buf.sem_perm.__key = arg_guest->sem_perm.__key;
+                    buf.sem_perm.uid = arg_guest->sem_perm.uid;
+                    buf.sem_perm.gid = arg_guest->sem_perm.gid;
+                    buf.sem_perm.cuid = arg_guest->sem_perm.cuid;
+                    buf.sem_perm.cgid = arg_guest->sem_perm.cgid;
+                    buf.sem_perm.mode = arg_guest->sem_perm.mode;
+                    buf.sem_perm.__seq = arg_guest->sem_perm.__seq;
+                    buf.sem_otime = arg_guest->sem_otime;
+                    buf.sem_ctime = arg_guest->sem_ctime;
+                    buf.sem_nsems = arg_guest->sem_nsems;
+                    res = syscall(SYS_semctl, semid, semnum, cmd, &buf);
+                    arg_guest->sem_perm.__key = buf.sem_perm.__key;
+                    arg_guest->sem_perm.uid = buf.sem_perm.uid;
+                    arg_guest->sem_perm.gid = buf.sem_perm.gid;
+                    arg_guest->sem_perm.cuid = buf.sem_perm.cuid;
+                    arg_guest->sem_perm.cgid = buf.sem_perm.cgid;
+                    arg_guest->sem_perm.mode = buf.sem_perm.mode;
+                    arg_guest->sem_perm.__seq = buf.sem_perm.__seq;
+                    arg_guest->sem_otime = buf.sem_otime;
+                    arg_guest->sem_ctime = buf.sem_ctime;
+                    arg_guest->sem_nsems = buf.sem_nsems;
+                }
             }
             break;
+        case SEM_STAT:
         case IPC_STAT:
             {
                 struct semid_ds buf;
                 struct semid_ds_32 *arg_guest = (struct semid_ds_32 *) g_2_h(arg0_p);
 
-                res = syscall(SYS_semctl, semid, semnum, cmd, &buf);
-                arg_guest->sem_perm.__key = buf.sem_perm.__key;
-                arg_guest->sem_perm.uid = buf.sem_perm.uid;
-                arg_guest->sem_perm.gid = buf.sem_perm.gid;
-                arg_guest->sem_perm.cuid = buf.sem_perm.cuid;
-                arg_guest->sem_perm.cgid = buf.sem_perm.cgid;
-                arg_guest->sem_perm.mode = buf.sem_perm.mode;
-                arg_guest->sem_perm.__seq = buf.sem_perm.__seq;
-                arg_guest->sem_otime = buf.sem_otime;
-                arg_guest->sem_ctime = buf.sem_ctime;
-                arg_guest->sem_nsems = buf.sem_nsems;
+                if (arg0_p == 0 || arg0_p == 0xffffffff)
+                    res = -EFAULT;
+                else {
+                    res = syscall(SYS_semctl, semid, semnum, cmd, &buf);
+                    arg_guest->sem_perm.__key = buf.sem_perm.__key;
+                    arg_guest->sem_perm.uid = buf.sem_perm.uid;
+                    arg_guest->sem_perm.gid = buf.sem_perm.gid;
+                    arg_guest->sem_perm.cuid = buf.sem_perm.cuid;
+                    arg_guest->sem_perm.cgid = buf.sem_perm.cgid;
+                    arg_guest->sem_perm.mode = buf.sem_perm.mode;
+                    arg_guest->sem_perm.__seq = buf.sem_perm.__seq;
+                    arg_guest->sem_otime = buf.sem_otime;
+                    arg_guest->sem_ctime = buf.sem_ctime;
+                    arg_guest->sem_nsems = buf.sem_nsems;
+                }
+            }
+            break;
+        case SEM_INFO:
+        case IPC_INFO:
+            {
+                 struct seminfo* seminfo = (struct seminfo *) g_2_h(arg0_p);
+
+                 res = syscall(SYS_semctl, semid, semnum, cmd, seminfo);
             }
             break;
         case GETALL:
@@ -215,7 +234,8 @@ int semctl_s3264(uint32_t semid_p, uint32_t semnum_p, uint32_t cmd_p, uint32_t a
             }
             break;
         default:
-            fatal("semctl_s3264: unsupported command %d\n", cmd);
+            warning("semctl_s3264: unsupported command %d\n", cmd);
+            res = -EINVAL;
     }
 
     return res; 
