@@ -26,7 +26,7 @@
 
 #include "syscall32_64_types.h"
 #include "syscall32_64_private.h"
-
+#include <stdio.h>
 int sendfile_s3264(uint32_t out_fd_p, uint32_t in_fd_p, uint32_t offset_p, uint32_t count_p)
 {
     int res;

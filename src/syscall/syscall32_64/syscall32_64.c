@@ -660,10 +660,10 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_vhangup);
             break;
         case PR_setfsuid:
-            res = syscall(SYS_setfsuid, (uid_t) p0);
+            res = syscall(SYS_setfsuid, (uid_t) (int16_t)p0);
             break;
         case PR_setfsgid:
-            res = syscall(SYS_setfsgid, (uid_t) p0);
+            res = syscall(SYS_setfsgid, (uid_t) (int16_t)p0);
             break;
         case PR_sendfile:
             res = sendfile_s3264(p0, p1, p2, p3);
@@ -678,7 +678,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_sendfile, (int) p0, (int) p1, IS_NULL(p2, off_t), (size_t) p3);
             break;
         case PR_setuid:
-            res = syscall(SYS_setuid, (uid_t) p0);
+            res = syscall(SYS_setuid, (uid_t) (int16_t)p0);
             break;
         case PR_tee:
             res = syscall(SYS_tee, (int) p0, (int) p1, (size_t) p2, (unsigned int) p3);
@@ -690,13 +690,13 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_sync);
             break;
         case PR_setgid:
-            res = syscall(SYS_setgid, (gid_t) p0);
+            res = syscall(SYS_setgid, (gid_t) (int16_t)p0);
             break;
         case PR_setreuid:
-            res = syscall(SYS_setreuid, (uid_t) p0, (uid_t) p1);
+            res = syscall(SYS_setreuid, (uid_t) (int16_t)p0, (uid_t) (int16_t)p1);
             break;
         case PR_setregid:
-            res = syscall(SYS_setregid, (gid_t) p0, (gid_t) p1);
+            res = syscall(SYS_setregid, (gid_t) (int16_t)p0, (gid_t) (int16_t)p1);
             break;
         case PR_truncate:
             res = syscall(SYS_truncate, (char *) g_2_h(p0), (off_t) p1);
