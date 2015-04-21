@@ -29,7 +29,7 @@ typedef enum {
 } Syshow;
 
 static const Syshow syshow_arm[] = {
-HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_custom_implementation, HOW_custom_implementation,  /*0..4*/
+HOW_custom_implementation, HOW_not_yet_supported, HOW_not_yet_supported, HOW_custom_implementation, HOW_custom_implementation,  /*0..4*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_64, HOW_32_to_64,  /*5..9*/
 HOW_not_yet_supported, HOW_32_to_64, HOW_32_to_64, HOW_32_to_64, HOW_not_yet_supported,  /*10..14*/
 HOW_32_to_64, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*15..19*/
