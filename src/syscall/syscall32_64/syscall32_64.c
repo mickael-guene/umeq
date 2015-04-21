@@ -373,7 +373,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_setpriority, (int) p0, (id_t) p1, (int) p2);
             break;
         case PR_prctl:
-            res = syscall(SYS_prctl, (int) p0, (unsigned long) p1, (unsigned long) p2, (unsigned long) p3, (unsigned long) p4);
+            res = prctl_s3264(p0, p1, p2, p3, p4);
             break;
         case PR_tgkill:
             res = syscall(SYS_tgkill, (int) p0, (int) p1, (int) p2);
