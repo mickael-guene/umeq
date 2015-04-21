@@ -90,9 +90,11 @@ int arm_rt_sigaction(struct arm_target *context)
     uint32_t signum_p = context->regs.r[0];
     uint32_t act_p = context->regs.r[1];
     uint32_t oldact_p = context->regs.r[2];
+    uint32_t sigsetsize_p = context->regs.r[3];
     int signum = (int) signum_p;
     struct sigaction_arm *act_guest = (struct sigaction_arm *) g_2_h(act_p);
     struct sigaction_arm *oldact_guest = (struct sigaction_arm *) g_2_h(oldact_p);
+    size_t sigsetsize = (size_t) sigsetsize_p;
     struct kernel_sigaction act;
     struct kernel_sigaction oldact;
 
@@ -125,7 +127,7 @@ int arm_rt_sigaction(struct arm_target *context)
         }
 
         /* now register handler */
-        res = syscall(SYS_rt_sigaction, signum, act_p?&act:NULL, oldact_p?&oldact:NULL, _NSIG / 8);
+        res = syscall(SYS_rt_sigaction, signum, act_p?&act:NULL, oldact_p?&oldact:NULL, sigsetsize);
         if (oldact_p) {
             oldact_guest->sa_mask[0] = oldact.sa_mask.__val[0];
         }
