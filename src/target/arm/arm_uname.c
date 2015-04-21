@@ -35,7 +35,8 @@ int arm_uname(struct arm_target *context)
     struct utsname *buf = (struct utsname *) g_2_h(context->regs.r[0]);
 
     res = syscall(SYS_uname, buf);
-    strcpy(buf->machine, "armv7l");
+    if (res == 0)
+        strcpy(buf->machine, "armv7l");
 
     return res;
 }
