@@ -3,6 +3,7 @@ Description
 Umeq is an equivalent of `Qemu <http://wiki.qemu.org/Main_Page>`_ user mode.
 It allows you to run foreign architecture binaries on your host system.
 For example you can run arm64 binaries on x86_64 linux desktop.
+You can find umeq static binaries `here <https://github.com/mickael-guene/umeq-static-build/tree/master/bin>`_
 
 Build status
 ============
