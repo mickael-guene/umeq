@@ -94,6 +94,7 @@ extern int ppoll_s3264(uint32_t fds_p, uint32_t nfds_p, uint32_t timeout_ts_p, u
 extern int readv_s3264(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p);
 extern int timerfd_settime_s3264(uint32_t fd_p, uint32_t flags_p, uint32_t new_value_p, uint32_t old_value_p);
 extern int timerfd_gettime_s3264(uint32_t fd_p, uint32_t curr_value_p);
+extern int vmsplice_s3264(uint32_t fd_p, uint32_t iov_p, uint32_t nr_segs_p, uint32_t flags_p);
 
 #endif
 
