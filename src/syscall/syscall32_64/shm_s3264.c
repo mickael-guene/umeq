@@ -65,16 +65,19 @@ int shmctl_s3264(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
     int res;
     int shmid = (int) shmid_p;
     int cmd = (int) cmd_p;
-    struct shmid_ds_32 *buf_guest = (struct shmid_ds_32 *) g_2_h(buf_p);
-    struct shmid_ds buf;
 
     cmd &= ~IPC_64;
     switch(cmd) {
         case IPC_RMID:
+        case SHM_LOCK:
+        case SHM_UNLOCK:
             res = shmctl(shmid, cmd, NULL);
             break;
         case IPC_SET:
             {
+                struct shmid_ds_32 *buf_guest = (struct shmid_ds_32 *) g_2_h(buf_p);
+                struct shmid_ds buf;
+
                 buf.shm_perm.__key = buf_guest->shm_perm.__key;
                 buf.shm_perm.uid = buf_guest->shm_perm.uid;
                 buf.shm_perm.gid = buf_guest->shm_perm.gid;
@@ -106,8 +109,12 @@ int shmctl_s3264(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
                 buf_guest->shm_lpid = buf.shm_lpid;
             }
             break;
+        case SHM_STAT:
         case IPC_STAT:
             {
+                struct shmid_ds_32 *buf_guest = (struct shmid_ds_32 *) g_2_h(buf_p);
+                struct shmid_ds buf;
+
                 res = shmctl(shmid, cmd, &buf);
 
                 buf_guest->shm_perm.__key = buf.shm_perm.__key;
@@ -124,6 +131,33 @@ int shmctl_s3264(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
                 buf_guest->shm_cpid = buf.shm_cpid;
                 buf_guest->shm_lpid = buf.shm_lpid;
                 buf_guest->shm_nattch = buf.shm_nattch;
+            }
+            break;
+        case IPC_INFO:
+            {
+                struct shminfo64_32 *buf_guest = (struct shminfo64_32 *) g_2_h(buf_p);
+                struct shminfo buf;
+
+                res = shmctl(shmid, cmd, (void *) &buf);
+                buf_guest->shmmax = buf.shmmax;
+                buf_guest->shmmin = buf.shmmin;
+                buf_guest->shmmni = buf.shmmni;
+                buf_guest->shmseg = buf.shmseg;
+                buf_guest->shmall = buf.shmall;
+            }
+            break;
+        case SHM_INFO:
+            {
+                struct shm_info_32 *buf_guest = (struct shm_info_32 *) g_2_h(buf_p);
+                struct shm_info buf;
+
+                res = shmctl(shmid, cmd, (void *) &buf);
+                buf_guest->used_ids = buf.used_ids;
+                buf_guest->shm_tot = buf.shm_tot;
+                buf_guest->shm_rss = buf.shm_rss;
+                buf_guest->shm_swp = buf.shm_swp;
+                buf_guest->swap_attempts = buf.swap_attempts;
+                buf_guest->swap_successes = buf.swap_successes;
             }
             break;
         default:

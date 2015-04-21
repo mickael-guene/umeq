@@ -392,6 +392,27 @@ struct msginfo_32 {
     uint16_t msgseg;
 };
 
+struct shminfo64_32 {
+    uint32_t shmmax;
+    uint32_t shmmin;
+    uint32_t shmmni;
+    uint32_t shmseg;
+    uint32_t shmall;
+    uint32_t __unused1;
+    uint32_t __unused2;
+    uint32_t __unused3;
+    uint32_t __unused4;
+};
+
+struct shm_info_32 {
+    int32_t used_ids;
+    uint32_t shm_tot;
+    uint32_t shm_rss;
+    uint32_t shm_swp;
+    uint32_t swap_attempts;
+    uint32_t swap_successes;
+};
+
 #endif
 
 #ifdef __cplusplus
