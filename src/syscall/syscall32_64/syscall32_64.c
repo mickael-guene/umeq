@@ -585,7 +585,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_mq_unlink, (char *) g_2_h(p0));
             break;
         case PR_sched_setparam:
-            res = syscall(SYS_sched_setparam, (pid_t) p0, (struct sched_param *) g_2_h(p1));
+            res = syscall(SYS_sched_setparam, (pid_t) p0, IS_NULL(p1, struct sched_param));
             break;
         case PR_mq_timedsend:
             res = mq_timedsend_s3264(p0, p1, p2, p3, p4);
