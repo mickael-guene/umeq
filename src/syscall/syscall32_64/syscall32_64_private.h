@@ -96,6 +96,7 @@ extern int timerfd_settime_s3264(uint32_t fd_p, uint32_t flags_p, uint32_t new_v
 extern int timerfd_gettime_s3264(uint32_t fd_p, uint32_t curr_value_p);
 extern int vmsplice_s3264(uint32_t fd_p, uint32_t iov_p, uint32_t nr_segs_p, uint32_t flags_p);
 extern int waitid_s3264(uint32_t which_p, uint32_t upid_p, uint32_t infop_p, uint32_t options_p, uint32_t ru_p);
+extern int keyctl_s3264(uint32_t cmd_p, uint32_t arg2_p, uint32_t arg3_p, uint32_t arg4_p, uint32_t arg5_p);
 
 #endif
 
