@@ -47,3 +47,24 @@ int readv_s3264(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p)
 
     return res;
 }
+
+int writev_s3264(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p)
+{
+    int res;
+    int fd = (int) fd_p;
+    struct iovec_32 *iov_guest = (struct iovec_32 *) g_2_h(iov_p);
+    int iovcnt = (int) iovcnt_p;
+    struct iovec *iov;
+    int i;
+
+    if (iovcnt < 0)
+        return -EINVAL;
+    iov = (struct iovec *) alloca(sizeof(struct iovec) * iovcnt);
+    for(i = 0; i < iovcnt; i++) {
+        iov[i].iov_base = g_2_h(iov_guest[i].iov_base);
+        iov[i].iov_len = iov_guest[i].iov_len;
+    }
+    res = syscall(SYS_writev, fd, iov, iovcnt);
+
+    return res;
+}
