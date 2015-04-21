@@ -161,6 +161,10 @@ void arm_hlp_syscall(uint64_t regs)
                                              (off_t) (((unsigned long)context->regs.r[5] << 32) + (unsigned long)context->regs.r[4]),
                                              (int) context->regs.r[1]);
                 break;
+            case PR_truncate64:
+                res = syscall(SYS_truncate, (char *) g_2_h(context->regs.r[0]),
+                                            (((uint64_t)context->regs.r[3] << 32) + (uint64_t)context->regs.r[2]));
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }
