@@ -24,6 +24,7 @@
 #include <signal.h>
 #include <time.h>
 #include <assert.h>
+#include <errno.h>
 
 #include "syscall32_64_types.h"
 #include "syscall32_64_private.h"
@@ -105,6 +106,58 @@ int timer_gettime_s3264(uint32_t timerid_p, uint32_t curr_value_p)
         curr_value_guest->it_interval.tv_nsec = curr_value.it_interval.tv_nsec;
         curr_value_guest->it_value.tv_sec = curr_value.it_value.tv_sec;
         curr_value_guest->it_value.tv_nsec = curr_value.it_value.tv_nsec;
+    }
+
+    return res;
+}
+
+int timerfd_settime_s3264(uint32_t fd_p, uint32_t flags_p, uint32_t new_value_p, uint32_t old_value_p)
+{
+    int res;
+    int fd = (int) fd_p;
+    int flags = (int) flags_p;
+    struct itimerspec_32 *new_value_guest = (struct itimerspec_32 *) g_2_h(new_value_p);
+    struct itimerspec_32 *old_value_guest = (struct itimerspec_32 *) g_2_h(old_value_p);
+    struct itimerspec new_value;
+    struct itimerspec old_value;
+
+    if (old_value_p == 0xffffffff || new_value_p == 0)
+        res = -EFAULT;
+    else {
+        new_value.it_interval.tv_sec = new_value_guest->it_interval.tv_sec;
+        new_value.it_interval.tv_nsec = new_value_guest->it_interval.tv_nsec;
+        new_value.it_value.tv_sec = new_value_guest->it_value.tv_sec;
+        new_value.it_value.tv_nsec = new_value_guest->it_value.tv_nsec;
+
+        res = syscall(SYS_timerfd_settime, fd, flags, &new_value, old_value_p?&old_value:NULL);
+        if (old_value_p) {
+            old_value_guest->it_interval.tv_sec = old_value.it_interval.tv_sec;
+            old_value_guest->it_interval.tv_nsec = old_value.it_interval.tv_nsec;
+            old_value_guest->it_value.tv_sec = old_value.it_value.tv_sec;
+            old_value_guest->it_value.tv_nsec = old_value.it_value.tv_nsec;
+        }
+    }
+
+    return res;
+}
+
+int timerfd_gettime_s3264(uint32_t fd_p, uint32_t curr_value_p)
+{
+    int res;
+    int fd = (int) fd_p;
+    struct itimerspec_32 *curr_value_guest = (struct itimerspec_32 *) g_2_h(curr_value_p);
+    struct itimerspec curr_value;
+
+    if (curr_value_p == 0xffffffff)
+        res = -EFAULT;
+    else {
+        res = syscall(SYS_timerfd_gettime, fd, &curr_value);
+        if (curr_value_p) {
+            curr_value_guest->it_interval.tv_sec = curr_value.it_interval.tv_sec;
+            curr_value_guest->it_interval.tv_nsec = curr_value.it_interval.tv_nsec;
+            curr_value_guest->it_value.tv_sec = curr_value.it_value.tv_sec;
+            curr_value_guest->it_value.tv_nsec = curr_value.it_value.tv_nsec;
+        }
     }
 
     return res;

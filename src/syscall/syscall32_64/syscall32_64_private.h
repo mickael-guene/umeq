@@ -92,6 +92,8 @@ extern int getgroups_s3264(uint32_t size_p, uint32_t list_p);
 extern int sendfile_s3264(uint32_t out_fd_p, uint32_t in_fd_p, uint32_t offset_p, uint32_t count_p);
 extern int ppoll_s3264(uint32_t fds_p, uint32_t nfds_p, uint32_t timeout_ts_p, uint32_t sigmask_p, uint32_t sigsetsize_p);
 extern int readv_s3264(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p);
+extern int timerfd_settime_s3264(uint32_t fd_p, uint32_t flags_p, uint32_t new_value_p, uint32_t old_value_p);
+extern int timerfd_gettime_s3264(uint32_t fd_p, uint32_t curr_value_p);
 
 #endif
 
