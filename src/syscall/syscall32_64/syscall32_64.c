@@ -717,6 +717,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_signalfd4:
             res = syscall(SYS_signalfd4, (int) p0, (sigset_t *) g_2_h(p1), (size_t) p2, (int) p3);
             break;
+        case PR_splice:
+            res = syscall(SYS_splice, (int) p0, IS_NULL(p1, loff_t), (int) p2, IS_NULL(p3, loff_t), (size_t) p4, (unsigned int) p5);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }
