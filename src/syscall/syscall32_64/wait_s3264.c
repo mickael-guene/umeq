@@ -63,3 +63,48 @@ int wait4_s3264(uint32_t pid_p,uint32_t status_p,uint32_t options_p,uint32_t rus
 
     return res;
 }
+
+/* we use kernel naming and types */
+int waitid_s3264(uint32_t which_p, uint32_t upid_p, uint32_t infop_p, uint32_t options_p, uint32_t rusage_p)
+{
+    int res;
+    int which = (int) which_p;
+    pid_t upid = (pid_t) upid_p;
+    siginfo_t_32 *infop_guest = (siginfo_t_32 *) g_2_h(infop_p);
+    int options = (int) options_p;
+    struct rusage_32 *rusage_guest = (struct rusage_32 *) g_2_h(rusage_p);
+    siginfo_t infop;
+    struct rusage rusage;
+
+    res = syscall(SYS_waitid, which, upid, &infop, options, rusage_p?&rusage:NULL);
+    if (infop_p) {
+        infop_guest->si_signo = infop.si_signo;
+        infop_guest->si_errno = infop.si_errno;
+        infop_guest->si_code = infop.si_code;
+        infop_guest->_sifields._sigchld._si_pid = infop.si_pid;
+        infop_guest->_sifields._sigchld._si_uid = infop.si_uid;
+        infop_guest->_sifields._sigchld._si_status = infop.si_status;
+    }
+    if (rusage_p) {
+        rusage_guest->ru_utime.tv_sec = rusage.ru_utime.tv_sec;
+        rusage_guest->ru_utime.tv_usec = rusage.ru_utime.tv_usec;
+        rusage_guest->ru_stime.tv_sec = rusage.ru_stime.tv_sec;
+        rusage_guest->ru_stime.tv_usec = rusage.ru_stime.tv_usec;
+        rusage_guest->ru_maxrss = rusage.ru_maxrss;
+        rusage_guest->ru_ixrss = rusage.ru_ixrss;
+        rusage_guest->ru_idrss = rusage.ru_idrss;
+        rusage_guest->ru_isrss = rusage.ru_isrss;
+        rusage_guest->ru_minflt = rusage.ru_minflt;
+        rusage_guest->ru_majflt = rusage.ru_majflt;
+        rusage_guest->ru_nswap = rusage.ru_nswap;
+        rusage_guest->ru_inblock = rusage.ru_inblock;
+        rusage_guest->ru_oublock = rusage.ru_oublock;
+        rusage_guest->ru_msgsnd = rusage.ru_msgsnd;
+        rusage_guest->ru_msgrcv = rusage.ru_msgrcv;
+        rusage_guest->ru_nsignals = rusage.ru_nsignals;
+        rusage_guest->ru_nvcsw = rusage.ru_nvcsw;
+        rusage_guest->ru_nivcsw = rusage.ru_nivcsw;
+    }
+
+    return res;
+}
