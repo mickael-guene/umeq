@@ -40,8 +40,8 @@ int readv_s3264(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p)
         return -EINVAL;
     iov = (struct iovec *) alloca(sizeof(struct iovec) * iovcnt);
     for(i = 0; i < iovcnt; i++) {
-        iov[i].iov_base = g_2_h(iov_guest->iov_base);
-        iov[i].iov_len = iov_guest->iov_len;
+        iov[i].iov_base = g_2_h(iov_guest[i].iov_base);
+        iov[i].iov_len = iov_guest[i].iov_len;
     }
     res = syscall(SYS_readv, fd, iov, iovcnt);
 
