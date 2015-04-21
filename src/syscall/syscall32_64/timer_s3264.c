@@ -100,8 +100,10 @@ int timer_gettime_s3264(uint32_t timerid_p, uint32_t curr_value_p)
     struct itimerspec_32 *curr_value_guest = (struct itimerspec_32 *) g_2_h(curr_value_p);
     struct itimerspec curr_value;
 
-    res = syscall(SYS_timer_gettime, timerid, &curr_value);
-    if (curr_value_p) {
+    if (curr_value_p == 0)
+        res = -EFAULT;
+    else {
+        res = syscall(SYS_timer_gettime, timerid, &curr_value);
         curr_value_guest->it_interval.tv_sec = curr_value.it_interval.tv_sec;
         curr_value_guest->it_interval.tv_nsec = curr_value.it_interval.tv_nsec;
         curr_value_guest->it_value.tv_sec = curr_value.it_value.tv_sec;
