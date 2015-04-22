@@ -105,9 +105,16 @@ int mq_notify_s3264(uint32_t mqdes_p, uint32_t sevp_p)
                 //evp.sigev_value.sival_ptr = (void *) g_2_h(sevp_guest->sigev_value.sival_ptr);
                 evp.sigev_value.sival_int = sevp_guest->sigev_value.sival_int;
                 break;
+            case SIGEV_THREAD:
+                /* sigev_signo is in this case a file descriptor of an AF_NETLINK socket */
+                evp.sigev_notify = SIGEV_THREAD;
+                evp.sigev_signo = sevp_guest->sigev_signo;
+                evp.sigev_value.sival_ptr = g_2_h(sevp_guest->sigev_value.sival_ptr);
+                break;
             default:
-                /* FIXME : add SIGEV_THREAD + SIGEV_THREAD_ID support */
-                fatal("sigev_notify = %d\n", sevp_guest->sigev_notify);
+                /* let kernel return with EINVAL error */
+                evp.sigev_notify = sevp_guest->sigev_notify;
+                break;
         }
     }
 
