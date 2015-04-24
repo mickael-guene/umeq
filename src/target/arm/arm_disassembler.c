@@ -2608,6 +2608,22 @@ static int disassemble_insn(struct arm_target *context, uint32_t insn, struct ir
     return isExit;
 }
 
+static int vdso_cmpxchg64(struct arm_target *context, struct irInstructionAllocator *ir)
+{
+    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+    struct irRegister *newPc;
+
+    ir->add_call_void(ir, "arm_hlp_vdso_cmpxchg64",
+                      ir->add_mov_const_64(ir, (uint64_t) arm_hlp_vdso_cmpxchg64),
+                      param);
+
+    newPc = read_reg(context, ir, 14);
+    write_reg(context, ir, 15, newPc);
+    ir->add_exit(ir, ir->add_32U_to_64(ir, newPc));
+
+    return 1;
+}
+
 static int vdso_cmpxchg(struct arm_target *context, struct irInstructionAllocator *ir)
 {
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
@@ -2658,7 +2674,9 @@ void disassemble_arm(struct target *target, struct irInstructionAllocator *ir, u
     assert((pc & 3) == 0);
     for(i = 0; i < maxInsn; i++) {
         context->pc = h_2_g(pc_ptr);
-        if (context->pc == 0xffff0fc0) {
+        if (context->pc == 0xffff0f60) {
+            isExit = vdso_cmpxchg64(context, ir);
+        } else if (context->pc == 0xffff0fc0) {
             isExit = vdso_cmpxchg(context, ir);
         } else if (context->pc == 0xffff0fa0) {
             isExit = vdso_memory_barrier(context, ir);

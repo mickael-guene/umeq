@@ -134,6 +134,22 @@ void arm_hlp_vdso_cmpxchg(uint64_t _regs)
     }
 }
 
+void arm_hlp_vdso_cmpxchg64(uint64_t _regs)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    uint64_t *oldval = (uint64_t *) g_2_h(regs->r[0]);
+    uint64_t *newval = (uint64_t *) g_2_h(regs->r[1]);
+    uint64_t *address = (uint64_t *) g_2_h(regs->r[2]);
+
+    if (__sync_bool_compare_and_swap(address, *oldval, *newval)) {
+        regs->r[0] = 0;
+        regs->cpsr |= 0x20000000;
+    } else {
+        regs->r[0] = ~0;
+        regs->cpsr &= ~0x20000000;
+    }
+}
+
 uint32_t arm_hlp_compute_flags_pred(uint64_t context, uint32_t cond, uint32_t cpsr)
 {
     uint32_t pred = 0;
