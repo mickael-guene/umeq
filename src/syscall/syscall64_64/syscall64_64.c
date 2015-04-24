@@ -646,6 +646,9 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_process_vm_writev, (pid_t) p0, (struct iovec *) p1, (unsigned long) p2,
                                                 (struct iovec *) p3, (unsigned long) p4, (unsigned long) p5);
             break;
+        case PR_sethostname:
+            res = syscall(SYS_sethostname, (char *) g_2_h(p0), (size_t) p1);
+            break;
         default:
             fatal("syscall64_64: unsupported neutral syscall %d\n", no);
     }
