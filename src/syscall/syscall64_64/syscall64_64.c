@@ -43,7 +43,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_write, (int)p0, (void *)g_2_h(p1), (size_t)p2);
             break;
         case PR_readlinkat:
-            res = syscall(SYS_readlinkat, (int) p0, (const char *) g_2_h(p1), (char *) g_2_h(p2), (size_t) p3);
+            res = readlinkat_s6464(p0, p1, p2, p3);
             break;
         case PR_faccessat:
             res = syscall(SYS_faccessat, (int) p0, (const char *) g_2_h(p1), (int) p2, (int) p3);

@@ -34,6 +34,7 @@ extern long pselect6_s6464(uint64_t nfds_p, uint64_t readfds_p, uint64_t writefd
 extern long semctl_s6464(uint64_t semid_p, uint64_t semnum_p, uint64_t cmd_p, uint64_t arg_p);
 extern long epoll_ctl_s6464(uint64_t epfd_p, uint64_t op_p, uint64_t fd_p, uint64_t event_p);
 extern long epoll_pwait_s6464(uint64_t epfd_p, uint64_t events_p, uint64_t maxevents_p, uint64_t timeout_p, uint64_t sigmask_p, uint64_t sigmask_size_p);
+extern long readlinkat_s6464(uint64_t dirfd_p, uint64_t pathname_p, uint64_t buf_p, uint64_t bufsiz_p);
 
 #endif
 

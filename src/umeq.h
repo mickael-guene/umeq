@@ -30,6 +30,8 @@ extern "C" {
 #define KB  (1024)
 #define MB  (KB * KB)
 
+extern char *exe_filename;
+
 struct target_arch {
     /* loader */
     void (*loader)(int argc, char **argv, void **additionnal_env, void **unset_env, void *target_argv0, uint64_t *entry, uint64_t *stack);

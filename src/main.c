@@ -40,6 +40,8 @@
 #include "umeq.h"
 #include "version.h"
 
+char *exe_filename;
+
 struct memory_config {
     int max_insn;
     int jitter_context_size;
@@ -232,6 +234,7 @@ int main(int argc, char **argv)
     assert(additionnal_env_index < 16);
     assert(unset_env_index < 16);
 
+    exe_filename = argv[target_argv0_index];
     /* load program in memory */
     current_target_arch.loader(argc - target_argv0_index, argv + target_argv0_index,
                                 additionnal_env, unset_env, target_argv0, &entry, &stack);
