@@ -38,9 +38,11 @@
 
 #define MAPPING_START                   0x8000
 #define KERNEL_CHOOSE_START_ADDR        0x40000000
-#define MAPPING_RESERVE_IN_SIGNAL_START 0xc0000000
-#define MAPPING_RESERVE_IN_SIGNAL_END   0xf0000000
-#define MAPPING_END                     0xfffff000
+#define MAPPING_RESERVE_IN_SIGNAL_START 0xb0000000
+#define MAPPING_RESERVE_IN_SIGNAL_END   0xc0000000
+#define MAPPING_VDSO_START              0xffff0000
+/* it should be 0xffff1000 but in that case this fucking bad algo will fail in mmap_common.c */
+#define MAPPING_VDSO_END                0xffff1001
 
 #define PAGE_SIZE                       4096
 
@@ -65,8 +67,8 @@ static void mmap_init()
     LIST_INSERT_HEAD(&vma_list, desc, entries);
     desc = arm64_get_free_desc();
     desc->type = VMA_UNMAP;
-    desc->start_addr = MAPPING_RESERVE_IN_SIGNAL_END;
-    desc->end_addr = MAPPING_END;
+    desc->start_addr = MAPPING_VDSO_START;
+    desc->end_addr = MAPPING_VDSO_END;
     LIST_INSERT_HEAD(&vma_list, desc, entries);
 
     /* map at fix address since this make ptrace emulation easier */
