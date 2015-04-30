@@ -518,7 +518,7 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
 }
 
 /* register allocation */
-static int getFreeReg(int *freeRegList)
+static int getFreeRegRaw(int *freeRegList)
 {
     int i;
     for(i = 0; i < REG_NUMBER; i++) {
@@ -529,6 +529,13 @@ static int getFreeReg(int *freeRegList)
     }
 
     assert(0);
+}
+
+static void getFreeReg(int *freeRegList, struct x86Register *reg)
+{
+    reg->index = getFreeRegRaw(freeRegList);
+    if (reg->lastReadIndex == -1)
+        freeRegList[reg->index] = 1;
 }
 
 #ifdef DEBUG_REG_ALLOC
@@ -554,7 +561,7 @@ static void allocateRegisters(struct inter *inter)
 #endif
         switch(insn->type) {
             case X86_MOV_CONST:
-                insn->u.mov.dst->index = getFreeReg(freeRegList);
+                getFreeReg(freeRegList, insn->u.mov.dst);
 #ifdef DEBUG_REG_ALLOC
                 printf("mov_const ");
                 displayReg(insn->u.mov.dst);
@@ -565,7 +572,7 @@ static void allocateRegisters(struct inter *inter)
             case X86_LOAD_16:
             case X86_LOAD_32:
             case X86_LOAD_64:
-                insn->u.load.dst->index = getFreeReg(freeRegList);
+                getFreeReg(freeRegList, insn->u.load.dst);
                 if (insn->u.load.address->lastReadIndex == i)
                     freeRegList[insn->u.load.address->index] = 1;
 #ifdef DEBUG_REG_ALLOC
@@ -596,14 +603,11 @@ static void allocateRegisters(struct inter *inter)
             case X86_BINOP_16:
             case X86_BINOP_32:
             case X86_BINOP_64:
-                insn->u.binop.dst->index = getFreeReg(freeRegList);
+                getFreeReg(freeRegList, insn->u.binop.dst);
                 if (insn->u.binop.op1->lastReadIndex == i)
                     freeRegList[insn->u.binop.op1->index] = 1;
                 if (insn->u.binop.op2->lastReadIndex == i)
                     freeRegList[insn->u.binop.op2->index] = 1;
-                /* FIXME: useless with dead code removal pass */
-                if (insn->u.binop.dst->lastReadIndex == -1)
-                    freeRegList[insn->u.binop.dst->index] = 1;
 #ifdef DEBUG_REG_ALLOC
                 printf("binop ");
                 displayReg(insn->u.binop.dst);
@@ -626,7 +630,7 @@ static void allocateRegisters(struct inter *inter)
 #endif
                 break;
             case X86_ITE:
-                insn->u.ite.dst->index = getFreeReg(freeRegList);
+                getFreeReg(freeRegList, insn->u.ite.dst);
                 if (insn->u.ite.pred->lastReadIndex == i)
                     freeRegList[insn->u.ite.pred->index] = 1;
                 if (insn->u.ite.trueOp->lastReadIndex == i)
@@ -644,12 +648,9 @@ static void allocateRegisters(struct inter *inter)
 #endif
                 break;
             case X86_CAST:
-                insn->u.cast.dst->index = getFreeReg(freeRegList);
+                getFreeReg(freeRegList, insn->u.cast.dst);
                 if (insn->u.cast.op->lastReadIndex == i)
                     freeRegList[insn->u.cast.op->index] = 1;
-                /* FIXME: useless with dead code removal pass */
-                if (insn->u.cast.dst->lastReadIndex == -1)
-                    freeRegList[insn->u.cast.dst->index] = 1;
 #ifdef DEBUG_REG_ALLOC
                 {
                 const char *typeToString[] = {"(8u_to_16)", "(8u_to_32)", "(8u_to_64)",
@@ -670,7 +671,7 @@ static void allocateRegisters(struct inter *inter)
                     int j;
 
                     if (insn->u.call.result)
-                        insn->u.call.result->index = getFreeReg(freeRegList);
+                        getFreeReg(freeRegList, insn->u.call.result);
                     if (insn->u.call.address->lastReadIndex == i)
                         freeRegList[insn->u.call.address->index] = 1;
                     for(j = 0; j < 4; j++)
@@ -694,7 +695,7 @@ static void allocateRegisters(struct inter *inter)
                 break;
             case X86_READ_8: case X86_READ_16: case X86_READ_32: case X86_READ_64:
                 {
-                    insn->u.read_context.dst->index = getFreeReg(freeRegList);
+                    getFreeReg(freeRegList, insn->u.read_context.dst);
 #ifdef DEBUG_REG_ALLOC
                     printf("read_context ");
                     displayReg(insn->u.read_context.dst);
