@@ -4134,6 +4134,7 @@ void disassemble_thumb(struct target *target, struct irInstructionAllocator *ir,
         int inIt = inItBlock(context);
 
         context->pc = h_2_g(pc_ptr) + 1;
+        write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc));
         if ((*pc_ptr >> 11) == 0x1d || (*pc_ptr >> 11) == 0x1e || (*pc_ptr >> 11) == 0x1f) {
             //fprintf(stderr, "0x%lx => insn = 0x%04x%04x\n", pc, *pc_ptr, *(pc_ptr+1));
             isExit = disassemble_thumb2_insn(context, (*pc_ptr << 16) | (*(pc_ptr+1)), ir);

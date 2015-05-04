@@ -2682,6 +2682,7 @@ void disassemble_arm(struct target *target, struct irInstructionAllocator *ir, u
     assert((pc & 3) == 0);
     for(i = 0; i < maxInsn; i++) {
         context->pc = h_2_g(pc_ptr);
+        write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc));
         if (context->pc == 0xffff0f60) {
             isExit = vdso_cmpxchg64(context, ir);
         } else if (context->pc == 0xffff0fc0) {

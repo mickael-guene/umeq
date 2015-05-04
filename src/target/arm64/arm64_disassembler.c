@@ -4369,6 +4369,7 @@ void disassemble_arm64(struct target *target, struct irInstructionAllocator *ir,
     assert((pc & 3) == 0);
     for(i = 0; i < (context->regs.is_stepin?1:maxInsn); i++) {
         context->pc = h_2_g(pc_ptr);
+        write_pc(ir, ir->add_mov_const_64(ir, context->pc));
         isExit = disassemble_insn(context, *pc_ptr, ir);
         pc_ptr++;
         if (!isExit)
