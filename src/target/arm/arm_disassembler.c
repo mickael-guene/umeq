@@ -1213,7 +1213,15 @@ static int dis_load_store_halfword_immediate_offset(struct arm_target *context, 
 
 static int dis_ldrh_literal(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    assert(0);
+    int rt = INSN(15, 12);
+    int is_add = INSN(23, 23);
+    uint32_t imm32 = (INSN(11, 8) << 4) + INSN(3, 0);
+    struct irRegister *address;
+
+    assert(rt != 15);
+
+    address = mk_address(ir, mk_32(ir, context->pc + 8 + (is_add?imm32:-imm32)));
+    write_reg(context, ir, rt, ir->add_16U_to_32(ir, ir->add_load_16(ir, address)));
 
     return 0;
 }
