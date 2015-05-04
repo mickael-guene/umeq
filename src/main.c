@@ -91,7 +91,7 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     backend = createX86_64Backend(beX86_64Memory, nocache_memory_config.be_context_size);
     handle = createJitter(jitterMemory, backend, nocache_memory_config.jitter_context_size);
     ir = getIrInstructionAllocator(handle);
-    targetHandle = current_target_arch.create_target_context(context_memory);
+    targetHandle = current_target_arch.create_target_context(context_memory, backend);
     target = current_target_arch.get_target_structure(targetHandle);
     target_runtime = current_target_arch.get_target_runtime(targetHandle);
     /* init target */
@@ -110,7 +110,7 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
         //displayIr(handle);
         jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
         if (jitSize > 0) {
-            currentPc = backend->execute(jitBuffer, (uint64_t) target_runtime);
+            currentPc = backend->execute(backend, jitBuffer, (uint64_t) target_runtime);
         } else
             assert(0);
     }
@@ -145,7 +145,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     backend = createX86_64Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
     handle = createJitter(jitterMemory, backend, cache_memory_config[memory_profile].jitter_context_size);
     ir = getIrInstructionAllocator(handle);
-    targetHandle = current_target_arch.create_target_context(context_memory);
+    targetHandle = current_target_arch.create_target_context(context_memory, backend);
     target = current_target_arch.get_target_structure(targetHandle);
     target_runtime = current_target_arch.get_target_runtime(targetHandle);
     /* init target */
@@ -161,7 +161,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
 
         cache_area = cache->lookup(cache, currentPc);
         if (cache_area) {
-            currentPc = backend->execute(cache_area, (uint64_t) target_runtime);
+            currentPc = backend->execute(backend, cache_area, (uint64_t) target_runtime);
         } else {
             int jitSize;
 
@@ -171,7 +171,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
             jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
             if (jitSize > 0) {
                 cache->append(cache, currentPc, jitBuffer, jitSize);
-                currentPc = backend->execute(jitBuffer, (uint64_t) target_runtime);
+                currentPc = backend->execute(backend, jitBuffer, (uint64_t) target_runtime);
             } else
                 assert(0);
         }

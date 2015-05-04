@@ -19,6 +19,7 @@
  */
 
 #include <stdint.h>
+#include "jitter.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,7 +39,7 @@ struct target_arch {
     /* return arch context size */
     int (*get_context_size)(void);
     /* create a target context using given memory. This function return an handle to manipulate target context */
-    void *(*create_target_context)(void *memory);
+    void *(*create_target_context)(void *memory, struct backend *backend);
     /* delete a target context. */
     void (*delete_target_context)(void *context);
     /* return target structure related to the given context */

@@ -18,12 +18,15 @@
  * 02110-1301 USA.
  */
 
+#define _GNU_SOURCE         /* See feature_test_macros(7) */
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <assert.h>
 #include <string.h>
+#include <ucontext.h>
 #include "be_x86_64.h"
+#include "be_x86_64_private.h"
 
 //#define DEBUG_REG_ALLOC 1
 
@@ -127,6 +130,7 @@ struct memoryPool {
 };
 
 struct inter {
+    uint64_t restore_sp;
     struct backend backend;
     struct memoryPool registerPoolAllocator;
     struct memoryPool instructionPoolAllocator;
@@ -1374,6 +1378,16 @@ static int generateCode(struct inter *inter, char *buffer)
     return pos - buffer;
 }
 
+static void request_signal_alternate_exit(struct backend *backend, void *_ucp, uint64_t result)
+{
+    ucontext_t *ucp = (ucontext_t *) _ucp;
+
+    /* let the kernel call restore_be_x86_64 for us when we will exit signal handler */
+    ucp->uc_mcontext.gregs[REG_RIP] = (uint64_t) restore_be_x86_64;
+    ucp->uc_mcontext.gregs[REG_RDI] = (uint64_t) backend;
+    ucp->uc_mcontext.gregs[REG_RSI] = result;
+}
+
 /* backend api */
 static int jit(struct backend *backend, struct irInstruction *irArray, int irInsnNb, char *buffer, int bufferSize)
 {
@@ -1391,31 +1405,6 @@ static int jit(struct backend *backend, struct irInstruction *irArray, int irIns
     assert(res <= bufferSize);
 
     return res;
-}
-
-/* r12-r15 are callee save. need to add wrapping when increase reg from 4 to 8 */
-static uint64_t execute(char *buffer, uint64_t context)
-{
-    uint64_t result;
-
-    asm volatile("mov %1, %%rdi\n\t"
-                 "push %%r12\n\t"
-                 "push %%r13\n\t"
-                 "push %%r14\n\t"
-                 "push %%r15\n\t"
-                 "call *%2\n\t"
-                 "pop %%r15\n\t"
-                 "pop %%r14\n\t"
-                 "pop %%r13\n\t"
-                 "pop %%r12\n\t"
-                 "mov %%rax, %0\n\t"
-                 ""
-                 : "=r" (result)
-                 : "r" (context), "r" (buffer)
-                 : "memory", "%rdi"
-                 );
-
-    return result;
 }
 
 static void reset(struct backend *backend)
@@ -1439,8 +1428,10 @@ struct backend *createX86_64Backend(void *memory, int size)
         int pool_mem_size;
         int struct_inter_size_aligned_16 = ((sizeof(*inter) + 15) & ~0xf);
 
+        inter->restore_sp = 0;
         inter->backend.jit = jit;
-        inter->backend.execute = execute;
+        inter->backend.execute = execute_be_x86_64;
+        inter->backend.request_signal_alternate_exit = request_signal_alternate_exit;
         inter->backend.reset = reset;
         inter->registerPoolAllocator.alloc = memoryPoolAlloc;
         inter->instructionPoolAllocator.alloc = memoryPoolAlloc;

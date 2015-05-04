@@ -30,8 +30,6 @@ extern "C" {
 #ifndef __ARM_TARGET__
 #define __ARM_TARGET__ 1
 
-extern struct target_arch arm_arch;
-
 #endif
 
 #ifdef __cplusplus

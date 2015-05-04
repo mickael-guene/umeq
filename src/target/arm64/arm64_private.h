@@ -72,6 +72,11 @@ struct arm64_target {
     uint32_t is_in_signal;
     uint32_t trigger_exec;
     __uint128_t exclusive_value;
+    struct backend *backend;
+    /* stuff need to support guest context change during signal handler */
+    struct rt_sigframe_arm64 *frame;
+    void *param;
+    struct arm64_target *prev_context;
 };
 
 extern void arm64_load_image(int argc, char **argv, void **additionnal_env, void **unset_env, void *target_argv0, uint64_t *entry, uint64_t *stack);

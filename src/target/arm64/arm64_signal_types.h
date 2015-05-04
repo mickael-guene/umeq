@@ -126,6 +126,11 @@ struct rt_sigframe_arm64 {
     uint64_t lr;
 };
 
+struct host_signal_info {
+    siginfo_t *siginfo;
+    void *context;
+};
+
 #endif
 
 #ifdef __cplusplus

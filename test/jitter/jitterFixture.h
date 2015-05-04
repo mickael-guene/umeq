@@ -45,7 +45,7 @@ class jitterFixture : public ::testing::Test {
         ir->add_exit(ir, ir->add_mov_const_64(ir, 0));
         //displayIr(handle);
         if (jitCode(handle, jitBuffer, sizeof(jitBuffer)) > 0)
-            res = backend->execute(jitBuffer, (uint64_t) contextBuffer);
+            res = backend->execute(backend, jitBuffer, (uint64_t) contextBuffer);
 
         return res;
     }

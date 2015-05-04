@@ -128,6 +128,20 @@ static void setup_sigframe(struct rt_sigframe_arm64 *frame, struct arm64_target 
     end->size = 0;
 }
 
+static int restore_sigframe(struct rt_sigframe_arm64 *frame, struct arm64_target *prev_context)
+{
+    int is_pc_change = (prev_context->regs.pc != frame->uc.uc_mcontext.pc);
+    int i;
+
+    for(i = 0; i < 31; i++)
+        prev_context->regs.r[i] = frame->uc.uc_mcontext.regs[i];
+    prev_context->regs.r[31] = frame->uc.uc_mcontext.sp;
+    prev_context->regs.pc = frame->uc.uc_mcontext.pc;
+    prev_context->regs.nzcv = frame->uc.uc_mcontext.pstate;
+
+    return is_pc_change;
+}
+
 static uint64_t setup_return_frame(uint64_t sp)
 {
     const unsigned int return_code[] = {0xd2801168, //1: mov     x8, #139
@@ -144,7 +158,7 @@ static uint64_t setup_return_frame(uint64_t sp)
     return sp;
 }
 
-static uint64_t setup_rt_frame(uint64_t sp, struct arm64_target *prev_context, uint32_t signum, void *param)
+static uint64_t setup_rt_frame(uint64_t sp, struct arm64_target *prev_context, uint32_t signum, struct host_signal_info *signal_info)
 {
     struct rt_sigframe_arm64 *frame;
 
@@ -153,8 +167,8 @@ static uint64_t setup_rt_frame(uint64_t sp, struct arm64_target *prev_context, u
     frame->uc.uc_flags = 0;
     frame->uc.uc_link = NULL;
     setup_sigframe(frame, prev_context);
-    if (param)
-        setup_siginfo(signum, (siginfo_t *) param, &frame->info);
+    if (signal_info)
+        setup_siginfo(signum, (siginfo_t *) signal_info->siginfo, &frame->info);
 
     return sp;
 }
@@ -203,6 +217,9 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
             context->regs.r[1] = h_2_g(&frame->info);
             context->regs.r[2] = h_2_g(&frame->uc);
         }
+        context->frame = frame;
+        context->param = param;
+        context->prev_context = prev_context;
 
         context->regs.is_in_syscall = 0;
         context->is_in_signal = 1 + (stack_ptr?2:0);
@@ -278,6 +295,18 @@ static uint32_t getExitStatus(struct target *target)
 {
     struct arm64_target *context = container_of(target, struct arm64_target, target);
 
+    if (context->is_in_signal && context->param) {
+        /* we check if parent frame was modify by signal handler */
+        int is_pc_change = restore_sigframe(context->frame, context->prev_context);
+        if (is_pc_change) {
+            struct host_signal_info *signal_info = (struct host_signal_info *) context->param;
+
+            context->prev_context->backend->request_signal_alternate_exit(context->prev_context->backend,
+                                                                          signal_info->context,
+                                                                          context->prev_context->regs.pc);
+        }
+    }
+
     return context->exitStatus;
 }
 
@@ -287,7 +316,7 @@ static int getArm64ContextSize()
     return ARM64_CONTEXT_SIZE;
 }
 
-static arm64Context createArm64Context(void *memory)
+static arm64Context createArm64Context(void *memory, struct backend *backend)
 {
     struct arm64_target *context;
 
@@ -298,6 +327,7 @@ static arm64Context createArm64Context(void *memory)
         context->target.disassemble = disassemble;
         context->target.isLooping = isLooping;
         context->target.getExitStatus = getExitStatus;
+        context->backend = backend;
     }
 
     return (arm64Context) context;

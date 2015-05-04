@@ -358,7 +358,7 @@ static int getArmContextSize()
     return ARM_CONTEXT_SIZE;
 }
 
-static armContext createArmContext(void *memory)
+static armContext createArmContext(void *memory, struct backend *backend)
 {
     struct arm_target *context;
 
@@ -369,6 +369,7 @@ static armContext createArmContext(void *memory)
         context->target.disassemble = disassemble;
         context->target.isLooping = isLooping;
         context->target.getExitStatus = getExitStatus;
+        context->backend = backend;
     }
 
     return (armContext) context;

@@ -62,8 +62,9 @@ void wrap_signal_handler(int signum)
 void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
 {
     uint64_t stack_entry = (sa_flags[signum]&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
+    struct host_signal_info signal_info = {siginfo, context};
 
-    loop(guest_signals_handler[signum], stack_entry, signum, (void *)siginfo);
+    loop(guest_signals_handler[signum], stack_entry, signum, (void *)&signal_info);
 }
 
 /* signal syscall handling */

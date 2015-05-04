@@ -18,17 +18,17 @@
  * 02110-1301 USA.
  */
 
-#include <stdlib.h>
-#include "loader64.h"
-
-#include "umeq.h"
+#include "jitter.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifndef __ARM64_TARGET__
-#define __ARM64_TARGET__ 1
+#ifndef __BE_X86_64_PRIVATE__
+#define __BE_X86_64_PRIVATE__ 1
+
+uint64_t execute_be_x86_64(struct backend *backend, char *buffer, uint64_t context);
+uint64_t restore_be_x86_64(struct backend *backend, uint64_t result);
 
 #endif
 

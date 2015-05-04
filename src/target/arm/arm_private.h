@@ -70,6 +70,7 @@ struct arm_target {
     uint32_t is_in_signal;
     uint32_t trigger_exec;
     struct fdpic_info_32 fdpic_info;
+    struct backend *backend;
 };
 
 extern void disassemble_arm(struct target *target, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);
