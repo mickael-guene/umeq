@@ -224,7 +224,6 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.is_in_syscall = 0;
         context->is_in_signal = 1 + (stack_ptr?2:0);
         context->regs.is_stepin = 0;
-        context->trigger_exec = 0;
     } else if (param) {
         /* new thread */
         struct arm64_target *parent_context = container_of(param, struct arm64_target, target);
@@ -242,7 +241,6 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.is_in_syscall = 0;
         context->is_in_signal = 0;
         context->regs.is_stepin = 0;
-        context->trigger_exec = 0;
     } else if (stack_ptr) {
         /* main thread */
         for(i = 0; i < 32; i++) {
@@ -260,7 +258,6 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.is_in_syscall = 0;
         context->is_in_signal = 0;
         context->regs.is_stepin = 0;
-        context->trigger_exec = 1;
     } else {
         //fork;
         //nothing to do
@@ -277,16 +274,17 @@ static uint32_t isLooping(struct target *target)
 {
     struct arm64_target *context = container_of(target, struct arm64_target, target);
 
-    if (context->trigger_exec) {
-        /* syscall execve exit sequence */
-         /* this will be translated into sysexec exit */
-        context->regs.is_in_syscall = 2;
-        syscall((long) 313, 1);
-         /* this will be translated into SIGTRAP */
-        context->regs.is_in_syscall = 0;
-        syscall((long) 313, 2);
-        context->trigger_exec = 0;
-    }
+    return context->isLooping;
+}
+
+static uint32_t isLooping_firstcall(struct target *target)
+{
+    struct arm64_target *context = container_of(target, struct arm64_target, target);
+
+    ptrace_exec_event(context);
+    /* avoid calling ptrace_exec_event for following isLooping call. */
+    /* this will save cycles in main loop */
+    context->target.isLooping = isLooping;
 
     return context->isLooping;
 }
@@ -325,7 +323,7 @@ static arm64Context createArm64Context(void *memory, struct backend *backend)
     if (context) {
         context->target.init = init;
         context->target.disassemble = disassemble;
-        context->target.isLooping = isLooping;
+        context->target.isLooping = isLooping_firstcall;
         context->target.getExitStatus = getExitStatus;
         context->backend = backend;
     }

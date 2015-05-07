@@ -60,6 +60,7 @@ struct arm64_registers {
     uint32_t fpsr;
     uint32_t is_in_syscall;
     uint32_t is_stepin;
+    uint64_t is_syscall_entry_show;
 };
 
 struct arm64_target {
@@ -70,7 +71,6 @@ struct arm64_target {
     uint32_t isLooping;
     uint32_t exitStatus;
     uint32_t is_in_signal;
-    uint32_t trigger_exec;
     __uint128_t exclusive_value;
     struct backend *backend;
     /* stuff need to support guest context change during signal handler */
@@ -83,6 +83,9 @@ extern void arm64_load_image(int argc, char **argv, void **additionnal_env, void
 extern void disassemble_arm64(struct target *target, struct irInstructionAllocator *ir, uint64_t pc, int maxInsn);
 extern void arm64_hlp_syscall(uint64_t regs);
 extern void arm64_setup_brk(void);
+extern void ptrace_exec_event(struct arm64_target *context);
+extern void ptrace_syscall_enter(struct arm64_target *context);
+extern void ptrace_syscall_exit(struct arm64_target *context);
 
 #endif
 

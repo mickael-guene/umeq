@@ -42,8 +42,7 @@ void arm64_hlp_syscall(uint64_t regs)
     long res = ENOSYS;
 
     /* syscall entry sequence */
-    context->regs.is_in_syscall = 1;
-    syscall((long) 313, 0);
+    ptrace_syscall_enter(context);
     /* read syscall number in case x8 has been change on syscall entry by a tracer.
         Note that we don't follow the way kernel is doing it. Kernel is not re-reading
        x8 but need PTRACE_SETREGSET/NT_ARM_SYSTEM_CALL ptrace call to change syscall number.
@@ -128,6 +127,9 @@ void arm64_hlp_syscall(uint64_t regs)
             case PR_shmdt:
                 res = arm64_shmdt(context);
                 break;
+            case PR_wait4:
+                res = arm64_wait4(context);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }
@@ -142,8 +144,5 @@ void arm64_hlp_syscall(uint64_t regs)
     skip_syscall:
     context->regs.r[0] = res;
     /* syscall exit sequence */
-    context->regs.is_in_syscall = 2;
-    syscall((long) 313, 1);
-    /* no more in syscall */
-    context->regs.is_in_syscall = 0;
+    ptrace_syscall_exit(context);
 }

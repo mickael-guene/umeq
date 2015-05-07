@@ -41,6 +41,7 @@
 #include "version.h"
 
 char *exe_filename;
+int is_under_proot;
 
 struct memory_config {
     int max_insn;
@@ -219,12 +220,15 @@ int main(int argc, char **argv)
         if (strcmp("-E", argv[target_argv0_index]) == 0) {
             additionnal_env[additionnal_env_index++] = argv[target_argv0_index + 1];
             target_argv0_index += 2;
+            is_under_proot = 1;
         } else if (strcmp("-U", argv[target_argv0_index]) == 0) {
             unset_env[unset_env_index++] = argv[target_argv0_index + 1];
             target_argv0_index += 2;
+            is_under_proot = 1;
         } else if (strcmp("-0", argv[target_argv0_index]) == 0) {
             target_argv0 = argv[target_argv0_index + 1];
             target_argv0_index += 2;
+            is_under_proot = 1;
         } else if (strcmp("-version", argv[target_argv0_index]) == 0) {
             target_argv0_index++;
             display_version_and_exit();

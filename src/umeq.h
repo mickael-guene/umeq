@@ -66,6 +66,7 @@ struct tls_context {
 extern enum memory_profile memory_profile;
 extern struct target_arch current_target_arch;
 extern const char arch_name[];
+extern int is_under_proot;
 
 static const int mmap_size[MEM_PROFILE_NB] = {2 * MB, 4 * MB, 8 * MB, 16 * MB};
 
