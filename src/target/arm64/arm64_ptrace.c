@@ -682,7 +682,7 @@ long arm64_wait4(struct arm64_target *context)
 {
     long res;
     pid_t pid = (pid_t) context->regs.r[0];
-    int *status = (int *) g_2_h(context->regs.r[1]);
+    int *status = (int *) (context->regs.r[1]?g_2_h(context->regs.r[1]):NULL);
     int options = (int) context->regs.r[2];
     struct rusage *rusage = (struct rusage *) (context->regs.r[3]?g_2_h(context->regs.r[3]):NULL);
     action_t action;
@@ -692,7 +692,7 @@ long arm64_wait4(struct arm64_target *context)
         action = ACTION_DELIVER;
         res = syscall(SYS_wait4, pid, status, options, rusage);
         /* handle ptrace emulation on chroot environment */
-        if (res > 0 && is_under_proot == 0) {
+        if (res > 0 && is_under_proot == 0 && status) {
             pid_t tracee_pid = res;
 
             /* for the moment catch every case. But in fact we are only

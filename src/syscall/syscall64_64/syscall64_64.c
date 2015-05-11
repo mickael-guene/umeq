@@ -169,7 +169,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = execve_s6464(p0,p1,p2);
             break;
         case PR_wait4:
-            res = syscall(SYS_wait4, (pid_t) p0, (int *) g_2_h(p1), (int) p2, (struct rusage *) g_2_h(p3));
+            res = syscall(SYS_wait4, (pid_t) p0, IS_NULL(p1, int), (int) p2, (struct rusage *) g_2_h(p3));
             break;
         case PR_getrusage:
             res = syscall(SYS_getrusage, (int) p0, (struct rusage *) g_2_h(p1));
