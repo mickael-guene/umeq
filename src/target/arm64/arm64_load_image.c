@@ -47,6 +47,9 @@ static int is_environment_variable_copy(char *current, void **additionnal_env, v
             return 0;
         unset_env++;
     }
+    /* remove empty environment variable: see https://github.com/proot-me/PRoot/issues/90 */
+    if (strlen(current) == 0)
+        return 0;
 
     return 1;
 }
@@ -154,6 +157,7 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
     *ptr_area++ = 0;
     pos++;
     /* setup env */
+    arm64_env_startup_pointer = ptr_area;
     while(*pos != NULL) {
         if (is_environment_variable_copy(*pos, additionnal_env, unset_env)) {
             *ptr_area++ = (uint64_t) str_area;

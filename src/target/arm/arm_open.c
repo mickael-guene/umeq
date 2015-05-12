@@ -33,6 +33,7 @@
 #include "arm_private.h"
 #include "arm_syscall.h"
 #include "runtime.h"
+#include "umeq.h"
 
 /* FIXME: cleanup and try to merge to 32 => 64 syscall stuff */
 
@@ -43,6 +44,8 @@
 
 extern void *auxv_start;
 extern void *auxv_end;
+
+guest_ptr *arm_env_startup_pointer;
 
 struct convertFlags {
     int armFlag;
@@ -238,6 +241,47 @@ static int open_proc_self_maps()
     return fd_res;
 }
 
+static void write_guest_proc_self_environ(int fd_res)
+{
+    guest_ptr *current = arm_env_startup_pointer;
+
+    /* write guest environment variable */
+    while(*current) {
+        char *var = g_2_h(*current);
+        int len = strlen(var);
+
+        /* remove empty environment variable: see https://github.com/proot-me/PRoot/issues/90 */
+        if (len)
+            write(fd_res, var, len + 1);
+        current++;
+    }
+    /* write termination string */
+    write(fd_res, "", 1);
+    lseek(fd_res, 0, SEEK_SET);
+}
+
+static int open_proc_self_environ()
+{
+    static uint32_t cnt = 0;
+    char tmpName[1024];
+    int fd_res;
+    int fd_proc_self_environ;
+
+    fd_proc_self_environ = open("/proc/self/environ", O_RDONLY);
+    if (fd_proc_self_environ >= 0) {
+        sprintf(tmpName, "/tmp/umeq-open-proc-self-environ.%d-%d", gettid(), cnt++);
+        fd_res = open(tmpName, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
+        if (fd_res >= 0) {
+            unlink(tmpName);
+            write_guest_proc_self_environ(fd_res);
+        }
+        close(fd_proc_self_environ);
+    } else
+        fd_res = fd_proc_self_environ;
+
+    return fd_res;
+}
+
 int arm_open(struct arm_target *context)
 {
     int res;
@@ -249,6 +293,8 @@ int arm_open(struct arm_target *context)
         res = open_proc_self_auxv();
     else if (strcmp(pathname, "/proc/self/maps") == 0)
         res = open_proc_self_maps();
+    else if (is_under_proot && strcmp(pathname, "/proc/self/environ") == 0)
+        res = open_proc_self_environ();
     else if (strncmp(pathname, "/proc/", strlen("/proc/")) == 0 && strncmp(pathname + strlen(pathname) - 5, "/auxv", strlen("/auxv")) == 0)
         res = -EACCES;
     else
