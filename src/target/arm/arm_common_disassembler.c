@@ -253,6 +253,22 @@ static int dis_common_veor_insn(struct arm_target *context, uint32_t insn, struc
     return 0;
 }
 
+static int dis_common_adv_simd_three_same_length_hlp(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = mk_32(ir, is_thumb);
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "hlp_common_adv_simd_three_same_length",
+                        ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_three_same_length),
+                        params);
+
+    return 0;
+}
+
 static int dis_common_vmsr(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rt = INSN(15, 12);
@@ -424,6 +440,9 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
                 default:
                     fatal("c = %d(0x%x)\n", c, c);
             }
+            break;
+        case 7:
+            isExit = dis_common_adv_simd_three_same_length_hlp(context, insn, ir);
             break;
         default:
             fatal("a = %d(0x%x)\n", a, a);

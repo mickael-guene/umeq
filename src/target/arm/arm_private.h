@@ -36,6 +36,15 @@ extern "C" {
     const typeof( ((type *)0)->member ) *__mptr = (ptr);	\
     (type *)( (char *)__mptr - offsetof(type,member) );})
 
+union simd_register {
+    uint8_t u8[8];
+    uint16_t u16[4];
+    uint32_t u32[2];
+    int8_t s8[8];
+    int16_t s16[4];
+    int32_t s32[2];
+};
+
 struct arm_registers {
     uint32_t r[16];
     uint32_t cpsr;
@@ -55,6 +64,7 @@ struct arm_registers {
         uint32_t s[64];
         double df[32];
         float sf[64];
+        union simd_register simd[32];
     } e;
 };
 
