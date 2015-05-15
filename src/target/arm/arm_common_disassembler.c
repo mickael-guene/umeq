@@ -253,6 +253,22 @@ static int dis_common_veor_insn(struct arm_target *context, uint32_t insn, struc
     return 0;
 }
 
+static int dis_common_adv_simd_three_different_length_hlp(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = mk_32(ir, is_thumb);
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "hlp_common_adv_simd_three_different_length",
+                        ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_three_different_length),
+                        params);
+
+    return 0;
+}
+
 static int dis_common_adv_simd_three_same_length_hlp(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4];
@@ -425,6 +441,22 @@ static int dis_common_vfp_data_processing_insn(struct arm_target *context, uint3
     return isExit;
 }
 
+static int dis_common_adv_simd_three_different_length_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int a = INSN(11, 8);
+    int isExit = 0;
+
+    switch(a) {
+        case 5:
+            isExit = dis_common_adv_simd_three_different_length_hlp(context, insn, ir);
+            break;
+        default:
+            fatal("a = %d(0x%x)\n", a, a);
+    }
+
+    return isExit;
+}
+
 static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int a = INSN(11, 8);
@@ -454,10 +486,14 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
 static int dis_common_adv_simd_data_preocessing_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int a = INSN(23, 19);
+    int c = INSN(7, 4);
     int isExit = 0;
 
     if (a & 0x10) {
-        assert(0);
+        if ((c & 0x5) == 0 && ((a & 0x14) == 0x10 || (a & 0x16) == 0x14)) {
+            isExit = dis_common_adv_simd_three_different_length_insn(context, insn, ir);
+        } else
+            fatal("a = 0x%x / c = 0x%x\n", a, c);
     } else {
         isExit = dis_common_adv_simd_three_same_length_insn(context, insn, ir);
     }
