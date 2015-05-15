@@ -2471,7 +2471,7 @@ static void dis_common_vcvt_vcvtr_floating_integer_vfp(uint64_t _regs, uint32_t 
     }
 }
 
-static void dis_common_vaba_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
+static void dis_common_vaba_vabd_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
@@ -2480,6 +2480,7 @@ static void dis_common_vaba_simd(uint64_t _regs, uint32_t insn, uint32_t is_thum
     int size = INSN(21, 20);
     int U = is_thumb?INSN(28, 28):INSN(24, 24);
     int reg_nb = INSN(6, 6) + 1;
+    int is_acc = INSN(4, 4);
     int i;
     int r;
     union simd_d_register res[2];
@@ -2493,7 +2494,7 @@ static void dis_common_vaba_simd(uint64_t _regs, uint32_t insn, uint32_t is_thum
                         absdiff = abs(regs->e.simd[n + r].u8[i] - regs->e.simd[m + r].u8[i]);
                     else
                         absdiff = abs(regs->e.simd[n + r].s8[i] - regs->e.simd[m + r].s8[i]);
-                    res[r].u8[i] = regs->e.simd[d + r].u8[i] + absdiff;
+                    res[r].u8[i] = (is_acc?regs->e.simd[d + r].u8[i]:0) + absdiff;
                 }
             }
             break;
@@ -2505,7 +2506,7 @@ static void dis_common_vaba_simd(uint64_t _regs, uint32_t insn, uint32_t is_thum
                         absdiff = abs(regs->e.simd[n + r].u16[i] - regs->e.simd[m + r].u16[i]);
                     else
                         absdiff = abs(regs->e.simd[n + r].s16[i] - regs->e.simd[m + r].s16[i]);
-                    res[r].u16[i] = regs->e.simd[d + r].u16[i] + absdiff;
+                    res[r].u16[i] = (is_acc?regs->e.simd[d + r].u16[i]:0) + absdiff;
                 }
             }
             break;
@@ -2517,7 +2518,7 @@ static void dis_common_vaba_simd(uint64_t _regs, uint32_t insn, uint32_t is_thum
                         absdiff = labs((uint64_t) regs->e.simd[n + r].u32[i] - (uint64_t) regs->e.simd[m + r].u32[i]);
                     else
                         absdiff = labs((int64_t) regs->e.simd[n + r].s32[i] - (int64_t) regs->e.simd[m + r].s32[i]);
-                    res[r].u32[i] = regs->e.simd[d + r].u32[i] + absdiff;
+                    res[r].u32[i] = (is_acc?regs->e.simd[d + r].u32[i]:0) + absdiff;
                 }
             }
             break;
@@ -2528,7 +2529,7 @@ static void dis_common_vaba_simd(uint64_t _regs, uint32_t insn, uint32_t is_thum
         regs->e.simd[d + r] = res[r];
 }
 
-static void dis_common_vabal_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
+static void dis_common_vabal_vabdl_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
@@ -2536,6 +2537,7 @@ static void dis_common_vabal_simd(uint64_t _regs, uint32_t insn, uint32_t is_thu
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(21, 20);
     int U = is_thumb?INSN(28, 28):INSN(24, 24);
+    int is_acc = INSN(9, 9)?0:1;
     int i;
     union simd_q_register res;
 
@@ -2547,7 +2549,7 @@ static void dis_common_vabal_simd(uint64_t _regs, uint32_t insn, uint32_t is_thu
                     absdiff = abs(regs->e.simd[n].u8[i] - regs->e.simd[m].u8[i]);
                 else
                     absdiff = abs(regs->e.simd[n].s8[i] - regs->e.simd[m].s8[i]);
-                res.u16[i] = regs->e.simq[d >> 1].u16[i] + absdiff;
+                res.u16[i] = (is_acc?regs->e.simq[d >> 1].u16[i]:0) + absdiff;
             }
             break;
         case 1:
@@ -2557,7 +2559,7 @@ static void dis_common_vabal_simd(uint64_t _regs, uint32_t insn, uint32_t is_thu
                     absdiff = abs(regs->e.simd[n].u16[i] - regs->e.simd[m].u16[i]);
                 else
                     absdiff = abs(regs->e.simd[n].s16[i] - regs->e.simd[m].s16[i]);
-                res.u32[i] = regs->e.simq[d >> 1].u32[i] + absdiff;
+                res.u32[i] = (is_acc?regs->e.simq[d >> 1].u32[i]:0) + absdiff;
             }
             break;
         case 2:
@@ -2567,7 +2569,7 @@ static void dis_common_vabal_simd(uint64_t _regs, uint32_t insn, uint32_t is_thu
                     absdiff = labs((uint64_t) regs->e.simd[n].u32[i] - (uint64_t) regs->e.simd[m].u32[i]);
                 else
                     absdiff = labs((int64_t) regs->e.simd[n].s32[i] - (int64_t) regs->e.simd[m].s32[i]);
-                res.u64[i] = regs->e.simq[d >> 1].u64[i] + absdiff;
+                res.u64[i] = (is_acc?regs->e.simq[d >> 1].u64[i]:0) + absdiff;
             }
             break;
         default:
@@ -3228,10 +3230,11 @@ void hlp_common_vfp_data_processing_insn(uint64_t regs, uint32_t insn)
 void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_t is_thumb)
 {
     int a = INSN(11, 8);
+    //int b = INSN(4, 4);
 
     switch(a) {
         case 7:
-            dis_common_vaba_simd(regs, insn, is_thumb);
+            dis_common_vaba_vabd_simd(regs, insn, is_thumb);
             break;
         default:
             fatal("a = %d(0x%x)\n", a, a);
@@ -3244,7 +3247,8 @@ void hlp_common_adv_simd_three_different_length(uint64_t regs, uint32_t insn, ui
 
     switch(a) {
         case 5:
-            dis_common_vabal_simd(regs, insn, is_thumb);
+        case 7:
+            dis_common_vabal_vabdl_simd(regs, insn, is_thumb);
             break;
         default:
             fatal("a = %d(0x%x)\n", a, a);

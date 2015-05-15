@@ -448,6 +448,7 @@ static int dis_common_adv_simd_three_different_length_insn(struct arm_target *co
 
     switch(a) {
         case 5:
+        case 7:
             isExit = dis_common_adv_simd_three_different_length_hlp(context, insn, ir);
             break;
         default:
