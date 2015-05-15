@@ -32,6 +32,14 @@
 void *auxv_start = NULL;
 void *auxv_end = NULL;
 
+#ifndef HWCAP_VFP
+ #define HWCAP_VFP (1 << 6)
+#endif
+
+#ifndef HWCAP_VFPv3
+ #define HWCAP_VFPv3 (1 << 13)
+#endif
+
 static void map_vdso_version()
 {
     guest_ptr res;
@@ -143,6 +151,8 @@ static void compute_emulated_stack_space(int argc, char **argv, struct elf_loade
     *pointer_area_size += sizeof(*auxv);
     *pointer_area_size += sizeof(*auxv);
     *pointer_area_size += sizeof(*auxv);
+    // AT_HWCAP
+    *pointer_area_size += sizeof(*auxv);
     // AT_BASE / need for fdpic
     if (auxv_info->fdpic_info.is_fdpic)
         *pointer_area_size += sizeof(*auxv);
@@ -248,6 +258,10 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
     auxv_target++;
     auxv_target->a_type = AT_ENTRY;
     auxv_target->a_un.a_val = (unsigned int)(long) auxv_info->load_AT_ENTRY;
+    auxv_target++;
+    // AT_HW_CAP
+    auxv_target->a_type = AT_HWCAP;
+    auxv_target->a_un.a_val = HWCAP_VFP | HWCAP_VFPv3;
     auxv_target++;
     //fdpic need AT_BASE
     if (auxv_info->fdpic_info.is_fdpic) {
