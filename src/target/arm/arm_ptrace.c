@@ -33,6 +33,10 @@
 #include "arm_private.h"
 #include "arm_syscall.h"
 
+#ifndef PTRACE_GETVFPREGS
+#define PTRACE_GETVFPREGS 27
+#endif
+
 #ifndef PTRACE_GETFDPIC
 #define PTRACE_GETFDPIC 31 /* get the ELF fdpic loadmap address */
 #define PTRACE_GETFDPIC_EXEC    0 /* [addr] request the executable loadmap */
@@ -90,6 +94,12 @@ typedef struct siginfo_arm {
 struct user_regs_arm
 {
     uint32_t uregs[18];
+};
+
+struct user_vfp_arm
+{
+    uint64_t fpregs[32];
+    uint32_t fpscr;
 };
 
 struct iovec_32 {
@@ -255,6 +265,20 @@ int arm_ptrace(struct arm_target *context)
                 res = 0;
             }
             break;
+        case PTRACE_GETFPREGS:
+            {
+                /* FXIME: should be struct user_fp */
+                /* in our case as we declare support for vfp. result of PTRACE_GETVFPREGS will be use */
+                char *data_host = (char *) g_2_h(data);
+                int i;
+
+                for(i = 0; i < 116; i++) {
+                    data_host[i] = 0;
+                }
+
+                res = 0;
+            }
+            break;
         case 22:/*PTRACE_GET_THREAD_AREA*/
             {
                 unsigned int *data_guest = (unsigned int *) g_2_h(data);
@@ -266,6 +290,26 @@ int arm_ptrace(struct arm_target *context)
                 res = syscall(SYS_ptrace, (long) PTRACE_PEEKTEXT, (long) pid, (long) user_regs.fs_base + 8, (long) &data_long);
                 res = syscall(SYS_ptrace, (long) PTRACE_PEEKTEXT, (long) pid, (long) data_long + 17 * 4, (long) &data_tls);
                 *data_guest = data_tls;
+
+                res = 0;
+            }
+            break;
+        case PTRACE_GETVFPREGS:
+            {
+                struct user_vfp_arm *user_vfp_regs_arm = (struct user_vfp_arm *) g_2_h(data);
+                struct user_regs_struct user_regs;
+                unsigned long data_reg;
+                unsigned long data_long;
+                int i;
+
+                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
+                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+                for(i=0;i<32;i++) {
+                    res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm_registers, e.d[i]), &data_reg);
+                    user_vfp_regs_arm->fpregs[i] = data_reg;
+                }
+                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm_registers, fpscr), &data_reg);
+                user_vfp_regs_arm->fpscr = (uint32_t) data_reg;
 
                 res = 0;
             }
