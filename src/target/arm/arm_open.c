@@ -29,11 +29,16 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/ptrace.h>
 
 #include "arm_private.h"
 #include "arm_syscall.h"
 #include "runtime.h"
 #include "umeq.h"
+
+extern void *auxv_start;
+extern void *auxv_end;
+
 
 /* FIXME: cleanup and try to merge to 32 => 64 syscall stuff */
 
@@ -121,6 +126,74 @@ static int open_proc_self_auxv()
         lseek(fd, 0, SEEK_SET);
     }
 
+    return fd;
+}
+
+static long remote_read(int pid, void *from, void *to, char *buffer)
+{
+    long res = 0;
+    long data;
+    int i;
+    int j;
+
+    assert((to - from) % sizeof(void *) == 0);
+    for(i = 0; i < (to - from) / sizeof(void *); i++) {
+        res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, from + i * sizeof(void *), &data);
+        if (res)
+            goto error;
+        for(j = 0; j < 8; j++)
+            *buffer++ = (data >> (j * 8)) & 0xff;
+    }
+
+error:
+    return res;
+}
+
+/*  This code will only work when a tracer try to read a tracee
+ * auxv. This allow gdb to be able to debug pie binaries.
+ */
+static int open_proc_pid_auxv(const char *pathname)
+{
+    int fd = -EACCES;
+    int pid = 0;
+    long res;
+    int i;
+    void *auxv_start_value;
+    void *auxv_end_value;
+    char *auxv_buffer;
+    char tmpName[128];
+    static uint32_t cnt = 0;
+
+    /* compute pid */
+    for(i = 6; i < strlen(pathname) - 5; i++)
+        pid = pid * 10 + (pathname[i] - '0');
+
+    /* read auxv_start and auxv_end value and remote read auxv data in buffer */
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, &auxv_start, &auxv_start_value);
+    if (res)
+        goto error;
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, &auxv_end, &auxv_end_value);
+    if (res)
+        goto error;
+    auxv_buffer = alloca(auxv_end_value - auxv_start_value);
+    res = remote_read(pid, auxv_start_value, auxv_end_value, auxv_buffer);
+    if (res)
+        goto error;
+
+    /* now generate file */
+    sprintf(tmpName, "/tmp/umeq-open-proc-%d-auxv.%d-%d", pid, gettid(), cnt++);
+    fd = open(tmpName, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
+
+    if (fd >= 0) {
+        ssize_t res;
+
+        unlink(tmpName);
+        res = write(fd, auxv_buffer, auxv_end_value - auxv_start_value);
+        assert(res == auxv_end_value - auxv_start_value);
+        lseek(fd, 0, SEEK_SET);
+    }
+
+error:
     return fd;
 }
 
@@ -296,7 +369,7 @@ int arm_open(struct arm_target *context)
     else if (is_under_proot && strcmp(pathname, "/proc/self/environ") == 0)
         res = open_proc_self_environ();
     else if (strncmp(pathname, "/proc/", strlen("/proc/")) == 0 && strncmp(pathname + strlen(pathname) - 5, "/auxv", strlen("/auxv")) == 0)
-        res = -EACCES;
+        res = open_proc_pid_auxv(pathname);
     else
         res = syscall(SYS_open, (long) pathname, (long) flags, (long) mode);
 
