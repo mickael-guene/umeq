@@ -44,8 +44,10 @@ extern uint32_t thumb_hlp_compute_next_flags(uint64_t context, uint32_t opcode, 
 extern uint32_t arm_hlp_clz(uint64_t context, uint32_t rm);
 extern uint32_t arm_hlp_multiply_unsigned_lsb(uint64_t context, uint32_t op1, uint32_t op2);
 extern uint32_t arm_hlp_multiply_flag_update(uint64_t context, uint32_t res, uint32_t old_cpsr);
-extern uint32_t arm_hlp_ldrex(uint64_t context, uint32_t address, uint32_t size_access);
-extern uint32_t arm_hlp_strex(uint64_t regs, uint32_t address, uint32_t size_access, uint32_t value);
+extern uint32_t arm_hlp_ldrexx(uint64_t context, uint32_t address, uint32_t size_access);
+extern uint32_t arm_hlp_strexx(uint64_t regs, uint32_t address, uint32_t size_access, uint32_t value);
+extern uint64_t arm_hlp_ldrexd(uint64_t context, uint32_t address);
+extern uint32_t arm_hlp_strexd(uint64_t regs, uint32_t address, uint32_t value, uint32_t value2);
 extern void arm_hlp_memory_barrier(uint64_t regs);
 extern uint32_t thumb_hlp_t2_modified_compute_next_flags(uint64_t context, uint32_t opcode_and_shifter_carry_out, uint32_t rn, uint32_t op, uint32_t oldcpsr);
 extern void thumb_hlp_t2_unsigned_parallel(uint64_t regs, uint32_t insn);

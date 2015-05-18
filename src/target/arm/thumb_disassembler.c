@@ -2619,24 +2619,26 @@ static int dis_t32_t1_isb(struct arm_target *context, uint32_t insn, struct irIn
     return 0;
 }
 
-static int dis_t2_ldrex(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+static int dis_t2_ldrexx(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir, int imm32, int type)
 {
     int rn = INSN1(3, 0);
     int rt = INSN2(15, 12);
-    int imm32 = INSN2(7, 0) << 2;
     struct irRegister *params[4];
     struct irRegister *result;
 
     assert(rn != 15);
     assert(rt != 15);
 
-    params[0] = ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32));
-    params[1] = mk_32(ir, 4);
+    if (imm32)
+        params[0] = ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32));
+    else
+        params[0] = read_reg(context, ir, rn);
+    params[1] = mk_32(ir, type);
     params[2] = NULL;
     params[3] = NULL;
 
-    result = ir->add_call_32(ir, "arm_hlp_ldrex",
-                             mk_64(ir, (uint64_t) arm_hlp_ldrex),
+    result = ir->add_call_32(ir, "arm_hlp_ldrexx",
+                             mk_64(ir, (uint64_t) arm_hlp_ldrexx),
                              params);
 
     write_reg(context, ir, rt, result);
@@ -2644,12 +2646,52 @@ static int dis_t2_ldrex(struct arm_target *context, uint32_t insn, struct irInst
     return 0;
 }
 
-static int dis_t2_strex(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+static int dis_t2_ldrex(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    return dis_t2_ldrexx(context, insn, ir, INSN2(7, 0) << 2, 4);
+}
+
+static int dis_t2_ldrexb(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    return dis_t2_ldrexx(context, insn, ir, 0, 6);
+}
+
+static int dis_t2_ldrexh(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    return dis_t2_ldrexx(context, insn, ir, 0, 7);
+}
+
+static int dis_t2_ldrexd(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rn = INSN1(3, 0);
     int rt = INSN2(15, 12);
-    int rd = INSN2(11, 8);
-    int imm32 = INSN2(7, 0) << 2;
+    int rt2 = INSN2(11, 8);
+    struct irRegister *params[4];
+    struct irRegister *result;
+
+    assert(rn != 15);
+    assert(rt != 15);
+    assert(rt2 != 15);
+
+    params[0] = read_reg(context, ir, rn);
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    result = ir->add_call_64(ir, "arm_hlp_ldrexd",
+                             mk_64(ir, (uint64_t) arm_hlp_ldrexd),
+                             params);
+
+    write_reg(context, ir, rt, ir->add_64_to_32(ir, result));
+    write_reg(context, ir, rt2, ir->add_64_to_32(ir, ir->add_shr_64(ir, result, mk_8(ir, 32))));
+
+    return 0;
+}
+
+static int dis_t2_strexx(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir, int rd, int imm32, int type)
+{
+    int rn = INSN1(3, 0);
+    int rt = INSN2(15, 12);
     struct irRegister *params[4];
     struct irRegister *result;
 
@@ -2657,13 +2699,59 @@ static int dis_t2_strex(struct arm_target *context, uint32_t insn, struct irInst
     assert(rd != 15);
     assert(rt != 15);
 
-    params[0] = ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32));
-    params[1] = mk_32(ir, 4);
+    if (imm32)
+        params[0] = ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32));
+    else
+        params[0] = read_reg(context, ir, rn);
+    params[1] = mk_32(ir, type);
     params[2] = read_reg(context, ir, rt);
     params[3] = NULL;
 
-    result = ir->add_call_32(ir, "arm_hlp_strex",
-                             mk_64(ir, (uint64_t) arm_hlp_strex),
+    result = ir->add_call_32(ir, "arm_hlp_strexx",
+                             mk_64(ir, (uint64_t) arm_hlp_strexx),
+                             params);
+
+    write_reg(context, ir, rd, result);
+
+    return 0;
+}
+
+static int dis_t2_strex(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    return dis_t2_strexx(context, insn, ir, INSN2(11, 8), INSN2(7, 0) << 2, 4);
+}
+
+static int dis_t2_strexb(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    return dis_t2_strexx(context, insn, ir, INSN2(3, 0), 0, 6);
+}
+
+static int dis_t2_strexh(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    return dis_t2_strexx(context, insn, ir, INSN2(3, 0), 0, 7);
+}
+
+static int dis_t2_strexd(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rn = INSN1(3, 0);
+    int rt = INSN2(15, 12);
+    int rt2 = INSN2(11, 8);
+    int rd = INSN2(3, 0);
+    struct irRegister *params[4];
+    struct irRegister *result;
+
+    assert(rn != 15);
+    assert(rd != 15);
+    assert(rt != 15);
+    assert(rt2 != 15);
+
+    params[0] = read_reg(context, ir, rn);
+    params[1] = read_reg(context, ir, rt);
+    params[2] = read_reg(context, ir, rt2);
+    params[3] = NULL;
+
+    result = ir->add_call_32(ir, "arm_hlp_strexd",
+                             mk_64(ir, (uint64_t) arm_hlp_strexd),
                              params);
 
     write_reg(context, ir, rd, result);
@@ -3668,6 +3756,24 @@ static int dis_t2_ldrd_strd_A_ldrex_strex_A_table_branch(struct arm_target *cont
         switch(op3) {
             case 0 ... 1:
                 isExit = dis_t2_tbx(context, insn, ir);
+                break;
+            case 4:
+                if (op2 & 1)
+                    isExit = dis_t2_ldrexb(context, insn, ir);
+                else
+                    isExit = dis_t2_strexb(context, insn, ir);
+                break;
+            case 5:
+                if (op2 & 1)
+                    isExit = dis_t2_ldrexh(context, insn, ir);
+                else
+                    isExit = dis_t2_strexh(context, insn, ir);
+                break;
+            case 7:
+                if (op2 & 1)
+                    isExit = dis_t2_ldrexd(context, insn, ir);
+                else
+                    isExit = dis_t2_strexd(context, insn, ir);
                 break;
             default:
                 fatal("op3 = 0x%x(%d)\n", op3, op3);

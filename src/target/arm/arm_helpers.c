@@ -673,12 +673,18 @@ uint32_t arm_hlp_multiply_flag_update(uint64_t context, uint32_t res, uint32_t o
 /* FIXME: ldrex / strex implementation below is not sematically correct. It's subject
           to the ABBA problem which is not the case of ldrex/strex hardware implementation
  */
-uint32_t arm_hlp_ldrex(uint64_t regs, uint32_t address, uint32_t size_access)
+uint32_t arm_hlp_ldrexx(uint64_t regs, uint32_t address, uint32_t size_access)
 {
     struct arm_target *context = container_of((void *) regs, struct arm_target, regs);
 
     switch(size_access) {
-        case 4:
+        case 6://8 bits
+            context->exclusive_value = (uint64_t) *((uint8_t *)g_2_h(address));
+            break;
+        case 7://16 bits
+            context->exclusive_value = (uint64_t) *((uint16_t *)g_2_h(address));
+            break;
+        case 4://32 bits
             context->exclusive_value = (uint64_t) *((uint32_t *)g_2_h(address));
             break;
         default:
@@ -688,13 +694,34 @@ uint32_t arm_hlp_ldrex(uint64_t regs, uint32_t address, uint32_t size_access)
     return (uint32_t) context->exclusive_value;
 }
 
-uint32_t arm_hlp_strex(uint64_t regs, uint32_t address, uint32_t size_access, uint32_t value)
+uint64_t arm_hlp_ldrexd(uint64_t regs, uint32_t address)
+{
+    struct arm_target *context = container_of((void *) regs, struct arm_target, regs);
+
+    context->exclusive_value = (uint64_t) *((uint64_t *)g_2_h(address));
+
+    return context->exclusive_value;
+}
+
+uint32_t arm_hlp_strexx(uint64_t regs, uint32_t address, uint32_t size_access, uint32_t value)
 {
     struct arm_target *context = container_of((void *) regs, struct arm_target, regs);
     uint32_t res = 0;
 
     switch(size_access) {
-        case 4:
+        case 6://8 bits
+            if (__sync_bool_compare_and_swap((uint8_t *) g_2_h(address), (uint8_t)context->exclusive_value, value))
+                res = 0;
+            else
+                res = 1;
+            break;
+        case 7://16 bits
+            if (__sync_bool_compare_and_swap((uint16_t *) g_2_h(address), (uint16_t)context->exclusive_value, value))
+                res = 0;
+            else
+                res = 1;
+            break;
+        case 4://32 bits
             if (__sync_bool_compare_and_swap((uint32_t *) g_2_h(address), (uint32_t)context->exclusive_value, value))
                 res = 0;
             else
@@ -703,6 +730,20 @@ uint32_t arm_hlp_strex(uint64_t regs, uint32_t address, uint32_t size_access, ui
         default:
             fatal("size_access %d unsupported\n", size_access);
     }
+
+    return res;
+}
+
+uint32_t arm_hlp_strexd(uint64_t regs, uint32_t address, uint32_t lsb, uint32_t msb)
+{
+    struct arm_target *context = container_of((void *) regs, struct arm_target, regs);
+    uint32_t res = 0;
+    uint64_t value = ((uint64_t)msb << 32) | lsb;
+
+    if (__sync_bool_compare_and_swap((uint64_t *) g_2_h(address), context->exclusive_value, value))
+        res = 0;
+    else
+        res = 1;
 
     return res;
 }
