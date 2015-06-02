@@ -490,6 +490,8 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
             }
             break;
         case 7:
+        case 8:
+        case 13:
         case 14:
             isExit = dis_common_adv_simd_three_same_length_hlp(context, insn, ir);
             break;

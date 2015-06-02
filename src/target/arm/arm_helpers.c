@@ -2566,6 +2566,67 @@ static void dis_common_vaba_vabd_simd(uint64_t _regs, uint32_t insn, uint32_t is
         default:
             assert(0);
     }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
+static void dis_common_vadd_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(21, 20);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    switch(size) {
+        case 0:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 8; i++)
+                    res[r].u8[i] = regs->e.simd[n + r].u8[i] + regs->e.simd[m + r].u8[i];
+            break;
+        case 1:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 4; i++)
+                    res[r].u16[i] = regs->e.simd[n + r].u16[i] + regs->e.simd[m + r].u16[i];
+            break;
+        case 2:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 2; i++)
+                    res[r].u32[i] = regs->e.simd[n + r].u32[i] + regs->e.simd[m + r].u32[i];
+            break;
+        case 3:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 1; i++)
+                    res[r].u64[i] = regs->e.simd[n + r].u64[i] + regs->e.simd[m + r].u64[i];
+            break;
+        default:
+            assert(0);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
+static void dis_common_vadd_fpu_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    for(r = 0; r < reg_nb; r++)
+        for(i = 0; i < 2; i++)
+            res[r].sf[i] = regs->e.simd[n + r].sf[i] + regs->e.simd[m + r].sf[i];
+
     for(r = 0; r < reg_nb; r++)
         regs->e.simd[d + r] = res[r];
 }
@@ -3343,10 +3404,32 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
 {
     int a = INSN(11, 8);
     int b = INSN(4, 4);
+    int u = is_thumb?INSN(28, 28):INSN(24, 24);
+    int c = INSN(21, 20);
 
     switch(a) {
         case 7:
             dis_common_vaba_vabd_simd(regs, insn, is_thumb);
+            break;
+        case 8:
+            if (b)
+                assert(0);//vtst, vceq
+            else
+                u?assert(0):dis_common_vadd_simd(regs, insn);
+            break;
+        case 13:
+            if (b)
+                assert(0);//vmla, vmls, vmul
+            else {
+                if (u)
+                    assert(0);//vpadd fpu, vabd, fpu
+                else {
+                    if (c&2)
+                        assert(0);//vsub fpu
+                    else
+                        dis_common_vadd_fpu_simd(regs, insn);
+                }
+            }
             break;
         case 14:
             if (b) {
