@@ -253,6 +253,25 @@ static int dis_common_veor_insn(struct arm_target *context, uint32_t insn, struc
     return 0;
 }
 
+static int dis_common_vand_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(6, 6);
+    int d = (INSN(22, 22) << 4) + INSN(15, 12);
+    int n = (INSN(7, 7) << 4) + INSN(19, 16);
+    int m = (INSN(5, 5) << 4) + INSN(3, 0);
+
+    write_reg_d(context, ir, d, ir->add_and_64(ir,
+                                               read_reg_d(context, ir, n),
+                                               read_reg_d(context, ir, m)));
+    if (Q) {
+        write_reg_d(context, ir,  d + 1, ir->add_and_64(ir,
+                                                        read_reg_d(context, ir, n + 1),
+                                                        read_reg_d(context, ir, m + 1)));
+    }
+
+    return 0;
+}
+
 static int dis_common_adv_simd_three_different_length_hlp(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4];
@@ -480,13 +499,14 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
 {
     int a = INSN(11, 8);
     int c = INSN(21, 20);
+    int u = is_thumb?INSN(28, 28):INSN(24, 24);
     int isExit = 0;
 
     switch(a) {
         case 1:
             switch(c) {
                 case 0:
-                    isExit = dis_common_veor_insn(context, insn, ir);
+                    isExit = u?dis_common_veor_insn(context, insn, ir):dis_common_vand_insn(context, insn, ir);
                     break;
                 default:
                     fatal("c = %d(0x%x)\n", c, c);
