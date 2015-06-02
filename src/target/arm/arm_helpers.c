@@ -2664,7 +2664,7 @@ static void dis_common_vacge_vacgt_simd(uint64_t _regs, uint32_t insn)
         regs->e.simd[d + r] = res[r];
 }
 
-static void dis_common_vaddl_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
+static void dis_common_vaddl_vaddw_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
@@ -2672,6 +2672,7 @@ static void dis_common_vaddl_simd(uint64_t _regs, uint32_t insn, uint32_t is_thu
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(21, 20);
     int u = is_thumb?INSN(28, 28):INSN(24, 24);
+    int is_vaddw = INSN(8, 8);
     int i;
     int r;
     union simd_d_register res[2];
@@ -2681,9 +2682,9 @@ static void dis_common_vaddl_simd(uint64_t _regs, uint32_t insn, uint32_t is_thu
             for(r = 0; r < 2; r++) {
                 for(i = 0; i < 4; i++) {
                     if (u)
-                        res[r].u16[i] = regs->e.simd[n].u8[i + 4 * r] + regs->e.simd[m].u8[i + 4 * r];
+                        res[r].u16[i] = (is_vaddw?regs->e.simd[n + r].u16[i]:regs->e.simd[n].u8[i + 4 * r]) + regs->e.simd[m].u8[i + 4 * r];
                     else
-                        res[r].s16[i] = regs->e.simd[n].s8[i + 4 * r] + regs->e.simd[m].s8[i + 4 * r];
+                        res[r].s16[i] = (is_vaddw?regs->e.simd[n + r].s16[i]:regs->e.simd[n].s8[i + 4 * r]) + regs->e.simd[m].s8[i + 4 * r];
                 }
             }
             break;
@@ -2691,9 +2692,9 @@ static void dis_common_vaddl_simd(uint64_t _regs, uint32_t insn, uint32_t is_thu
             for(r = 0; r < 2; r++) {
                 for(i = 0; i < 2; i++) {
                     if (u)
-                        res[r].u32[i] = regs->e.simd[n].u16[i + 2 * r] + regs->e.simd[m].u16[i + 2 * r];
+                        res[r].u32[i] = (is_vaddw?regs->e.simd[n + r].u32[i]:regs->e.simd[n].u16[i + 2 * r]) + regs->e.simd[m].u16[i + 2 * r];
                     else
-                        res[r].s32[i] = regs->e.simd[n].s16[i + 2 * r] + regs->e.simd[m].s16[i + 2 * r];
+                        res[r].s32[i] = (is_vaddw?regs->e.simd[n + r].s32[i]:regs->e.simd[n].s16[i + 2 * r]) + regs->e.simd[m].s16[i + 2 * r];
                 }
             }
             break;
@@ -2701,9 +2702,9 @@ static void dis_common_vaddl_simd(uint64_t _regs, uint32_t insn, uint32_t is_thu
             for(r = 0; r < 2; r++) {
                 for(i = 0; i < 1; i++) {
                     if (u)
-                        res[r].u64[i] = (uint64_t)regs->e.simd[n].u32[i + r] + (uint64_t)regs->e.simd[m].u32[i + r];
+                        res[r].u64[i] = (uint64_t)(is_vaddw?regs->e.simd[n + r].u64[i]:regs->e.simd[n].u32[i + r]) + (uint64_t)regs->e.simd[m].u32[i + r];
                     else
-                        res[r].s64[i] = (int64_t)regs->e.simd[n].s32[i + r] + (int64_t)regs->e.simd[m].s32[i + r];
+                        res[r].s64[i] = (int64_t)(is_vaddw?regs->e.simd[n + r].s64[i]:regs->e.simd[n].s32[i + r]) + (int64_t)regs->e.simd[m].s32[i + r];
                 }
             }
             break;
@@ -3532,7 +3533,8 @@ void hlp_common_adv_simd_three_different_length(uint64_t regs, uint32_t insn, ui
 
     switch(a) {
         case 0:
-            dis_common_vaddl_simd(regs, insn, is_thumb);
+        case 1:
+            dis_common_vaddl_vaddw_simd(regs, insn, is_thumb);
             break;
         case 4:
             if (u)
