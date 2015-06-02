@@ -45,6 +45,7 @@ union simd_d_register {
     int16_t s16[4];
     int32_t s32[2];
     int64_t s64[1];
+    float sf[2];
 };
 
 union simd_q_register {
@@ -56,6 +57,7 @@ union simd_q_register {
     int16_t s16[8];
     int32_t s32[4];
     int64_t s64[2];
+    float sf[4];
 };
 
 struct arm_registers {

@@ -2570,6 +2570,39 @@ static void dis_common_vaba_vabd_simd(uint64_t _regs, uint32_t insn, uint32_t is
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vacge_vacgt_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int reg_nb = INSN(6, 6) + 1;
+    int or_equal = (INSN(21, 21) == 0);
+    int i;
+    int r;
+    union simd_d_register op1[2];
+    union simd_d_register op2[2];
+    union simd_d_register res[2];
+
+    for(r = 0; r < reg_nb; r++) {
+        for(i = 0; i < 2; i++) {
+            op1[r].s32[i] = regs->e.simd[n + r].s32[i]&0x80000000?regs->e.simd[n + r].s32[i]^0x80000000:regs->e.simd[n + r].s32[i];
+            op2[r].s32[i] = regs->e.simd[m + r].s32[i]&0x80000000?regs->e.simd[m + r].s32[i]^0x80000000:regs->e.simd[m + r].s32[i];
+        }
+    }
+    for(r = 0; r < reg_nb; r++) {
+        for(i = 0; i < 2; i++) {
+            if (or_equal)
+                res[r].u32[i] = (op1[r].sf[i]>=op2[r].sf[i])?~0:0;
+            else
+                res[r].u32[i] = (op1[r].sf[i]>op2[r].sf[i])?~0:0;
+        }
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vabal_vabdl_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -3309,11 +3342,19 @@ void hlp_common_vfp_data_processing_insn(uint64_t regs, uint32_t insn)
 void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_t is_thumb)
 {
     int a = INSN(11, 8);
-    //int b = INSN(4, 4);
+    int b = INSN(4, 4);
 
     switch(a) {
         case 7:
             dis_common_vaba_vabd_simd(regs, insn, is_thumb);
+            break;
+        case 14:
+            if (b) {
+                dis_common_vacge_vacgt_simd(regs, insn);
+            } else {
+                //vceq, vcge, vcgt
+                assert(0);
+            }
             break;
         default:
             fatal("a = %d(0x%x)\n", a, a);
