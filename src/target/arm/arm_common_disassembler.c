@@ -285,6 +285,21 @@ static int dis_common_adv_simd_three_same_length_hlp(struct arm_target *context,
     return 0;
 }
 
+static int dis_common_adv_simd_two_regs_misc_hlp(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "hlp_common_adv_simd_two_regs_misc",
+                        ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_two_regs_misc),
+                        params);
+
+    return 0;
+}
 static int dis_common_vmsr(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rt = INSN(15, 12);
@@ -484,13 +499,35 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
     return isExit;
 }
 
+static int dis_common_adv_simd_two_regs_misc_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    return dis_common_adv_simd_two_regs_misc_hlp(context, insn, ir);
+}
+
 static int dis_common_adv_simd_data_preocessing_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int a = INSN(23, 19);
+    int b = INSN(11, 8);
     int c = INSN(7, 4);
+    int U = is_thumb?INSN(28, 28):INSN(24, 24);
     int isExit = 0;
 
-    if (a & 0x10) {
+    if ((a & 0x16) == 0x16 && (c & 1) == 0) {
+        if (U) {
+            if (b == 0xc) {
+                //vdup scalar
+                assert(0);
+            } else if ((b & 0xc) == 0x8) {
+                //vtbl, vtbx
+            } else if ((b & 0x8) == 0) {
+                isExit = dis_common_adv_simd_two_regs_misc_insn(context, insn, ir);
+            } else
+                assert(0);
+        } else {
+            //vext
+            assert(0);
+        }
+    } else if (a & 0x10) {
         if ((c & 0x5) == 0 && ((a & 0x14) == 0x10 || (a & 0x16) == 0x14)) {
             isExit = dis_common_adv_simd_three_different_length_insn(context, insn, ir);
         } else

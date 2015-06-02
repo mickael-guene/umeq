@@ -81,6 +81,7 @@ extern void arm_hlp_common_vcvt_vcvtr_floating_integer(uint64_t regs, uint32_t i
 extern void hlp_common_vfp_data_processing_insn(uint64_t regs, uint32_t insn);
 extern void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_t is_thumb);
 extern void hlp_common_adv_simd_three_different_length(uint64_t regs, uint32_t insn, uint32_t is_thumb);
+extern void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn);
 
 #endif
 
