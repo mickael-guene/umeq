@@ -2664,6 +2664,36 @@ static void dis_common_vacge_vacgt_simd(uint64_t _regs, uint32_t insn)
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vaddhn(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(21, 20);
+    int i;
+    union simd_d_register res;
+
+    switch(size) {
+        case 0:
+            for(i = 0; i < 8; i++)
+                res.u8[i] = (regs->e.simq[n>>1].u16[i] + regs->e.simq[m>>1].u16[i]) >> 8;
+            break;
+        case 1:
+            for(i = 0; i < 4; i++)
+                res.u16[i] = (regs->e.simq[n>>1].u32[i] + regs->e.simq[m>>1].u32[i]) >> 16;
+            break;
+        case 2:
+            for(i = 0; i < 2; i++)
+                res.u32[i] = (regs->e.simq[n>>1].u64[i] + regs->e.simq[m>>1].u64[i]) >> 32;
+            break;
+        default:
+            assert(0);
+    }
+
+    regs->e.simd[d] = res;
+}
+
 static void dis_common_vabal_vabdl_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -3447,8 +3477,15 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
 void hlp_common_adv_simd_three_different_length(uint64_t regs, uint32_t insn, uint32_t is_thumb)
 {
     int a = INSN(11, 8);
+    int u = is_thumb?INSN(28, 28):INSN(24, 24);
 
     switch(a) {
+        case 4:
+            if (u)
+                assert(0);//vraddhn
+            else
+                dis_common_vaddhn(regs, insn);
+            break;
         case 5:
         case 7:
             dis_common_vabal_vabdl_simd(regs, insn, is_thumb);

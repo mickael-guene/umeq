@@ -462,6 +462,7 @@ static int dis_common_adv_simd_three_different_length_insn(struct arm_target *co
     int isExit = 0;
 
     switch(a) {
+        case 4:
         case 5:
         case 7:
             isExit = dis_common_adv_simd_three_different_length_hlp(context, insn, ir);
