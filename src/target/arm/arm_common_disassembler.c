@@ -5,6 +5,13 @@ const static int is_thumb = 0;
 #endif
 
 /* utils */
+static int assert_with_return()
+{
+    assert(0);
+
+    return 0;
+}
+
 static uint32_t vfpExpandImm32(int imm8)
 {
     uint32_t i7 = (imm8 >> 7) & 1;
@@ -24,6 +31,37 @@ static uint64_t vfpExpandImm64(int imm8)
     return (i7 << 63) + ((1 - i6) << 62) + (i6 << 61) + (i6 << 60) + (i6 << 59) +
            (i6 << 58) + (i6 << 57) + (i6 << 56) + (i6 << 55) + (i6 << 54) +
            (i5_0 << 48);
+}
+
+static uint64_t advSimdExpandImm(int op, int cmode, uint32_t _imm8)
+{
+    uint64_t res;
+    uint64_t imm8 = _imm8;
+
+    switch(cmode >> 1) {
+        case 0:
+            res = (imm8 << 32) | (imm8 << 0);
+            break;
+        case 1:
+            res = (imm8 << 40) | (imm8 << 8);
+            break;
+        case 2:
+            res = (imm8 << 48) | (imm8 << 16);
+            break;
+        case 3:
+            res = (imm8 << 56) | (imm8 << 24);
+            break;
+        case 4:
+            res = (imm8 << 48) | (imm8 << 32) | (imm8 << 16) | imm8;
+            break;
+        case 5:
+            res = (imm8 << 56) | (imm8 << 40) | (imm8 << 24) | (imm8 << 8);
+            break;
+        default:
+            fatal("cmode = %d\n", cmode);
+    }
+
+    return res;
 }
 
 static struct irRegister *read_fpscr(struct arm_target *context, struct irInstructionAllocator *ir)
@@ -253,6 +291,31 @@ static int dis_common_veor_insn(struct arm_target *context, uint32_t insn, struc
     return 0;
 }
 
+static int dis_common_vorr_immediate(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    assert(0);
+}
+
+static int dis_common_vbic_immediate(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(6, 6);
+    int d = (INSN(22, 22) << 4) + INSN(15, 12);
+    int cmode = INSN(11, 8);
+    int i = is_thumb?INSN(28, 28):INSN(24, 24);
+    uint32_t imm8 = (i << 7) | (INSN(18, 16) << 4) | INSN(3, 0);
+    uint64_t imm64 = advSimdExpandImm(1, cmode, imm8);
+
+    write_reg_d(context, ir, d, ir->add_and_64(ir,
+                                               read_reg_d(context, ir, d),
+                                               mk_64(ir, ~imm64)));
+    if (Q)
+        write_reg_d(context, ir, d + 1, ir->add_and_64(ir,
+                                                       read_reg_d(context, ir, d + 1),
+                                                       mk_64(ir, ~imm64)));
+
+    return 0;
+}
+
 static int dis_common_vand_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int Q = INSN(6, 6);
@@ -267,6 +330,25 @@ static int dis_common_vand_insn(struct arm_target *context, uint32_t insn, struc
         write_reg_d(context, ir,  d + 1, ir->add_and_64(ir,
                                                         read_reg_d(context, ir, n + 1),
                                                         read_reg_d(context, ir, m + 1)));
+    }
+
+    return 0;
+}
+
+static int dis_common_vbic_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(6, 6);
+    int d = (INSN(22, 22) << 4) + INSN(15, 12);
+    int n = (INSN(7, 7) << 4) + INSN(19, 16);
+    int m = (INSN(5, 5) << 4) + INSN(3, 0);
+
+    write_reg_d(context, ir, d, ir->add_and_64(ir,
+                                               read_reg_d(context, ir, n),
+                                               ir->add_xor_64(ir, read_reg_d(context, ir, m), mk_64(ir, ~0UL))));
+    if (Q) {
+        write_reg_d(context, ir,  d + 1, ir->add_and_64(ir,
+                                                        read_reg_d(context, ir, n + 1),
+                                                        ir->add_xor_64(ir, read_reg_d(context, ir, m + 1), mk_64(ir, ~0UL))));
     }
 
     return 0;
@@ -319,6 +401,7 @@ static int dis_common_adv_simd_two_regs_misc_hlp(struct arm_target *context, uin
 
     return 0;
 }
+
 static int dis_common_vmsr(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rt = INSN(15, 12);
@@ -508,6 +591,9 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
                 case 0:
                     isExit = u?dis_common_veor_insn(context, insn, ir):dis_common_vand_insn(context, insn, ir);
                     break;
+                case 1:
+                    isExit = u?assert_with_return(0):dis_common_vbic_insn(context, insn, ir);
+                    break;
                 default:
                     fatal("c = %d(0x%x)\n", c, c);
             }
@@ -528,6 +614,23 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
 static int dis_common_adv_simd_two_regs_misc_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     return dis_common_adv_simd_two_regs_misc_hlp(context, insn, ir);
+}
+
+static int dis_common_adv_simd_one_register_and_modified_immediate_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int cmode = INSN(11, 8);
+    int op = INSN(5, 5);
+    int isExit = 0;
+
+    switch(cmode) {
+        case 1: case 3: case 5: case 7: case 9: case 11:
+            isExit = op?dis_common_vbic_immediate(context, insn, ir):dis_common_vorr_immediate(context, insn, ir);
+            break;
+        default:
+            fatal("cmode = %d / op = %d\n", cmode, op);
+    }
+
+    return isExit;
 }
 
 static int dis_common_adv_simd_data_preocessing_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -554,10 +657,19 @@ static int dis_common_adv_simd_data_preocessing_insn(struct arm_target *context,
             assert(0);
         }
     } else if (a & 0x10) {
-        if ((c & 0x5) == 0 && ((a & 0x14) == 0x10 || (a & 0x16) == 0x14)) {
-            isExit = dis_common_adv_simd_three_different_length_insn(context, insn, ir);
-        } else
-            fatal("a = 0x%x / c = 0x%x\n", a, c);
+        if (c & 1) {
+            if ((a & 0x17) == 0x10) {
+                isExit = dis_common_adv_simd_one_register_and_modified_immediate_insn(context, insn, ir);
+            } else {
+                //two registers and a shoft amount
+                assert(0);
+            }
+        } else {
+            if ((c & 0x5) == 0 && ((a & 0x14) == 0x10 || (a & 0x16) == 0x14)) {
+                isExit = dis_common_adv_simd_three_different_length_insn(context, insn, ir);
+            } else
+                fatal("a = 0x%x / c = 0x%x\n", a, c);
+        }
     } else {
         isExit = dis_common_adv_simd_three_same_length_insn(context, insn, ir);
     }
