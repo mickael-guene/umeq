@@ -354,6 +354,50 @@ static int dis_common_vbic_insn(struct arm_target *context, uint32_t insn, struc
     return 0;
 }
 
+static int dis_common_vbif_vbit_vbsl(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(6, 6);
+    int d = (INSN(22, 22) << 4) + INSN(15, 12);
+    int n = (INSN(7, 7) << 4) + INSN(19, 16);
+    int m = (INSN(5, 5) << 4) + INSN(3, 0);
+    int op = INSN(21, 20);
+    int op1, op2, op3;
+
+    switch(op) {
+        case 1:
+            op1 = n;
+            op2 = d;
+            op3 = m;
+            break;
+        case 2:
+            op1 = n;
+            op2 = m;
+            op3 = d;
+            break;
+        case 3:
+            op1 = d;
+            op2 = m;
+            op3 = n;
+            break;
+        default:
+            assert(0);
+    }
+    write_reg_d(context, ir, d, ir->add_or_64(ir,
+                                              ir->add_and_64(ir, read_reg_d(context, ir, op1), read_reg_d(context, ir, op2)),
+                                              ir->add_and_64(ir,
+                                                             read_reg_d(context, ir, op3),
+                                                             ir->add_xor_64(ir, read_reg_d(context, ir, op2), mk_64(ir, ~0UL)))));
+    if (Q) {
+    write_reg_d(context, ir, d + 1, ir->add_or_64(ir,
+                                                  ir->add_and_64(ir, read_reg_d(context, ir, op1 + 1), read_reg_d(context, ir, op2 + 1)),
+                                                  ir->add_and_64(ir,
+                                                                 read_reg_d(context, ir, op3 + 1),
+                                                                 ir->add_xor_64(ir, read_reg_d(context, ir, op2 + 1), mk_64(ir, ~0UL)))));
+    }
+
+    return 0;
+}
+
 static int dis_common_adv_simd_three_different_length_hlp(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4];
@@ -592,7 +636,13 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
                     isExit = u?dis_common_veor_insn(context, insn, ir):dis_common_vand_insn(context, insn, ir);
                     break;
                 case 1:
-                    isExit = u?assert_with_return(0):dis_common_vbic_insn(context, insn, ir);
+                    isExit = u?dis_common_vbif_vbit_vbsl(context, insn, ir):dis_common_vbic_insn(context, insn, ir);
+                    break;
+                case 2:
+                    isExit = u?dis_common_vbif_vbit_vbsl(context, insn, ir):assert_with_return(0);
+                    break;
+                case 3:
+                    isExit = u?dis_common_vbif_vbit_vbsl(context, insn, ir):assert_with_return(0);
                     break;
                 default:
                     fatal("c = %d(0x%x)\n", c, c);
