@@ -648,6 +648,7 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
                     fatal("c = %d(0x%x)\n", c, c);
             }
             break;
+        case 3:
         case 7:
         case 8:
         case 13:
