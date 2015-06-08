@@ -50,6 +50,21 @@
     return a;
 }*/
 
+static int cls(uint64_t op, int start_index)
+{
+    int res = 0;
+    int i;
+    int sign = (op >> start_index) & 1;
+
+    for(i = start_index - 1; i >= 0; i--) {
+        if (((op >> i) & 1) != sign)
+            break;
+        res++;
+    }
+
+    return res;
+}
+
 static double ssat32_d(double a)
 {
     if (a > 0x7fffffff)
@@ -2877,6 +2892,41 @@ static void dis_common_vabal_vabdl_simd(uint64_t _regs, uint32_t insn, uint32_t 
     regs->e.simq[d >> 1] = res;
 }
 
+static void dis_common_vcls_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(19, 18);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    switch(size) {
+        case 0:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 8; i++)
+                    res[r].u8[i] = cls(regs->e.simd[m + r].u8[i], 7);
+            break;
+        case 1:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 4; i++)
+                    res[r].u16[i] = cls(regs->e.simd[m + r].u16[i], 15);
+            break;
+        case 2:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 2; i++)
+                    res[r].u32[i] = cls(regs->e.simd[m + r].u32[i], 31);
+            break;
+        default:
+            fatal("size = %d\n", size);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vabs_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -3643,7 +3693,15 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
     int a = INSN(17, 16);
     int b = INSN(10, 6);
 
-    if (a == 1) {
+    if (a == 0) {
+        switch(b&0x1e) {
+            case 16:
+                dis_common_vcls_simd(regs, insn);
+                break;
+            default:
+                fatal("a = %d b = 0x%x\n", a, b);
+        }
+    } else if (a == 1) {
         switch(b&0xe) {
             case 0:
                 dis_common_vcgt_immediate_simd(regs, insn);
