@@ -2571,6 +2571,56 @@ static void dis_common_vaba_vabd_simd(uint64_t _regs, uint32_t insn, uint32_t is
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vceq_all_simd(uint64_t _regs, uint32_t insn, int is_zero)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = is_zero?INSN(19, 18):INSN(21, 20);
+    int f = INSN(10, 10);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    switch(size) {
+        case 0:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 8; i++)
+                    res[r].u8[i] = (is_zero?0:regs->e.simd[n + r].u8[i]) == regs->e.simd[m + r].u8[i]?~0:0;
+            break;
+        case 1:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 4; i++)
+                    res[r].u16[i] = (is_zero?0:regs->e.simd[n + r].u16[i]) == regs->e.simd[m + r].u16[i]?~0:0;
+            break;
+        case 2:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 2; i++)
+                    if (f)
+                        res[r].u32[i] = (is_zero?0:regs->e.simd[n + r].u32[i]) == regs->e.simd[m + r].u32[i]?~0:0;
+                    else
+                        res[r].sf[i] = (is_zero?0:regs->e.simd[n + r].sf[i]) == regs->e.simd[m + r].sf[i]?~0:0;
+            break;
+        default:
+            assert(0);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
+static void dis_common_vceq_simd(uint64_t _regs, uint32_t insn)
+{
+    dis_common_vceq_all_simd(_regs, insn, 0);
+}
+
+static void dis_common_vceq_immediate_simd(uint64_t _regs, uint32_t insn)
+{
+    dis_common_vceq_all_simd(_regs, insn, 1);
+}
+
 static void dis_common_vadd_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -2662,6 +2712,11 @@ static void dis_common_vacge_vacgt_simd(uint64_t _regs, uint32_t insn)
 
     for(r = 0; r < reg_nb; r++)
         regs->e.simd[d + r] = res[r];
+}
+
+static void dis_common_vceq_fpu_simd(uint64_t _regs, uint32_t insn)
+{
+    dis_common_vceq_all_simd(_regs, insn, 0);
 }
 
 static void dis_common_vaddl_vaddw_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
@@ -3495,7 +3550,7 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
             break;
         case 8:
             if (b)
-                assert(0);//vtst, vceq
+                u?dis_common_vceq_simd(regs, insn):assert(0);//vtst
             else
                 u?assert(0):dis_common_vadd_simd(regs, insn);
             break;
@@ -3517,8 +3572,10 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
             if (b) {
                 dis_common_vacge_vacgt_simd(regs, insn);
             } else {
-                //vceq, vcge, vcgt
-                assert(0);
+                if (u)
+                    assert(0); //vcge, vcgt
+                else
+                    dis_common_vceq_fpu_simd(regs, insn);
             }
             break;
         default:
@@ -3560,6 +3617,9 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
         switch(b&0xe) {
             case 12:
                 dis_common_vabs_simd(regs, insn);
+                break;
+            case 4:
+                dis_common_vceq_immediate_simd(regs, insn);
                 break;
             default:
                 fatal("a = %d b = 0x%x\n", a, b);
