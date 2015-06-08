@@ -3047,6 +3047,39 @@ static void dis_common_vabs_simd(uint64_t _regs, uint32_t insn)
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vcvt_floating_integer_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(19, 18);
+    int reg_nb = INSN(6, 6) + 1;
+    int to_integer = INSN(8, 8);
+    int is_unsigned = INSN(7, 7);
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    assert(size == 2);
+    for(r = 0; r < reg_nb; r++)
+        for(i = 0; i < 2; i++) {
+            if (to_integer) {
+                if (is_unsigned)
+                    res[r].u32[i] = (uint32_t) usat32_d(regs->e.simd[m + r].sf[i]);
+                else
+                    res[r].s32[i] = (int32_t) ssat32_d(regs->e.simd[m + r].sf[i]);
+            } else {
+                if (is_unsigned)
+                    res[r].sf[i] = regs->e.simd[m + r].u32[i];
+                else
+                    res[r].sf[i] = regs->e.simd[m + r].s32[i];
+            }
+        }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vmla_vmls_vfp(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -3808,6 +3841,14 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
                 break;
             case 12:
                 dis_common_vabs_simd(regs, insn);
+                break;
+            default:
+                fatal("a = %d b = 0x%x\n", a, b);
+        }
+    } else if (a == 3) {
+        switch(b&0x1a) {
+            case 24: case 26:
+                dis_common_vcvt_floating_integer_simd(regs, insn);
                 break;
             default:
                 fatal("a = %d b = 0x%x\n", a, b);
