@@ -2651,6 +2651,7 @@ VCXX_SIMD(vceq, ==)
 VCXX_SIMD(vcge, >=)
 VCXX_SIMD(vcgt, >)
 VCXX_SIMD(vcle, <=)
+VCXX_SIMD(vclt, <)
 
 static void dis_common_vadd_simd(uint64_t _regs, uint32_t insn)
 {
@@ -3655,6 +3656,9 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
                 break;
             case 6:
                 dis_common_vcle_immediate_simd(regs, insn);
+                break;
+            case 8:
+                dis_common_vclt_immediate_simd(regs, insn);
                 break;
             case 12:
                 dis_common_vabs_simd(regs, insn);
