@@ -2630,6 +2630,7 @@ static void dis_common_ ## name ## _all_simd(uint64_t _regs, uint32_t insn, int 
         regs->e.simd[d + r] = res[r]; \
 } \
  \
+static void dis_common_ ## name ## _simd(uint64_t _regs, uint32_t insn, int is_unsigned) __attribute__ ((unused)); \
 static void dis_common_ ## name ## _simd(uint64_t _regs, uint32_t insn, int is_unsigned) \
 { \
     dis_common_ ## name ## _all_simd(_regs, insn, 0, is_unsigned); \
@@ -2640,6 +2641,7 @@ static void dis_common_ ## name ## _immediate_simd(uint64_t _regs, uint32_t insn
     dis_common_ ## name ## _all_simd(_regs, insn, 1, 0); \
 } \
  \
+static void dis_common_ ## name ## _fpu_simd(uint64_t _regs, uint32_t insn) __attribute__ ((unused)); \
 static void dis_common_ ## name ## _fpu_simd(uint64_t _regs, uint32_t insn) \
 { \
     dis_common_ ## name ## _all_simd(_regs, insn, 0, 0/*is_unsigned*/); \
@@ -2648,6 +2650,7 @@ static void dis_common_ ## name ## _fpu_simd(uint64_t _regs, uint32_t insn) \
 VCXX_SIMD(vceq, ==)
 VCXX_SIMD(vcge, >=)
 VCXX_SIMD(vcgt, >)
+VCXX_SIMD(vcle, <=)
 
 static void dis_common_vadd_simd(uint64_t _regs, uint32_t insn)
 {
@@ -3649,6 +3652,9 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
                 break;
             case 4:
                 dis_common_vceq_immediate_simd(regs, insn);
+                break;
+            case 6:
+                dis_common_vcle_immediate_simd(regs, insn);
                 break;
             case 12:
                 dis_common_vabs_simd(regs, insn);
