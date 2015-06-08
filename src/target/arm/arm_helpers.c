@@ -2647,6 +2647,7 @@ static void dis_common_ ## name ## _fpu_simd(uint64_t _regs, uint32_t insn) \
 
 VCXX_SIMD(vceq, ==)
 VCXX_SIMD(vcge, >=)
+VCXX_SIMD(vcgt, >)
 
 static void dis_common_vadd_simd(uint64_t _regs, uint32_t insn)
 {
@@ -3568,7 +3569,7 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
 
     switch(a) {
         case 3:
-            b?dis_common_vcge_simd(regs, insn, u):assert(0);//vcgt
+            b?dis_common_vcge_simd(regs, insn, u):dis_common_vcgt_simd(regs, insn, u);
             break;
         case 7:
             dis_common_vaba_vabd_simd(regs, insn, is_thumb);
@@ -3598,7 +3599,7 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
                 dis_common_vacge_vacgt_simd(regs, insn);
             } else {
                 if (u)
-                    (c&2)?assert(0):dis_common_vcge_fpu_simd(regs, insn); //vcgt
+                    (c&2)?dis_common_vcgt_fpu_simd(regs, insn):dis_common_vcge_fpu_simd(regs, insn);
                 else
                     dis_common_vceq_fpu_simd(regs, insn);
             }
@@ -3640,6 +3641,9 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
 
     if (a == 1) {
         switch(b&0xe) {
+            case 0:
+                dis_common_vcgt_immediate_simd(regs, insn);
+                break;
             case 2:
                 dis_common_vcge_immediate_simd(regs, insn);
                 break;
