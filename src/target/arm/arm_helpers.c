@@ -3361,6 +3361,32 @@ static void dis_common_vdup_arm(uint64_t _regs, uint32_t insn)
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vext_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int reg_nb = INSN(6, 6) + 1;
+    int imm4 = INSN(11, 8);
+    int pos = 0;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    for(i = imm4; i < 8 * reg_nb; i++) {
+        res[pos / 8].u8[pos % 8] = regs->e.simd[n + i / 8].u8[i % 8];
+        pos++;
+    }
+    for(i = 0; i < imm4; i++) {
+        res[pos / 8].u8[pos % 8] = regs->e.simd[m + i / 8].u8[i % 8];
+        pos++;
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vdup_scalar(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -3951,4 +3977,9 @@ void hlp_common_adv_simd_vdup_scalar(uint64_t regs, uint32_t insn)
 void hlp_common_adv_simd_vdup_arm(uint64_t regs, uint32_t insn)
 {
     dis_common_vdup_arm(regs, insn);
+}
+
+void hlp_common_adv_simd_vext(uint64_t regs, uint32_t insn)
+{
+    dis_common_vext_simd(regs, insn);
 }

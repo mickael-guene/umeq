@@ -733,6 +733,22 @@ static int dis_common_adv_simd_two_regs_misc_insn(struct arm_target *context, ui
     return dis_common_adv_simd_two_regs_misc_hlp(context, insn, ir);
 }
 
+static int dis_common_adv_simd_vext_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "hlp_common_adv_simd_vext",
+                        ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_vext),
+                        params);
+
+    return 0;
+}
+
 static int dis_common_adv_simd_one_register_and_modified_immediate_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int cmode = INSN(11, 8);
@@ -769,8 +785,7 @@ static int dis_common_adv_simd_data_preocessing_insn(struct arm_target *context,
             } else
                 assert(0);
         } else {
-            //vext
-            assert(0);
+            isExit = dis_common_adv_simd_vext_insn(context, insn, ir);
         }
     } else if (a & 0x10) {
         if (c & 1) {
