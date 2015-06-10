@@ -305,11 +305,14 @@ static int dis_common_veor_insn(struct arm_target *context, uint32_t insn, struc
     int n = (INSN(7, 7) << 4) + INSN(19, 16);
     int m = (INSN(5, 5) << 4) + INSN(3, 0);
 
-    assert(Q == 0);
-
     write_reg_d(context, ir, d, ir->add_xor_64(ir,
                                                read_reg_d(context, ir, n),
                                                read_reg_d(context, ir, m)));
+    if (Q) {
+        write_reg_d(context, ir,  d + 1, ir->add_xor_64(ir,
+                                                        read_reg_d(context, ir, n + 1),
+                                                        read_reg_d(context, ir, m + 1)));
+    }
 
     return 0;
 }
