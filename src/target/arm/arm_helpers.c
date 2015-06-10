@@ -2978,6 +2978,36 @@ static void dis_common_vmla_vmls_simd(uint64_t _regs, uint32_t insn, int is_sub)
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vmla_vmls_f32_simd(uint64_t _regs, uint32_t insn)
+{
+    /* FIXME: result is not correct */
+#if 0
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int reg_nb = INSN(6, 6) + 1;
+    int is_sub = INSN(21, 21);
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    for(r = 0; r < reg_nb; r++) {
+        for(i = 0; i < 2; i++) {
+            if (is_sub)
+                res[r].sf[i] = regs->e.simd[d + r].sf[i] - regs->e.simd[n + r].sf[i] * regs->e.simd[m + r].sf[i];
+            else
+                res[r].sf[i] = regs->e.simd[d + r].sf[i] + regs->e.simd[n + r].sf[i] * regs->e.simd[m + r].sf[i];
+        }
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+#else
+    assert(0);
+#endif
+}
+
 static void dis_common_vadd_fpu_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -4117,7 +4147,7 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
             break;
         case 13:
             if (b)
-                assert(0);//vmla, vmls, vmul
+                u?assert(0):dis_common_vmla_vmls_f32_simd(regs, insn);//vmul
             else {
                 if (u)
                     assert(0);//vpadd fpu, vabd, fpu
