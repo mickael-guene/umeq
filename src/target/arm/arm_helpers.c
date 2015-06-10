@@ -50,6 +50,63 @@
     return a;
 }*/
 
+static inline uint8_t umax8(uint8_t op1, uint8_t op2)
+{
+    return op1>op2?op1:op2;
+}
+static inline uint16_t umax16(uint16_t op1, uint16_t op2)
+{
+    return op1>op2?op1:op2;
+}
+static inline uint32_t umax32(uint32_t op1, uint32_t op2)
+{
+    return op1>op2?op1:op2;
+}
+static inline uint8_t smax8(int8_t op1, int8_t op2)
+{
+    return op1>op2?op1:op2;
+}
+static inline uint16_t smax16(int16_t op1, int16_t op2)
+{
+    return op1>op2?op1:op2;
+}
+static inline uint32_t smax32(int32_t op1, int32_t op2)
+{
+    return op1>op2?op1:op2;
+}
+static inline uint8_t umin8(uint8_t op1, uint8_t op2)
+{
+    return op1<op2?op1:op2;
+}
+static inline uint16_t umin16(uint16_t op1, uint16_t op2)
+{
+    return op1<op2?op1:op2;
+}
+static inline uint32_t umin32(uint32_t op1, uint32_t op2)
+{
+    return op1<op2?op1:op2;
+}
+static inline uint8_t smin8(int8_t op1, int8_t op2)
+{
+    return op1<op2?op1:op2;
+}
+static inline uint16_t smin16(int16_t op1, int16_t op2)
+{
+    return op1<op2?op1:op2;
+}
+static inline uint32_t smin32(int32_t op1, int32_t op2)
+{
+    return op1<op2?op1:op2;
+}
+static inline float maxf(float a, float b)
+{
+    return a>=b?a:b;
+}
+static inline float minf(float a, float b)
+{
+    return a<b?a:b;
+}
+
 static int cls(uint64_t op, int start_index)
 {
     int res = 0;
@@ -2606,6 +2663,97 @@ static void dis_common_vhadd_vhsub_simd(uint64_t _regs, uint32_t insn, uint32_t 
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vmax_vmin_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(21, 20);
+    int reg_nb = INSN(6, 6) + 1;
+    int is_min = INSN(4, 4);
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    switch(size) {
+        case 0:
+            for(r = 0; r < reg_nb; r++) {
+                for(i = 0; i < 8; i++) {
+                    if (is_unsigned) {
+                        uint8_t (*minmax)(uint8_t,uint8_t) = is_min?umin8:umax8;
+                        res[r].u8[i] = (*minmax)(regs->e.simd[n + r].u8[i],regs->e.simd[m + r].u8[i]);
+                    } else {
+                        uint8_t (*minmax)(int8_t,int8_t) = is_min?smin8:smax8;
+                        res[r].s8[i] = (*minmax)(regs->e.simd[n + r].s8[i],regs->e.simd[m + r].s8[i]);
+                    }
+                }
+            }
+            break;
+        case 1:
+            for(r = 0; r < reg_nb; r++) {
+                for(i = 0; i < 4; i++) {
+                    if (is_unsigned) {
+                        uint16_t (*minmax)(uint16_t,uint16_t) = is_min?umin16:umax16;
+                        res[r].u16[i] = (*minmax)(regs->e.simd[n + r].u16[i],regs->e.simd[m + r].u16[i]);
+                    } else {
+                        uint16_t (*minmax)(int16_t,int16_t) = is_min?smin16:smax16;
+                        res[r].s16[i] = (*minmax)(regs->e.simd[n + r].s16[i],regs->e.simd[m + r].s16[i]);
+                    }
+                }
+            }
+            break;
+        case 2:
+            for(r = 0; r < reg_nb; r++) {
+                for(i = 0; i < 2; i++) {
+                    if (is_unsigned) {
+                        uint32_t (*minmax)(uint32_t,uint32_t) = is_min?umin32:umax32;
+                        res[r].u32[i] = (*minmax)(regs->e.simd[n + r].u32[i],regs->e.simd[m + r].u32[i]);
+                    } else {
+                        uint32_t (*minmax)(int32_t,int32_t) = is_min?smin32:smax32;
+                        res[r].s32[i] = (*minmax)(regs->e.simd[n + r].s32[i],regs->e.simd[m + r].s32[i]);
+                    }
+                }
+            }
+            break;
+        default:
+            fatal("size = %d\n", size);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
+static void dis_common_vmax_vmin_fpu_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned)
+{
+    /* FIXME: need to properly handle exception cases */
+#if 0
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int reg_nb = INSN(6, 6) + 1;
+    int is_min = INSN(21, 21);
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    for(r = 0; r < reg_nb; r++) {
+        for(i = 0; i < 2; i++) {
+            if (is_min)
+                res[r].sf[i] = minf(regs->e.simd[n + r].sf[i], regs->e.simd[m + r].sf[i]);
+            else
+                res[r].sf[i] = maxf(regs->e.simd[n + r].sf[i], regs->e.simd[m + r].sf[i]);
+        }
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+#else
+    assert(0);
+#endif
+}
+
 static void dis_common_vaba_vabd_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -3910,6 +4058,9 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
         case 3:
             b?dis_common_vcge_simd(regs, insn, u):dis_common_vcgt_simd(regs, insn, u);
             break;
+        case 6:
+            dis_common_vmax_vmin_simd(regs, insn, u);
+            break;
         case 7:
             dis_common_vaba_vabd_simd(regs, insn, is_thumb);
             break;
@@ -3941,6 +4092,13 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
                     (c&2)?dis_common_vcgt_fpu_simd(regs, insn):dis_common_vcge_fpu_simd(regs, insn);
                 else
                     dis_common_vceq_fpu_simd(regs, insn);
+            }
+            break;
+        case 15:
+            if (b) {
+                assert(0);
+            } else {
+                u?assert(0):dis_common_vmax_vmin_fpu_simd(regs, insn, u);
             }
             break;
         default:
