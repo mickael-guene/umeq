@@ -2936,6 +2936,48 @@ static void dis_common_vadd_simd(uint64_t _regs, uint32_t insn)
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vmla_vmls_simd(uint64_t _regs, uint32_t insn, int is_sub)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(21, 20);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    switch(size) {
+        case 0:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 8; i++) {
+                    uint32_t product = regs->e.simd[n + r].u8[i] * regs->e.simd[m + r].u8[i];
+                    res[r].u8[i] = regs->e.simd[d + r].u8[i] + (is_sub?-product:product);
+                }
+            break;
+        case 1:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 4; i++) {
+                    uint32_t product = regs->e.simd[n + r].u16[i] * regs->e.simd[m + r].u16[i];
+                    res[r].u16[i] = regs->e.simd[d + r].u16[i] + (is_sub?-product:product);
+                }
+            break;
+        case 2:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 2; i++) {
+                    uint64_t product = regs->e.simd[n + r].u32[i] * regs->e.simd[m + r].u32[i];
+                    res[r].u32[i] = regs->e.simd[d + r].u32[i] + (is_sub?-product:product);
+                }
+            break;
+        default:
+            assert(0);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vadd_fpu_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -4069,6 +4111,9 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
                 u?dis_common_vceq_simd(regs, insn, u):assert(0);//vtst
             else
                 u?assert(0):dis_common_vadd_simd(regs, insn);
+            break;
+        case 9:
+            b?assert(0):dis_common_vmla_vmls_simd(regs, insn, u);
             break;
         case 13:
             if (b)
