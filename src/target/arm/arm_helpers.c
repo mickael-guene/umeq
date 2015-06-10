@@ -3321,6 +3321,92 @@ static void dis_common_vneg_vfp(uint64_t _regs, uint32_t insn)
     }
 }
 
+static void dis_common_vdup_arm(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(7, 7) << 4) | INSN(19, 16);
+    int rt = INSN(15, 12);
+    int reg_nb = INSN(21, 21) + 1;
+    int be = (INSN(22, 22) << 1) | INSN(5, 5);
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    assert(rt != 15);
+
+    /* !!!!! doc is wrong is case (b, e) stuff but correct in <size>
+     * desciption stuff.
+     */
+    switch(be) {
+        case 0:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 2; i++)
+                    res[r].u32[i] = regs->r[rt];
+            break;
+        case 1:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 4; i++)
+                    res[r].u16[i] = regs->r[rt];
+            break;
+        case 2:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 8; i++)
+                    res[r].u8[i] = regs->r[rt];
+            break;
+        default:
+            assert(0);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
+static void dis_common_vdup_scalar(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int reg_nb = INSN(6, 6) + 1;
+    int imm4 = INSN(19, 16);
+    int size;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    if (imm4 & 1)
+        size = 0;
+    else if (imm4 & 2)
+        size = 1;
+    else if (imm4 & 4)
+        size = 2;
+    else
+        assert(0);
+
+    switch(size) {
+        case 0:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 8; i++)
+                    res[r].u8[i] = regs->e.simd[m].u8[imm4 >> 1];
+            break;
+        case 1:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 4; i++)
+                    res[r].u16[i] = regs->e.simd[m].u16[imm4 >> 2];
+            break;
+        case 2:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 2; i++)
+                    res[r].u32[i] = regs->e.simd[m].u32[imm4 >> 3];
+            break;
+        default:
+            assert(0);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
+
 void arm_hlp_dirty_saturating(uint64_t regs, uint32_t insn)
 {
     int op = INSN(22, 21);
@@ -3855,4 +3941,14 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
         }
     } else
         fatal("a = %d b = 0x%x\n", a, b);
+}
+
+void hlp_common_adv_simd_vdup_scalar(uint64_t regs, uint32_t insn)
+{
+    dis_common_vdup_scalar(regs, insn);
+}
+
+void hlp_common_adv_simd_vdup_arm(uint64_t regs, uint32_t insn)
+{
+    dis_common_vdup_arm(regs, insn);
 }
