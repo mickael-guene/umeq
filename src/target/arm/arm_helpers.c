@@ -3191,6 +3191,59 @@ static void dis_common_vabal_vabdl_simd(uint64_t _regs, uint32_t insn, uint32_t 
     regs->e.simq[d >> 1] = res;
 }
 
+static void dis_common_vmlal_vmlsl_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(21, 20);
+    int U = is_thumb?INSN(28, 28):INSN(24, 24);
+    int is_sub = INSN(9, 9);
+    int i;
+    union simd_q_register res = regs->e.simq[d >> 1];
+
+    switch(size) {
+        case 0:
+            for(i = 0; i < 8; i++) {
+                if (U) {
+                    uint32_t product = regs->e.simd[n].u8[i] * regs->e.simd[m].u8[i];
+                    res.u16[i] = res.u16[i] + (is_sub?-product:product);
+                } else {
+                    int32_t product = regs->e.simd[n].s8[i] * regs->e.simd[m].s8[i];
+                    res.s16[i] = res.s16[i] + (is_sub?-product:product);
+                }
+            }
+            break;
+        case 1:
+            for(i = 0; i < 4; i++) {
+                if (U) {
+                    uint32_t product = regs->e.simd[n].u16[i] * regs->e.simd[m].u16[i];
+                    res.u32[i] = res.u32[i] + (is_sub?-product:product);
+                } else {
+                    int32_t product = regs->e.simd[n].s16[i] * regs->e.simd[m].s16[i];
+                    res.s32[i] = res.s32[i] + (is_sub?-product:product);
+                }
+            }
+            break;
+        case 2:
+            for(i = 0; i < 2; i++) {
+                if (U) {
+                    uint64_t product = (uint64_t)regs->e.simd[n].u32[i] * (uint64_t)regs->e.simd[m].u32[i];
+                    res.u64[i] = res.u64[i] + (is_sub?-product:product);
+                } else {
+                    int64_t product = (int64_t)regs->e.simd[n].s32[i] * (int64_t)regs->e.simd[m].s32[i];
+                    res.s64[i] = res.s64[i] + (is_sub?-product:product);
+                }
+            }
+            break;
+        default:
+            assert(0);
+    }
+
+    regs->e.simq[d >> 1] = res;
+}
+
 static void dis_common_vcls_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -4200,6 +4253,10 @@ void hlp_common_adv_simd_three_different_length(uint64_t regs, uint32_t insn, ui
         case 5:
         case 7:
             dis_common_vabal_vabdl_simd(regs, insn, is_thumb);
+            break;
+        case 8:
+        case 10:
+            dis_common_vmlal_vmlsl_simd(regs, insn, is_thumb);
             break;
         default:
             fatal("a = %d(0x%x)\n", a, a);
