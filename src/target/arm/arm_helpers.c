@@ -3785,6 +3785,27 @@ static void dis_common_vdup_arm(uint64_t _regs, uint32_t insn)
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vmov_from_arm_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(7, 7) << 4) | INSN(19, 16);
+    int rt = INSN(15, 12);
+    int opc1 = INSN(22, 21);
+    int opc2 = INSN(6, 5);
+    int index;
+
+    if (opc1 & 2) {
+        index = ((opc1 & 1) << 2) + opc2;
+        regs->e.simd[d].u8[index] = regs->r[rt];
+    } else if (opc2 & 1) {
+        index = ((opc1 & 1) << 1) + (opc2 >> 1);
+        regs->e.simd[d].u16[index] = regs->r[rt];
+    } else {
+        index = opc1 & 1;
+        regs->e.simd[d].u32[index] = regs->r[rt];
+    }
+}
+
 static void dis_common_vext_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -4441,4 +4462,9 @@ void hlp_common_adv_simd_two_regs_and_scalar(uint64_t regs, uint32_t insn, uint3
         dis_common_vmlal_vmlsl_scalar_simd(regs, insn, is_thumb);
     } else
         assert(0);
+}
+
+void hlp_common_adv_simd_vmov_from_arm(uint64_t regs, uint32_t insn)
+{
+    dis_common_vmov_from_arm_simd(regs, insn);
 }

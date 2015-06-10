@@ -86,6 +86,8 @@ extern void hlp_common_adv_simd_vdup_scalar(uint64_t regs, uint32_t insn);
 extern void hlp_common_adv_simd_vdup_arm(uint64_t regs, uint32_t insn);
 extern void hlp_common_adv_simd_vext(uint64_t regs, uint32_t insn);
 extern void hlp_common_adv_simd_two_regs_and_scalar(uint64_t regs, uint32_t insn, uint32_t is_thumb);
+extern void hlp_common_adv_simd_vmov_from_arm(uint64_t regs, uint32_t insn);
+
 
 #endif
 

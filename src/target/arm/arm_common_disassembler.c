@@ -38,24 +38,51 @@ static uint64_t advSimdExpandImm(int op, int cmode, uint32_t _imm8)
     uint64_t res;
     uint64_t imm8 = _imm8;
 
-    switch(cmode >> 1) {
-        case 0:
+    switch(cmode) {
+        case 0 ... 1:
             res = (imm8 << 32) | (imm8 << 0);
             break;
-        case 1:
+        case 2 ... 3:
             res = (imm8 << 40) | (imm8 << 8);
             break;
-        case 2:
+        case 4 ... 5:
             res = (imm8 << 48) | (imm8 << 16);
             break;
-        case 3:
+        case 6 ... 7:
             res = (imm8 << 56) | (imm8 << 24);
             break;
-        case 4:
+        case 8 ... 9:
             res = (imm8 << 48) | (imm8 << 32) | (imm8 << 16) | imm8;
             break;
-        case 5:
+        case 10 ... 11:
             res = (imm8 << 56) | (imm8 << 40) | (imm8 << 24) | (imm8 << 8);
+            break;
+        case 12:
+            res = (imm8 << 40) | (0xffUL << 32) | (imm8 << 8) | 0xff;
+            break;
+        case 13:
+            res = (imm8 << 48) | (0xffffUL << 32) | (imm8 << 16) | 0xffff;
+            break;
+        case 14:
+            if (op) {
+                int i;
+                res = 0;
+                for(i = 0; i < 8; i++) {
+                    res = res << 8;
+                    if (imm8 & 0x80)
+                        res = res | 0xff;
+                    imm8 = imm8 << 1;
+                }
+            } else
+                res = (imm8 << 56) | (imm8 << 48) | (imm8 << 40) | (imm8 << 32) |
+                      (imm8 << 24) | (imm8 << 16) | (imm8 << 8) | (imm8 << 0);
+            break;
+        case 15:
+            {
+                uint64_t f32 = vfpExpandImm32(_imm8);
+
+                res = (f32 << 32) | f32;
+            }
             break;
         default:
             fatal("cmode = %d\n", cmode);
@@ -189,16 +216,29 @@ static int dis_common_vmov_scalar_to_arm(struct arm_target *context, uint32_t in
     int rt = INSN(15, 12);
     int opc1 = INSN(22, 21);
     int opc2 = INSN(6, 5);
+    int is_unsigned = INSN(23, 23);
     struct irRegister *res;
+    int index;
 
     /* we read directly the register part we need. This is the most efficient but register accesss
        is partly 'hidden' */
     if (opc1 & 2) {
-        assert(0);//bytes
+        index = ((opc1 & 1) << 2) + opc2;
+        if (is_unsigned) {
+            res = ir->add_8U_to_32(ir, ir->add_read_context_8(ir, offsetof(struct arm_registers, e.d[vn]) + index));
+        } else {
+            res = ir->add_8S_to_32(ir, ir->add_read_context_8(ir, offsetof(struct arm_registers, e.d[vn]) + index));
+        }
     } else if (opc2 & 1) {
-        assert(0);//hword
+        index = ((opc1 & 1) << 1) + (opc2 >> 1);
+        if (is_unsigned) {
+            res = ir->add_16U_to_32(ir, ir->add_read_context_16(ir, offsetof(struct arm_registers, e.d[vn]) + index * 2));
+        } else {
+            res = ir->add_16S_to_32(ir, ir->add_read_context_16(ir, offsetof(struct arm_registers, e.d[vn]) + index * 2));
+        }
     } else {
-        res = ir->add_read_context_32(ir, offsetof(struct arm_registers, e.d[vn]) + ((opc1&1)?4:0));
+        index = opc1 & 1;
+        res = ir->add_read_context_32(ir, offsetof(struct arm_registers, e.d[vn]) + index * 4);
     }
 
     write_reg(context, ir, rt, res);
@@ -317,12 +357,12 @@ static int dis_common_veor_insn(struct arm_target *context, uint32_t insn, struc
     return 0;
 }
 
-static int dis_common_vorr_immediate(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+static int dis_common_vorr_immediate_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     assert(0);
 }
 
-static int dis_common_vbic_immediate(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+static int dis_common_vbic_immediate_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int Q = INSN(6, 6);
     int d = (INSN(22, 22) << 4) + INSN(15, 12);
@@ -338,6 +378,37 @@ static int dis_common_vbic_immediate(struct arm_target *context, uint32_t insn, 
         write_reg_d(context, ir, d + 1, ir->add_and_64(ir,
                                                        read_reg_d(context, ir, d + 1),
                                                        mk_64(ir, ~imm64)));
+
+    return 0;
+}
+
+static int dis_common_vmov_register_simd_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(6, 6);
+    int d = (INSN(22, 22) << 4) + INSN(15, 12);
+    int m = (INSN(5, 5) << 4) + INSN(3, 0);
+
+    write_reg_d(context, ir, d, read_reg_d(context, ir, m));
+    if (Q) {
+        write_reg_d(context, ir, d + 1, read_reg_d(context, ir, m + 1));
+    }
+
+    return 0;
+}
+
+static int dis_common_vmov_immediate_simd_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(6, 6);
+    int d = (INSN(22, 22) << 4) + INSN(15, 12);
+    int cmode = INSN(11, 8);
+    int i = is_thumb?INSN(28, 28):INSN(24, 24);
+    uint32_t imm8 = (i << 7) | (INSN(18, 16) << 4) | INSN(3, 0);
+    int op = INSN(5, 5);
+    uint64_t imm64 = advSimdExpandImm(op, cmode, imm8);
+
+    write_reg_d(context, ir, d, mk_64(ir, imm64));
+    if (Q)
+        write_reg_d(context, ir, d + 1, mk_64(ir, imm64));
 
     return 0;
 }
@@ -515,6 +586,22 @@ static int dis_common_adv_simd_vdup_arm_insn(struct arm_target *context, uint32_
     return 0;
 }
 
+static int dis_common_adv_simd_vmov_from_arm_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "hlp_common_adv_simd_vmov_from_arm",
+                        ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_vmov_from_arm),
+                        params);
+
+    return 0;
+}
+
 /* disassembler */
 static int dis_common_extension_register_load_store_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
@@ -558,7 +645,7 @@ static int dis_common_transfert_arm_core_and_extension_registers_insn(struct arm
             if (a&4)
                 isExit = dis_common_adv_simd_vdup_arm_insn(context, insn, ir);
             else
-                assert(0);//vmov
+                isExit = dis_common_adv_simd_vmov_from_arm_insn(context, insn, ir);
             break;
         case 2:
             if (a)
@@ -707,7 +794,14 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
                     isExit = u?dis_common_vbif_vbit_vbsl(context, insn, ir):dis_common_vbic_insn(context, insn, ir);
                     break;
                 case 2:
-                    isExit = u?dis_common_vbif_vbit_vbsl(context, insn, ir):assert_with_return(0);
+                    if (u) {
+                        isExit = dis_common_vbif_vbit_vbsl(context, insn, ir);
+                    } else {
+                        if (INSN(19, 16) == INSN(3, 0) && INSN(7, 7) == INSN(5, 5))
+                            dis_common_vmov_register_simd_insn(context, insn, ir);
+                        else
+                            assert(0);//vorr
+                    }
                     break;
                 case 3:
                     isExit = u?dis_common_vbif_vbit_vbsl(context, insn, ir):assert_with_return(0);
@@ -780,7 +874,17 @@ static int dis_common_adv_simd_one_register_and_modified_immediate_insn(struct a
 
     switch(cmode) {
         case 1: case 3: case 5: case 7: case 9: case 11:
-            isExit = op?dis_common_vbic_immediate(context, insn, ir):dis_common_vorr_immediate(context, insn, ir);
+            isExit = op?dis_common_vbic_immediate_insn(context, insn, ir):dis_common_vorr_immediate_insn(context, insn, ir);
+            break;
+        case 0: case 2: case 4: case 6: case 8: case 10: case 12: case 13:
+            isExit = op?assert_with_return():dis_common_vmov_immediate_simd_insn(context, insn, ir);
+            break;
+        case 14:
+            isExit = dis_common_vmov_immediate_simd_insn(context, insn, ir);
+            break;
+        case 15:
+            assert(op == 0);
+            isExit = dis_common_vmov_immediate_simd_insn(context, insn, ir);
             break;
         default:
             fatal("cmode = %d / op = %d\n", cmode, op);
