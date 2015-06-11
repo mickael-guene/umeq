@@ -3806,6 +3806,47 @@ static void dis_common_vmov_from_arm_simd(uint64_t _regs, uint32_t insn)
     }
 }
 
+static void dis_common_vmovl(uint64_t _regs, uint32_t insn, int is_unsigned)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(21, 19);
+    int i;
+    union simd_q_register res;
+
+    switch(size) {
+        case 1:
+            for(i = 0; i < 8; i++) {
+                if (is_unsigned)
+                    res.u16[i] = regs->e.simd[m].u8[i];
+                else
+                    res.s16[i] = regs->e.simd[m].s8[i];
+            }
+            break;
+        case 2:
+            for(i = 0; i < 4; i++) {
+                if (is_unsigned)
+                    res.u32[i] = regs->e.simd[m].u16[i];
+                else
+                    res.s32[i] = regs->e.simd[m].s16[i];
+            }
+            break;
+        case 4:
+            for(i = 0; i < 2; i++) {
+                if (is_unsigned)
+                    res.u64[i] = regs->e.simd[m].u32[i];
+                else
+                    res.s64[i] = regs->e.simd[m].s32[i];
+            }
+            break;
+        default:
+            assert(0);
+    }
+
+    regs->e.simq[d >> 1] = res;
+}
+
 static void dis_common_vext_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -4467,4 +4508,25 @@ void hlp_common_adv_simd_two_regs_and_scalar(uint64_t regs, uint32_t insn, uint3
 void hlp_common_adv_simd_vmov_from_arm(uint64_t regs, uint32_t insn)
 {
     dis_common_vmov_from_arm_simd(regs, insn);
+}
+
+void hlp_common_adv_simd_two_regs_and_shift(uint64_t regs, uint32_t insn, uint32_t is_thumb)
+{
+    int a = INSN(11, 8);
+    int u = is_thumb?INSN(28, 28):INSN(24, 24);
+
+    switch(a) {
+        case 10:
+            {
+                int imm6 = INSN(21, 16);
+
+                if (imm6 == 8 || imm6 == 16 || imm6 == 32)
+                    dis_common_vmovl(regs, insn, u);
+                else
+                    assert(0);//vshll
+            }
+            break;
+        default:
+            fatal("a = %d\n", a);
+    }
 }

@@ -893,6 +893,22 @@ static int dis_common_adv_simd_one_register_and_modified_immediate_insn(struct a
     return isExit;
 }
 
+static int dis_common_adv_simd_two_regs_and_shift_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = mk_32(ir, is_thumb);
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "hlp_common_adv_simd_two_regs_and_shift",
+                        ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_two_regs_and_shift),
+                        params);
+
+    return 0;
+}
+
 static int dis_common_adv_simd_data_preocessing_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int a = INSN(23, 19);
@@ -919,8 +935,7 @@ static int dis_common_adv_simd_data_preocessing_insn(struct arm_target *context,
             if ((a & 0x17) == 0x10) {
                 isExit = dis_common_adv_simd_one_register_and_modified_immediate_insn(context, insn, ir);
             } else {
-                //two registers and a shoft amount
-                assert(0);
+                isExit = dis_common_adv_simd_two_regs_and_shift_insn(context, insn, ir);
             }
         } else {
             if ((c & 0x5) == 0 && ((a & 0x14) == 0x10 || (a & 0x16) == 0x14)) {
