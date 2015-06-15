@@ -149,6 +149,19 @@ static int cnt(uint64_t op, int width)
     return res;
 }
 
+static uint16_t polynomial_16(uint16_t op1, uint8_t op2)
+{
+    uint16_t result = 0;
+    uint16_t extended_op2 = op2;
+    int i;
+
+    for(i = 0; i < 16; i++)
+        if ((op1 >> i) & 1)
+            result = result ^ (extended_op2 << i);
+
+    return result;
+}
+
 static double ssat32_d(double a)
 {
     if (a > 0x7fffffff)
@@ -2936,6 +2949,68 @@ static void dis_common_vadd_simd(uint64_t _regs, uint32_t insn)
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vmul_polynomial_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(21, 20);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    switch(size) {
+        case 0:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 8; i++)
+                    res[r].u8[i] = polynomial_16(regs->e.simd[n + r].u8[i], regs->e.simd[m + r].u8[i]);
+            break;
+        default:
+            assert(0);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
+static void dis_common_vmul_integer_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(21, 20);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    switch(size) {
+        case 0:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 8; i++)
+                    res[r].u8[i] = regs->e.simd[n + r].u8[i] * regs->e.simd[m + r].u8[i];
+            break;
+        case 1:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 4; i++)
+                    res[r].u16[i] = regs->e.simd[n + r].u16[i] * regs->e.simd[m + r].u16[i];
+            break;
+        case 2:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 2; i++)
+                    res[r].u32[i] = regs->e.simd[n + r].u32[i] * regs->e.simd[m + r].u32[i];
+            break;
+        default:
+            assert(0);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vmla_vmls_simd(uint64_t _regs, uint32_t insn, int is_sub)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -4386,7 +4461,10 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
                 u?assert(0):dis_common_vadd_simd(regs, insn);
             break;
         case 9:
-            b?assert(0):dis_common_vmla_vmls_simd(regs, insn, u);
+            if (b)
+                u?dis_common_vmul_polynomial_simd(regs, insn):dis_common_vmul_integer_simd(regs, insn);
+            else
+                dis_common_vmla_vmls_simd(regs, insn, u);
             break;
         case 13:
             if (b)
