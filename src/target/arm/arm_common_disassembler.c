@@ -352,7 +352,22 @@ static int dis_common_veor_insn(struct arm_target *context, uint32_t insn, struc
 
 static int dis_common_vorr_immediate_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    assert(0);
+    int Q = INSN(6, 6);
+    int d = (INSN(22, 22) << 4) + INSN(15, 12);
+    int cmode = INSN(11, 8);
+    int i = is_thumb?INSN(28, 28):INSN(24, 24);
+    uint32_t imm8 = (i << 7) | (INSN(18, 16) << 4) | INSN(3, 0);
+    uint64_t imm64 = advSimdExpandImm(1, cmode, imm8);
+
+    write_reg_d(context, ir, d, ir->add_or_64(ir,
+                                              read_reg_d(context, ir, d),
+                                              mk_64(ir, imm64)));
+    if (Q)
+        write_reg_d(context, ir, d + 1, ir->add_or_64(ir,
+                                                      read_reg_d(context, ir, d + 1),
+                                                      mk_64(ir, imm64)));
+
+    return 0;
 }
 
 static int dis_common_vbic_immediate_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -384,6 +399,25 @@ static int dis_common_vmov_register_simd_insn(struct arm_target *context, uint32
     write_reg_d(context, ir, d, read_reg_d(context, ir, m));
     if (Q) {
         write_reg_d(context, ir, d + 1, read_reg_d(context, ir, m + 1));
+    }
+
+    return 0;
+}
+
+static int dis_common_vorr_register_simd_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(6, 6);
+    int d = (INSN(22, 22) << 4) + INSN(15, 12);
+    int n = (INSN(7, 7) << 4) + INSN(19, 16);
+    int m = (INSN(5, 5) << 4) + INSN(3, 0);
+
+    write_reg_d(context, ir, d, ir->add_or_64(ir,
+                                              read_reg_d(context, ir, n),
+                                              read_reg_d(context, ir, m)));
+    if (Q) {
+        write_reg_d(context, ir,  d + 1, ir->add_or_64(ir,
+                                                       read_reg_d(context, ir, n + 1),
+                                                       read_reg_d(context, ir, m + 1)));
     }
 
     return 0;
@@ -845,7 +879,7 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
                         if (INSN(19, 16) == INSN(3, 0) && INSN(7, 7) == INSN(5, 5))
                             dis_common_vmov_register_simd_insn(context, insn, ir);
                         else
-                            assert(0);//vorr
+                            dis_common_vorr_register_simd_insn(context, insn, ir);
                     }
                     break;
                 case 3:
