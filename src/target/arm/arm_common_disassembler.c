@@ -396,6 +396,20 @@ static int dis_common_vmov_register_simd_insn(struct arm_target *context, uint32
     return 0;
 }
 
+static int dis_common_vmvn_register_simd_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(6, 6);
+    int d = (INSN(22, 22) << 4) + INSN(15, 12);
+    int m = (INSN(5, 5) << 4) + INSN(3, 0);
+
+    write_reg_d(context, ir, d, ir->add_xor_64(ir, read_reg_d(context, ir, m), mk_64(ir, ~0)));
+    if (Q) {
+        write_reg_d(context, ir, d + 1, ir->add_xor_64(ir, read_reg_d(context, ir, m + 1), mk_64(ir, ~0)));
+    }
+
+    return 0;
+}
+
 static int dis_common_vmov_immediate_simd_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int Q = INSN(6, 6);
@@ -409,6 +423,23 @@ static int dis_common_vmov_immediate_simd_insn(struct arm_target *context, uint3
     write_reg_d(context, ir, d, mk_64(ir, imm64));
     if (Q)
         write_reg_d(context, ir, d + 1, mk_64(ir, imm64));
+
+    return 0;
+}
+
+static int dis_common_vmvn_immediate_simd_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(6, 6);
+    int d = (INSN(22, 22) << 4) + INSN(15, 12);
+    int cmode = INSN(11, 8);
+    int i = is_thumb?INSN(28, 28):INSN(24, 24);
+    uint32_t imm8 = (i << 7) | (INSN(18, 16) << 4) | INSN(3, 0);
+    int op = INSN(5, 5);
+    uint64_t imm64 = advSimdExpandImm(op, cmode, imm8);
+
+    write_reg_d(context, ir, d, mk_64(ir, ~imm64));
+    if (Q)
+        write_reg_d(context, ir, d + 1, mk_64(ir, ~imm64));
 
     return 0;
 }
@@ -849,7 +880,13 @@ static int dis_common_adv_simd_vdup_scalar_insn(struct arm_target *context, uint
 
 static int dis_common_adv_simd_two_regs_misc_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    return dis_common_adv_simd_two_regs_misc_hlp(context, insn, ir);
+    int a = INSN(17, 16);
+    int b = INSN(10, 6);
+
+    if (a == 0 && (b&0x1e) == 0x16)
+        return dis_common_vmvn_register_simd_insn(context, insn, ir);
+    else
+        return dis_common_adv_simd_two_regs_misc_hlp(context, insn, ir);
 }
 
 static int dis_common_adv_simd_vext_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -879,7 +916,7 @@ static int dis_common_adv_simd_one_register_and_modified_immediate_insn(struct a
             isExit = op?dis_common_vbic_immediate_insn(context, insn, ir):dis_common_vorr_immediate_insn(context, insn, ir);
             break;
         case 0: case 2: case 4: case 6: case 8: case 10: case 12: case 13:
-            isExit = op?assert_with_return():dis_common_vmov_immediate_simd_insn(context, insn, ir);
+            isExit = op?dis_common_vmvn_immediate_simd_insn(context, insn, ir):dis_common_vmov_immediate_simd_insn(context, insn, ir);
             break;
         case 14:
             isExit = dis_common_vmov_immediate_simd_insn(context, insn, ir);
