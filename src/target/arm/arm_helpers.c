@@ -3471,6 +3471,35 @@ static void dis_common_vabs_simd(uint64_t _regs, uint32_t insn)
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vmovn_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(19, 18);
+    int i;
+    union simd_d_register res;
+
+    switch(size) {
+        case 0:
+            for(i = 0; i < 8; i++)
+                res.u8[i] = regs->e.simq[(m >> 1)].u16[i];
+            break;
+        case 1:
+            for(i = 0; i < 4; i++)
+                res.u16[i] = regs->e.simq[(m >> 1)].u32[i];
+            break;
+        case 2:
+            for(i = 0; i < 2; i++)
+                res.u32[i] = regs->e.simq[(m >> 1)].u64[i];
+            break;
+        default:
+            fatal("size = %d\n", size);
+    }
+
+    regs->e.simd[d] = res;
+}
+
 static void dis_common_vcvt_floating_integer_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -3806,7 +3835,7 @@ static void dis_common_vmov_from_arm_simd(uint64_t _regs, uint32_t insn)
     }
 }
 
-static void dis_common_vmovl(uint64_t _regs, uint32_t insn, int is_unsigned)
+static void dis_common_vmovl_simd(uint64_t _regs, uint32_t insn, int is_unsigned)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
@@ -4466,6 +4495,14 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
             default:
                 fatal("a = %d b = 0x%x\n", a, b);
         }
+    } else if (a == 2) {
+        switch(b) {
+            case 8:
+                dis_common_vmovn_simd(regs, insn);
+                break;
+            default:
+                fatal("a = %d b = 0x%x\n", a, b);
+        }
     } else if (a == 3) {
         switch(b&0x1a) {
             case 24: case 26:
@@ -4521,7 +4558,7 @@ void hlp_common_adv_simd_two_regs_and_shift(uint64_t regs, uint32_t insn, uint32
                 int imm6 = INSN(21, 16);
 
                 if (imm6 == 8 || imm6 == 16 || imm6 == 32)
-                    dis_common_vmovl(regs, insn, u);
+                    dis_common_vmovl_simd(regs, insn, u);
                 else
                     assert(0);//vshll
             }
