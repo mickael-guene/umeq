@@ -5,13 +5,6 @@ const static int is_thumb = 0;
 #endif
 
 /* utils */
-static int assert_with_return()
-{
-    assert(0);
-
-    return 0;
-}
-
 static uint32_t vfpExpandImm32(int imm8)
 {
     uint32_t i7 = (imm8 >> 7) & 1;
@@ -526,6 +519,25 @@ static int dis_common_vbif_vbit_vbsl(struct arm_target *context, uint32_t insn, 
     return 0;
 }
 
+static int dis_common_vorn_simd_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(6, 6);
+    int d = (INSN(22, 22) << 4) + INSN(15, 12);
+    int n = (INSN(7, 7) << 4) + INSN(19, 16);
+    int m = (INSN(5, 5) << 4) + INSN(3, 0);
+
+    write_reg_d(context, ir, d, ir->add_or_64(ir,
+                                               read_reg_d(context, ir, n),
+                                               ir->add_xor_64(ir, read_reg_d(context, ir, m), mk_64(ir, ~0))));
+    if (Q) {
+        write_reg_d(context, ir,  d + 1, ir->add_or_64(ir,
+                                                        read_reg_d(context, ir, n + 1),
+                                                        ir->add_xor_64(ir, read_reg_d(context, ir, m + 1), mk_64(ir, ~0))));
+    }
+
+    return 0;
+}
+
 static int dis_common_adv_simd_three_different_length_hlp(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4];
@@ -837,7 +849,7 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
                     }
                     break;
                 case 3:
-                    isExit = u?dis_common_vbif_vbit_vbsl(context, insn, ir):assert_with_return(0);
+                    isExit = u?dis_common_vbif_vbit_vbsl(context, insn, ir):dis_common_vorn_simd_insn(context, insn, ir);
                     break;
                 default:
                     fatal("c = %d(0x%x)\n", c, c);
