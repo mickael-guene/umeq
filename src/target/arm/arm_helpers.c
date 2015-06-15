@@ -3105,6 +3105,32 @@ static void dis_common_vmla_vmls_scalar_simd(uint64_t _regs, uint32_t insn, int 
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vmul_f32_simd(uint64_t _regs, uint32_t insn)
+{
+    /* FIXME: result is not correct */
+#if 0
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    for(r = 0; r < reg_nb; r++) {
+        for(i = 0; i < 2; i++) {
+            res[r].sf[i] = regs->e.simd[n + r].sf[i] * regs->e.simd[m + r].sf[i];
+        }
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+#else
+    assert(0);
+#endif
+}
+
 static void dis_common_vmla_vmls_f32_simd(uint64_t _regs, uint32_t insn)
 {
     /* FIXME: result is not correct */
@@ -3474,6 +3500,88 @@ static void dis_common_vmlal_vmlsl_scalar_simd(uint64_t _regs, uint32_t insn, ui
                     int64_t product = (int64_t)regs->e.simd[n].s32[i] * (int64_t)regs->e.simd[m].s32[index];
                     res.s64[i] = res.s64[i] + (is_sub?-product:product);
                 }
+            }
+            break;
+        default:
+            assert(0);
+    }
+
+    regs->e.simq[d >> 1] = res;
+}
+
+static void dis_common_vmul_scalar_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int size = INSN(21, 20);
+    int reg_nb = (is_thumb?INSN(28, 28):INSN(24, 24)) + 1;
+    int f = INSN(8, 8);
+    int m;
+    int index;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    /* FIXME: fpcu result not ok */
+    assert(f == 0);
+    switch(size) {
+        case 1:
+            m = INSN(2, 0);
+            index = (INSN(5, 5) << 1) + INSN(3, 3);
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 4; i++)
+                    res[r].u16[i] = regs->e.simd[n + r].u16[i] * regs->e.simd[m].u16[index];
+            break;
+        case 2:
+            m = INSN(3, 0);
+            index = INSN(5, 5);
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 2; i++)
+                    if (f)
+                        res[r].sf[i] = regs->e.simd[n + r].sf[i] * regs->e.simd[m].sf[index];
+                    else
+                        res[r].u32[i] = regs->e.simd[n + r].u32[i] * regs->e.simd[m].u32[index];
+            break;
+        default:
+            assert(0);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
+static void dis_common_vmull_scalar_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int size = INSN(21, 20);
+    int U = is_thumb?INSN(28, 28):INSN(24, 24);
+    int m;
+    int index;
+    int i;
+    union simd_q_register res = regs->e.simq[d >> 1];
+
+    switch(size) {
+        case 1:
+            m = INSN(2, 0);
+            index = (INSN(5, 5) << 1) + INSN(3, 3);
+            for(i = 0; i < 4; i++) {
+                if (U)
+                    res.u32[i] = regs->e.simd[n].u16[i] * regs->e.simd[m].u16[index];
+                else
+                    res.s32[i] = regs->e.simd[n].s16[i] * regs->e.simd[m].s16[index];
+            }
+            break;
+        case 2:
+            m = INSN(3, 0);
+            index = INSN(5, 5);
+            for(i = 0; i < 2; i++) {
+                if (U)
+                    res.u64[i] = (uint64_t)regs->e.simd[n].u32[i] * (uint64_t)regs->e.simd[m].u32[index];
+                else
+                    res.s64[i] = (int64_t)regs->e.simd[n].s32[i] * (int64_t)regs->e.simd[m].s32[index];
             }
             break;
         default:
@@ -4533,7 +4641,7 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
             break;
         case 13:
             if (b)
-                u?assert(0):dis_common_vmla_vmls_f32_simd(regs, insn);//vmul
+                u?dis_common_vmul_f32_simd(regs, insn):dis_common_vmla_vmls_f32_simd(regs, insn);
             else {
                 if (u)
                     assert(0);//vpadd fpu, vabd, fpu
@@ -4687,6 +4795,10 @@ void hlp_common_adv_simd_two_regs_and_scalar(uint64_t regs, uint32_t insn, uint3
         dis_common_vmla_vmls_scalar_simd(regs, insn, is_thumb);
     } else if ((a&0xb) == 0x2) {
         dis_common_vmlal_vmlsl_scalar_simd(regs, insn, is_thumb);
+    } else if ((a&0xe) == 0x8) {
+        dis_common_vmul_scalar_simd(regs, insn, is_thumb);
+    } else if (a == 0xa) {
+        dis_common_vmull_scalar_simd(regs, insn, is_thumb);
     } else
         assert(0);
 }
