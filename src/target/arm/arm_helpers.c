@@ -50,6 +50,26 @@
     return a;
 }*/
 
+#define DECLARE_SSAT(size,max,min) \
+static inline int##size##_t ssat##size(struct arm_registers *regs, int64_t op) \
+{ \
+    int##size##_t res; \
+ \
+    if (op > max) { \
+        res = max; \
+        regs->fpscr |= 1 << 27; \
+    } else if (op < min) { \
+        res = min; \
+        regs->fpscr |= 1 << 27; \
+    } else \
+        res = op; \
+ \
+    return res; \
+}
+DECLARE_SSAT(8,0x7f,-0x80)
+DECLARE_SSAT(16,0x7fff,-0x8000)
+DECLARE_SSAT(32,0x7fffffff,-0x80000000L)
+
 static inline uint8_t umax8(uint8_t op1, uint8_t op2)
 {
     return op1>op2?op1:op2;
@@ -3963,6 +3983,41 @@ static void dis_common_vpadal_simd(uint64_t _regs, uint32_t insn)
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vqabs_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(19, 18);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    switch(size) {
+        case 0:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 8; i++)
+                    res[r].s8[i] = ssat8(regs, abs(regs->e.simd[m + r].s8[i]));
+            break;
+        case 1:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 4; i++)
+                    res[r].s16[i] = ssat16(regs, abs(regs->e.simd[m + r].s16[i]));
+            break;
+        case 2:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 2; i++)
+                    res[r].s32[i] = ssat32(regs, labs(regs->e.simd[m + r].s32[i]));
+            break;
+        default:
+            fatal("size = %d\n", size);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vabs_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -5063,6 +5118,9 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
                 break;
             case 24: case 26:
                 dis_common_vpadal_simd(regs, insn);
+                break;
+            case 28:
+                dis_common_vqabs_simd(regs, insn);
                 break;
             default:
                 fatal("a = %d b = 0x%x\n", a, b);

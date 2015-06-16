@@ -1968,17 +1968,23 @@ static int dis_msr_imm_and_hints(struct arm_target *context, uint32_t insn, stru
     int isExit = 0;
     int op = INSN(22, 22);
     int op1 = INSN(19, 16);
-    //int op2 = INSN(7, 0);
+    int op2 = INSN(7, 0);
 
 
     assert(op == 0);
 
     switch(op1) {
+        case 0:
+            if (op2 == 0)
+                ;//nop
+            else
+                fatal("op1 = %d(0x%x) / op2 = %d(0x%x) / pc = 0x%08x\n", op1, op1, op2, op2, context->pc);
+            break;
         case 4: case 8: case 12:
             isExit = dis_msr_immediate(context, insn, ir);
             break;
         default:
-            fatal("op1 = %d(0x%x)\n", op1, op1);
+            fatal("op1 = %d(0x%x) / op2 = %d(0x%x) / pc = 0x%08x\n", op1, op1, op2, op2, context->pc);
     }
 
     return isExit;
