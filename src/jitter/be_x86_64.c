@@ -1144,6 +1144,7 @@ static char *gen_call(char *pos, struct x86Instruction *insn)
     pos = gen_push_hlp(pos, 9/*r9*/);
     pos = gen_push_hlp(pos, 10/*r10*/);
     pos = gen_push_hlp(pos, 11/*r11*/);
+    pos = gen_push_hlp(pos, 12/*r12*/);/* only use to keep sp align on 16 bytes */
 
     /* mov address into rax */
     pos = gen_move_reg_low(pos, 0/*rax*/, insn->u.call.address);
@@ -1170,6 +1171,7 @@ static char *gen_call(char *pos, struct x86Instruction *insn)
     *pos++ = 0xff;
     *pos++ = MODRM_MODE_3 | (2/*subcode*/ << MODRM_REG_SHIFT) | 0/*rax*/;
     /* restore caller save regs */
+    pos = gen_pop_hlp(pos, 12/*r12*/);/* only use to keep sp align on 16 bytes */
     pos = gen_pop_hlp(pos, 11/*r11*/);
     pos = gen_pop_hlp(pos, 10/*r10*/);
     pos = gen_pop_hlp(pos, 9/*r9*/);
