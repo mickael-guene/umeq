@@ -2737,7 +2737,40 @@ static void dis_common_vmax_vmin_simd(uint64_t _regs, uint32_t insn, uint32_t is
         regs->e.simd[d + r] = res[r];
 }
 
-static void dis_common_vmax_vmin_fpu_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned)
+static void dis_common_vpmax_vpmin_fpu_simd(uint64_t _regs, uint32_t insn)
+{
+    /* FIXME: need to properly handle exception cases */
+#if 0
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int reg_nb = INSN(6, 6) + 1;
+    int is_min = INSN(21, 21);
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    for(r = 0; r < reg_nb; r++) {
+        for(i = 0; i < 1; i++) {
+            if (is_min) {
+                res[r].sf[i + 0] = minf(regs->e.simd[n + r].sf[2 * i], regs->e.simd[n + r].sf[2 * i + 1]);
+                res[r].sf[i + 1] = minf(regs->e.simd[m + r].sf[2 * i], regs->e.simd[m + r].sf[2 * i + 1]);
+            } else {
+                res[r].sf[i + 0] = maxf(regs->e.simd[n + r].sf[2 * i], regs->e.simd[n + r].sf[2 * i + 1]);
+                res[r].sf[i + 1] = maxf(regs->e.simd[m + r].sf[2 * i], regs->e.simd[m + r].sf[2 * i + 1]);
+            }
+        }
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+#else
+    assert(0);
+#endif
+}
+
+static void dis_common_vmax_vmin_fpu_simd(uint64_t _regs, uint32_t insn)
 {
     /* FIXME: need to properly handle exception cases */
 #if 0
@@ -3051,6 +3084,108 @@ static void dis_common_vmla_vmls_simd(uint64_t _regs, uint32_t insn, int is_sub)
 
     for(r = 0; r < reg_nb; r++)
         regs->e.simd[d + r] = res[r];
+}
+
+static void dis_common_vpmin_simd(uint64_t _regs, uint32_t insn, int is_unsigned)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(21, 20);
+    int i;
+    union simd_d_register res;
+
+    switch(size) {
+        case 0:
+            for(i = 0; i < 4; i++) {
+                if (is_unsigned) {
+                    res.u8[i + 0] = umin8(regs->e.simd[n].u8[2 * i], regs->e.simd[n].u8[2 * i + 1]);
+                    res.u8[i + 4] = umin8(regs->e.simd[m].u8[2 * i], regs->e.simd[m].u8[2 * i + 1]);
+                } else {
+                    res.u8[i + 0] = smin8(regs->e.simd[n].u8[2 * i], regs->e.simd[n].u8[2 * i + 1]);
+                    res.u8[i + 4] = smin8(regs->e.simd[m].u8[2 * i], regs->e.simd[m].u8[2 * i + 1]);
+                }
+            }
+            break;
+        case 1:
+            for(i = 0; i < 2; i++) {
+                if (is_unsigned) {
+                    res.u16[i + 0] = umin16(regs->e.simd[n].u16[2 * i], regs->e.simd[n].u16[2 * i + 1]);
+                    res.u16[i + 2] = umin16(regs->e.simd[m].u16[2 * i], regs->e.simd[m].u16[2 * i + 1]);
+                } else {
+                    res.u16[i + 0] = smin16(regs->e.simd[n].u16[2 * i], regs->e.simd[n].u16[2 * i + 1]);
+                    res.u16[i + 2] = smin16(regs->e.simd[m].u16[2 * i], regs->e.simd[m].u16[2 * i + 1]);
+                }
+            }
+            break;
+        case 2:
+            for(i = 0; i < 1; i++) {
+                if (is_unsigned) {
+                    res.u32[i + 0] = umin32(regs->e.simd[n].u32[2 * i], regs->e.simd[n].u32[2 * i + 1]);
+                    res.u32[i + 1] = umin32(regs->e.simd[m].u32[2 * i], regs->e.simd[m].u32[2 * i + 1]);
+                } else {
+                    res.u32[i + 0] = smin32(regs->e.simd[n].u32[2 * i], regs->e.simd[n].u32[2 * i + 1]);
+                    res.u32[i + 1] = smin32(regs->e.simd[m].u32[2 * i], regs->e.simd[m].u32[2 * i + 1]);
+                }
+            }
+            break;
+        default:
+            assert(0);
+    }
+
+    regs->e.simd[d] = res;
+}
+
+static void dis_common_vpmax_simd(uint64_t _regs, uint32_t insn, int is_unsigned)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(21, 20);
+    int i;
+    union simd_d_register res;
+
+    switch(size) {
+        case 0:
+            for(i = 0; i < 4; i++) {
+                if (is_unsigned) {
+                    res.u8[i + 0] = umax8(regs->e.simd[n].u8[2 * i], regs->e.simd[n].u8[2 * i + 1]);
+                    res.u8[i + 4] = umax8(regs->e.simd[m].u8[2 * i], regs->e.simd[m].u8[2 * i + 1]);
+                } else {
+                    res.u8[i + 0] = smax8(regs->e.simd[n].u8[2 * i], regs->e.simd[n].u8[2 * i + 1]);
+                    res.u8[i + 4] = smax8(regs->e.simd[m].u8[2 * i], regs->e.simd[m].u8[2 * i + 1]);
+                }
+            }
+            break;
+        case 1:
+            for(i = 0; i < 2; i++) {
+                if (is_unsigned) {
+                    res.u16[i + 0] = umax16(regs->e.simd[n].u16[2 * i], regs->e.simd[n].u16[2 * i + 1]);
+                    res.u16[i + 2] = umax16(regs->e.simd[m].u16[2 * i], regs->e.simd[m].u16[2 * i + 1]);
+                } else {
+                    res.u16[i + 0] = smax16(regs->e.simd[n].u16[2 * i], regs->e.simd[n].u16[2 * i + 1]);
+                    res.u16[i + 2] = smax16(regs->e.simd[m].u16[2 * i], regs->e.simd[m].u16[2 * i + 1]);
+                }
+            }
+            break;
+        case 2:
+            for(i = 0; i < 1; i++) {
+                if (is_unsigned) {
+                    res.u32[i + 0] = umax32(regs->e.simd[n].u32[2 * i], regs->e.simd[n].u32[2 * i + 1]);
+                    res.u32[i + 1] = umax32(regs->e.simd[m].u32[2 * i], regs->e.simd[m].u32[2 * i + 1]);
+                } else {
+                    res.u32[i + 0] = smax32(regs->e.simd[n].u32[2 * i], regs->e.simd[n].u32[2 * i + 1]);
+                    res.u32[i + 1] = smax32(regs->e.simd[m].u32[2 * i], regs->e.simd[m].u32[2 * i + 1]);
+                }
+            }
+            break;
+        default:
+            assert(0);
+    }
+
+    regs->e.simd[d] = res;
 }
 
 static void dis_common_vpadd_simd(uint64_t _regs, uint32_t insn)
@@ -4824,6 +4959,9 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
             else
                 dis_common_vmla_vmls_simd(regs, insn, u);
             break;
+        case 10:
+            b?dis_common_vpmin_simd(regs, insn, u):dis_common_vpmax_simd(regs, insn, u);
+            break;
         case 11:
             if (b)
                 dis_common_vpadd_simd(regs, insn);
@@ -4861,7 +4999,7 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
             if (b) {
                 assert(0);
             } else {
-                u?assert(0):dis_common_vmax_vmin_fpu_simd(regs, insn, u);
+                u?dis_common_vpmax_vpmin_fpu_simd(regs, insn):dis_common_vmax_vmin_fpu_simd(regs, insn);
             }
             break;
         default:
