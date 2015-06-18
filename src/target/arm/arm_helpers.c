@@ -3352,6 +3352,41 @@ static void dis_common_vpadd_simd(uint64_t _regs, uint32_t insn)
     regs->e.simd[d] = res;
 }
 
+static void dis_common_vqdmulh_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(21, 20);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    switch(size) {
+        case 1:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 4; i++) {
+                    int32_t product = 2 * regs->e.simd[n + r].s16[i] * regs->e.simd[m + r].s16[i];
+                    res[r].s16[i] = ssat16(regs, product >> 16);
+                }
+            break;
+        case 2:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 2; i++) {
+                    int64_t product = 2 * (int64_t)regs->e.simd[n + r].s32[i] * (int64_t)regs->e.simd[m + r].s32[i];
+                    res[r].s32[i] = ssat32(regs, product >> 32);
+                }
+            break;
+        default:
+            assert(0);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vmla_vmls_scalar_simd(uint64_t _regs, uint32_t insn, int is_thumb)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -3978,6 +4013,46 @@ static void dis_common_vqdmlal_vqdmlsl_scalar_simd(uint64_t _regs, uint32_t insn
     }
 
     regs->e.simq[d >> 1] = res;
+}
+
+static void dis_common_vqdmulh_scalar_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int size = INSN(21, 20);
+    int reg_nb = (is_thumb?INSN(28, 28):INSN(24, 24)) + 1;
+    int m;
+    int index;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    switch(size) {
+        case 1:
+            m = INSN(2, 0);
+            index = (INSN(5, 5) << 1) + INSN(3, 3);
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 4; i++) {
+                    int32_t product = 2 * regs->e.simd[n + r].s16[i] * regs->e.simd[m].s16[index];
+                    res[r].s16[i] = ssat16(regs, product >> 16);
+                }
+            break;
+        case 2:
+            m = INSN(3, 0);
+            index = INSN(5, 5);
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 2; i++) {
+                    int64_t product = 2 * (int64_t)regs->e.simd[n + r].s32[i] * (int64_t)regs->e.simd[m].s32[index];
+                    res[r].s32[i] = ssat32(regs, product >> 32);
+                }
+            break;
+        default:
+            assert(0);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
 }
 
 static void dis_common_vpaddl_simd(uint64_t _regs, uint32_t insn)
@@ -5200,7 +5275,7 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
             if (b)
                 dis_common_vpadd_simd(regs, insn);
             else
-                assert(0);
+                u?assert(0):dis_common_vqdmulh_simd(regs, insn);
             break;
         case 13:
             if (b)
@@ -5382,6 +5457,8 @@ void hlp_common_adv_simd_two_regs_and_scalar(uint64_t regs, uint32_t insn, uint3
         dis_common_vmull_scalar_simd(regs, insn, is_thumb);
     } else if (a == 3 || a == 7) {
         dis_common_vqdmlal_vqdmlsl_scalar_simd(regs, insn);
+    } else if (a == 12) {
+        dis_common_vqdmulh_scalar_simd(regs, insn, is_thumb);
     } else
         fatal("a = %d(0x%x)\n", a, a);
 }
