@@ -3826,6 +3826,36 @@ static void dis_common_vmull_integer_simd(uint64_t _regs, uint32_t insn, uint32_
     regs->e.simq[d >> 1] = res;
 }
 
+static void dis_common_vqdmull_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(21, 20);
+    int i;
+    union simd_q_register res;
+
+    switch(size) {
+        case 1:
+            for(i = 0; i < 4; i++) {
+                int32_t product = 2 * regs->e.simd[n].s16[i] * regs->e.simd[m].s16[i];
+                res.s32[i] = ssat32(regs, product);
+            }
+            break;
+        case 2:
+            for(i = 0; i < 2; i++) {
+                int64_t product = 2 * (int64_t)regs->e.simd[n].s32[i] * (int64_t)regs->e.simd[m].s32[i];
+                res.s64[i] = ssat64(regs, product);
+            }
+            break;
+        default:
+            assert(0);
+    }
+
+    regs->e.simq[d >> 1] = res;
+}
+
 static void dis_common_vmull_polynomial_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -4006,6 +4036,41 @@ static void dis_common_vqdmlal_vqdmlsl_scalar_simd(uint64_t _regs, uint32_t insn
                 int64_t product = ssat64(regs, 2 * (int64_t)regs->e.simd[n].s32[i] * (int64_t)regs->e.simd[m].s32[index]);
 
                 res.s64[i] = ssat64(regs, (__int128_t)res.s64[i] + (is_sub?-(__int128_t)product:(__int128_t)product));
+            }
+            break;
+        default:
+            assert(0);
+    }
+
+    regs->e.simq[d >> 1] = res;
+}
+
+static void dis_common_vqdmull_scalar_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int size = INSN(21, 20);
+    int m;
+    int index;
+    int i;
+    union simd_q_register res;
+
+    switch(size) {
+        case 1:
+            m = INSN(2, 0);
+            index = (INSN(5, 5) << 1) + INSN(3, 3);
+            for(i = 0; i < 4; i++) {
+                int32_t product = 2 * regs->e.simd[n].s16[i] * regs->e.simd[m].s16[index];
+                res.s32[i] = ssat32(regs, product);
+            }
+            break;
+        case 2:
+            m = INSN(3, 0);
+            index = INSN(5, 5);
+            for(i = 0; i < 2; i++) {
+                int64_t product = 2 * (int64_t)regs->e.simd[n].s32[i] * (int64_t)regs->e.simd[m].s32[index];
+                res.s64[i] = ssat64(regs, product);
             }
             break;
         default:
@@ -5346,6 +5411,9 @@ void hlp_common_adv_simd_three_different_length(uint64_t regs, uint32_t insn, ui
         case 12:
             dis_common_vmull_integer_simd(regs, insn, is_thumb);
             break;
+        case 13:
+            dis_common_vqdmull_simd(regs, insn);
+            break;
         case 14:
             dis_common_vmull_polynomial_simd(regs, insn, is_thumb);
             break;
@@ -5457,6 +5525,8 @@ void hlp_common_adv_simd_two_regs_and_scalar(uint64_t regs, uint32_t insn, uint3
         dis_common_vmull_scalar_simd(regs, insn, is_thumb);
     } else if (a == 3 || a == 7) {
         dis_common_vqdmlal_vqdmlsl_scalar_simd(regs, insn);
+    } else if (a == 11) {
+        dis_common_vqdmull_scalar_simd(regs, insn, is_thumb);
     } else if (a == 12) {
         dis_common_vqdmulh_scalar_simd(regs, insn, is_thumb);
     } else
