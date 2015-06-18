@@ -187,7 +187,9 @@ static __int128_t sshl(__int128_t val, int8_t shift, int is_round)
     }
 
     if (shift == -128)
-        res = (__int128_t)(val + (is_round?round:0)) >> 127;
+        /* if there is rounding then bit 128 is always 0 and so result is 0.
+           if there is no rounding then result is the sign bit of val */
+        res = is_round?0:val>>127;
     else if (shift >= 0) {
         /* to keep stuff for saturation we need to limit shift to 64 bits */
         shift = shift>64?64:shift;
