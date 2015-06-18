@@ -153,6 +153,52 @@ static inline uint64_t usat64_u(struct arm_registers *regs, __uint128_t op)
     return res;
 }
 
+static __uint128_t ushl(__uint128_t val, int8_t shift, int is_round)
+{
+    __uint128_t res;
+    __uint128_t round = 0;
+
+    if (is_round) {
+        if (shift < 0)
+            round = (__uint128_t)1 << (-shift -1);
+    }
+
+    if (shift == -128)
+        res = 0;
+    else if (shift >= 0) {
+        /* to keep stuff for saturation we need to limit shift to 64 bits */
+        shift = shift>64?64:shift;
+        res = val << shift;
+    }
+    else
+        res = (val + (is_round?round:0)) >> -shift;
+
+    return res;
+}
+
+static __int128_t sshl(__int128_t val, int8_t shift, int is_round)
+{
+    __int128_t res;
+    __uint128_t round = 0;
+
+    if (is_round) {
+        if (shift < 0)
+            round = (__uint128_t)1 << (-shift -1);
+    }
+
+    if (shift == -128)
+        res = (__int128_t)(val + (is_round?round:0)) >> 127;
+    else if (shift >= 0) {
+        /* to keep stuff for saturation we need to limit shift to 64 bits */
+        shift = shift>64?64:shift;
+        res = val << shift;
+    }
+    else
+        res = (__int128_t)(val + (is_round?round:0)) >> -shift;
+
+    return res;
+}
+
 static inline uint8_t umax8(uint8_t op1, uint8_t op2)
 {
     return op1>op2?op1:op2;
@@ -2840,6 +2886,85 @@ static void dis_common_vhadd_vhsub_simd(uint64_t _regs, uint32_t insn, uint32_t 
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vqrshl_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(21, 20);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+    __uint128_t u_res_before_sat;
+    __int128_t s_res_before_sat;
+
+    switch(size) {
+        case 0:
+            for(r = 0; r < reg_nb; r++) {
+                for(i = 0; i < 8; i++) {
+                    int8_t shift = regs->e.simd[n + r].s8[i];
+                    if (is_unsigned) {
+                        u_res_before_sat = ushl((__uint128_t) regs->e.simd[m + r].u8[i], shift, 1);
+                        res[r].u8[i] = usat8_u(regs, usat64_u(regs,u_res_before_sat));
+                    } else {
+                        s_res_before_sat = sshl((__int128_t) regs->e.simd[m + r].s8[i], shift, 1);
+                        res[r].s8[i] = ssat8(regs, ssat64(regs,s_res_before_sat));
+                    }
+                }
+            }
+            break;
+        case 1:
+            for(r = 0; r < reg_nb; r++) {
+                for(i = 0; i < 4; i++) {
+                    int8_t shift = regs->e.simd[n + r].s16[i];
+                    if (is_unsigned) {
+                        u_res_before_sat = ushl((__uint128_t) regs->e.simd[m + r].u16[i], shift, 1);
+                        res[r].u16[i] = usat16_u(regs, usat64_u(regs,u_res_before_sat));
+                    } else {
+                        s_res_before_sat = sshl((__int128_t) regs->e.simd[m + r].s16[i], shift, 1);
+                        res[r].s16[i] = ssat16(regs, ssat64(regs,s_res_before_sat));
+                    }
+                }
+            }
+            break;
+        case 2:
+            for(r = 0; r < reg_nb; r++) {
+                for(i = 0; i < 2; i++) {
+                    int8_t shift = regs->e.simd[n + r].s32[i];
+                    if (is_unsigned) {
+                        u_res_before_sat = ushl((__uint128_t) regs->e.simd[m + r].u32[i], shift, 1);
+                        res[r].u32[i] = usat32_u(regs, usat64_u(regs,u_res_before_sat));
+                    } else {
+                        s_res_before_sat = sshl((__int128_t) regs->e.simd[m + r].s32[i], shift, 1);
+                        res[r].s32[i] = ssat32(regs, ssat64(regs,s_res_before_sat));
+                    }
+                }
+            }
+            break;
+        case 3:
+            for(r = 0; r < reg_nb; r++) {
+                for(i = 0; i < 1; i++) {
+                    int8_t shift = regs->e.simd[n + r].s64[i];
+                    if (is_unsigned) {
+                        u_res_before_sat = ushl((__uint128_t) regs->e.simd[m + r].u64[i], shift, 1);
+                        res[r].u64[i] = usat64_u(regs, usat64_u(regs,u_res_before_sat));
+                    } else {
+                        s_res_before_sat = sshl((__int128_t) regs->e.simd[m + r].s64[i], shift, 1);
+                        res[r].s64[i] = ssat64(regs,s_res_before_sat);
+                    }
+                }
+            }
+            break;
+        default:
+            fatal("size = %d\n", size);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vmax_vmin_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -5456,6 +5581,9 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
             break;
         case 3:
             b?dis_common_vcge_simd(regs, insn, u):dis_common_vcgt_simd(regs, insn, u);
+            break;
+        case 5:
+            b?dis_common_vqrshl_simd(regs, insn, u):assert(0);
             break;
         case 6:
             dis_common_vmax_vmin_simd(regs, insn, u);
