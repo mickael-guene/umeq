@@ -87,6 +87,42 @@ static inline int64_t ssat64(struct arm_registers *regs, __int128_t op)
     return res;
 }
 
+#define DECLARE_USAT(size,max) \
+static inline uint##size##_t usat##size(struct arm_registers *regs, int64_t op) \
+{ \
+    uint##size##_t res; \
+ \
+    if (op > max) { \
+        res = max; \
+        regs->fpscr |= 1 << 27; \
+    } else if (op < 0) { \
+        res = 0; \
+        regs->fpscr |= 1 << 27; \
+    } else \
+        res = op; \
+ \
+    return res; \
+}
+DECLARE_USAT(8,0xff)
+DECLARE_USAT(16,0xffff)
+DECLARE_USAT(32,0xffffffff)
+static inline uint64_t usat64(struct arm_registers *regs, __int128_t op)
+{
+    uint64_t res;
+    __int128_t max = 0xffffffffffffffffUL;
+
+    if (op > max) {
+        res = max;
+        regs->fpscr |= 1 << 27;
+    } else if (op < 0) {
+        res = 0;
+        regs->fpscr |= 1 << 27;
+    } else
+        res = op;
+
+    return res;
+}
+
 #define DECLARE_USAT_U(size,max) \
 static inline uint##size##_t usat##size##_u(struct arm_registers *regs, uint64_t op) \
 { \
@@ -4442,6 +4478,35 @@ static void dis_common_vmovn_simd(uint64_t _regs, uint32_t insn)
     regs->e.simd[d] = res;
 }
 
+static void dis_common_vqmovun_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(19, 18);
+    int i;
+    union simd_d_register res;
+
+    switch(size) {
+        case 0:
+            for(i = 0; i < 8; i++)
+                res.u8[i] = usat8(regs, regs->e.simq[m >> 1].s16[i]);
+            break;
+        case 1:
+            for(i = 0; i < 4; i++)
+                res.u16[i] = usat16(regs, regs->e.simq[m >> 1].s32[i]);
+            break;
+        case 2:
+            for(i = 0; i < 2; i++)
+                res.u32[i] = usat32(regs, regs->e.simq[m >> 1].s64[i]);
+            break;
+        default:
+            fatal("size = %d\n", size);
+    }
+
+    regs->e.simd[d] = res;
+}
+
 static void dis_common_vqmovn_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -5522,6 +5587,9 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
         switch(b) {
             case 8:
                 dis_common_vmovn_simd(regs, insn);
+                break;
+            case 9:
+                dis_common_vqmovun_simd(regs, insn);
                 break;
             case 10:
             case 11:
