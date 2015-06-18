@@ -5044,6 +5044,76 @@ static void dis_common_vmov_from_arm_simd(uint64_t _regs, uint32_t insn)
     }
 }
 
+static void dis_common_vqrshrun_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int imm6 = INSN(21, 16);
+    int i;
+    union simd_d_register res;
+    int shift_value;
+
+    if (imm6 >> 5) {
+        shift_value = 64 - imm6;
+        for(i = 0; i < 2; i++)
+            res.u32[i] = usat32(regs, ((__int128_t)regs->e.simq[m >> 1].s64[i] + (1 << (shift_value - 1))) >> shift_value);
+    } else if (imm6 >> 4) {
+        shift_value = 32 - imm6;
+        for(i = 0; i < 4; i++)
+            res.u16[i] = usat16(regs, ((int64_t)regs->e.simq[m >> 1].s32[i] + (1 << (shift_value - 1))) >> shift_value);
+    } else if (imm6 >> 3) {
+        shift_value = 16 - imm6;
+        for(i = 0; i < 8; i++)
+            res.u8[i] = usat8(regs, (regs->e.simq[m >> 1].s16[i] + (1 << (shift_value - 1))) >> shift_value);
+    } else
+        assert(0);
+
+
+    regs->e.simd[d] = res;
+}
+
+static void dis_common_vqrshrn_simd(uint64_t _regs, uint32_t insn, int is_unsigned)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int imm6 = INSN(21, 16);
+    int i;
+    union simd_d_register res;
+    int shift_value;
+
+    if (imm6 >> 5) {
+        shift_value = 64 - imm6;
+        for(i = 0; i < 2; i++) {
+            if (is_unsigned)
+                res.u32[i] = usat32_u(regs, ((__uint128_t)regs->e.simq[m >> 1].u64[i] + (1 << (shift_value - 1))) >> shift_value);
+            else
+                res.s32[i] = ssat32(regs, ((__int128_t)regs->e.simq[m >> 1].s64[i] + (1 << (shift_value - 1))) >> shift_value);
+        }
+    } else if (imm6 >> 4) {
+        shift_value = 32 - imm6;
+        for(i = 0; i < 4; i++) {
+            if (is_unsigned)
+                res.u16[i] = usat16_u(regs, ((uint64_t)regs->e.simq[m >> 1].u32[i] + (1 << (shift_value - 1))) >> shift_value);
+            else
+                res.s16[i] = ssat16(regs, ((int64_t)regs->e.simq[m >> 1].s32[i] + (1 << (shift_value - 1))) >> shift_value);
+        }
+    } else if (imm6 >> 3) {
+        shift_value = 16 - imm6;
+        for(i = 0; i < 8; i++) {
+            if (is_unsigned)
+                res.u8[i] = usat8_u(regs, (regs->e.simq[m >> 1].u16[i] + (1 << (shift_value - 1))) >> shift_value);
+            else
+                res.s8[i] = ssat8(regs, (regs->e.simq[m >> 1].s16[i] + (1 << (shift_value - 1))) >> shift_value);
+        }
+    } else
+        assert(0);
+
+
+    regs->e.simd[d] = res;
+}
+
 static void dis_common_vmovl_simd(uint64_t _regs, uint32_t insn, int is_unsigned)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -5821,9 +5891,22 @@ void hlp_common_adv_simd_vmov_from_arm(uint64_t regs, uint32_t insn)
 void hlp_common_adv_simd_two_regs_and_shift(uint64_t regs, uint32_t insn, uint32_t is_thumb)
 {
     int a = INSN(11, 8);
+    int b = INSN(6, 6);
     int u = is_thumb?INSN(28, 28):INSN(24, 24);
 
     switch(a) {
+        case 8:
+            if (u)
+                dis_common_vqrshrun_simd(regs, insn);
+            else
+                assert(0);
+            break;
+        case 9:
+            if (b) {
+                dis_common_vqrshrn_simd(regs, insn, u);
+            } else
+                assert(0);
+            break;
         case 10:
             {
                 int imm6 = INSN(21, 16);
