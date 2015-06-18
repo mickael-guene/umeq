@@ -4442,6 +4442,48 @@ static void dis_common_vmovn_simd(uint64_t _regs, uint32_t insn)
     regs->e.simd[d] = res;
 }
 
+static void dis_common_vqmovn_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(19, 18);
+    int source_unsigned = (INSN(7, 6) == 3);
+    int i;
+    union simd_d_register res;
+
+    switch(size) {
+        case 0:
+            for(i = 0; i < 8; i++) {
+                if (source_unsigned)
+                    res.s8[i] = usat8_u(regs, regs->e.simq[m >> 1].u16[i]);
+                else
+                    res.s8[i] = ssat8(regs, regs->e.simq[m >> 1].s16[i]);
+            }
+            break;
+        case 1:
+            for(i = 0; i < 4; i++) {
+                if (source_unsigned)
+                    res.s16[i] = usat16_u(regs, regs->e.simq[m >> 1].u32[i]);
+                else
+                    res.s16[i] = ssat16(regs, regs->e.simq[m >> 1].s32[i]);
+            }
+            break;
+        case 2:
+            for(i = 0; i < 2; i++) {
+                if (source_unsigned)
+                    res.s32[i] = usat32_u(regs, regs->e.simq[m >> 1].u64[i]);
+                else
+                    res.s32[i] = ssat32(regs, regs->e.simq[m >> 1].s64[i]);
+            }
+            break;
+        default:
+            fatal("size = %d\n", size);
+    }
+
+    regs->e.simd[d] = res;
+}
+
 static void dis_common_vcvt_floating_integer_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -5480,6 +5522,10 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
         switch(b) {
             case 8:
                 dis_common_vmovn_simd(regs, insn);
+                break;
+            case 10:
+            case 11:
+                dis_common_vqmovn_simd(regs, insn);
                 break;
             default:
                 fatal("a = %d b = 0x%x\n", a, b);
