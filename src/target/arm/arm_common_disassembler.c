@@ -1030,7 +1030,7 @@ static int dis_common_adv_simd_data_preocessing_insn(struct arm_target *context,
         }
     } else if (a & 0x10) {
         if (c & 1) {
-            if ((a & 0x17) == 0x10) {
+            if ((a & 0x17) == 0x10 && (c & 0x9) == 1) {
                 isExit = dis_common_adv_simd_one_register_and_modified_immediate_insn(context, insn, ir);
             } else {
                 isExit = dis_common_adv_simd_two_regs_and_shift_insn(context, insn, ir);
