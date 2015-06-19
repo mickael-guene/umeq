@@ -5331,6 +5331,35 @@ static void dis_common_vqrshrun_vqshrun_simd(uint64_t _regs, uint32_t insn, int 
     regs->e.simd[d] = res;
 }
 
+static void dis_common_vrshrn_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int imm6 = INSN(21, 16);
+    int i;
+    union simd_d_register res;
+    int shift_value;
+    int is_round = 1;
+
+    if (imm6 >> 5) {
+        shift_value = 64 - imm6;
+        for(i = 0; i < 2; i++)
+            res.u32[i] = ((__int128_t)regs->e.simq[m >> 1].s64[i] + (is_round?(1 << (shift_value - 1)):0)) >> shift_value;
+    } else if (imm6 >> 4) {
+        shift_value = 32 - imm6;
+        for(i = 0; i < 4; i++)
+            res.u16[i] = ((int64_t)regs->e.simq[m >> 1].s32[i] + (is_round?(1 << (shift_value - 1)):0)) >> shift_value;
+    } else if (imm6 >> 3) {
+        shift_value = 16 - imm6;
+        for(i = 0; i < 8; i++)
+            res.u8[i] = (regs->e.simq[m >> 1].s16[i] + (is_round?(1 << (shift_value - 1)):0)) >> shift_value;
+    } else
+        assert(0);
+
+    regs->e.simd[d] = res;
+}
+
 static void dis_common_vqrshrn_vqshrn_simd(uint64_t _regs, uint32_t insn, int is_unsigned, int is_round)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -6173,7 +6202,10 @@ void hlp_common_adv_simd_two_regs_and_shift(uint64_t regs, uint32_t insn, uint32
             if (u)
                 dis_common_vqrshrun_vqshrun_simd(regs, insn, b);
             else
-                assert(0);
+                if (b)
+                    dis_common_vrshrn_simd(regs, insn);
+                else
+                    assert(0);
             break;
         case 9:
             dis_common_vqrshrn_vqshrn_simd(regs, insn, u, b);
