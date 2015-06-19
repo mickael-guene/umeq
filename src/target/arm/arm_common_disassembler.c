@@ -862,34 +862,40 @@ static int dis_common_adv_simd_two_regs_and_scalar_insn(struct arm_target *conte
 static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int a = INSN(11, 8);
+    int b = INSN(4, 4);
     int c = INSN(21, 20);
     int u = is_thumb?INSN(28, 28):INSN(24, 24);
     int isExit = 0;
 
     switch(a) {
         case 1:
-            switch(c) {
-                case 0:
-                    isExit = u?dis_common_veor_insn(context, insn, ir):dis_common_vand_insn(context, insn, ir);
-                    break;
-                case 1:
-                    isExit = u?dis_common_vbif_vbit_vbsl(context, insn, ir):dis_common_vbic_insn(context, insn, ir);
-                    break;
-                case 2:
-                    if (u) {
-                        isExit = dis_common_vbif_vbit_vbsl(context, insn, ir);
-                    } else {
-                        if (INSN(19, 16) == INSN(3, 0) && INSN(7, 7) == INSN(5, 5))
-                            dis_common_vmov_register_simd_insn(context, insn, ir);
-                        else
-                            dis_common_vorr_register_simd_insn(context, insn, ir);
-                    }
-                    break;
-                case 3:
-                    isExit = u?dis_common_vbif_vbit_vbsl(context, insn, ir):dis_common_vorn_simd_insn(context, insn, ir);
-                    break;
-                default:
-                    fatal("c = %d(0x%x)\n", c, c);
+            if (b) {
+                switch(c) {
+                    case 0:
+                        isExit = u?dis_common_veor_insn(context, insn, ir):dis_common_vand_insn(context, insn, ir);
+                        break;
+                    case 1:
+                        isExit = u?dis_common_vbif_vbit_vbsl(context, insn, ir):dis_common_vbic_insn(context, insn, ir);
+                        break;
+                    case 2:
+                        if (u) {
+                            isExit = dis_common_vbif_vbit_vbsl(context, insn, ir);
+                        } else {
+                            if (INSN(19, 16) == INSN(3, 0) && INSN(7, 7) == INSN(5, 5))
+                                dis_common_vmov_register_simd_insn(context, insn, ir);
+                            else
+                                dis_common_vorr_register_simd_insn(context, insn, ir);
+                        }
+                        break;
+                    case 3:
+                        isExit = u?dis_common_vbif_vbit_vbsl(context, insn, ir):dis_common_vorn_simd_insn(context, insn, ir);
+                        break;
+                    default:
+                        fatal("c = %d(0x%x)\n", c, c);
+                }
+            } else {
+                /* vrhadd */
+                isExit = dis_common_adv_simd_three_same_length_hlp(context, insn, ir);
             }
             break;
         case 0:

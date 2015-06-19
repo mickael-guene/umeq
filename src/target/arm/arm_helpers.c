@@ -2838,7 +2838,7 @@ static void dis_common_vqadd_vqsub_simd(uint64_t _regs, uint32_t insn, uint32_t 
         regs->e.simd[d + r] = res[r];
 }
 
-static void dis_common_vhadd_vhsub_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned)
+static void dis_common_vhadd_vhsub_vrhadd_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned, int is_round)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
@@ -2856,9 +2856,9 @@ static void dis_common_vhadd_vhsub_simd(uint64_t _regs, uint32_t insn, uint32_t 
             for(r = 0; r < reg_nb; r++) {
                 for(i = 0; i < 8; i++) {
                     if (is_unsigned)
-                        res[r].u8[i] = (regs->e.simd[n + r].u8[i] + (is_sub?-regs->e.simd[m + r].u8[i]:regs->e.simd[m + r].u8[i])) >> 1;
+                        res[r].u8[i] = (regs->e.simd[n + r].u8[i] + SUB(is_sub, regs->e.simd[m + r].u8[i]) + is_round) >> 1;
                     else
-                        res[r].s8[i] = (regs->e.simd[n + r].s8[i] + (is_sub?-regs->e.simd[m + r].s8[i]:regs->e.simd[m + r].s8[i])) >> 1;
+                        res[r].s8[i] = (regs->e.simd[n + r].s8[i] + SUB(is_sub, regs->e.simd[m + r].s8[i]) + is_round) >> 1;
                 }
             }
             break;
@@ -2866,9 +2866,9 @@ static void dis_common_vhadd_vhsub_simd(uint64_t _regs, uint32_t insn, uint32_t 
             for(r = 0; r < reg_nb; r++) {
                 for(i = 0; i < 4; i++) {
                     if (is_unsigned)
-                        res[r].u16[i] = (regs->e.simd[n + r].u16[i] + (is_sub?-regs->e.simd[m + r].u16[i]:regs->e.simd[m + r].u16[i])) >> 1;
+                        res[r].u16[i] = (regs->e.simd[n + r].u16[i] + SUB(is_sub, regs->e.simd[m + r].u16[i]) + is_round) >> 1;
                     else
-                        res[r].s16[i] = (regs->e.simd[n + r].s16[i] + (is_sub?-regs->e.simd[m + r].s16[i]:regs->e.simd[m + r].s16[i])) >> 1;
+                        res[r].s16[i] = (regs->e.simd[n + r].s16[i] + SUB(is_sub, regs->e.simd[m + r].s16[i]) + is_round) >> 1;
                 }
             }
             break;
@@ -2876,9 +2876,9 @@ static void dis_common_vhadd_vhsub_simd(uint64_t _regs, uint32_t insn, uint32_t 
             for(r = 0; r < reg_nb; r++) {
                 for(i = 0; i < 2; i++) {
                     if (is_unsigned)
-                        res[r].u32[i] = ((uint64_t)regs->e.simd[n + r].u32[i] + (uint64_t)(is_sub?-regs->e.simd[m + r].u32[i]:regs->e.simd[m + r].u32[i])) >> 1;
+                        res[r].u32[i] = ((uint64_t)regs->e.simd[n + r].u32[i] + (uint64_t)SUB(is_sub, regs->e.simd[m + r].u32[i]) + is_round) >> 1;
                     else
-                        res[r].s32[i] = ((int64_t)regs->e.simd[n + r].s32[i] + (int64_t)(is_sub?-regs->e.simd[m + r].s32[i]:regs->e.simd[m + r].s32[i])) >> 1;
+                        res[r].s32[i] = ((int64_t)regs->e.simd[n + r].s32[i] + (int64_t)SUB(is_sub, regs->e.simd[m + r].s32[i]) + is_round) >> 1;
                 }
             }
             break;
@@ -5785,10 +5785,14 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
 
     switch(a) {
         case 0:
-            b?dis_common_vqadd_vqsub_simd(regs, insn, u, 0):dis_common_vhadd_vhsub_simd(regs, insn, u);
+            b?dis_common_vqadd_vqsub_simd(regs, insn, u, 0):dis_common_vhadd_vhsub_vrhadd_simd(regs, insn, u, 0);
+            break;
+        case 1:
+            assert(b == 0);
+            dis_common_vhadd_vhsub_vrhadd_simd(regs, insn, u, 1);
             break;
         case 2:
-            b?dis_common_vqadd_vqsub_simd(regs, insn, u, 1):dis_common_vhadd_vhsub_simd(regs, insn, u);
+            b?dis_common_vqadd_vqsub_simd(regs, insn, u, 1):dis_common_vhadd_vhsub_vrhadd_simd(regs, insn, u, 0);
             break;
         case 3:
             b?dis_common_vcge_simd(regs, insn, u):dis_common_vcgt_simd(regs, insn, u);
