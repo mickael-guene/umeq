@@ -50,6 +50,8 @@
     return a;
 }*/
 
+#define SUB(is_sub, op)     ((is_sub)?-(op):(op))
+
 #define DECLARE_SSAT(size,max,min) \
 static inline int##size##_t ssat##size(struct arm_registers *regs, int64_t op) \
 { \
@@ -2775,7 +2777,7 @@ static void dis_common_vcvt_vcvtr_floating_integer_vfp(uint64_t _regs, uint32_t 
     }
 }
 
-static void dis_common_vqadd_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned)
+static void dis_common_vqadd_vqsub_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned, int is_sub)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
@@ -2792,9 +2794,9 @@ static void dis_common_vqadd_simd(uint64_t _regs, uint32_t insn, uint32_t is_uns
             for(r = 0; r < reg_nb; r++) {
                 for(i = 0; i < 8; i++) {
                     if (is_unsigned)
-                        res[r].u8[i] = usat8_u(regs, regs->e.simd[n + r].u8[i] + regs->e.simd[m + r].u8[i]);
+                        res[r].u8[i] = usat8(regs, regs->e.simd[n + r].u8[i] + SUB(is_sub, regs->e.simd[m + r].u8[i]));
                     else
-                        res[r].s8[i] = ssat8(regs, regs->e.simd[n + r].s8[i] + regs->e.simd[m + r].s8[i]);
+                        res[r].s8[i] = ssat8(regs, regs->e.simd[n + r].s8[i] + SUB(is_sub, regs->e.simd[m + r].s8[i]));
                 }
             }
             break;
@@ -2802,29 +2804,29 @@ static void dis_common_vqadd_simd(uint64_t _regs, uint32_t insn, uint32_t is_uns
             for(r = 0; r < reg_nb; r++) {
                 for(i = 0; i < 4; i++) {
                     if (is_unsigned)
-                        res[r].u16[i] = usat16_u(regs, regs->e.simd[n + r].u16[i] + regs->e.simd[m + r].u16[i]);
+                        res[r].u16[i] = usat16(regs, regs->e.simd[n + r].u16[i] + SUB(is_sub, regs->e.simd[m + r].u16[i]));
                     else
-                        res[r].s16[i] = ssat16(regs, regs->e.simd[n + r].s16[i] + regs->e.simd[m + r].s16[i]);
+                        res[r].s16[i] = ssat16(regs, regs->e.simd[n + r].s16[i] + SUB(is_sub, regs->e.simd[m + r].s16[i]));
                 }
             }
             break;
         case 2:
             for(r = 0; r < reg_nb; r++) {
-                for(i = 0; i < 4; i++) {
+                for(i = 0; i < 2; i++) {
                     if (is_unsigned)
-                        res[r].u32[i] = usat32_u(regs, (uint64_t)regs->e.simd[n + r].u32[i] + (uint64_t)regs->e.simd[m + r].u32[i]);
+                        res[r].u32[i] = usat32(regs, (uint64_t)regs->e.simd[n + r].u32[i] + SUB(is_sub, (uint64_t)regs->e.simd[m + r].u32[i]));
                     else
-                        res[r].s32[i] = ssat32(regs, (int64_t)regs->e.simd[n + r].s32[i] + (int64_t)regs->e.simd[m + r].s32[i]);
+                        res[r].s32[i] = ssat32(regs, (int64_t)regs->e.simd[n + r].s32[i] + SUB(is_sub, (int64_t)regs->e.simd[m + r].s32[i]));
                 }
             }
             break;
         case 3:
             for(r = 0; r < reg_nb; r++) {
-                for(i = 0; i < 2; i++) {
+                for(i = 0; i < 1; i++) {
                     if (is_unsigned)
-                        res[r].u64[i] = usat64_u(regs, (__uint128_t)regs->e.simd[n + r].u64[i] + (__uint128_t)regs->e.simd[m + r].u64[i]);
+                        res[r].u64[i] = usat64(regs, (__uint128_t)regs->e.simd[n + r].u64[i] + SUB(is_sub, (__uint128_t)regs->e.simd[m + r].u64[i]));
                     else
-                        res[r].s64[i] = ssat64(regs, (__int128_t)regs->e.simd[n + r].s64[i] + (__int128_t)regs->e.simd[m + r].s64[i]);
+                        res[r].s64[i] = ssat64(regs, (__int128_t)regs->e.simd[n + r].s64[i] + SUB(is_sub, (__int128_t)regs->e.simd[m + r].s64[i]));
                 }
             }
             break;
@@ -5742,10 +5744,10 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
 
     switch(a) {
         case 0:
-            b?dis_common_vqadd_simd(regs, insn, u):dis_common_vhadd_vhsub_simd(regs, insn, u);
+            b?dis_common_vqadd_vqsub_simd(regs, insn, u, 0):dis_common_vhadd_vhsub_simd(regs, insn, u);
             break;
         case 2:
-            b?assert(0):dis_common_vhadd_vhsub_simd(regs, insn, u);
+            b?dis_common_vqadd_vqsub_simd(regs, insn, u, 1):dis_common_vhadd_vhsub_simd(regs, insn, u);
             break;
         case 3:
             b?dis_common_vcge_simd(regs, insn, u):dis_common_vcgt_simd(regs, insn, u);
