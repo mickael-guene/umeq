@@ -4819,6 +4819,35 @@ static void dis_common_vqmovn_simd(uint64_t _regs, uint32_t insn)
     regs->e.simd[d] = res;
 }
 
+static void dis_common_vshll_maximum_shift_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(19, 18);
+    int i;
+    union simd_q_register res;
+
+    switch(size) {
+        case 0:
+            for(i = 0; i < 8; i++)
+                res.u16[i] = regs->e.simd[m].u8[i] << 8;
+            break;
+        case 1:
+            for(i = 0; i < 4; i++)
+                res.u32[i] = regs->e.simd[m].u16[i] << 16;
+            break;
+        case 2:
+            for(i = 0; i < 2; i++)
+                res.u64[i] = (uint64_t)regs->e.simd[m].u32[i] << 32;
+            break;
+        default:
+            fatal("size = %d\n", size);
+    }
+
+    regs->e.simq[d >> 1] = res;
+}
+
 static void dis_common_vcvt_floating_integer_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -5493,6 +5522,43 @@ static void dis_common_vqrshrn_vqshrn_simd(uint64_t _regs, uint32_t insn, int is
 
 
     regs->e.simd[d] = res;
+}
+
+static void dis_common_vshll_simd(uint64_t _regs, uint32_t insn, int is_unsigned)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int imm6 = INSN(21, 16);
+    int i;
+    int shift_value;
+    union simd_q_register res;
+
+    if (imm6 >> 5) {
+        shift_value = imm6 - 32;
+        for(i = 0; i < 2; i++)
+            if (is_unsigned)
+                res.u64[i] = (uint64_t)regs->e.simd[m].u32[i] << shift_value;
+            else
+                res.s64[i] = (int64_t)regs->e.simd[m].s32[i] << shift_value;
+    } else if (imm6 >> 4) {
+        shift_value = imm6 - 16;
+        for(i = 0; i < 4; i++)
+            if (is_unsigned)
+                res.u32[i] = regs->e.simd[m].u16[i] << shift_value;
+            else
+                res.s32[i] = regs->e.simd[m].s16[i] << shift_value;
+    } else if (imm6 >> 3) {
+        shift_value = imm6 - 8;
+        for(i = 0; i < 8; i++)
+            if (is_unsigned)
+                res.u16[i] = regs->e.simd[m].u8[i] << shift_value;
+            else
+                res.s16[i] = regs->e.simd[m].s8[i] << shift_value;
+    } else
+        assert(0);
+
+    regs->e.simq[d >> 1] = res;
 }
 
 static void dis_common_vmovl_simd(uint64_t _regs, uint32_t insn, int is_unsigned)
@@ -6223,6 +6289,9 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
             case 11:
                 dis_common_vqmovn_simd(regs, insn);
                 break;
+            case 12:
+                dis_common_vshll_maximum_shift_simd(regs, insn);
+                break;
             default:
                 fatal("a = %d b = 0x%x\n", a, b);
         }
@@ -6321,7 +6390,7 @@ void hlp_common_adv_simd_two_regs_and_shift(uint64_t regs, uint32_t insn, uint32
                 if (imm6 == 8 || imm6 == 16 || imm6 == 32)
                     dis_common_vmovl_simd(regs, insn, u);
                 else
-                    assert(0);//vshll
+                    dis_common_vshll_simd(regs, insn, u);
             }
             break;
         default:
