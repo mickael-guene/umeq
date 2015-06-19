@@ -5290,6 +5290,53 @@ static void dis_common_vrsra_simd(uint64_t _regs, uint32_t insn, int is_unsigned
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vsli_immediate_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int reg_nb = INSN(6, 6) + 1;
+    int imm6 = INSN(21, 16);
+    int imm = (INSN(7, 7) << 6) | imm6;
+    int i;
+    int r;
+    union simd_d_register res[2];
+    int shift_value;
+    uint64_t mask;
+
+    for(r = 0; r < reg_nb; r++)
+        res[r] = regs->e.simd[d + r];
+    if (imm >> 6) {
+        shift_value = imm6;
+        mask = ~0UL << shift_value;
+        for(r = 0; r < reg_nb; r++)
+            for(i = 0; i < 1; i++)
+                res[r].u64[i] = (res[r].u64[i] & ~mask) | (regs->e.simd[m + r].u64[i] << shift_value);
+    } else if (imm >> 5) {
+        shift_value = imm6 - 32;
+        mask = ~0UL << shift_value;
+        for(r = 0; r < reg_nb; r++)
+            for(i = 0; i < 2; i++)
+                res[r].u32[i] = (res[r].u32[i] & ~mask) | (regs->e.simd[m + r].u32[i] << shift_value);
+    } else if (imm >> 4) {
+        shift_value = imm6 - 16;
+        mask = ~0UL << shift_value;
+        for(r = 0; r < reg_nb; r++)
+            for(i = 0; i < 4; i++)
+                res[r].u16[i] = (res[r].u16[i] & ~mask) | (regs->e.simd[m + r].u16[i] << shift_value);
+    } else if (imm >> 3) {
+        shift_value = imm6 - 8;
+        mask = ~0UL << shift_value;
+        for(r = 0; r < reg_nb; r++)
+            for(i = 0; i < 8; i++)
+                res[r].u8[i] = (res[r].u8[i] & ~mask) | (regs->e.simd[m + r].u8[i] << shift_value);
+    } else
+        assert(0);
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vshl_immediate_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -6366,7 +6413,7 @@ void hlp_common_adv_simd_two_regs_and_shift(uint64_t regs, uint32_t insn, uint32
             dis_common_vrsra_simd(regs, insn, u);
             break;
         case 5:
-            u?assert(0):dis_common_vshl_immediate_simd(regs, insn);
+            u?dis_common_vsli_immediate_simd(regs, insn):dis_common_vshl_immediate_simd(regs, insn);
             break;
         case 6:
             dis_common_vqshlu_immediate_simd(regs, insn);
