@@ -4285,6 +4285,47 @@ static void dis_common_vqdmulh_vqrdmulh_scalar_simd(uint64_t _regs, uint32_t ins
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vrev_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(19, 18);
+    int reg_nb = INSN(6, 6) + 1;
+    int op = INSN(8, 7);
+    int groupsize = 1 << (3 - op - size);
+    int i;
+    int j;
+    int r;
+    union simd_d_register res[2];
+
+    switch(size) {
+        case 0:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 8; i+=groupsize)
+                    for(j = 0; j < groupsize; j++)
+                        res[r].u8[i + j] = regs->e.simd[m + r].u8[i + groupsize - 1 - j];
+            break;
+        case 1:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 4; i+=groupsize)
+                    for(j = 0; j < groupsize; j++)
+                        res[r].u16[i + j] = regs->e.simd[m + r].u16[i + groupsize - 1 - j];
+            break;
+        case 2:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 2; i+=groupsize)
+                    for(j = 0; j < groupsize; j++)
+                        res[r].u32[i + j] = regs->e.simd[m + r].u32[i + groupsize - 1 - j];
+            break;
+        default:
+            fatal("size = %d\n", size);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vpaddl_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -5869,6 +5910,9 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
 
     if (a == 0) {
         switch(b&0x1e) {
+            case 0: case 2: case 4:
+                dis_common_vrev_simd(regs, insn);
+                break;
             case 8 ... 11:
                 dis_common_vpaddl_simd(regs, insn);
                 break;
