@@ -826,6 +826,7 @@ static int dis_common_adv_simd_three_different_length_insn(struct arm_target *co
         case 1:
         case 4:
         case 5:
+        case 6:
         case 7:
         case 8:
         case 9:

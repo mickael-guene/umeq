@@ -3848,7 +3848,7 @@ static void dis_common_vaddl_vaddw_simd(uint64_t _regs, uint32_t insn, uint32_t 
         regs->e.simd[d + r] = res[r];
 }
 
-static void dis_common_vaddhn_vraddhn_simd(uint64_t _regs, uint32_t insn, int is_round)
+static void dis_common_vaddhn_vraddhn_vrsubhn_simd(uint64_t _regs, uint32_t insn, int is_round, int is_sub)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
@@ -3861,15 +3861,15 @@ static void dis_common_vaddhn_vraddhn_simd(uint64_t _regs, uint32_t insn, int is
     switch(size) {
         case 0:
             for(i = 0; i < 8; i++)
-                res.u8[i] = (regs->e.simq[n>>1].u16[i] + regs->e.simq[m>>1].u16[i] + (is_round?1<<7:0)) >> 8;
+                res.u8[i] = (regs->e.simq[n>>1].u16[i] + SUB(is_sub, regs->e.simq[m>>1].u16[i]) + (is_round?1<<7:0)) >> 8;
             break;
         case 1:
             for(i = 0; i < 4; i++)
-                res.u16[i] = (regs->e.simq[n>>1].u32[i] + regs->e.simq[m>>1].u32[i] + (is_round?1<<15:0)) >> 16;
+                res.u16[i] = (regs->e.simq[n>>1].u32[i] + SUB(is_sub, regs->e.simq[m>>1].u32[i]) + (is_round?1<<15:0)) >> 16;
             break;
         case 2:
             for(i = 0; i < 2; i++)
-                res.u32[i] = (regs->e.simq[n>>1].u64[i] + regs->e.simq[m>>1].u64[i] + (is_round?1UL<<31:0)) >> 32;
+                res.u32[i] = (regs->e.simq[n>>1].u64[i] + SUB(is_sub, regs->e.simq[m>>1].u64[i]) + (is_round?1UL<<31:0)) >> 32;
             break;
         default:
             assert(0);
@@ -6080,7 +6080,11 @@ void hlp_common_adv_simd_three_different_length(uint64_t regs, uint32_t insn, ui
             dis_common_vaddl_vaddw_simd(regs, insn, is_thumb);
             break;
         case 4:
-            dis_common_vaddhn_vraddhn_simd(regs, insn, u);
+            dis_common_vaddhn_vraddhn_vrsubhn_simd(regs, insn, u, 0);
+            break;
+        case 6:
+            assert(u == 1);
+            dis_common_vaddhn_vraddhn_vrsubhn_simd(regs, insn, u, 1);
             break;
         case 5:
         case 7:
