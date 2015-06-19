@@ -2969,7 +2969,7 @@ static void dis_common_vqshl_vqrshl_simd(uint64_t _regs, uint32_t insn, uint32_t
         regs->e.simd[d + r] = res[r];
 }
 
-static void dis_common_vrshl_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned)
+static void dis_common_vshl_vrshl_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned, int is_rounding)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
@@ -2987,9 +2987,9 @@ static void dis_common_vrshl_simd(uint64_t _regs, uint32_t insn, uint32_t is_uns
                 for(i = 0; i < 8; i++) {
                     int8_t shift = regs->e.simd[n + r].s8[i];
                     if (is_unsigned)
-                        res[r].u8[i] = ushl((__uint128_t) regs->e.simd[m + r].u8[i], shift, 1);
+                        res[r].u8[i] = ushl((__uint128_t) regs->e.simd[m + r].u8[i], shift, is_rounding);
                     else
-                        res[r].s8[i] = sshl((__int128_t) regs->e.simd[m + r].s8[i], shift, 1);
+                        res[r].s8[i] = sshl((__int128_t) regs->e.simd[m + r].s8[i], shift, is_rounding);
                 }
             }
             break;
@@ -2998,9 +2998,9 @@ static void dis_common_vrshl_simd(uint64_t _regs, uint32_t insn, uint32_t is_uns
                 for(i = 0; i < 4; i++) {
                     int8_t shift = regs->e.simd[n + r].s16[i];
                     if (is_unsigned)
-                        res[r].u16[i] = ushl((__uint128_t) regs->e.simd[m + r].u16[i], shift, 1);
+                        res[r].u16[i] = ushl((__uint128_t) regs->e.simd[m + r].u16[i], shift, is_rounding);
                     else
-                        res[r].s16[i] = sshl((__int128_t) regs->e.simd[m + r].s16[i], shift, 1);
+                        res[r].s16[i] = sshl((__int128_t) regs->e.simd[m + r].s16[i], shift, is_rounding);
                 }
             }
             break;
@@ -3009,9 +3009,9 @@ static void dis_common_vrshl_simd(uint64_t _regs, uint32_t insn, uint32_t is_uns
                 for(i = 0; i < 2; i++) {
                     int8_t shift = regs->e.simd[n + r].s32[i];
                     if (is_unsigned)
-                        res[r].u32[i] = ushl((__uint128_t) regs->e.simd[m + r].u32[i], shift, 1);
+                        res[r].u32[i] = ushl((__uint128_t) regs->e.simd[m + r].u32[i], shift, is_rounding);
                     else
-                        res[r].s32[i] = sshl((__int128_t) regs->e.simd[m + r].s32[i], shift, 1);
+                        res[r].s32[i] = sshl((__int128_t) regs->e.simd[m + r].s32[i], shift, is_rounding);
                 }
             }
             break;
@@ -3020,9 +3020,9 @@ static void dis_common_vrshl_simd(uint64_t _regs, uint32_t insn, uint32_t is_uns
                 for(i = 0; i < 1; i++) {
                     int8_t shift = regs->e.simd[n + r].s64[i];
                     if (is_unsigned)
-                        res[r].u64[i] = ushl((__uint128_t) regs->e.simd[m + r].u64[i], shift, 1);
+                        res[r].u64[i] = ushl((__uint128_t) regs->e.simd[m + r].u64[i], shift, is_rounding);
                     else
-                        res[r].s64[i] = sshl((__int128_t) regs->e.simd[m + r].s64[i], shift, 1);
+                        res[r].s64[i] = sshl((__int128_t) regs->e.simd[m + r].s64[i], shift, is_rounding);
                 }
             }
             break;
@@ -5260,6 +5260,46 @@ static void dis_common_vrsra_simd(uint64_t _regs, uint32_t insn, int is_unsigned
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vshl_immediate_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int reg_nb = INSN(6, 6) + 1;
+    int imm6 = INSN(21, 16);
+    int imm = (INSN(7, 7) << 6) | imm6;
+    int i;
+    int r;
+    union simd_d_register res[2];
+    int shift_value;
+
+    if (imm >> 6) {
+        shift_value = imm6;
+        for(r = 0; r < reg_nb; r++)
+            for(i = 0; i < 1; i++)
+                res[r].u64[i] = regs->e.simd[m + r].u64[i] << shift_value;
+    } else if (imm >> 5) {
+        shift_value = imm6 - 32;
+        for(r = 0; r < reg_nb; r++)
+            for(i = 0; i < 2; i++)
+                res[r].u32[i] = regs->e.simd[m + r].u32[i] << shift_value;
+    } else if (imm >> 4) {
+        shift_value = imm6 - 16;
+        for(r = 0; r < reg_nb; r++)
+            for(i = 0; i < 4; i++)
+                res[r].u16[i] = regs->e.simd[m + r].u16[i] << shift_value;
+    } else if (imm >> 3) {
+        shift_value = imm6 - 8;
+        for(r = 0; r < reg_nb; r++)
+            for(i = 0; i < 8; i++)
+                res[r].u8[i] = regs->e.simd[m + r].u8[i] << shift_value;
+    } else
+        assert(0);
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vqshlu_immediate_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -5998,10 +6038,10 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
             b?dis_common_vcge_simd(regs, insn, u):dis_common_vcgt_simd(regs, insn, u);
             break;
         case 4:
-            b?dis_common_vqshl_vqrshl_simd(regs, insn, u, 0):assert(0);
+            b?dis_common_vqshl_vqrshl_simd(regs, insn, u, 0):dis_common_vshl_vrshl_simd(regs, insn, u, 0);
             break;
         case 5:
-            b?dis_common_vqshl_vqrshl_simd(regs, insn, u, 1):dis_common_vrshl_simd(regs, insn, u);
+            b?dis_common_vqshl_vqrshl_simd(regs, insn, u, 1):dis_common_vshl_vrshl_simd(regs, insn, u, 1);
             break;
         case 6:
             dis_common_vmax_vmin_simd(regs, insn, u);
@@ -6252,6 +6292,9 @@ void hlp_common_adv_simd_two_regs_and_shift(uint64_t regs, uint32_t insn, uint32
             break;
         case 3:
             dis_common_vrsra_simd(regs, insn, u);
+            break;
+        case 5:
+            u?assert(0):dis_common_vshl_immediate_simd(regs, insn);
             break;
         case 6:
             dis_common_vqshlu_immediate_simd(regs, insn);
