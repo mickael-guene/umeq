@@ -437,6 +437,25 @@ static int dis_common_vmvn_register_simd_insn(struct arm_target *context, uint32
     return 0;
 }
 
+static int dis_common_vswap_simd_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int Q = INSN(6, 6);
+    int d = (INSN(22, 22) << 4) + INSN(15, 12);
+    int m = (INSN(5, 5) << 4) + INSN(3, 0);
+    struct irRegister *tmp;
+
+    tmp = read_reg_d(context, ir, d);
+    write_reg_d(context, ir, d, read_reg_d(context, ir, m));
+    write_reg_d(context, ir, m, tmp);
+    if (Q) {
+        tmp = read_reg_d(context, ir, d + 1);
+        write_reg_d(context, ir, d + 1, read_reg_d(context, ir, m + 1));
+        write_reg_d(context, ir, m + 1, tmp);
+    }
+
+    return 0;
+}
+
 static int dis_common_vmov_immediate_simd_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int Q = INSN(6, 6);
@@ -922,6 +941,8 @@ static int dis_common_adv_simd_two_regs_misc_insn(struct arm_target *context, ui
 
     if (a == 0 && (b&0x1e) == 0x16)
         return dis_common_vmvn_register_simd_insn(context, insn, ir);
+    else if (a == 2 && (b&0x1e) == 0x00)
+        return dis_common_vswap_simd_insn(context, insn, ir);
     else
         return dis_common_adv_simd_two_regs_misc_hlp(context, insn, ir);
 }
