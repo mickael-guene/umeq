@@ -3218,6 +3218,42 @@ static void dis_common_vaba_vabd_simd(uint64_t _regs, uint32_t insn, uint32_t is
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_tst_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(21, 20);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    switch(size) {
+        case 0:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 8; i++)
+                    res[r].u8[i] = (regs->e.simd[n + r].u8[i] & regs->e.simd[m + r].u8[i])?~0:0;
+            break;
+        case 1:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 4; i++)
+                    res[r].u16[i] = (regs->e.simd[n + r].u16[i] & regs->e.simd[m + r].u16[i])?~0:0;
+            break;
+        case 2:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 2; i++)
+                    res[r].u32[i] = (regs->e.simd[n + r].u32[i] & regs->e.simd[m + r].u32[i])?~0:0;
+            break;
+        default:
+            assert(0);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 /* This macro will define 4 functions use to implement vcxx opcodes
 */
 #define VCXX_SIMD(name, op) \
@@ -6274,7 +6310,7 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
             break;
         case 8:
             if (b)
-                u?dis_common_vceq_simd(regs, insn, u):assert(0);//vtst
+                u?dis_common_vceq_simd(regs, insn, u):dis_common_tst_simd(regs, insn);
             else
                 dis_common_vadd_vsub_simd(regs, insn, u);
             break;
