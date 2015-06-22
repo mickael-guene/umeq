@@ -4723,6 +4723,44 @@ static void dis_common_vneg_simd(uint64_t _regs, uint32_t insn)
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vtrn_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(19, 18);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    for(r = 0; r < reg_nb; r++)
+        res[r] = regs->e.simd[d + r];
+
+    switch(size) {
+        case 0:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 8; i+=2)
+                    res[r].u8[i + 1] = regs->e.simd[m + r].u8[i];
+            break;
+        case 1:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 4; i+=2)
+                    res[r].u16[i + 1] = regs->e.simd[m + r].u16[i];
+            break;
+        case 2:
+            for(r = 0; r < reg_nb; r++)
+                for(i = 0; i < 2; i+=2)
+                    res[r].u32[i + 1] = regs->e.simd[m + r].u32[i];
+            break;
+        default:
+            fatal("size = %d\n", size);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vmovn_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -6393,6 +6431,9 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
         }
     } else if (a == 2) {
         switch(b) {
+            case 2: case 3:
+                dis_common_vtrn_simd(regs, insn);
+                break;
             case 8:
                 dis_common_vmovn_simd(regs, insn);
                 break;
