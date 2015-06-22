@@ -934,6 +934,22 @@ static int dis_common_adv_simd_vdup_scalar_insn(struct arm_target *context, uint
     return 0;
 }
 
+static int dis_common_adv_simd_vtbl_vtbx_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "hlp_common_adv_simd_vtbl_vtbx",
+                        ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_vtbl_vtbx),
+                        params);
+
+    return 0;
+}
+
 static int dis_common_adv_simd_two_regs_misc_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int a = INSN(17, 16);
@@ -1019,7 +1035,7 @@ static int dis_common_adv_simd_data_preocessing_insn(struct arm_target *context,
             if (b == 0xc) {
                 isExit = dis_common_adv_simd_vdup_scalar_insn(context, insn, ir);
             } else if ((b & 0xc) == 0x8) {
-                //vtbl, vtbx
+                isExit = dis_common_adv_simd_vtbl_vtbx_insn(context, insn, ir);
             } else if ((b & 0x8) == 0) {
                 isExit = dis_common_adv_simd_two_regs_misc_insn(context, insn, ir);
             } else

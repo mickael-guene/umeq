@@ -5770,6 +5770,28 @@ static void dis_common_vdup_scalar(uint64_t _regs, uint32_t insn)
         regs->e.simd[d + r] = res[r];
 }
 
+void dis_common_vtbl_vtbx_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int length = INSN(9, 8) + 1;
+    int is_vtbx = INSN(6, 6);
+    int i;
+    union simd_d_register res = regs->e.simd[d];
+
+    for(i = 0; i < 8; i++) {
+        int index = regs->e.simd[m].u8[i];
+
+        if (index < 8 * length)
+            res.u8[i] = regs->e.simd[n + index / 8].u8[index % 8];
+        else if (!is_vtbx)
+            res.u8[i] = 0;
+    }
+
+    regs->e.simd[d] = res;
+}
 
 void arm_hlp_dirty_saturating(uint64_t regs, uint32_t insn)
 {
@@ -6494,4 +6516,9 @@ void hlp_common_adv_simd_two_regs_and_shift(uint64_t regs, uint32_t insn, uint32
         default:
             fatal("a = %d\n", a);
     }
+}
+
+void hlp_common_adv_simd_vtbl_vtbx(uint64_t regs, uint32_t insn)
+{
+    dis_common_vtbl_vtbx_simd(regs, insn);
 }
