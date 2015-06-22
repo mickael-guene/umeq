@@ -3852,7 +3852,7 @@ static void dis_common_vaddl_vaddw_simd(uint64_t _regs, uint32_t insn, uint32_t 
         regs->e.simd[d + r] = res[r];
 }
 
-static void dis_common_vaddhn_vraddhn_vrsubhn_simd(uint64_t _regs, uint32_t insn, int is_round, int is_sub)
+static void dis_common_vaddhn_vraddhn_vsubhn_vrsubhn_simd(uint64_t _regs, uint32_t insn, int is_round, int is_sub)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
@@ -6280,11 +6280,10 @@ void hlp_common_adv_simd_three_different_length(uint64_t regs, uint32_t insn, ui
             dis_common_vaddl_vaddw_simd(regs, insn, is_thumb);
             break;
         case 4:
-            dis_common_vaddhn_vraddhn_vrsubhn_simd(regs, insn, u, 0);
+            dis_common_vaddhn_vraddhn_vsubhn_vrsubhn_simd(regs, insn, u, 0);
             break;
         case 6:
-            assert(u == 1);
-            dis_common_vaddhn_vraddhn_vrsubhn_simd(regs, insn, u, 1);
+            dis_common_vaddhn_vraddhn_vsubhn_vrsubhn_simd(regs, insn, u, 1);
             break;
         case 5:
         case 7:
