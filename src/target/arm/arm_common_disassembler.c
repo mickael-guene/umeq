@@ -818,30 +818,7 @@ static int dis_common_vfp_data_processing_insn(struct arm_target *context, uint3
 
 static int dis_common_adv_simd_three_different_length_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    int a = INSN(11, 8);
-    int isExit = 0;
-
-    switch(a) {
-        case 0:
-        case 1:
-        case 4:
-        case 5:
-        case 6:
-        case 7:
-        case 8:
-        case 9:
-        case 10:
-        case 11:
-        case 12:
-        case 13:
-        case 14:
-            isExit = dis_common_adv_simd_three_different_length_hlp(context, insn, ir);
-            break;
-        default:
-            fatal("a = %d(0x%x)\n", a, a);
-    }
-
-    return isExit;
+    return dis_common_adv_simd_three_different_length_hlp(context, insn, ir);
 }
 
 static int dis_common_adv_simd_two_regs_and_scalar_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
