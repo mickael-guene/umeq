@@ -4873,6 +4873,70 @@ static void dis_common_vuzp_simd(uint64_t _regs, uint32_t insn)
     }
 }
 
+static void dis_common_vzip_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(19, 18);
+    int q = INSN(6, 6);
+    int i;
+    union simd_d_register resd[2];
+    union simd_q_register resq[2];
+
+    switch(size) {
+        case 0:
+            if (q) {
+                for(i = 0; i < 16; i++) {
+                    resq[0].u8[i] = (i%2)?regs->e.simq[m >> 1].u8[i >> 1]:regs->e.simq[d >> 1].u8[i >> 1];
+                    resq[1].u8[i] = (i%2)?regs->e.simq[m >> 1].u8[(i >> 1) + 8]:regs->e.simq[d >> 1].u8[(i >> 1) + 8];
+                }
+            } else {
+                for(i = 0; i < 8; i++) {
+                    resd[0].u8[i] = (i%2)?regs->e.simd[m].u8[i >> 1]:regs->e.simd[d].u8[i >> 1];
+                    resd[1].u8[i] = (i%2)?regs->e.simd[m].u8[(i >> 1) + 4]:regs->e.simd[d].u8[(i >> 1) + 4];
+                }
+            }
+            break;
+        case 1:
+            if (q) {
+                for(i = 0; i < 8; i++) {
+                    resq[0].u16[i] = (i%2)?regs->e.simq[m >> 1].u16[i >> 1]:regs->e.simq[d >> 1].u16[i >> 1];
+                    resq[1].u16[i] = (i%2)?regs->e.simq[m >> 1].u16[(i >> 1) + 4]:regs->e.simq[d >> 1].u16[(i >> 1) + 4];
+                }
+            } else {
+                for(i = 0; i < 4; i++) {
+                    resd[0].u16[i] = (i%2)?regs->e.simd[m].u16[i >> 1]:regs->e.simd[d].u16[i >> 1];
+                    resd[1].u16[i] = (i%2)?regs->e.simd[m].u16[(i >> 1) + 2]:regs->e.simd[d].u16[(i >> 1) + 2];
+                }
+            }
+            break;
+        case 2:
+            if (q) {
+                for(i = 0; i < 4; i++) {
+                    resq[0].u32[i] = (i%2)?regs->e.simq[m >> 1].u32[i >> 1]:regs->e.simq[d >> 1].u32[i >> 1];
+                    resq[1].u32[i] = (i%2)?regs->e.simq[m >> 1].u32[(i >> 1) + 2]:regs->e.simq[d >> 1].u32[(i >> 1) + 2];
+                }
+            } else {
+                for(i = 0; i < 2; i++) {
+                    resd[0].u32[i] = (i%2)?regs->e.simd[m].u32[i >> 1]:regs->e.simd[d].u32[i >> 1];
+                    resd[1].u32[i] = (i%2)?regs->e.simd[m].u32[(i >> 1) + 1]:regs->e.simd[d].u32[(i >> 1) + 1];
+                }
+            }
+            break;
+        default:
+            fatal("size = %d\n", size);
+    }
+
+    if (q) {
+        regs->e.simq[d >> 1] = resq[0];
+        regs->e.simq[m >> 1] = resq[1];
+    } else {
+        regs->e.simd[d] = resd[0];
+        regs->e.simd[m] = resd[1];
+    }
+}
+
 static void dis_common_vmovn_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -6548,6 +6612,9 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
                 break;
             case 4: case 5:
                 dis_common_vuzp_simd(regs, insn);
+                break;
+            case 6: case 7:
+                dis_common_vzip_simd(regs, insn);
                 break;
             case 8:
                 dis_common_vmovn_simd(regs, insn);
