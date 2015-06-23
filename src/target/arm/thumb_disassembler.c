@@ -4214,8 +4214,7 @@ static int disassemble_thumb2_insn(struct arm_target *context, uint32_t insn, st
             } else if ((op2 & 0x71) == 0x00) {
                 isExit = dis_t2_str_single_data(context, insn, ir);
             } else if ((op2 & 0x71) == 0x10) {
-                //dis_t2_adv_simd_O_ldr_str_structure
-                assert(0);
+                dis_common_adv_simd_element_or_structure_load_store_insn(context, insn, ir);
             } else
                 assert(0);
             break;

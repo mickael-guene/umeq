@@ -1064,3 +1064,19 @@ static int dis_common_adv_simd_data_preocessing_insn(struct arm_target *context,
 
     return isExit;
 }
+
+static int dis_common_adv_simd_element_or_structure_load_store_insn(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    struct irRegister *params[4];
+
+    params[0] = mk_32(ir, insn);
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "hlp_common_adv_simd_element_or_structure_load_store",
+                        ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_element_or_structure_load_store),
+                        params);
+
+    return 0;
+}

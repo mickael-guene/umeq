@@ -2600,6 +2600,8 @@ static int dis_misc_A_memory_hints_A_adv_simd_insn(struct arm_target *context, u
         isExit = dis_common_adv_simd_data_preocessing_insn(context, insn, ir);
     } else if ((op1 & 0x77) == 0x55) {
         //pld. nothing to do
+    } else if ((op1 & 0x71) == 0x40) {
+        isExit = dis_common_adv_simd_element_or_structure_load_store_insn(context, insn, ir);
     } else
         fatal("op1 = %d(0x%x)\n", op1, op1);
 
