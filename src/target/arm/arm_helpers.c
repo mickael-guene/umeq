@@ -6329,6 +6329,236 @@ static void dis_common_vld4_multiple(uint64_t _regs, uint32_t insn)
     dis_common_vldx_multiple(_regs, insn, 1, 4, inc);
 }
 
+static void dis_common_vstx_single_one_lane(uint64_t _regs, uint32_t insn, int nb)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    int size = INSN(11, 10);
+    int index_align = INSN(7, 4);
+    int index;
+    int inc;
+    uint32_t address = regs->r[rn];
+    uint32_t next_address_if_wb;
+    int i;
+
+    /* do the load */
+    switch(size) {
+        case 0:
+            {
+                uint8_t *buf = (uint8_t *) g_2_h(address);
+
+                inc = 1;
+                index = index_align >> 1;
+                for(i = 0; i < nb; i++)
+                    *buf++ = regs->e.simd[d + i * inc].u8[index];
+                next_address_if_wb = h_2_g(buf);
+            }
+            break;
+        case 1:
+            {
+                uint16_t *buf = (uint16_t *) g_2_h(address);
+
+                inc = (index_align&2)?2:1;
+                index = index_align >> 2;
+                for(i = 0; i < nb; i++)
+                    *buf++ = regs->e.simd[d + i * inc].u16[index];
+                next_address_if_wb = h_2_g(buf);
+            }
+            break;
+        case 2:
+            {
+                uint32_t *buf = (uint32_t *) g_2_h(address);
+
+                inc = (index_align&4)?2:1;
+                index = index_align >> 3;
+                for(i = 0; i < nb; i++)
+                    *buf++ = regs->e.simd[d + i * inc].u32[index];
+                next_address_if_wb = h_2_g(buf);
+            }
+            break;
+        default:
+            fatal("size = %d\n", size);
+    }
+
+    /* write back */
+    if (rm != 15) {
+        if (rm == 13)
+            address = next_address_if_wb;
+        else
+            address += regs->r[rm];
+        regs->r[rn] = address;
+    }
+}
+
+static void dis_common_vst1_single_one_lane(uint64_t _regs, uint32_t insn)
+{
+    dis_common_vstx_single_one_lane(_regs, insn, 1);
+}
+
+static void dis_common_vst2_single_one_lane(uint64_t _regs, uint32_t insn)
+{
+    dis_common_vstx_single_one_lane(_regs, insn, 2);
+}
+
+static void dis_common_vst3_single_one_lane(uint64_t _regs, uint32_t insn)
+{
+    dis_common_vstx_single_one_lane(_regs, insn, 3);
+}
+
+static void dis_common_vst4_single_one_lane(uint64_t _regs, uint32_t insn)
+{
+    dis_common_vstx_single_one_lane(_regs, insn, 4);
+}
+
+static void dis_common_vstx_multiple(uint64_t _regs, uint32_t insn, int outer_nb, int inner_nb, int inc)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int rn = INSN(19, 16);
+    int rm = INSN(3, 0);
+    int size = INSN(7, 6);
+    int outer_r;
+    int inner_r;
+    int i;
+    uint32_t address =regs->r[rn];
+    uint32_t next_address_if_wb;
+
+    /* store elems */
+    switch(size) {
+        case 0:
+            {
+                uint8_t *buf = (uint8_t *) g_2_h(address);
+
+                for(outer_r = 0; outer_r < outer_nb; outer_r++)
+                    for(i = 0; i < 8; i++)
+                        for(inner_r = 0; inner_r < inner_nb; inner_r++)
+                            *buf++ = regs->e.simd[d + outer_r + inner_r * inc].u8[i];
+                next_address_if_wb = h_2_g(buf);
+            }
+            break;
+        case 1:
+            {
+                uint16_t *buf = (uint16_t *) g_2_h(address);
+
+                for(outer_r = 0; outer_r < outer_nb; outer_r++)
+                    for(i = 0; i < 4; i++)
+                        for(inner_r = 0; inner_r < inner_nb; inner_r++)
+                            *buf++ = regs->e.simd[d + outer_r + inner_r * inc].u16[i];
+                next_address_if_wb = h_2_g(buf);
+            }
+            break;
+        case 2:
+            {
+                uint32_t *buf = (uint32_t *) g_2_h(address);
+
+                for(outer_r = 0; outer_r < outer_nb; outer_r++)
+                    for(i = 0; i < 2; i++)
+                        for(inner_r = 0; inner_r < inner_nb; inner_r++)
+                            *buf++ = regs->e.simd[d + outer_r + inner_r * inc].u32[i];
+                next_address_if_wb = h_2_g(buf);
+            }
+            break;
+        case 3:
+            {
+                uint64_t *buf = (uint64_t *) g_2_h(address);
+
+                for(outer_r = 0; outer_r < outer_nb; outer_r++)
+                    for(i = 0; i < 1; i++)
+                        for(inner_r = 0; inner_r < inner_nb; inner_r++)
+                            *buf++ = regs->e.simd[d + outer_r + inner_r * inc].u64[i];
+                next_address_if_wb = h_2_g(buf);
+            }
+            break;
+        default:
+            fatal("size = %d\n", size);
+    }
+
+    /* write back */
+    if (rm != 15) {
+        if (rm == 13)
+            address = next_address_if_wb;
+        else
+            address += regs->r[rm];
+        regs->r[rn] = address;
+    }
+}
+
+static void dis_common_vst1_multiple(uint64_t _regs, uint32_t insn)
+{
+    int type = INSN(11, 8);
+    int regs_nb;
+
+    /* compute reg nb */
+    if (type == 7)
+        regs_nb = 1;
+    else if (type == 10)
+        regs_nb = 2;
+    else if (type == 6)
+        regs_nb = 3;
+    else if (type == 2)
+        regs_nb = 4;
+    else
+        assert(0);
+
+    dis_common_vstx_multiple(_regs, insn, regs_nb, 1, 1);
+}
+
+static void dis_common_vst2_multiple(uint64_t _regs, uint32_t insn)
+{
+    int type = INSN(11, 8);
+    int regs_nb;
+    int inc;
+
+    /* compute reg nb and inc */
+    if (type == 8) {
+        regs_nb = 1;
+        inc = 1;
+    } else if (type == 9) {
+        regs_nb = 1;
+        inc = 2;
+    } else if (type == 3) {
+        regs_nb = 2;
+        inc = 2;
+    } else
+        assert(0);
+
+    dis_common_vstx_multiple(_regs, insn, regs_nb, 2, inc);
+}
+
+static void dis_common_vst3_multiple(uint64_t _regs, uint32_t insn)
+{
+    int type = INSN(11, 8);
+    int inc;
+
+    /* compute reg nb and inc */
+    if (type == 4) {
+        inc = 1;
+    } else if (type == 5) {
+        inc = 2;
+    } else
+        assert(0);
+
+    dis_common_vstx_multiple(_regs, insn, 1, 3, inc);
+}
+
+static void dis_common_vst4_multiple(uint64_t _regs, uint32_t insn)
+{
+    int type = INSN(11, 8);
+    int inc;
+
+    /* compute reg nb and inc */
+    if (type == 0) {
+        inc = 1;
+    } else if (type == 1) {
+        inc = 2;
+    } else
+        assert(0);
+
+    dis_common_vstx_multiple(_regs, insn, 1, 4, inc);
+}
+
 void arm_hlp_dirty_saturating(uint64_t regs, uint32_t insn)
 {
     int op = INSN(22, 21);
@@ -7108,9 +7338,27 @@ void hlp_common_adv_simd_element_or_structure_load_store(uint64_t regs, uint32_t
         }
     } else {
         if (a) {
-            assert(0);
+            if (b == 0 || b == 4 || b == 8)
+                dis_common_vst1_single_one_lane(regs, insn);
+            else if (b == 1 || b == 5 || b == 9)
+                dis_common_vst2_single_one_lane(regs, insn);
+            else if (b == 2 || b == 6 || b == 10)
+                dis_common_vst3_single_one_lane(regs, insn);
+            else if (b == 3 || b == 7 || b == 11)
+                dis_common_vst4_single_one_lane(regs, insn);
+            else
+                assert(0);
         } else {
-            assert(0);
+            if (b == 2 || b == 6 || b == 7 || b == 10)
+                dis_common_vst1_multiple(regs, insn);
+            else if (b == 3 || b == 8 || b == 9)
+                dis_common_vst2_multiple(regs, insn);
+            else if (b == 4 || b == 5)
+                dis_common_vst3_multiple(regs, insn);
+            else if (b == 0 || b == 1)
+                dis_common_vst4_multiple(regs, insn);
+            else
+                assert(0);
         }
     }
 }
