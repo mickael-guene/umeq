@@ -3127,6 +3127,33 @@ static void dis_common_vmax_vmin_simd(uint64_t _regs, uint32_t insn, uint32_t is
         regs->e.simd[d + r] = res[r];
 }
 
+static void dis_common_vrecps_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    /* FIXME: certainly not correct on corner cases */
+    for(r = 0; r < reg_nb; r++) {
+        for(i = 0; i < 2; i++) {
+            if (isnan(regs->e.simd[n + r].sf[i]))
+                res[r].u32[i] = (regs->e.simd[n + r].u32[i]^0x80000000) | (1 << 22);
+            else if (isnan(regs->e.simd[m + r].sf[i]))
+                res[r].u32[i] = regs->e.simd[m + r].u32[i] | (1 << 22);
+            else
+                res[r].sf[i] = 2.0 - regs->e.simd[n + r].sf[i] * regs->e.simd[m + r].sf[i];
+        }
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vrsqrts_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -7216,7 +7243,7 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
             break;
         case 15:
             if (b) {
-                (c&2)?dis_common_vrsqrts_simd(regs, insn):assert(0);
+                (c&2)?dis_common_vrsqrts_simd(regs, insn):dis_common_vrecps_simd(regs, insn);
             } else {
                 u?dis_common_vpmax_vpmin_fpu_simd(regs, insn):dis_common_vmax_vmin_fpu_simd(regs, insn);
             }
