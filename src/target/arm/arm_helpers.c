@@ -3808,6 +3808,33 @@ static void dis_common_vmla_vmls_f32_simd(uint64_t _regs, uint32_t insn)
 #endif
 }
 
+static void dis_common_vabd_fpu_simd(uint64_t _regs, uint32_t insn)
+{
+    /* FIXME: fpu operation not always correct */
+#if 1
+    assert(0);
+#else
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int reg_nb = INSN(6, 6) + 1;
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    for(r = 0; r < reg_nb; r++) {
+        for(i = 0; i < 2; i++) {
+            res[r].sf[i] = regs->e.simd[n + r].sf[i] - regs->e.simd[m + r].sf[i];
+            res[r].s32[i] = res[r].s32[i]&0x80000000?res[r].s32[i]^0x80000000:res[r].s32[i];
+        }
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+#endif
+}
+
 static void dis_common_vpadd_fpu_simd(uint64_t _regs, uint32_t insn)
 {
     /* FIXME: fpu operation not always correct */
@@ -7117,10 +7144,7 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
                 u?dis_common_vmul_f32_simd(regs, insn):dis_common_vmla_vmls_f32_simd(regs, insn);
             else {
                 if (u) {
-                    if (c&2)
-                        assert(0);//vabd fpu
-                    else
-                        dis_common_vpadd_fpu_simd(regs, insn);
+                    (c&2)?dis_common_vabd_fpu_simd(regs, insn):dis_common_vpadd_fpu_simd(regs, insn);
                 } else {
                     dis_common_vadd_vsub_fpu_simd(regs, insn, c&2);
                 }
@@ -7138,10 +7162,7 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
             break;
         case 15:
             if (b) {
-                if (c&2)
-                    dis_common_vrsqrts_simd(regs, insn);
-                else
-                    assert(0);
+                (c&2)?dis_common_vrsqrts_simd(regs, insn):assert(0);
             } else {
                 u?dis_common_vpmax_vpmin_fpu_simd(regs, insn):dis_common_vmax_vmin_fpu_simd(regs, insn);
             }
