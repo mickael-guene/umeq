@@ -35,6 +35,8 @@
 #include "arm_private.h"
 #include "arm_helpers.h"
 #include "runtime.h"
+#include "softfloat.h"
+#include "arm_helpers_stolen_from_qemu.h"
 
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
 #define INSN1(msb, lsb) INSN(msb+16, lsb+16)
@@ -341,6 +343,23 @@ static double usat32_d(double a)
     else if (a < 0)
         return 0;
     return a;
+}
+
+static double recip_sqrt_estimate(double a)
+{
+    int q0, q1, s;
+    double r;
+
+    if (a < 0.5) {
+        q0 = (int)(a * 512.0);
+        r = 1.0 / sqrt(((double)q0 + 0.5) / 512.0);
+    } else {
+        q1 = (int)(a * 256.0);
+        r = 1.0 / sqrt(((double)q1 + 0.5) / 256.0);
+    }
+    s = (int)(256.0 * r + 0.5);
+
+    return (double)s / 256.0;
 }
 
 static int tkill(int pid, int sig)
@@ -5066,6 +5085,51 @@ static void dis_common_vshll_maximum_shift_simd(uint64_t _regs, uint32_t insn)
     regs->e.simq[d >> 1] = res;
 }
 
+static void dis_common_vrsqrte_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int size = INSN(19, 18);
+    int reg_nb = INSN(6, 6) + 1;
+    int f = INSN(8, 8);
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    assert(size == 2);
+
+    for(r = 0; r < reg_nb; r++) {
+        for(i = 0; i < 2; i++) {
+            if (f) {
+                float_status dummy = {0};
+                res[r].u32[i] = float32_val(HELPER(rsqrte_f32)(make_float32(regs->e.simd[m + r].u32[i]), &dummy));
+            } else {
+                uint32_t op = regs->e.simd[m + r].u32[i];
+
+                if ((op >> 30) == 0) {
+                    res[r].u32[i] = 0xffffffff;
+                } else {
+                    union {
+                        uint64_t i;
+                        double d;
+                    } dp_operand, estimate;
+
+                    if (op >> 31)
+                        dp_operand.i = (0x3feULL << 52) | ((uint64_t)(op & 0x7fffffff) << 21);
+                    else
+                        dp_operand.i = (0x3fdULL << 52) | ((uint64_t)(op & 0x3fffffff) << 22);
+                    estimate.d = recip_sqrt_estimate(dp_operand.d);
+                    res[r].u32[i] = 0x80000000 | ((estimate.i >> 21) & 0x7fffffff);
+                }
+            }
+        }
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
 static void dis_common_vcvt_floating_integer_simd(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -7186,6 +7250,9 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
         }
     } else if (a == 3) {
         switch(b&0x1a) {
+            case 18:
+                dis_common_vrsqrte_simd(regs, insn);
+                break;
             case 24: case 26:
                 dis_common_vcvt_floating_integer_simd(regs, insn);
                 break;
