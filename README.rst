@@ -42,8 +42,8 @@ Guest support
 ^^^^^^^^^^^^^
 For the moment umeq support following guest architecture:
 
-- arm64 support is in release state
-- armv7 support is in alpha state. Floating support is not correct.
+- arm64 support is in release state.
+- armv7 support is in alpha state. Simd floating support is not fully correct.
 
 Proot compatibility
 ^^^^^^^^^^^^^^^^^^^

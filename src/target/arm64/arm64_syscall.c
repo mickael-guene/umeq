@@ -39,7 +39,7 @@ void arm64_hlp_syscall(uint64_t regs)
     uint32_t no;
     Sysnum no_neutral;
     Syshow how;
-    long res = ENOSYS;
+    long res = -ENOSYS;
 
     /* syscall entry sequence */
     ptrace_syscall_enter(context);

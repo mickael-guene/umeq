@@ -39,7 +39,7 @@
 
 int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5)
 {
-    int res = ENOSYS;
+    int res = -ENOSYS;
 
     switch(no) {
         case PR_access:

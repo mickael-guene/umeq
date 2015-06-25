@@ -41,7 +41,7 @@ void arm_hlp_syscall(uint64_t regs)
     uint32_t no = context->regs.r[7];
     Sysnum no_neutral;
     Syshow how;
-    int res = ENOSYS;
+    int res = -ENOSYS;
 
     /* syscall entry sequence */
     context->regs.is_in_syscall = 1;

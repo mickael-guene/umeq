@@ -36,7 +36,7 @@
 
 long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, uint64_t p5)
 {
-    long res = ENOSYS;
+    long res = -ENOSYS;
 
     switch(no) {
         case PR_write:
