@@ -259,7 +259,16 @@ static const Sysnum sysnums_arm64[] = {
 	[ 270 ] = PR_process_vm_readv,
 	[ 271 ] = PR_process_vm_writev,
 	[ 272 ] = PR_kcmp,
-	[ 273 ] = PR_syscalls,
+	[ 273 ] = PR_finit_module,
+	[ 274 ] = PR_sched_setattr,
+	[ 275 ] = PR_sched_getattr,
+	[ 276 ] = PR_renameat2,
+	[ 277 ] = PR_seccomp,
+	[ 278 ] = PR_getrandom,
+	[ 279 ] = PR_memfd_create,
+	[ 280 ] = PR_bpf,
+	[ 281 ] = PR_execveat,
+	[ 282 ] = PR_syscalls,
 };
 
 static const int sysnums_arm64_nb = sizeof(sysnums_arm64) / sizeof(sysnums_arm64[0]);
