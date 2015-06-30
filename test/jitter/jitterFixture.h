@@ -39,15 +39,17 @@ class jitterFixture : public ::testing::Test {
     }
 
     virtual uint64_t jitAndExcecute() {
+        struct backend_execute_result result;
         uint64_t res = ~0;
         char jitBuffer[4096];
 
+        result.result = ~0UL;
         ir->add_exit(ir, ir->add_mov_const_64(ir, 0));
         //displayIr(handle);
         if (jitCode(handle, jitBuffer, sizeof(jitBuffer)) > 0)
-            res = backend->execute(backend, jitBuffer, (uint64_t) contextBuffer);
+            result = backend->execute(backend, jitBuffer, (uint64_t) contextBuffer);
 
-        return res;
+        return result.result;
     }
 
     virtual void TearDown() {

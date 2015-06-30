@@ -27,8 +27,8 @@ extern "C" {
 #ifndef __BE_X86_64_PRIVATE__
 #define __BE_X86_64_PRIVATE__ 1
 
-uint64_t execute_be_x86_64(struct backend *backend, char *buffer, uint64_t context);
-uint64_t restore_be_x86_64(struct backend *backend, uint64_t result);
+struct backend_execute_result execute_be_x86_64(struct backend *backend, char *buffer, uint64_t context);
+struct backend_execute_result restore_be_x86_64(struct backend *backend, uint64_t result);
 
 #endif
 

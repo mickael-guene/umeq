@@ -36,10 +36,11 @@ TEST(Cache, lookupFailed) {
     char memory[MIN_CACHE_SIZE];
     struct cache *cache;
     void *cache_hit;
+    int is_cache_was_cleaned;
 
     cache = createCache(memory, MIN_CACHE_SIZE, 0);
     
-    cache_hit = cache->lookup(cache, 0x8000);
+    cache_hit = cache->lookup(cache, 0x8000, &is_cache_was_cleaned);
     EXPECT_TRUE(cache_hit == NULL);
 
     removeCache(cache);
@@ -51,14 +52,15 @@ TEST(Cache, lookupSuccess) {
     struct cache *cache;
     char *cache_hit;
     int i;
+    int is_cache_was_cleaned;
 
     for(i = 0; i < sizeof(data); i++) {
         data[i] = i;
     }
     cache = createCache(memory, MIN_CACHE_SIZE, 0);
     
-    cache->append(cache, 0x8000, data, sizeof(data));
-    cache_hit = (char *) cache->lookup(cache, 0x8000);
+    cache->append(cache, 0x8000, data, sizeof(data), &is_cache_was_cleaned);
+    cache_hit = (char *) cache->lookup(cache, 0x8000, &is_cache_was_cleaned);
     EXPECT_TRUE(cache_hit != NULL);
     for(i = 0; i < sizeof(data); i++) {
         EXPECT_EQ(cache_hit[i], data[i]);
@@ -74,6 +76,7 @@ TEST(Cache, multipleCache) {
     char *cache_hit;
     char data[16];
     int i;
+    int is_cache_was_cleaned;
 
     for(i = 0; i < sizeof(data); i++) {
         data[i] = i;
@@ -81,20 +84,20 @@ TEST(Cache, multipleCache) {
     for(i = 0; i < 2; i++) {
         cache[i] = createCache(memory[i], MIN_CACHE_SIZE, 0);
     }
-    cache[0]->append(cache[0], 0x8000, data, sizeof(data));
-    cache[1]->append(cache[1], 0x18000, data, sizeof(data));
+    cache[0]->append(cache[0], 0x8000, data, sizeof(data), &is_cache_was_cleaned);
+    cache[1]->append(cache[1], 0x18000, data, sizeof(data), &is_cache_was_cleaned);
     /* be sure to have hit for cache[0] and miss for cache[1] for 0x8000 */
-    cache_hit = (char *) cache[0]->lookup(cache[0], 0x8000);
+    cache_hit = (char *) cache[0]->lookup(cache[0], 0x8000, &is_cache_was_cleaned);
     EXPECT_TRUE(cache_hit != NULL);
     for(i = 0; i < sizeof(data); i++) {
         EXPECT_EQ(cache_hit[i], data[i]);
     }
-    cache_hit = (char *) cache[1]->lookup(cache[1], 0x8000);
+    cache_hit = (char *) cache[1]->lookup(cache[1], 0x8000, &is_cache_was_cleaned);
     EXPECT_TRUE(cache_hit == NULL);
     /* be sure to have hit for cache[1] and miss for cache[0] for 0x8000 */
-    cache_hit = (char *) cache[0]->lookup(cache[0], 0x18000);
+    cache_hit = (char *) cache[0]->lookup(cache[0], 0x18000, &is_cache_was_cleaned);
     EXPECT_TRUE(cache_hit == NULL);
-    cache_hit = (char *) cache[1]->lookup(cache[1], 0x18000);
+    cache_hit = (char *) cache[1]->lookup(cache[1], 0x18000, &is_cache_was_cleaned);
     EXPECT_TRUE(cache_hit != NULL);
     for(i = 0; i < sizeof(data); i++) {
         EXPECT_EQ(cache_hit[i], data[i]);
@@ -111,20 +114,21 @@ TEST(Cache, cleanCache) {
     struct cache *cache;
     char *cache_hit;
     int i;
+    int is_cache_was_cleaned;
 
     for(i = 0; i < sizeof(data); i++) {
         data[i] = i;
     }
     cache = createCache(memory, MIN_CACHE_SIZE, 0);
     
-    cache->append(cache, 0x8000, data, sizeof(data));
-    cache_hit = (char *) cache->lookup(cache, 0x8000);
+    cache->append(cache, 0x8000, data, sizeof(data), &is_cache_was_cleaned);
+    cache_hit = (char *) cache->lookup(cache, 0x8000, &is_cache_was_cleaned);
     EXPECT_TRUE(cache_hit != NULL);
     for(i = 0; i < sizeof(data); i++) {
         EXPECT_EQ(cache_hit[i], data[i]);
     }
     cleanCaches(0, ~0);
-    cache_hit = (char *) cache->lookup(cache, 0x8000);
+    cache_hit = (char *) cache->lookup(cache, 0x8000, &is_cache_was_cleaned);
     EXPECT_TRUE(cache_hit == NULL);
 
     removeCache(cache);
@@ -137,6 +141,7 @@ TEST(Cache, cleanCacheMultiple) {
     char *cache_hit;
     char data[16];
     int i;
+    int is_cache_was_cleaned;
 
     for(i = 0; i < sizeof(data); i++) {
         data[i] = i;
@@ -144,24 +149,24 @@ TEST(Cache, cleanCacheMultiple) {
     for(i = 0; i < 2; i++) {
         cache[i] = createCache(memory[i], MIN_CACHE_SIZE, 0);
     }
-    cache[0]->append(cache[0], 0x8000, data, sizeof(data));
-    cache[1]->append(cache[1], 0x18000, data, sizeof(data));
+    cache[0]->append(cache[0], 0x8000, data, sizeof(data), &is_cache_was_cleaned);
+    cache[1]->append(cache[1], 0x18000, data, sizeof(data), &is_cache_was_cleaned);
     /* be sure to have hit for cache[0] for 0x8000 and hit for cache[1] for 0x18000 */
-    cache_hit = (char *) cache[0]->lookup(cache[0], 0x8000);
+    cache_hit = (char *) cache[0]->lookup(cache[0], 0x8000, &is_cache_was_cleaned);
     EXPECT_TRUE(cache_hit != NULL);
     for(i = 0; i < sizeof(data); i++) {
         EXPECT_EQ(cache_hit[i], data[i]);
     }
-    cache_hit = (char *) cache[1]->lookup(cache[1], 0x18000);
+    cache_hit = (char *) cache[1]->lookup(cache[1], 0x18000, &is_cache_was_cleaned);
     EXPECT_TRUE(cache_hit != NULL);
     for(i = 0; i < sizeof(data); i++) {
         EXPECT_EQ(cache_hit[i], data[i]);
     }
     /* be sure to have cache miss after cleanCaches */
     cleanCaches(0, ~0);
-    cache_hit = (char *) cache[0]->lookup(cache[0], 0x8000);
+    cache_hit = (char *) cache[0]->lookup(cache[0], 0x8000, &is_cache_was_cleaned);
     EXPECT_TRUE(cache_hit == NULL);
-    cache_hit = (char *) cache[1]->lookup(cache[1], 0x18000);
+    cache_hit = (char *) cache[1]->lookup(cache[1], 0x18000, &is_cache_was_cleaned);
     EXPECT_TRUE(cache_hit == NULL);
 
     for(i = 0; i < 2; i++) {

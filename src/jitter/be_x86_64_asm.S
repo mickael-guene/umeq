@@ -63,4 +63,5 @@ restore_be_x86_64:
 	pop    %rbx
 	pop    %rbp
 	mov    %rsi,%rax
+	xor    %rdx,%rdx
 	retq

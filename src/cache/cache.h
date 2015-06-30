@@ -31,8 +31,8 @@ extern "C" {
 #define MIN_CACHE_SIZE  (1 * 1024 * 1024)
 
 struct cache {
-    void *(*lookup)(struct cache *cache, uint64_t pc);
-    void (*append)(struct cache *cache, uint64_t pc, void *data, int size);
+    void *(*lookup)(struct cache *cache, uint64_t pc, int *cache_clean_event);
+    void *(*append)(struct cache *cache, uint64_t pc, void *data, int size, int *cache_clean_event);
 };
 
 struct cache *createCache(void *memory, int size, int nb_of_pc_bit_to_drop);

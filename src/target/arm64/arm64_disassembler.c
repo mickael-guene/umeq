@@ -466,6 +466,16 @@ static void mk_exit(struct arm64_target *context, struct irInstructionAllocator 
     ir->add_exit(ir, next_pc);
 }
 
+static void mk_exit_pred(struct arm64_target *context, struct irInstructionAllocator *ir, struct irRegister *next_pc, struct irRegister *pred)
+{
+    write_pc(ir, next_pc);
+    if (context->regs.is_stepin) {
+        mk_gdb_stepin_instruction(context, ir);
+        context->regs.is_stepin = 0;
+    }
+    ir->add_exit_cond(ir, next_pc, pred);
+}
+
 static uint64_t simd_immediate(int op, int cmode, int imm8_p)
 {
     uint64_t imm8 = imm8_p;
@@ -1177,7 +1187,6 @@ static int dis_conditionnal_branch_immediate_insn(struct arm64_target *context, 
     int64_t imm19 = INSN(23, 5) << 2;
     struct irRegister *params[4];
     struct irRegister *pred;
-    struct irRegister *next_pc;
 
     imm19 = (imm19 << 43) >> 43;
 
@@ -1193,8 +1202,8 @@ static int dis_conditionnal_branch_immediate_insn(struct arm64_target *context, 
     dump_state(context, ir);
 
     /* if cond is true then do the branch else jump to next insn */
-    next_pc = ir->add_ite_64(ir, ir->add_32U_to_64(ir, pred), mk_64(ir, context->pc + imm19), mk_64(ir, context->pc + 4));
-    mk_exit(context, ir, next_pc);
+    mk_exit_pred(context, ir, mk_64(ir, context->pc + imm19), pred);
+    mk_exit(context, ir, mk_64(ir, context->pc + 4));
 
     return 1;
 }
@@ -1237,7 +1246,6 @@ static int dis_cbz_A_cbnz(struct arm64_target *context, uint32_t insn, struct ir
     int rt = INSN(4,0);
     struct irRegister *pred;
     int is_cmp_not_zero = INSN(24,24);
-    struct irRegister *next_pc;
 
     imm19 = (imm19 << 43) >> 43;
     /* compute pred */
@@ -1254,8 +1262,8 @@ static int dis_cbz_A_cbnz(struct arm64_target *context, uint32_t insn, struct ir
     }
 
     /* if cond is true then branch to destination else jump to next insn */
-    next_pc = ir->add_ite_64(ir, pred, mk_64(ir, context->pc + imm19), mk_64(ir, context->pc + 4));
-    mk_exit(context, ir, next_pc);
+    mk_exit_pred(context, ir, mk_64(ir, context->pc + imm19), pred);
+    mk_exit(context, ir, mk_64(ir, context->pc + 4));
 
     return 1;
 }
@@ -2141,7 +2149,6 @@ static int dis_tbz_A_tbnz(struct arm64_target *context, uint32_t insn, struct ir
     int is_tbnz = INSN(24,24);
     struct irRegister *res;
     struct irRegister *pred;
-    struct irRegister *next_pc;
 
     imm14 = (imm14 << 48) >> 48;
 
@@ -2154,8 +2161,8 @@ static int dis_tbz_A_tbnz(struct arm64_target *context, uint32_t insn, struct ir
         pred = ir->add_cmpeq_64(ir, res, mk_64(ir, 0));
 
     /* if cond is true then do the branch else jump to next insn */
-    next_pc = ir->add_ite_64(ir, pred, mk_64(ir, context->pc + imm14), mk_64(ir, context->pc + 4));
-    mk_exit(context, ir, next_pc);
+    mk_exit_pred(context, ir, mk_64(ir, context->pc + imm14), pred);
+    mk_exit(context, ir, mk_64(ir, context->pc + 4));
 
     return 1;
 }

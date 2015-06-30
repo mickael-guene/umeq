@@ -59,8 +59,8 @@ struct internal_cache {
     char *area;
 };
 
-static void *lookup(struct cache *cache, uint64_t pc);
-static void append(struct cache *cache, uint64_t pc, void *data, int size);
+static void *lookup(struct cache *cache, uint64_t pc, int *cache_clean_event);
+static void *append(struct cache *cache, uint64_t pc, void *data, int size, int *cache_clean_event);
 
 struct internal_cache *root = NULL;
 static pthread_mutex_t ll_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -126,7 +126,7 @@ static void reset(struct internal_cache *acache)
     memset(acache->entry, 0, acache->config.cache_entry_size);
 }
 
-static void *lookup(struct cache *cache, uint64_t pc)
+static void *lookup(struct cache *cache, uint64_t pc, int *cache_clean_event)
 {
     struct internal_cache *acache = container_of(cache, struct internal_cache, cache);
     void *res = NULL;
@@ -138,8 +138,11 @@ static void *lookup(struct cache *cache, uint64_t pc)
         is_cache_clean_need = 0;
     }
 
-    if (acache->info.clean)
+    if (acache->info.clean) {
         reset(acache);
+        *cache_clean_event = 1;
+        return NULL;
+    }
 
     for(way = 0; way < CACHE_WAY; way++) {
         if (acache->entry[way * acache->config.cache_entry_nb + entry_index].pc == pc)
@@ -151,7 +154,7 @@ static void *lookup(struct cache *cache, uint64_t pc)
     return res;
 }
 
-static void append(struct cache *cache, uint64_t pc, void *data, int size)
+static void *append(struct cache *cache, uint64_t pc, void *data, int size, int *cache_clean_event)
 {
     struct internal_cache *acache = container_of(cache, struct internal_cache, cache);
     struct cache_entry *entry = NULL;
@@ -159,8 +162,10 @@ static void append(struct cache *cache, uint64_t pc, void *data, int size)
     int way;
 
     /* handle jitter area full */
-    if (acache->info.write_pos + size > acache->config.jitter_area_size)
+    if (acache->info.write_pos + size > acache->config.jitter_area_size) {
         reset(acache);
+        *cache_clean_event = 1;
+    }
 
     /* try to find a free way */
     for(way = 0; way < CACHE_WAY; way++) {
@@ -177,6 +182,8 @@ static void append(struct cache *cache, uint64_t pc, void *data, int size)
     entry->ptr = &acache->area[acache->info.write_pos];
     memcpy(entry->ptr, data, size);
     acache->info.write_pos += size;
+
+    return entry->ptr;
 }
 
 /* api */

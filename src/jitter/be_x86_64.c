@@ -37,7 +37,7 @@
 #define REG_NUMBER  8
 
 struct x86Register {
-    int isVirtual;
+    int isConstant;
     int index;
     int firstWriteIndex;
     int lastReadIndex;
@@ -89,6 +89,7 @@ struct x86Instruction {
         struct {
             struct x86Register *value;
             struct x86Register *pred;
+            int is_patchable;
         } exit;
         struct {
             enum x86BinopType type;
@@ -177,6 +178,7 @@ static struct x86Register *allocateRegister(struct inter *inter, struct irRegist
         res = irReg->backend;
     } else {
         res = (struct x86Register *) pool->alloc(pool, sizeof(struct x86Register));
+        res->isConstant = 0;
         res->index = inter->regIndex++;
         res->firstWriteIndex = inter->instructionIndex;
         res->lastReadIndex = -1;
@@ -195,6 +197,7 @@ static void add_mov_const(struct inter *inter, struct x86Register *dst, uint64_t
 
     insn->type = X86_MOV_CONST;
     insn->u.mov.dst = dst;
+    insn->u.mov.dst->isConstant = 1;
     insn->u.mov.value = value;
 
     inter->instructionIndex++;
@@ -241,6 +244,7 @@ static void add_exit(struct inter *inter, struct x86Register *value, struct x86R
     insn->type = X86_EXIT;
     insn->u.exit.value = value;
     insn->u.exit.pred = pred;
+    insn->u.exit.is_patchable = value->isConstant;
 
     inter->instructionIndex++;
 }
@@ -968,8 +972,42 @@ static char *gen_exit(char *pos, struct x86Instruction *insn)
     }
     /* mov rax, value */
     pos = gen_move_reg_low(pos, 0/*rax*/, insn->u.exit.value);
+    /* generate rdx */
+    if (insn->u.exit.is_patchable) {
+        /* return rip, lea rdx, [rip] */
+        *pos++ = 0x48;
+        *pos++ = 0x8d;
+        *pos++ = 0x15;
+        *pos++ = 0;
+        *pos++ = 0;
+        *pos++ = 0;
+        *pos++ = 0;
+    } else {
+        *pos++ = REX_OPCODE;
+        *pos++ = 0x31;
+        *pos++ = 0xc0 | (2 << 3) | 2;
+    }
     /*retq */
     *pos++ = 0xc3;
+    /* setup patch area */
+    if (insn->u.exit.is_patchable) {
+        /* mov rax, imm64 */
+        *pos++ = 0x48;
+        *pos++ = 0xb8;
+        pos+=8;
+        /* jmp rax */
+        *pos++ = 0xff;
+        *pos++ = 0xe0;
+        /* return rip, lea rdx, [rip] */
+        *pos++ = 0x48;
+        *pos++ = 0x8d;
+        *pos++ = 0x15;
+        *pos++ = 0;
+        *pos++ = 0;
+        *pos++ = 0;
+        *pos++ = 0;
+    }
+    /* fixup jump target to go after retq */
     if (insn->u.exit.pred) {
         *pos_patch = (pos - pos_start_offset);
     }
@@ -1522,6 +1560,24 @@ static void request_signal_alternate_exit(struct backend *backend, void *_ucp, u
     ucp->uc_mcontext.gregs[REG_RSI] = result;
 }
 
+static void patch(struct backend *backend, void *link_patch_area, void *cache_area)
+{
+    unsigned char *pos = link_patch_area;
+    uint64_t target = (uint64_t) cache_area;
+
+    assert(*pos == 0xc3);
+    *pos++=0x90;
+    pos+=2;
+    *pos++ = (target >> 0) & 0xff;
+    *pos++ = (target >> 8) & 0xff;
+    *pos++ = (target >> 16) & 0xff;
+    *pos++ = (target >> 24) & 0xff;
+    *pos++ = (target >> 32) & 0xff;
+    *pos++ = (target >> 40) & 0xff;
+    *pos++ = (target >> 48) & 0xff;
+    *pos++ = (target >> 56) & 0xff;
+}
+
 /* backend api */
 static int jit(struct backend *backend, struct irInstruction *irArray, int irInsnNb, char *buffer, int bufferSize)
 {
@@ -1584,6 +1640,7 @@ struct backend *createX86_64Backend(void *memory, int size)
         inter->backend.execute = execute_be_x86_64;
         inter->backend.request_signal_alternate_exit = request_signal_alternate_exit;
         inter->backend.find_insn = find_insn;
+        inter->backend.patch = patch;
         inter->backend.reset = reset;
         inter->registerPoolAllocator.alloc = memoryPoolAlloc;
         inter->instructionPoolAllocator.alloc = memoryPoolAlloc;

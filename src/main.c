@@ -93,6 +93,7 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     uint64_t currentPc = entry;
     struct tls_context parent_tls_context;
     struct tls_context *current_tls_context;
+    struct backend_execute_result result;
 
     setup_jit_area(&jit_area);
     /* get current tls context */
@@ -122,7 +123,8 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
         jit_area.cooked.guest_pc = currentPc;
         jitSize = jitCode(handle, jit_area.cooked.jit_buffer, JIT_AREA_JIT_BUFFER_SIZE);
         if (jitSize > 0) {
-            currentPc = backend->execute(backend, jit_area.cooked.jit_buffer, (uint64_t) target_runtime);
+            result = backend->execute(backend, jit_area.cooked.jit_buffer, (uint64_t) target_runtime);
+            currentPc = result.result;
         } else
             assert(0);
     }
@@ -148,6 +150,8 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     struct tls_context parent_tls_context;
     struct tls_context *current_tls_context;
     struct cache *cache = NULL;
+    struct backend_execute_result result = {0, 0};
+    uint64_t prevCurrentPc = ~0;
     char *cacheMemory = alloca(cache_memory_config[memory_profile].cache_size);
 
     setup_jit_area(&jit_area);
@@ -171,10 +175,13 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
 
     while(target->isLooping(target)) {
         void *cache_area;
+        int is_cache_was_cleaned = 0;
 
-        cache_area = cache->lookup(cache, currentPc);
+        cache_area = cache->lookup(cache, currentPc, &is_cache_was_cleaned);
         if (cache_area) {
-            currentPc = backend->execute(backend, cache_area + sizeof(uint64_t) + JIT_AREA_MAGIC_SIZE, (uint64_t) target_runtime);
+            prevCurrentPc = currentPc;
+            result = backend->execute(backend, cache_area + sizeof(uint64_t) + JIT_AREA_MAGIC_SIZE, (uint64_t) target_runtime);
+            currentPc = result.result;
         } else {
             int jitSize;
 
@@ -184,8 +191,14 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
             jit_area.cooked.guest_pc = currentPc;
             jitSize = jitCode(handle, jit_area.cooked.jit_buffer, JIT_AREA_JIT_BUFFER_SIZE);
             if (jitSize > 0) {
-                cache->append(cache, currentPc, jit_area.buffer, jitSize + sizeof(uint64_t) + JIT_AREA_MAGIC_SIZE);
-                currentPc = backend->execute(backend, jit_area.cooked.jit_buffer, (uint64_t) target_runtime);
+                cache_area = cache->append(cache, currentPc, jit_area.buffer, jitSize + sizeof(uint64_t) + JIT_AREA_MAGIC_SIZE, &is_cache_was_cleaned);
+                /* only link forward to avoid loop */
+                if (prevCurrentPc < currentPc && result.link_patch_area && is_cache_was_cleaned == 0) {
+                    backend->patch(backend, result.link_patch_area, cache_area + sizeof(uint64_t) + JIT_AREA_MAGIC_SIZE);
+                }
+                prevCurrentPc = currentPc;
+                result = backend->execute(backend, cache_area + sizeof(uint64_t) + JIT_AREA_MAGIC_SIZE, (uint64_t) target_runtime);
+                currentPc = result.result;
             } else
                 assert(0);
         }

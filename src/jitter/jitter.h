@@ -129,12 +129,18 @@ struct irInstructionAllocator {
     void (*add_insn_marker)(struct irInstructionAllocator *);
 };
 
+struct backend_execute_result {
+    uint64_t result;
+    void *link_patch_area;
+};
+
 struct backend {
     int (*jit)(struct backend *backend, struct irInstruction *irArray, int irInsnNb, char *buffer, int bufferSize);
     void (*reset)(struct backend *backend);
-    uint64_t (*execute)(struct backend *backend, char *buffer, uint64_t context);
+    struct backend_execute_result (*execute)(struct backend *backend, char *buffer, uint64_t context);
     void (*request_signal_alternate_exit)(struct backend *backend, void *ucp, uint64_t result);
     int (*find_insn)(struct backend *backend, struct irInstruction *irArray, int irInsnNb, char *buffer, int bufferSize, int offset);
+    void (*patch)(struct backend *backend, void *link_patch_area, void *cache_area);
 };
 
 /* jitter public api */
