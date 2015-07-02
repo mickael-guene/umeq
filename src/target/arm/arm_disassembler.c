@@ -266,9 +266,7 @@ static int mk_data_processing(struct arm_target *context, struct irInstructionAl
 
 static struct irRegister *mk_ror_imm_32(struct irInstructionAllocator *ir, struct irRegister *op, int rotation)
 {
-    return ir->add_or_32(ir,
-                         ir->add_shr_32(ir, op, mk_8(ir, rotation)),
-                         ir->add_shl_32(ir, op, mk_8(ir, 32-rotation)));
+    return ir->add_ror_32(ir, op, mk_8(ir, rotation));
 }
 
 static struct irRegister *mk_sco(struct arm_target *context, struct irInstructionAllocator *ir, struct irRegister *insn,

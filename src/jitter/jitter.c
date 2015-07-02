@@ -380,6 +380,27 @@ static struct irRegister *add_asr_64(struct irInstructionAllocator *irAlloc, str
     return add_binop(irAlloc, op1, op2, IR_BINOP_ASR_64);
 }
 
+static struct irRegister *add_ror_8(struct irInstructionAllocator *irAlloc, struct irRegister *op1, struct irRegister *op2)
+{
+    assert(op1->type == IR_REG_8 && op2->type == IR_REG_8);
+    return add_binop(irAlloc, op1, op2, IR_BINOP_ROR_8);
+}
+static struct irRegister *add_ror_16(struct irInstructionAllocator *irAlloc, struct irRegister *op1, struct irRegister *op2)
+{
+    assert(op1->type == IR_REG_16 && op2->type == IR_REG_8);
+    return add_binop(irAlloc, op1, op2, IR_BINOP_ROR_16);
+}
+static struct irRegister *add_ror_32(struct irInstructionAllocator *irAlloc, struct irRegister *op1, struct irRegister *op2)
+{
+    assert(op1->type == IR_REG_32 && op2->type == IR_REG_8);
+    return add_binop(irAlloc, op1, op2, IR_BINOP_ROR_32);
+}
+static struct irRegister *add_ror_64(struct irInstructionAllocator *irAlloc, struct irRegister *op1, struct irRegister *op2)
+{
+    assert(op1->type == IR_REG_64 && op2->type == IR_REG_8);
+    return add_binop(irAlloc, op1, op2, IR_BINOP_ROR_64);
+}
+
 static struct irRegister *add_cmpeq_8(struct irInstructionAllocator *irAlloc, struct irRegister *op1, struct irRegister *op2)
 {
     assert(op1->type == IR_REG_8 && op2->type == IR_REG_8);
@@ -743,7 +764,7 @@ static void displayInsn(struct irInstruction *insn)
             break;
         case IR_BINOP:
             {
-                const char *binopTypeToName[] = {"add", "sub", "xor", "and", "or", "shl", "shr", "asr", "cmpeq", "cmpne"};
+                const char *binopTypeToName[] = {"add", "sub", "xor", "and", "or", "shl", "shr", "asr", "ror", "cmpeq", "cmpne"};
                 const char *name = binopTypeToName[insn->u.binop.type / 4];
                 int bitNb = 1 << ((insn->u.binop.type % 4) + 3);
                 
@@ -909,6 +930,10 @@ jitContext createJitter(void *memory, struct backend *backend, int size)
         jitter->irInstructionAllocator.add_asr_16 = add_asr_16;
         jitter->irInstructionAllocator.add_asr_32 = add_asr_32;
         jitter->irInstructionAllocator.add_asr_64 = add_asr_64;
+        jitter->irInstructionAllocator.add_ror_8 = add_ror_8;
+        jitter->irInstructionAllocator.add_ror_16 = add_ror_16;
+        jitter->irInstructionAllocator.add_ror_32 = add_ror_32;
+        jitter->irInstructionAllocator.add_ror_64 = add_ror_64;
         jitter->irInstructionAllocator.add_ite_8 = add_ite_8;
         jitter->irInstructionAllocator.add_ite_16 = add_ite_16;
         jitter->irInstructionAllocator.add_ite_32 = add_ite_32;

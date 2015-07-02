@@ -219,16 +219,12 @@ static void write_nzcv(struct irInstructionAllocator *ir, struct irRegister *val
 
 static struct irRegister *mk_ror_imm_64(struct irInstructionAllocator *ir, struct irRegister *op, int rotation)
 {
-    return ir->add_or_64(ir,
-                         ir->add_shr_64(ir, op, mk_8(ir, rotation)),
-                         ir->add_shl_64(ir, op, mk_8(ir, 64-rotation)));
+    return ir->add_ror_64(ir, op, mk_8(ir, rotation));
 }
 
 static struct irRegister *mk_ror_imm_32(struct irInstructionAllocator *ir, struct irRegister *op, int rotation)
 {
-    return ir->add_or_32(ir,
-                         ir->add_shr_32(ir, op, mk_8(ir, rotation)),
-                         ir->add_shl_32(ir, op, mk_8(ir, 32-rotation)));
+    return ir->add_ror_32(ir, op, mk_8(ir, rotation));
 }
 
 static struct irRegister *mk_next_nzcv_64(struct irInstructionAllocator *ir, enum ops ops, struct irRegister *op1, struct irRegister *op2)
@@ -1906,16 +1902,26 @@ static int dis_extr(struct arm64_target *context, uint32_t insn, struct irInstru
     int rm = INSN(20,16);
     struct irRegister *res;
 
-    if (is_64) {
-        res = ir->add_or_64(ir,
-                            ir->add_shr_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imms)),
-                            ir->add_shl_64(ir, read_x(ir, rn, ZERO_REG), mk_8(ir, 64 - imms)));
-        write_x(ir, rd, res, ZERO_REG);
+    if (rn == rm) {
+        if (is_64) {
+            res = mk_ror_imm_64(ir, read_x(ir, rm, ZERO_REG), imms);
+            write_x(ir, rd, res, ZERO_REG);
+        } else {
+            res = mk_ror_imm_32(ir, read_w(ir, rm, ZERO_REG), imms);
+            write_w(ir, rd, res, ZERO_REG);
+        }
     } else {
-        res = ir->add_or_32(ir,
-                            ir->add_shr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imms)),
-                            ir->add_shl_32(ir, read_w(ir, rn, ZERO_REG), mk_8(ir, 32 - imms)));
-        write_w(ir, rd, res, ZERO_REG);
+        if (is_64) {
+            res = ir->add_or_64(ir,
+                                ir->add_shr_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imms)),
+                                ir->add_shl_64(ir, read_x(ir, rn, ZERO_REG), mk_8(ir, 64 - imms)));
+            write_x(ir, rd, res, ZERO_REG);
+        } else {
+            res = ir->add_or_32(ir,
+                                ir->add_shr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imms)),
+                                ir->add_shl_32(ir, read_w(ir, rn, ZERO_REG), mk_8(ir, 32 - imms)));
+            write_w(ir, rd, res, ZERO_REG);
+        }
     }
 
     return 0;
@@ -2077,28 +2083,12 @@ static int dis_rorv(struct arm64_target *context, uint32_t insn, struct irInstru
     int rn = INSN(9,5);
     int rd = INSN(4,0);
     struct irRegister *res;
-    int mask = is_64?0x3f:0x1f;
-    int sub = mask + 1;
-    struct irRegister *rotation1;
-    struct irRegister *rotation2;
-    struct irRegister *rn_reg;
 
-    /* compute rotation value */
-    rotation1 = ir->add_64_to_8(ir, ir->add_and_64(ir, read_x(ir, rm, ZERO_REG), mk_64(ir, mask)));
-    rotation2 = ir->add_sub_8(ir , mk_8(ir, sub), rotation1);
-
-    /* rotate */
     if (is_64) {
-        rn_reg = read_x(ir, rn, ZERO_REG);
-        res = ir->add_or_64(ir,
-                            ir->add_shr_64(ir, rn_reg, rotation1),
-                            ir->add_shl_64(ir, rn_reg, rotation2));
+        res = ir->add_ror_64(ir, read_x(ir, rn, ZERO_REG), ir->add_64_to_8(ir, read_x(ir, rm, ZERO_REG)));
         write_x(ir, rd, res, ZERO_REG);
     } else {
-        rn_reg = read_w(ir, rn, ZERO_REG);
-        res = ir->add_or_32(ir,
-                            ir->add_shr_32(ir, rn_reg, rotation1),
-                            ir->add_shl_32(ir, rn_reg, rotation2));
+        res = ir->add_ror_32(ir, read_w(ir, rn, ZERO_REG), ir->add_64_to_8(ir, read_x(ir, rm, ZERO_REG)));
         write_w(ir, rd, res, ZERO_REG);
     }
 

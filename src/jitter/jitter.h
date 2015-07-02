@@ -82,6 +82,10 @@ struct irInstructionAllocator {
     struct irRegister *(*add_asr_16)(struct irInstructionAllocator *, struct irRegister *op1, struct irRegister *op2);
     struct irRegister *(*add_asr_32)(struct irInstructionAllocator *, struct irRegister *op1, struct irRegister *op2);
     struct irRegister *(*add_asr_64)(struct irInstructionAllocator *, struct irRegister *op1, struct irRegister *op2);
+    struct irRegister *(*add_ror_8)(struct irInstructionAllocator *, struct irRegister *op1, struct irRegister *op2);
+    struct irRegister *(*add_ror_16)(struct irInstructionAllocator *, struct irRegister *op1, struct irRegister *op2);
+    struct irRegister *(*add_ror_32)(struct irInstructionAllocator *, struct irRegister *op1, struct irRegister *op2);
+    struct irRegister *(*add_ror_64)(struct irInstructionAllocator *, struct irRegister *op1, struct irRegister *op2);
     struct irRegister *(*add_ite_8)(struct irInstructionAllocator *, struct irRegister *pred, struct irRegister *trueOp, struct irRegister *falseOp);
     struct irRegister *(*add_ite_16)(struct irInstructionAllocator *, struct irRegister *pred, struct irRegister *trueOp, struct irRegister *falseOp);
     struct irRegister *(*add_ite_32)(struct irInstructionAllocator *, struct irRegister *pred, struct irRegister *trueOp, struct irRegister *falseOp);

@@ -52,6 +52,7 @@ enum x86BinopType {
     X86_BINOP_SHL,
     X86_BINOP_SHR,
     X86_BINOP_ASR,
+    X86_BINOP_ROR,
     X86_BINOP_CMPEQ,
     X86_BINOP_CMPNE
 };
@@ -462,6 +463,15 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                                 add_mov_const(inter, sixtyThree, 63);
                                 add_ite(inter, op2_limit, pred, op2, sixtyThree);
                                 add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_ASR_8, X86_BINOP_ASR, dst, shiftRightResult, op2_limit);
+                            }
+                            break;
+                            case IR_BINOP_ROR_8: case IR_BINOP_ROR_16: case IR_BINOP_ROR_32: case IR_BINOP_ROR_64:
+                            {
+                                struct x86Register *dst = allocateRegister(inter, insn->u.binop.dst);
+                                struct x86Register *op1 = allocateRegister(inter, insn->u.binop.op1);
+                                struct x86Register *op2 = allocateRegister(inter, insn->u.binop.op2);
+
+                                add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_ROR_8, X86_BINOP_ROR, dst, op1, op2);
                             }
                             break;
                         case IR_BINOP_CMPEQ_8: case IR_BINOP_CMPEQ_16: case IR_BINOP_CMPEQ_32: case IR_BINOP_CMPEQ_64:
@@ -982,7 +992,7 @@ static char *gen_cmp(char *pos, int isEq, struct x86Register *dst, struct x86Reg
 static char *gen_binop(char *pos, struct x86Instruction *insn, uint64_t mask)
 {
     static const char binopToOpcode[] = {0x01/*add*/, 0x29/*sub*/, 0x31/*xor*/, 0x21/*and*/,
-                                         0x09/*or*/, 0xd3/*shl*/, 0xd3/*shr*/, 0xd7/*sar*/,
+                                         0x09/*or*/, 0xd3/*shl*/, 0xd3/*shr*/, 0xd3/*sar*/, 0xd3/*ror*/,
                                          0xff/*cmpeq*/, 0xff/*cmpne*/};
     char subtype = 0;
 
@@ -1003,6 +1013,15 @@ static char *gen_binop(char *pos, struct x86Instruction *insn, uint64_t mask)
                 *pos++ = 0xd3;
                 *pos++ = MODRM_MODE_3 | (subtype/*subcode*/ << MODRM_REG_SHIFT) | insn->u.binop.dst->index;
             }
+            break;
+        case X86_BINOP_ROR:
+            pos = gen_move_reg_low(pos, 1/*cl*/, insn->u.binop.op2);
+            pos = gen_move_reg(pos, insn->u.binop.dst, insn->u.binop.op1);
+            if (insn->type == X86_BINOP_16)
+                *pos++ = 0x66;
+            *pos++ = REX_OPCODE | REX_B | (insn->type == X86_BINOP_64?REX_W:0);
+            *pos++ = insn->type == X86_BINOP_8?0xd2:0xd3;
+            *pos++ = MODRM_MODE_3 | (1/*subcode*/ << MODRM_REG_SHIFT) | insn->u.binop.dst->index;
             break;
         default:
             pos = gen_move_reg(pos, insn->u.binop.dst, insn->u.binop.op1);

@@ -3,7 +3,7 @@ add_subdirectory (gtest-1.7.0)
 include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/src/jitter ${CMAKE_SOURCE_DIR}/src/cache)
 
-SET(GTEST_SOURCE_FILES jitter/const.cpp jitter/add.cpp jitter/sub.cpp jitter/xor.cpp jitter/and.cpp jitter/or.cpp jitter/shl.cpp jitter/shr.cpp jitter/asr.cpp jitter/ite.cpp jitter/cmpeq.cpp jitter/cmpne.cpp jitter/cast.cpp jitter/context.cpp jitter/call.cpp jitter/exit.cpp cache/cache.cpp)
+SET(GTEST_SOURCE_FILES jitter/const.cpp jitter/add.cpp jitter/sub.cpp jitter/xor.cpp jitter/and.cpp jitter/or.cpp jitter/shl.cpp jitter/shr.cpp jitter/asr.cpp jitter/ite.cpp jitter/cmpeq.cpp jitter/cmpne.cpp jitter/cast.cpp jitter/context.cpp jitter/call.cpp jitter/exit.cpp cache/cache.cpp jitter/ror.cpp)
 
 add_executable(testes ${GTEST_SOURCE_FILES})
 target_link_libraries(testes -Wl,-z,execstack gtest gtest_main jitter cache)
