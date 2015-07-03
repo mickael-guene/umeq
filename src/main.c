@@ -68,6 +68,15 @@ static void setup_thread_area(struct tls_context *main_thread_tls_context)
     syscall(SYS_arch_prctl, ARCH_SET_FS, main_thread_tls_context);
 }
 
+static void setup_jit_area(union jit_area *jit_area)
+{
+    int i;
+
+    for(i = 0; i < 15; i++)
+        jit_area->cooked.magic[i] = 0x66;
+    jit_area->cooked.magic[15] = 0x90;
+}
+
 /* FIXME: try to factorize loop_nocache and loop_cache */
 static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target)
 {
@@ -75,7 +84,7 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     void *targetHandle;
     struct irInstructionAllocator *ir;
     struct backend *backend;
-    char jitBuffer[16 * 1024];
+    union jit_area jit_area;
     char *beX86_64Memory = alloca(nocache_memory_config.be_context_size);
     char *jitterMemory = alloca(nocache_memory_config.jitter_context_size);
     char *context_memory = alloca(current_target_arch.get_context_size());
@@ -85,6 +94,7 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     struct tls_context parent_tls_context;
     struct tls_context *current_tls_context;
 
+    setup_jit_area(&jit_area);
     /* get current tls context */
     syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
 
@@ -109,9 +119,10 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
         resetJitter(handle);
         target->disassemble(target, ir, currentPc, nocache_memory_config.max_insn);
         //displayIr(handle);
-        jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
+        jit_area.cooked.guest_pc = currentPc;
+        jitSize = jitCode(handle, jit_area.cooked.jit_buffer, JIT_AREA_JIT_BUFFER_SIZE);
         if (jitSize > 0) {
-            currentPc = backend->execute(backend, jitBuffer, (uint64_t) target_runtime);
+            currentPc = backend->execute(backend, jit_area.cooked.jit_buffer, (uint64_t) target_runtime);
         } else
             assert(0);
     }
@@ -127,7 +138,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     void *targetHandle;
     struct irInstructionAllocator *ir;
     struct backend *backend;
-    char jitBuffer[16 * 1024];
+    union jit_area jit_area;
     char *beX86_64Memory = alloca(cache_memory_config[memory_profile].be_context_size);
     char *jitterMemory = alloca(cache_memory_config[memory_profile].jitter_context_size);
     char *context_memory = alloca(current_target_arch.get_context_size());
@@ -139,6 +150,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     struct cache *cache = NULL;
     char *cacheMemory = alloca(cache_memory_config[memory_profile].cache_size);
 
+    setup_jit_area(&jit_area);
     /* get current tls context */
     syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
 
@@ -162,17 +174,18 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
 
         cache_area = cache->lookup(cache, currentPc);
         if (cache_area) {
-            currentPc = backend->execute(backend, cache_area, (uint64_t) target_runtime);
+            currentPc = backend->execute(backend, cache_area + sizeof(uint64_t) + JIT_AREA_MAGIC_SIZE, (uint64_t) target_runtime);
         } else {
             int jitSize;
 
             resetJitter(handle);
             target->disassemble(target, ir, currentPc, cache_memory_config[memory_profile].max_insn/*10*/);
             //displayIr(handle);
-            jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
+            jit_area.cooked.guest_pc = currentPc;
+            jitSize = jitCode(handle, jit_area.cooked.jit_buffer, JIT_AREA_JIT_BUFFER_SIZE);
             if (jitSize > 0) {
-                cache->append(cache, currentPc, jitBuffer, jitSize);
-                currentPc = backend->execute(backend, jitBuffer, (uint64_t) target_runtime);
+                cache->append(cache, currentPc, jit_area.buffer, jitSize + sizeof(uint64_t) + JIT_AREA_MAGIC_SIZE);
+                currentPc = backend->execute(backend, jit_area.cooked.jit_buffer, (uint64_t) target_runtime);
             } else
                 assert(0);
         }

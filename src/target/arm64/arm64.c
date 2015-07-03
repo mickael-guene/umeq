@@ -25,14 +25,22 @@
 #include <assert.h>
 #include <stddef.h>
 #include <signal.h>
+#include <string.h>
 
 #include "target.h"
 #include "arm64.h"
 #include "arm64_private.h"
 #include "runtime.h"
 #include "arm64_signal_types.h"
+#include "jitter.h"
+#include "target.h"
+#include "be_x86_64.h"
 
 #define ARM64_CONTEXT_SIZE     (4096)
+
+/* get code boundaries */
+extern char __executable_start;
+extern char __etext;
 
 typedef void *arm64Context;
 const char arch_name[] = "arm64";
@@ -109,7 +117,79 @@ static void setup_siginfo(uint32_t signum, siginfo_t *siginfo, struct siginfo_ar
     }
 }
 
-static void setup_sigframe(struct rt_sigframe_arm64 *frame, struct arm64_target *prev_context)
+static void *find_marker_start(unsigned char *buf) {
+    int i;
+    int j;
+
+    for(i = 0; i > -JIT_AREA_SIZE ;i--) {
+        if (buf[i] == 0x90) {
+            for(j = -1; j >= -16; j--) {
+                if (buf[i + j] != 0x66)
+                    break;
+            }
+            if (j == -16)
+                return &buf[i+j+1];
+        }
+    }
+
+    return NULL;
+}
+
+static int find_insn_nb(uint64_t guest_pc, int offset)
+{
+    struct backend *backend;
+    jitContext handle;
+    struct irInstructionAllocator *ir;
+    struct arm64_target context;
+    char jitBuffer[16 * KB];
+    char *beX86_64Memory = alloca(256 * KB);
+    char *jitterMemory = alloca(256 * KB);
+
+    memset(&context, 0, sizeof(context));
+
+    backend = createX86_64Backend(beX86_64Memory, 256 * KB);
+    handle = createJitter(jitterMemory, backend, 256 * KB);
+    ir = getIrInstructionAllocator(handle);
+
+    disassemble_arm64_with_marker(&context, ir, guest_pc, 40);
+
+    return findInsn(handle, jitBuffer, sizeof(jitBuffer), offset);
+}
+
+static uint64_t restore_precise_pc(struct arm64_target *prev_context, ucontext_t *ucp)
+{
+    uint64_t res;
+    void *host_pc_signal = (void *)ucp->uc_mcontext.gregs[REG_RIP];
+
+    /* we can be in three distinct area :
+        - in jitting area
+        - in umeq helper function
+        - in umeq code, in that case we are not currently emulating guest instruction */
+    if (prev_context->regs.helper_pc) {
+        /* we are inside an helper */
+        res = prev_context->regs.helper_pc;
+    } else if (host_pc_signal >= (void *)&__executable_start &&
+               host_pc_signal < (void *)&__etext) {
+        /* we are somewhere in umeq code */
+        res = prev_context->regs.pc;
+    } else {
+        /* we are in code jiterring */
+        void *marker_start = find_marker_start(host_pc_signal);
+        void *jit_host_start_pc = marker_start + JIT_AREA_MAGIC_SIZE;
+        uint64_t jit_guest_start_pc;
+        int insn_nb;
+
+        assert(marker_start != NULL);
+        jit_guest_start_pc = *((uint64_t *)(marker_start - sizeof(uint64_t)));
+        insn_nb = find_insn_nb(jit_guest_start_pc, host_pc_signal - jit_host_start_pc);
+
+        res = prev_context->regs.pc + 4 * insn_nb;
+    }
+
+    return res;
+}
+
+static void setup_sigframe(struct rt_sigframe_arm64 *frame, struct arm64_target *prev_context, struct host_signal_info *signal_info)
 {
     int i;
     struct _aarch64_ctx *end;
@@ -119,7 +199,7 @@ static void setup_sigframe(struct rt_sigframe_arm64 *frame, struct arm64_target 
     for(i = 0; i < 31; i++)
         frame->uc.uc_mcontext.regs[i] = prev_context->regs.r[i];
     frame->uc.uc_mcontext.sp = prev_context->regs.r[31];
-    frame->uc.uc_mcontext.pc = prev_context->regs.pc;
+    frame->uc.uc_mcontext.pc = signal_info?restore_precise_pc(prev_context, signal_info->context):prev_context->regs.pc;
     frame->uc.uc_mcontext.pstate = prev_context->regs.nzcv;
     frame->uc.uc_mcontext.fault_address = 0;
       /* FIXME: need to save simd */
@@ -166,7 +246,7 @@ static uint64_t setup_rt_frame(uint64_t sp, struct arm64_target *prev_context, u
     frame = (struct rt_sigframe_arm64 *) g_2_h(sp);
     frame->uc.uc_flags = 0;
     frame->uc.uc_link = NULL;
-    setup_sigframe(frame, prev_context);
+    setup_sigframe(frame, prev_context, signal_info);
     if (signal_info)
         setup_siginfo(signum, (siginfo_t *) signal_info->siginfo, &frame->info);
 

@@ -68,6 +68,7 @@ enum x86InstructionType {
     X86_CALL,
     X86_READ_8, X86_READ_16, X86_READ_32, X86_READ_64,
     X86_WRITE_8, X86_WRITE_16, X86_WRITE_32, X86_WRITE_64,
+    X86_INSN_MARKER
 };
 
 struct x86Instruction {
@@ -340,6 +341,16 @@ static void add_write(struct inter *inter, enum x86InstructionType type, struct 
     inter->instructionIndex++;
 }
 
+static void add_insn_start_marker(struct inter *inter)
+{
+    struct memoryPool *pool = &inter->instructionPoolAllocator;
+    struct x86Instruction *insn = (struct x86Instruction *) pool->alloc(pool, sizeof(struct x86Instruction));
+
+    insn->type = X86_INSN_MARKER;
+
+    inter->instructionIndex++;
+}
+
 static void allocateInstructions(struct inter *inter, struct irInstruction *irArray, int irInsnNb)
 {
     int i;
@@ -524,6 +535,9 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                 break;
             case IR_WRITE_8: case IR_WRITE_16: case IR_WRITE_32: case IR_WRITE_64:
                 add_write(inter, X86_WRITE_8 + insn->type - IR_WRITE_8, allocateRegister(inter, insn->u.write_context.src), insn->u.write_context.offset);
+                break;
+            case IR_INSN_MARKER:
+                add_insn_start_marker(inter);
                 break;
             default:
                 assert(0);
@@ -727,6 +741,11 @@ static void allocateRegisters(struct inter *inter)
                     displayReg(insn->u.write_context.src);
 #endif
                 }
+                break;
+            case X86_INSN_MARKER:
+#ifdef DEBUG_REG_ALLOC
+                printf("start_of_new_instruction\n");
+#endif
                 break;
             default:
                 assert(0);
@@ -1399,6 +1418,100 @@ static int generateCode(struct inter *inter, char *buffer)
     return pos - buffer;
 }
 
+static int findInsnInCode(struct inter *inter, char *buffer, int offset)
+{
+    int i;
+    struct x86Instruction *insn = (struct x86Instruction *) inter->instructionPoolAllocator.buffer;
+    char *pos = buffer;
+    uint64_t mask;
+    int insn_nb = -1;
+
+    for (i = 0; i < inter->instructionIndex; ++i, insn++)
+    {
+        switch(insn->type) {
+            case X86_INSN_MARKER:
+                insn_nb++;
+                break;
+            case X86_MOV_CONST:
+                pos = gen_mov_const(pos, insn);
+                break;
+            case X86_LOAD_8:
+                pos = gen_load_8(pos, insn);
+                break;
+            case X86_LOAD_16:
+                pos = gen_load_16(pos, insn);
+                break;
+            case X86_LOAD_32:
+                pos = gen_load_32(pos, insn);
+                break;
+            case X86_LOAD_64:
+                pos = gen_load_64(pos, insn);
+                break;
+            case X86_STORE_8:
+                pos = gen_store_8(pos, insn);
+                break;
+            case X86_STORE_16:
+                pos = gen_store_16(pos, insn);
+                break;
+            case X86_STORE_32:
+                pos = gen_store_32(pos, insn);
+                break;
+            case X86_STORE_64:
+                pos = gen_store_64(pos, insn);
+                break;
+            case X86_BINOP_8: mask = 0xff; goto binop;
+            case X86_BINOP_16: mask = 0xffff; goto binop;
+            case X86_BINOP_32: mask = 0xffffffff; goto binop;
+            case X86_BINOP_64: mask = 0; goto binop;
+                binop:
+                    pos = gen_binop(pos, insn, mask);
+                break;
+            case X86_EXIT:
+                pos = gen_exit(pos, insn);
+                break;
+            case X86_ITE:
+                pos = gen_ite(pos, insn);
+                break;
+            case X86_CAST:
+                pos = gen_cast(pos, insn);
+                break;
+            case X86_CALL:
+                pos = gen_call(pos, insn);
+                break;
+            case X86_READ_8:
+                pos = gen_read_8(pos, insn);
+                break;
+            case X86_READ_16:
+                pos = gen_read_16(pos, insn);
+                break;
+            case X86_READ_32:
+                pos = gen_read_32(pos, insn);
+                break;
+            case X86_READ_64:
+                pos = gen_read_64(pos, insn);
+                break;
+            case X86_WRITE_8:
+                pos = gen_write_8(pos, insn);
+                break;
+            case X86_WRITE_16:
+                pos = gen_write_16(pos, insn);
+                break;
+            case X86_WRITE_32:
+                pos = gen_write_32(pos, insn);
+                break;
+            case X86_WRITE_64:
+                pos = gen_write_64(pos, insn);
+                break;
+            default:
+                assert(0);
+        }
+        if (pos >= buffer + offset)
+            break;
+    }
+
+    return insn_nb;
+}
+
 static void request_signal_alternate_exit(struct backend *backend, void *_ucp, uint64_t result)
 {
     ucontext_t *ucp = (ucontext_t *) _ucp;
@@ -1428,6 +1541,23 @@ static int jit(struct backend *backend, struct irInstruction *irArray, int irIns
     return res;
 }
 
+static int find_insn(struct backend *backend, struct irInstruction *irArray, int irInsnNb, char *buffer, int bufferSize, int offset)
+{
+    struct inter *inter = container_of(backend, struct inter, backend);
+    int res;
+
+    // allocate x86 instructions
+    allocateInstructions(inter, irArray, irInsnNb);
+
+    // allocate registers
+    allocateRegisters(inter);
+
+    // find insn
+    res = findInsnInCode(inter, buffer, offset);
+
+    return res;
+}
+
 static void reset(struct backend *backend)
 {
     struct inter *inter = container_of(backend, struct inter, backend);
@@ -1453,6 +1583,7 @@ struct backend *createX86_64Backend(void *memory, int size)
         inter->backend.jit = jit;
         inter->backend.execute = execute_be_x86_64;
         inter->backend.request_signal_alternate_exit = request_signal_alternate_exit;
+        inter->backend.find_insn = find_insn;
         inter->backend.reset = reset;
         inter->registerPoolAllocator.alloc = memoryPoolAlloc;
         inter->instructionPoolAllocator.alloc = memoryPoolAlloc;

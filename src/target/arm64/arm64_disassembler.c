@@ -34,17 +34,6 @@
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
 
 /* sequence shortcut */
-static void dump_state(struct arm64_target *context, struct irInstructionAllocator *ir)
-{
-#if DUMP_STATE
-    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
-
-    ir->add_call_void(ir, "arm64_hlp_dump",
-                      ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_dump),
-                      param);
-#endif
-}
-
 static struct irRegister *mk_8(struct irInstructionAllocator *ir, uint8_t value)
 {
     return ir->add_mov_const_8(ir, value);
@@ -60,6 +49,44 @@ static struct irRegister *mk_32(struct irInstructionAllocator *ir, uint32_t valu
 static struct irRegister *mk_64(struct irInstructionAllocator *ir, uint64_t value)
 {
     return ir->add_mov_const_64(ir, value);
+}
+
+static void mk_call_void(struct arm64_target *context, struct irInstructionAllocator *ir, char *name, struct irRegister *address, struct irRegister **params)
+{
+    ir->add_write_context_64(ir, mk_64(ir, context->pc), offsetof(struct arm64_registers, helper_pc));
+    ir->add_call_void(ir, name, address, params);
+    ir->add_write_context_64(ir, mk_64(ir, 0), offsetof(struct arm64_registers, helper_pc));
+}
+
+static struct irRegister *mk_call_32(struct arm64_target *context, struct irInstructionAllocator *ir, char *name, struct irRegister *address, struct irRegister **params)
+{
+    struct irRegister *res;
+
+    ir->add_write_context_64(ir, mk_64(ir, context->pc), offsetof(struct arm64_registers, helper_pc));
+    res = ir->add_call_32(ir, name, address, params);
+    ir->add_write_context_64(ir, mk_64(ir, 0), offsetof(struct arm64_registers, helper_pc));
+
+    return res;
+}
+
+static struct irRegister *mk_call_64(struct arm64_target *context, struct irInstructionAllocator *ir, char *name, struct irRegister *address, struct irRegister **params)
+{
+    struct irRegister *res;
+
+    ir->add_write_context_64(ir, mk_64(ir, context->pc), offsetof(struct arm64_registers, helper_pc));
+    res = ir->add_call_64(ir, name, address, params);
+    ir->add_write_context_64(ir, mk_64(ir, 0), offsetof(struct arm64_registers, helper_pc));
+
+    return res;
+}
+
+static void dump_state(struct arm64_target *context, struct irInstructionAllocator *ir)
+{
+#if DUMP_STATE
+    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+
+    mk_call_void(context, ir , "arm64_hlp_dump", ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_dump), param);
+#endif
 }
 
 static struct irRegister *read_x(struct irInstructionAllocator *ir, int index, int is_zero)
@@ -227,7 +254,7 @@ static struct irRegister *mk_ror_imm_32(struct irInstructionAllocator *ir, struc
     return ir->add_ror_32(ir, op, mk_8(ir, rotation));
 }
 
-static struct irRegister *mk_next_nzcv_64(struct irInstructionAllocator *ir, enum ops ops, struct irRegister *op1, struct irRegister *op2)
+static struct irRegister *mk_next_nzcv_64(struct arm64_target *context, struct irInstructionAllocator *ir, enum ops ops, struct irRegister *op1, struct irRegister *op2)
 {
         struct irRegister *params[4];
         struct irRegister *nextCpsr;
@@ -237,14 +264,14 @@ static struct irRegister *mk_next_nzcv_64(struct irInstructionAllocator *ir, enu
         params[2] = op2;
         params[3] = read_nzcv(ir);
 
-        nextCpsr = ir->add_call_32(ir, "arm64_hlp_compute_next_nzcv_64",
+        nextCpsr = mk_call_32(context, ir, "arm64_hlp_compute_next_nzcv_64",
                                    ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_compute_next_nzcv_64),
                                    params);
 
         return nextCpsr;
 }
 
-static struct irRegister *mk_next_nzcv_32(struct irInstructionAllocator *ir, enum ops ops, struct irRegister *op1, struct irRegister *op2)
+static struct irRegister *mk_next_nzcv_32(struct arm64_target *context, struct irInstructionAllocator *ir, enum ops ops, struct irRegister *op1, struct irRegister *op2)
 {
         struct irRegister *params[4];
         struct irRegister *nextCpsr;
@@ -254,7 +281,7 @@ static struct irRegister *mk_next_nzcv_32(struct irInstructionAllocator *ir, enu
         params[2] = op2;
         params[3] = read_nzcv(ir);
 
-        nextCpsr = ir->add_call_32(ir, "arm64_hlp_compute_next_nzcv_32",
+        nextCpsr = mk_call_32(context, ir, "arm64_hlp_compute_next_nzcv_32",
                                    ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_compute_next_nzcv_32),
                                    params);
 
@@ -359,74 +386,72 @@ static struct irRegister *mk_extend_reg_32(struct irInstructionAllocator *ir, in
     return res;
 }
 
-static struct irRegister *mk_mul_u_lsb_64(struct irInstructionAllocator *ir, struct irRegister *op1, struct irRegister *op2)
+static struct irRegister *mk_mul_u_lsb_64(struct arm64_target *context, struct irInstructionAllocator *ir, struct irRegister *op1, struct irRegister *op2)
 {
     struct irRegister *param[4] = {op1, op2, NULL, NULL};
 
-    return ir->add_call_64(ir, "arm64_hlp_umul_lsb_64",
+    return mk_call_64(context, ir, "arm64_hlp_umul_lsb_64",
                            ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_umul_lsb_64),
                            param);
 }
 
-static struct irRegister *mk_mul_u_lsb_32(struct irInstructionAllocator *ir, struct irRegister *op1, struct irRegister *op2)
+static struct irRegister *mk_mul_u_lsb_32(struct arm64_target *context, struct irInstructionAllocator *ir, struct irRegister *op1, struct irRegister *op2)
 {
     struct irRegister *param[4] = {op1, op2, NULL, NULL};
 
-    return ir->add_call_32(ir, "arm64_hlp_umul_lsb_32",
+    return mk_call_32(context, ir, "arm64_hlp_umul_lsb_32",
                            ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_umul_lsb_32),
                            param);
 }
 
-static struct irRegister *mk_mul_u_msb_64(struct irInstructionAllocator *ir, struct irRegister *op1, struct irRegister *op2)
+static struct irRegister *mk_mul_u_msb_64(struct arm64_target *context, struct irInstructionAllocator *ir, struct irRegister *op1, struct irRegister *op2)
 {
     struct irRegister *param[4] = {op1, op2, NULL, NULL};
 
-    return ir->add_call_64(ir, "arm64_hlp_umul_msb_64",
+    return mk_call_64(context, ir, "arm64_hlp_umul_msb_64",
                            ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_umul_msb_64),
                            param);
 }
 
-static struct irRegister *mk_mul_s_msb_64(struct irInstructionAllocator *ir, struct irRegister *op1, struct irRegister *op2)
+static struct irRegister *mk_mul_s_msb_64(struct arm64_target *context, struct irInstructionAllocator *ir, struct irRegister *op1, struct irRegister *op2)
 {
     struct irRegister *param[4] = {op1, op2, NULL, NULL};
 
-    return ir->add_call_64(ir, "arm64_hlp_smul_msb_64",
+    return mk_call_64(context, ir, "arm64_hlp_smul_msb_64",
                            ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_smul_msb_64),
                            param);
 }
 
-static struct irRegister *mk_mul_s_lsb_64(struct irInstructionAllocator *ir, struct irRegister *op1, struct irRegister *op2)
+static struct irRegister *mk_mul_s_lsb_64(struct arm64_target *context, struct irInstructionAllocator *ir, struct irRegister *op1, struct irRegister *op2)
 {
     struct irRegister *param[4] = {op1, op2, NULL, NULL};
 
-    return ir->add_call_64(ir, "arm64_hlp_smul_lsb_64",
+    return mk_call_64(context, ir, "arm64_hlp_smul_lsb_64",
                            ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_smul_lsb_64),
                            param);
 }
 
-static void mk_barrier(struct irInstructionAllocator *ir)
+static void mk_barrier(struct arm64_target *context, struct irInstructionAllocator *ir)
 {
     struct irRegister *params[4] = {NULL, NULL, NULL, NULL};
 
-    ir->add_call_void(ir, "arm64_hlp_memory_barrier",
-                           mk_64(ir, (uint64_t) arm64_hlp_memory_barrier),
-                           params);
+    mk_call_void(context, ir , "arm64_hlp_memory_barrier", ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_memory_barrier), params);
 }
 
-static void mk_gdb_breakpoint_instruction(struct irInstructionAllocator *ir)
+static void mk_gdb_breakpoint_instruction(struct arm64_target *context, struct irInstructionAllocator *ir)
 {
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
 
-    ir->add_call_void(ir, "arm64_gdb_breakpoint_instruction",
+    mk_call_void(context, ir, "arm64_gdb_breakpoint_instruction",
                         ir->add_mov_const_64(ir, (uint64_t) arm64_gdb_breakpoint_instruction),
                         param);
 }
 
-static void mk_gdb_stepin_instruction(struct irInstructionAllocator *ir)
+static void mk_gdb_stepin_instruction(struct arm64_target *context, struct irInstructionAllocator *ir)
 {
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
 
-    ir->add_call_void(ir, "arm64_gdb_stepin_instruction",
+    mk_call_void(context, ir, "arm64_gdb_stepin_instruction",
                         ir->add_mov_const_64(ir, (uint64_t) arm64_gdb_stepin_instruction),
                         param);
 }
@@ -435,7 +460,7 @@ static void mk_exit(struct arm64_target *context, struct irInstructionAllocator 
 {
     write_pc(ir, next_pc);
     if (context->regs.is_stepin) {
-        mk_gdb_stepin_instruction(ir);
+        mk_gdb_stepin_instruction(context, ir);
         context->regs.is_stepin = 0;
     }
     ir->add_exit(ir, next_pc);
@@ -508,46 +533,46 @@ static uint64_t simd_immediate(int op, int cmode, int imm8_p)
     return imm64;
 }
 
-static void write_fpsr(struct irInstructionAllocator *ir, struct irRegister *value)
+static void write_fpsr(struct arm64_target *context, struct irInstructionAllocator *ir, struct irRegister *value)
 {
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
 
     param[0] = value;
 
-    ir->add_call_void(ir, "arm64_hlp_write_fpsr",
+    mk_call_void(context, ir, "arm64_hlp_write_fpsr",
                           ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_write_fpsr),
                           param);
 }
 
-static struct irRegister *read_fpsr(struct irInstructionAllocator *ir)
+static struct irRegister *read_fpsr(struct arm64_target *context, struct irInstructionAllocator *ir)
 {
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
     struct irRegister *res;
 
-    res = ir->add_call_32(ir, "arm64_hlp_read_fpsr",
+    res = mk_call_32(context, ir, "arm64_hlp_read_fpsr",
                           ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_read_fpsr),
                           param);
 
     return res;
 }
 
-static void write_fpcr(struct irInstructionAllocator *ir, struct irRegister *value)
+static void write_fpcr(struct arm64_target *context, struct irInstructionAllocator *ir, struct irRegister *value)
 {
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
 
     param[0] = value;
 
-    ir->add_call_void(ir, "arm64_hlp_write_fpcr",
+    mk_call_void(context, ir, "arm64_hlp_write_fpcr",
                           ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_write_fpcr),
                           param);
 }
 
-static struct irRegister *read_fpcr(struct irInstructionAllocator *ir)
+static struct irRegister *read_fpcr(struct arm64_target *context, struct irInstructionAllocator *ir)
 {
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
     struct irRegister *res;
 
-    res = ir->add_call_32(ir, "arm64_hlp_read_fpcr",
+    res = mk_call_32(context, ir, "arm64_hlp_read_fpcr",
                           ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_read_fpcr),
                           param);
 
@@ -788,9 +813,9 @@ static int dis_add_sub(struct arm64_target *context, uint32_t insn, struct irIns
     /* update flags */
     if (S) {
         if (is_64)
-            write_nzcv(ir, mk_next_nzcv_64(ir, is_sub?OPS_SUB:OPS_ADD, op1, op2));
+            write_nzcv(ir, mk_next_nzcv_64(context, ir, is_sub?OPS_SUB:OPS_ADD, op1, op2));
         else
-            write_nzcv(ir, mk_next_nzcv_32(ir, is_sub?OPS_SUB:OPS_ADD, op1, op2));
+            write_nzcv(ir, mk_next_nzcv_32(context, ir, is_sub?OPS_SUB:OPS_ADD, op1, op2));
     }
 
     /* write reg */
@@ -1048,9 +1073,9 @@ static int dis_logical_shifted_register(struct arm64_target *context, uint32_t i
     /* update nzcv if needed */
     if (is_setflags) {
         if (is_64)
-            write_nzcv(ir, mk_next_nzcv_64(ir, OPS_LOGICAL, res, mk_64(ir, 0)));
+            write_nzcv(ir, mk_next_nzcv_64(context, ir, OPS_LOGICAL, res, mk_64(ir, 0)));
         else
-            write_nzcv(ir, mk_next_nzcv_32(ir, OPS_LOGICAL, ir->add_64_to_32(ir, res), mk_32(ir, 0)));
+            write_nzcv(ir, mk_next_nzcv_32(context, ir, OPS_LOGICAL, ir->add_64_to_32(ir, res), mk_32(ir, 0)));
     }
 
     /* write res */
@@ -1085,7 +1110,7 @@ static int dis_svc(struct arm64_target *context, uint32_t insn, struct irInstruc
 
     /* be sure pc as the correct value so clone syscall can use pc value */
     write_pc(ir, ir->add_mov_const_64(ir, context->pc + 4));
-    ir->add_call_void(ir, "arm64_hlp_syscall",
+    mk_call_void(context, ir, "arm64_hlp_syscall",
                       ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_syscall),
                       param);
 #ifdef DUMP_STATE
@@ -1102,7 +1127,7 @@ static int dis_brk(struct arm64_target *context, uint32_t insn, struct irInstruc
     //set pc to correct location before sending sigill signal
     write_pc(ir, ir->add_mov_const_64(ir, context->pc));
     //will send a SIGILL signal
-    mk_gdb_breakpoint_instruction(ir);
+    mk_gdb_breakpoint_instruction(context, ir);
     //reexecute same instructions since opcode has been updated by gdb
     ir->add_exit(ir, ir->add_mov_const_64(ir, context->pc));
 
@@ -1162,7 +1187,7 @@ static int dis_conditionnal_branch_immediate_insn(struct arm64_target *context, 
     params[2] = NULL;
     params[3] = NULL;
 
-    pred = ir->add_call_32(ir, "arm64_hlp_compute_flags_pred",
+    pred = mk_call_32(context, ir, "arm64_hlp_compute_flags_pred",
                            mk_64(ir, (uint64_t) arm64_hlp_compute_flags_pred),
                            params);
     dump_state(context, ir);
@@ -1263,7 +1288,7 @@ static int dis_ccmp_A_ccmn(struct arm64_target *context, uint32_t insn, struct i
     params[1] = read_nzcv(ir);
     params[2] = NULL;
     params[3] = NULL;
-    pred = ir->add_call_32(ir, "arm64_hlp_compute_flags_pred",
+    pred = mk_call_32(context, ir, "arm64_hlp_compute_flags_pred",
                            mk_64(ir, (uint64_t) arm64_hlp_compute_flags_pred),
                            params);
 
@@ -1273,7 +1298,7 @@ static int dis_ccmp_A_ccmn(struct arm64_target *context, uint32_t insn, struct i
         params[1] = read_x(ir, rn, ZERO_REG);
         params[2] = op2;
         params[3] = read_nzcv(ir);
-        res_true = ir->add_call_32(ir, "arm64_hlp_compute_next_nzcv_64",
+        res_true = mk_call_32(context, ir, "arm64_hlp_compute_next_nzcv_64",
                                mk_64(ir, (uint64_t) arm64_hlp_compute_next_nzcv_64),
                                params);
     } else {
@@ -1281,7 +1306,7 @@ static int dis_ccmp_A_ccmn(struct arm64_target *context, uint32_t insn, struct i
         params[1] = read_w(ir, rn, ZERO_REG);
         params[2] = op2;
         params[3] = read_nzcv(ir);
-        res_true = ir->add_call_32(ir, "arm64_hlp_compute_next_nzcv_32",
+        res_true = mk_call_32(context, ir, "arm64_hlp_compute_next_nzcv_32",
                                mk_64(ir, (uint64_t) arm64_hlp_compute_next_nzcv_32),
                                params);
     }
@@ -1335,7 +1360,7 @@ static int dis_cond_select(struct arm64_target *context, uint32_t insn, struct i
     params[1] = read_nzcv(ir);
     params[2] = NULL;
     params[3] = NULL;
-    pred = ir->add_call_32(ir, "arm64_hlp_compute_flags_pred",
+    pred = mk_call_32(context, ir, "arm64_hlp_compute_flags_pred",
                            mk_64(ir, (uint64_t) arm64_hlp_compute_flags_pred),
                            params);
 
@@ -1854,9 +1879,9 @@ static int dis_logical_immediate(struct arm64_target *context, uint32_t insn, st
 
     if (is_setflags) {
         if (is_64)
-            write_nzcv(ir, mk_next_nzcv_64(ir, OPS_LOGICAL, res, mk_64(ir, 0)));
+            write_nzcv(ir, mk_next_nzcv_64(context, ir, OPS_LOGICAL, res, mk_64(ir, 0)));
         else
-            write_nzcv(ir, mk_next_nzcv_32(ir, OPS_LOGICAL, ir->add_64_to_32(ir, res), mk_32(ir, 0)));
+            write_nzcv(ir, mk_next_nzcv_32(context, ir, OPS_LOGICAL, ir->add_64_to_32(ir, res), mk_32(ir, 0)));
     }
 
     if (is_64)
@@ -1881,7 +1906,7 @@ static int dis_bitfield_insn(struct arm64_target *context, uint32_t insn, struct
     params[2] = read_x(ir, rd, ZERO_REG);
     params[3] = NULL;
 
-    res = ir->add_call_64(ir, "arm64_hlp_compute_bitfield",
+    res = mk_call_64(context, ir, "arm64_hlp_compute_bitfield",
                                ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_compute_bitfield),
                                params);
 
@@ -1942,7 +1967,7 @@ static int dis_udiv(struct arm64_target *context, uint32_t insn, struct irInstru
         params[2] = NULL;
         params[3] = NULL;
 
-        res = ir->add_call_32(ir, "arm64_hlp_udiv_64",
+        res = mk_call_32(context, ir, "arm64_hlp_udiv_64",
                                ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_udiv_64),
                                params);
         write_x(ir, rd, res, ZERO_REG);
@@ -1952,7 +1977,7 @@ static int dis_udiv(struct arm64_target *context, uint32_t insn, struct irInstru
         params[2] = NULL;
         params[3] = NULL;
 
-        res = ir->add_call_32(ir, "arm64_hlp_udiv_32",
+        res = mk_call_32(context, ir, "arm64_hlp_udiv_32",
                                ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_udiv_32),
                                params);
         write_w(ir, rd, res, ZERO_REG);
@@ -1976,7 +2001,7 @@ static int dis_sdiv(struct arm64_target *context, uint32_t insn, struct irInstru
         params[2] = NULL;
         params[3] = NULL;
 
-        res = ir->add_call_32(ir, "arm64_hlp_sdiv_64",
+        res = mk_call_32(context, ir, "arm64_hlp_sdiv_64",
                                ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_sdiv_64),
                                params);
         write_x(ir, rd, res, ZERO_REG);
@@ -1986,7 +2011,7 @@ static int dis_sdiv(struct arm64_target *context, uint32_t insn, struct irInstru
         params[2] = NULL;
         params[3] = NULL;
 
-        res = ir->add_call_32(ir, "arm64_hlp_sdiv_32",
+        res = mk_call_32(context, ir, "arm64_hlp_sdiv_32",
                                ir->add_mov_const_64(ir, (uint64_t) arm64_hlp_sdiv_32),
                                params);
         write_w(ir, rd, res, ZERO_REG);
@@ -2101,7 +2126,7 @@ static int dis_crc32(struct arm64_target *context, uint32_t insn, struct irInstr
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_crc32",
+    mk_call_void(context, ir, "arm64_hlp_dirty_crc32",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_crc32),
                            params);
 
@@ -2147,7 +2172,7 @@ static int dis_madd(struct arm64_target *context, uint32_t insn, struct irInstru
         write_x(ir, rd,
                 ir->add_add_64(ir,
                                read_x(ir, ra, ZERO_REG),
-                               mk_mul_u_lsb_64(ir,
+                               mk_mul_u_lsb_64(context, ir,
                                                read_x(ir, rn, ZERO_REG),
                                                read_x(ir, rm, ZERO_REG))),
                 ZERO_REG);
@@ -2155,7 +2180,7 @@ static int dis_madd(struct arm64_target *context, uint32_t insn, struct irInstru
         write_w(ir, rd,
                 ir->add_add_32(ir,
                                read_w(ir, ra, ZERO_REG),
-                               mk_mul_u_lsb_32(ir,
+                               mk_mul_u_lsb_32(context, ir,
                                                read_w(ir, rn, ZERO_REG),
                                                read_w(ir, rm, ZERO_REG))),
                 ZERO_REG);
@@ -2176,7 +2201,7 @@ static int dis_msub(struct arm64_target *context, uint32_t insn, struct irInstru
         write_x(ir, rd,
                 ir->add_sub_64(ir,
                                read_x(ir, ra, ZERO_REG),
-                               mk_mul_u_lsb_64(ir,
+                               mk_mul_u_lsb_64(context, ir,
                                                read_x(ir, rn, ZERO_REG),
                                                read_x(ir, rm, ZERO_REG))),
                 ZERO_REG);
@@ -2184,7 +2209,7 @@ static int dis_msub(struct arm64_target *context, uint32_t insn, struct irInstru
         write_w(ir, rd,
                 ir->add_sub_32(ir,
                                read_w(ir, ra, ZERO_REG),
-                               mk_mul_u_lsb_32(ir,
+                               mk_mul_u_lsb_32(context, ir,
                                                read_w(ir, rn, ZERO_REG),
                                                read_w(ir, rm, ZERO_REG))),
                 ZERO_REG);
@@ -2202,7 +2227,7 @@ static int dis_smaddl(struct arm64_target *context, uint32_t insn, struct irInst
     struct irRegister *mult;
     struct irRegister *res;
 
-    mult = mk_mul_s_lsb_64(ir,
+    mult = mk_mul_s_lsb_64(context, ir,
                            ir->add_32S_to_64(ir, read_w(ir, rn, ZERO_REG)),
                            ir->add_32S_to_64(ir, read_w(ir, rm, ZERO_REG)));
     res = ir->add_add_64(ir, read_x(ir, ra, ZERO_REG), mult);
@@ -2220,7 +2245,7 @@ static int dis_smsubl(struct arm64_target *context, uint32_t insn, struct irInst
     struct irRegister *mult;
     struct irRegister *res;
 
-    mult = mk_mul_s_lsb_64(ir,
+    mult = mk_mul_s_lsb_64(context, ir,
                            ir->add_32S_to_64(ir, read_w(ir, rn, ZERO_REG)),
                            ir->add_32S_to_64(ir, read_w(ir, rm, ZERO_REG)));
     res = ir->add_sub_64(ir, read_x(ir, ra, ZERO_REG), mult);
@@ -2236,7 +2261,7 @@ static int dis_smulh(struct arm64_target *context, uint32_t insn, struct irInstr
     int rd = INSN(4,0);
 
     write_x(ir, rd,
-                mk_mul_s_msb_64(ir, read_x(ir, rn, ZERO_REG), read_x(ir, rm, ZERO_REG)),
+                mk_mul_s_msb_64(context, ir, read_x(ir, rn, ZERO_REG), read_x(ir, rm, ZERO_REG)),
                 ZERO_REG);
 
     return 0;
@@ -2251,7 +2276,7 @@ static int dis_umaddl(struct arm64_target *context, uint32_t insn, struct irInst
     struct irRegister *mult;
     struct irRegister *res;
 
-    mult = mk_mul_u_lsb_64(ir,
+    mult = mk_mul_u_lsb_64(context, ir,
                            ir->add_32U_to_64(ir, read_w(ir, rn, ZERO_REG)),
                            ir->add_32U_to_64(ir, read_w(ir, rm, ZERO_REG)));
     res = ir->add_add_64(ir, read_x(ir, ra, ZERO_REG), mult);
@@ -2269,7 +2294,7 @@ static int dis_umsubl(struct arm64_target *context, uint32_t insn, struct irInst
     struct irRegister *mult;
     struct irRegister *res;
 
-    mult = mk_mul_u_lsb_64(ir,
+    mult = mk_mul_u_lsb_64(context, ir,
                            ir->add_32U_to_64(ir, read_w(ir, rn, ZERO_REG)),
                            ir->add_32U_to_64(ir, read_w(ir, rm, ZERO_REG)));
     res = ir->add_sub_64(ir, read_x(ir, ra, ZERO_REG), mult);
@@ -2285,7 +2310,7 @@ static int dis_umulh(struct arm64_target *context, uint32_t insn, struct irInstr
     int rd = INSN(4,0);
 
     write_x(ir, rd,
-                mk_mul_u_msb_64(ir, read_x(ir, rn, ZERO_REG), read_x(ir, rm, ZERO_REG)),
+                mk_mul_u_msb_64(context, ir, read_x(ir, rn, ZERO_REG), read_x(ir, rm, ZERO_REG)),
                 ZERO_REG);
 
     return 0;
@@ -2306,10 +2331,10 @@ static int dis_msr_register(struct arm64_target *context, uint32_t insn, struct 
         write_nzcv(ir, read_w(ir, rt, ZERO_REG));
     } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 0) {
         //fpcr
-        write_fpcr(ir, read_w(ir, rt, ZERO_REG));
+        write_fpcr(context, ir, read_w(ir, rt, ZERO_REG));
     } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 1) {
         //fpsr
-        write_fpsr(ir, read_w(ir, rt, ZERO_REG));
+        write_fpsr(context, ir, read_w(ir, rt, ZERO_REG));
     } else {
         fprintf(stderr, "op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\n", op0, op1, crn, crm, op2);
         fprintf(stderr, "pc = 0x%016lx\n", context->pc);
@@ -2337,10 +2362,10 @@ static int dis_mrs_register(struct arm64_target *context, uint32_t insn, struct 
         write_x(ir, rt, ir->add_32U_to_64(ir, read_nzcv(ir)), ZERO_REG);
     } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 0) {
         //fpcr
-        write_x(ir, rt, read_fpcr(ir), ZERO_REG);
+        write_x(ir, rt, read_fpcr(context, ir), ZERO_REG);
     } else if (op0 == 3 && op1 == 3 && crn == 0x4 && crm == 4 && op2 == 1) {
         //fpsr
-        write_x(ir, rt, read_fpsr(ir), ZERO_REG);
+        write_x(ir, rt, read_fpsr(context, ir), ZERO_REG);
     } else if (op0 == 3 && op1 == 3 && crn == 0x0 && crm == 0 && op2 == 1) {
         //ctr_el0
         /* 32 byte I and D cacheline size, VIPT icache */
@@ -2367,7 +2392,7 @@ static int dis_load_exclusive(struct arm64_target *context, uint32_t insn, struc
     params[2] = NULL;
     params[3] = NULL;
 
-    result = ir->add_call_64(ir, "arm64_hlp_ldxr",
+    result = mk_call_64(context, ir, "arm64_hlp_ldxr",
                              mk_64(ir, (uint64_t) arm64_hlp_ldxr),
                              params);
 
@@ -2389,7 +2414,7 @@ static int dis_load_aquire_exclusive(struct arm64_target *context, uint32_t insn
     params[2] = NULL;
     params[3] = NULL;
 
-    result = ir->add_call_64(ir, "arm64_hlp_ldaxr",
+    result = mk_call_64(context, ir, "arm64_hlp_ldaxr",
                              mk_64(ir, (uint64_t) arm64_hlp_ldaxr),
                              params);
 
@@ -2407,7 +2432,7 @@ static int dis_load_aquire_exclusive_pair(struct arm64_target *context, uint32_t
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "arm64_hlp_ldaxp_dirty",
+    mk_call_void(context, ir, "arm64_hlp_ldaxp_dirty",
                            mk_64(ir, (uint64_t) arm64_hlp_ldaxp_dirty),
                            params);
 
@@ -2423,7 +2448,7 @@ static int dis_load_exclusive_pair(struct arm64_target *context, uint32_t insn, 
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "arm64_hlp_ldxp_dirty",
+    mk_call_void(context, ir, "arm64_hlp_ldxp_dirty",
                            mk_64(ir, (uint64_t) arm64_hlp_ldxp_dirty),
                            params);
 
@@ -2446,7 +2471,7 @@ static int dis_load_aquire(struct arm64_target *context, uint32_t insn, struct i
         write_x(ir, rt, ir->add_8U_to_64(ir, ir->add_load_8(ir, read_x(ir, rn, SP_REG))), ZERO_REG);
     }
 
-    mk_barrier(ir);
+    mk_barrier(context, ir);
 
     return 0;
 }
@@ -2457,7 +2482,7 @@ static int dis_store_release(struct arm64_target *context, uint32_t insn, struct
     int rt = INSN(4,0);
     int rn = INSN(9,5);
 
-    mk_barrier(ir);
+    mk_barrier(context, ir);
 
     if (size == 3) {
         ir->add_store_64(ir, read_x(ir, rt, ZERO_REG), read_x(ir, rn, SP_REG));
@@ -2486,7 +2511,7 @@ static int dis_store_exclusive(struct arm64_target *context, uint32_t insn, stru
     params[2] = read_x(ir, rt, SP_REG);
     params[3] = NULL;
 
-    result = ir->add_call_32(ir, "arm64_hlp_stxr",
+    result = mk_call_32(context, ir, "arm64_hlp_stxr",
                              mk_64(ir, (uint64_t) arm64_hlp_stxr),
                              params);
 
@@ -2504,7 +2529,7 @@ static int dis_store_exclusive_pair(struct arm64_target *context, uint32_t insn,
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "arm64_hlp_stxp_dirty",
+    mk_call_void(context, ir, "arm64_hlp_stxp_dirty",
                            mk_64(ir, (uint64_t) arm64_hlp_stxp_dirty),
                            params);
 
@@ -2520,7 +2545,7 @@ static int dis_store_release_exclusive_pair(struct arm64_target *context, uint32
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "arm64_hlp_stlxp_dirty",
+    mk_call_void(context, ir, "arm64_hlp_stlxp_dirty",
                            mk_64(ir, (uint64_t) arm64_hlp_stlxp_dirty),
                            params);
 
@@ -2541,7 +2566,7 @@ static int dis_store_release_exclusive(struct arm64_target *context, uint32_t in
     params[2] = read_x(ir, rt, SP_REG);
     params[3] = NULL;
 
-    result = ir->add_call_32(ir, "arm64_hlp_stlxr",
+    result = mk_call_32(context, ir, "arm64_hlp_stlxr",
                              mk_64(ir, (uint64_t) arm64_hlp_stlxr),
                              params);
 
@@ -2739,7 +2764,7 @@ static int dis_clz(struct arm64_target *context, uint32_t insn, struct irInstruc
     params[3] = NULL;
 
 
-    res = ir->add_call_64(ir, "arm64_hlp_clz",
+    res = mk_call_64(context, ir, "arm64_hlp_clz",
                              mk_64(ir, (uint64_t) arm64_hlp_clz),
                              params);
 
@@ -2765,7 +2790,7 @@ static int dis_cls(struct arm64_target *context, uint32_t insn, struct irInstruc
     params[3] = NULL;
 
 
-    res = ir->add_call_64(ir, "arm64_hlp_cls",
+    res = mk_call_64(context, ir, "arm64_hlp_cls",
                              mk_64(ir, (uint64_t) arm64_hlp_cls),
                              params);
 
@@ -2786,7 +2811,7 @@ static int dis_clrex(struct arm64_target *context, uint32_t insn, struct irInstr
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "arm64_hlp_clrex",
+    mk_call_void(context, ir, "arm64_hlp_clrex",
                            mk_64(ir, (uint64_t) arm64_hlp_clrex),
                            params);
 
@@ -2795,21 +2820,21 @@ static int dis_clrex(struct arm64_target *context, uint32_t insn, struct irInstr
 
 static int dis_dsb(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    mk_barrier(ir);
+    mk_barrier(context, ir);
 
     return 0;
 }
 
 static int dis_dmb(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    mk_barrier(ir);
+    mk_barrier(context, ir);
 
     return 0;
 }
 
 static int dis_isb(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    mk_barrier(ir);
+    mk_barrier(context, ir);
 
     return 0;
 }
@@ -2835,7 +2860,7 @@ static int dis_sys(struct arm64_target *context, uint32_t insn, struct irInstruc
         //ivau
         struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
 
-        ir->add_call_void(ir, "arm64_clean_caches",
+        mk_call_void(context, ir, "arm64_clean_caches",
                         ir->add_mov_const_64(ir, (uint64_t) arm64_clean_caches),
                         param);
         isExit = 1;
@@ -2984,7 +3009,7 @@ static int dis_dup_element(struct arm64_target *context, uint32_t insn, struct i
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_simd_dup_element",
+    mk_call_void(context, ir, "arm64_hlp_dirty_simd_dup_element",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_simd_dup_element),
                            params);
 
@@ -2997,7 +3022,7 @@ static int dis_dup_general(struct arm64_target *context, uint32_t insn, struct i
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_simd_dup_general",
+    mk_call_void(context, ir, "arm64_hlp_dirty_simd_dup_general",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_simd_dup_general),
                            params);
 
@@ -3028,7 +3053,7 @@ static int dis_load_store_multiple_structure(struct arm64_target *context, uint3
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_load_store_multiple_structure_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_load_store_multiple_structure_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_load_store_multiple_structure_simd),
                            params);
 
@@ -3041,7 +3066,7 @@ static int dis_load_store_multiple_structure_post_index(struct arm64_target *con
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_load_store_multiple_structure_post_index_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_load_store_multiple_structure_post_index_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_load_store_multiple_structure_post_index_simd),
                            params);
 
@@ -3054,7 +3079,7 @@ static int dis_load_store_single_structure(struct arm64_target *context, uint32_
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_load_store_single_structure_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_load_store_single_structure_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_load_store_single_structure_simd),
                            params);
 
@@ -3067,7 +3092,7 @@ static int dis_load_store_single_structure_post_index(struct arm64_target *conte
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_load_store_single_structure_post_index_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_load_store_single_structure_post_index_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_load_store_single_structure_post_index_simd),
                            params);
 
@@ -3119,9 +3144,9 @@ static int dis_add_substract_with_carry(struct arm64_target *context, uint32_t i
     /* set flags */
     if (S) {
         if (is_64)
-            write_nzcv(ir, mk_next_nzcv_64(ir, OPS_ADC, op1, op2_inverted));
+            write_nzcv(ir, mk_next_nzcv_64(context, ir, OPS_ADC, op1, op2_inverted));
         else
-            write_nzcv(ir, mk_next_nzcv_32(ir, OPS_ADC, op1, op2_inverted));
+            write_nzcv(ir, mk_next_nzcv_32(context, ir, OPS_ADC, op1, op2_inverted));
     }
 
     /* write res */
@@ -3226,7 +3251,7 @@ static int dis_scvtf_scalar_integer(struct arm64_target *context, uint32_t insn,
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_scvtf_scalar_integer_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_scvtf_scalar_integer_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_scvtf_scalar_integer_simd),
                            params);
 
@@ -3239,7 +3264,7 @@ static int dis_ucvtf_scalar_integer(struct arm64_target *context, uint32_t insn,
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_ucvtf_scalar_integer_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_ucvtf_scalar_integer_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_ucvtf_scalar_integer_simd),
                            params);
 
@@ -3252,7 +3277,7 @@ static int dis_fcvtxx_scalar_integer(struct arm64_target *context, uint32_t insn
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_fcvtxx_scalar_integer_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_fcvtxx_scalar_integer_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_fcvtxx_scalar_integer_simd),
                            params);
 
@@ -3265,7 +3290,7 @@ static int dis_floating_point_data_processing_3_source(struct arm64_target *cont
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_floating_point_data_processing_3_source_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_floating_point_data_processing_3_source_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_floating_point_data_processing_3_source_simd),
                            params);
 
@@ -3278,7 +3303,7 @@ static int dis_floating_point_immediate(struct arm64_target *context, uint32_t i
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_floating_point_immediate_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_floating_point_immediate_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_floating_point_immediate_simd),
                            params);
 
@@ -3291,7 +3316,7 @@ static int dis_floating_point_compare(struct arm64_target *context, uint32_t ins
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_floating_point_compare_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_floating_point_compare_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_floating_point_compare_simd),
                            params);
 
@@ -3304,7 +3329,7 @@ static int dis_floating_point_data_processing_2_source(struct arm64_target *cont
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_floating_point_data_processing_2_source_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_floating_point_data_processing_2_source_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_floating_point_data_processing_2_source_simd),
                            params);
 
@@ -3317,7 +3342,7 @@ static int dis_floating_point_conditional_select(struct arm64_target *context, u
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_floating_point_conditional_select_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_floating_point_conditional_select_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_floating_point_conditional_select_simd),
                            params);
 
@@ -3330,7 +3355,7 @@ static int dis_advanced_simd_shift_by_immediate(struct arm64_target *context, ui
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd),
                            params);
 
@@ -3343,7 +3368,7 @@ static int dis_advanced_simd_scalar_three_different(struct arm64_target *context
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_scalar_three_different_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_scalar_three_different_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_scalar_three_different_simd),
                            params);
 
@@ -3356,7 +3381,7 @@ static int dis_advanced_simd_scalar_two_reg_misc(struct arm64_target *context, u
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd),
                            params);
 
@@ -3369,7 +3394,7 @@ static int dis_advanced_simd_scalar_pair_wise(struct arm64_target *context, uint
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_scalar_pair_wise_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_scalar_pair_wise_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_scalar_pair_wise_simd),
                            params);
 
@@ -3382,7 +3407,7 @@ static int dis_advanced_simd_table_lookup(struct arm64_target *context, uint32_t
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_table_lookup_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_table_lookup_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_table_lookup_simd),
                            params);
 
@@ -3395,7 +3420,7 @@ static int dis_advanced_simd_permute(struct arm64_target *context, uint32_t insn
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_permute_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_permute_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_permute_simd),
                            params);
 
@@ -3408,7 +3433,7 @@ static int dis_advanced_simd_ext(struct arm64_target *context, uint32_t insn, st
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_ext_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_ext_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_ext_simd),
                            params);
 
@@ -3421,7 +3446,7 @@ static int dis_advanced_simd_three_different(struct arm64_target *context, uint3
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_simd_three_different_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_simd_three_different_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_simd_three_different_simd),
                            params);
 
@@ -3434,7 +3459,7 @@ static int dis_advanced_simd_two_reg_misc(struct arm64_target *context, uint32_t
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_two_reg_misc_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_two_reg_misc_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_two_reg_misc_simd),
                            params);
 
@@ -3447,7 +3472,7 @@ static int dis_advanced_simd_accross_lanes(struct arm64_target *context, uint32_
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_accross_lanes_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_accross_lanes_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_accross_lanes_simd),
                            params);
 
@@ -3492,7 +3517,7 @@ static int dis_advanced_simd_scalar_three_same(struct arm64_target *context, uin
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_scalar_three_same_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_scalar_three_same_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_scalar_three_same_simd),
                            params);
 
@@ -3505,7 +3530,7 @@ static int dis_advanced_simd_three_same(struct arm64_target *context, uint32_t i
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_three_same_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_three_same_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_three_same_simd),
                            params);
 
@@ -3518,7 +3543,7 @@ static int dis_advanced_simd_vector_x_indexed_element(struct arm64_target *conte
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd),
                            params);
 
@@ -3531,7 +3556,7 @@ static int dis_advanced_simd_scalar_x_indexed_element(struct arm64_target *conte
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_scalar_x_indexed_element_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_scalar_x_indexed_element_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_scalar_x_indexed_element_simd),
                            params);
 
@@ -3544,7 +3569,7 @@ static int dis_advanced_simd_scalar_shift_by_immediate(struct arm64_target *cont
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_advanced_simd_scalar_shift_by_immediate_simd",
+    mk_call_void(context, ir, "arm64_hlp_dirty_advanced_simd_scalar_shift_by_immediate_simd",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_advanced_simd_scalar_shift_by_immediate_simd),
                            params);
 
@@ -3557,7 +3582,7 @@ static int dis_floating_point_conditional_compare(struct arm64_target *context, 
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_floating_point_conditional_compare",
+    mk_call_void(context, ir, "arm64_hlp_dirty_floating_point_conditional_compare",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_floating_point_conditional_compare),
                            params);
 
@@ -3570,7 +3595,7 @@ static int dis_conversion_between_floating_point_and_fixed_point_insn(struct arm
 
     params[0] = mk_32(ir, insn);
 
-    ir->add_call_void(ir, "arm64_hlp_dirty_conversion_between_floating_point_and_fixed_point",
+    mk_call_void(context, ir, "arm64_hlp_dirty_conversion_between_floating_point_and_fixed_point",
                            mk_64(ir, (uint64_t) arm64_hlp_dirty_conversion_between_floating_point_and_fixed_point),
                            params);
 
@@ -4087,7 +4112,7 @@ static int dis_floating_point_data_processing_1_source(struct arm64_target *cont
 
                 params[0] = mk_32(ir, insn);
 
-                ir->add_call_void(ir, "arm64_hlp_dirty_floating_point_data_processing_1_source",
+                mk_call_void(context, ir, "arm64_hlp_dirty_floating_point_data_processing_1_source",
                                        mk_64(ir, (uint64_t) arm64_hlp_dirty_floating_point_data_processing_1_source),
                                        params);
             }
@@ -4359,7 +4384,6 @@ void disassemble_arm64(struct target *target, struct irInstructionAllocator *ir,
     assert((pc & 3) == 0);
     for(i = 0; i < (context->regs.is_stepin?1:maxInsn); i++) {
         context->pc = h_2_g(pc_ptr);
-        write_pc(ir, ir->add_mov_const_64(ir, context->pc));
         isExit = disassemble_insn(context, *pc_ptr, ir);
         pc_ptr++;
         if (!isExit)
@@ -4372,3 +4396,24 @@ void disassemble_arm64(struct target *target, struct irInstructionAllocator *ir,
     }
 }
 
+void disassemble_arm64_with_marker(struct arm64_target *context, struct irInstructionAllocator *ir, uint64_t pc, int maxInsn)
+{
+    int i;
+    int isExit; //unconditionnal exit
+    uint32_t *pc_ptr = (uint32_t *) g_2_h(pc);
+
+    assert((pc & 3) == 0);
+    for(i = 0; i < (context->regs.is_stepin?1:maxInsn); i++) {
+        context->pc = h_2_g(pc_ptr);
+        ir->add_insn_marker(ir);
+        isExit = disassemble_insn(context, *pc_ptr, ir);
+        pc_ptr++;
+        if (!isExit)
+            dump_state(context, ir);
+        if (isExit)
+            break;
+    }
+    if (!isExit) {
+        mk_exit(context, ir, mk_64(ir, context->pc + 4));
+    }
+}

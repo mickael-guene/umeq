@@ -126,6 +126,7 @@ struct irInstructionAllocator {
     void (*add_write_context_16)(struct irInstructionAllocator *, struct irRegister *src, int32_t offset);
     void (*add_write_context_32)(struct irInstructionAllocator *, struct irRegister *src, int32_t offset);
     void (*add_write_context_64)(struct irInstructionAllocator *, struct irRegister *src, int32_t offset);
+    void (*add_insn_marker)(struct irInstructionAllocator *);
 };
 
 struct backend {
@@ -133,6 +134,7 @@ struct backend {
     void (*reset)(struct backend *backend);
     uint64_t (*execute)(struct backend *backend, char *buffer, uint64_t context);
     void (*request_signal_alternate_exit)(struct backend *backend, void *ucp, uint64_t result);
+    int (*find_insn)(struct backend *backend, struct irInstruction *irArray, int irInsnNb, char *buffer, int bufferSize, int offset);
 };
 
 /* jitter public api */
@@ -148,6 +150,8 @@ struct irInstructionAllocator *getIrInstructionAllocator(jitContext);
 void displayIr(jitContext handle);
 /* Translate ir instruction sequence into buffer area using backend */
 int jitCode(jitContext handle, char *buffer, int bufferSize);
+/* Find guest insn number that is associated with byte located at buffer + offset */
+int findInsn(jitContext handle, char *buffer, int bufferSize, int offset);
 
 #endif
 

@@ -716,6 +716,17 @@ static void add_write_context_64(struct irInstructionAllocator *irAlloc, struct 
     add_write_context(irAlloc, src, offset, IR_WRITE_64);
 }
 
+static void add_insn_marker(struct irInstructionAllocator *irAlloc)
+{
+    struct jitter *jitter = container_of(irAlloc, struct jitter, irInstructionAllocator);
+    struct memoryPool *pool = &jitter->instructionPoolAllocator;
+    struct irInstruction *insn = (struct irInstruction *) pool->alloc(pool, sizeof(struct irInstruction));
+
+    insn->type = IR_INSN_MARKER;
+
+    jitter->instructionIndex++;
+}
+
 static void displayReg(struct irRegister *reg)
 {
     if (reg)
@@ -859,6 +870,9 @@ static void displayInsn(struct irInstruction *insn)
                 printf("\n");
             }
             break;
+        case IR_INSN_MARKER:
+            printf("start_of_new_instruction\n");
+            break;
         default:
             printf("Unknown instruction\n");
     }
@@ -974,6 +988,7 @@ jitContext createJitter(void *memory, struct backend *backend, int size)
         jitter->irInstructionAllocator.add_write_context_16 = add_write_context_16;
         jitter->irInstructionAllocator.add_write_context_32 = add_write_context_32;
         jitter->irInstructionAllocator.add_write_context_64 = add_write_context_64;
+        jitter->irInstructionAllocator.add_insn_marker = add_insn_marker;
 
         /* setup pool memory */
         pool_mem_size = (size - struct_jitter_size_aligned_16) / 2;
@@ -1028,4 +1043,13 @@ int jitCode(jitContext handle, char *buffer, int bufferSize)
     struct irInstruction *irArray = (struct irInstruction *) jitter->instructionPoolAllocator.buffer;
 
     return jitter->backend->jit(jitter->backend, irArray, insnNb, buffer, bufferSize);
+}
+
+int findInsn(jitContext handle, char *buffer, int bufferSize, int offset)
+{
+    struct jitter *jitter = (struct jitter *) handle;
+    int insnNb = jitter->instructionPoolAllocator.index / sizeof(struct irInstruction);
+    struct irInstruction *irArray = (struct irInstruction *) jitter->instructionPoolAllocator.buffer;
+
+    return jitter->backend->find_insn(jitter->backend, irArray, insnNb, buffer, bufferSize, offset);
 }
