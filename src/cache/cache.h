@@ -28,16 +28,20 @@ extern "C" {
 #ifndef __CACHE__
 #define __CACHE__ 1
 
-#define MIN_CACHE_SIZE  (1 * 1024 * 1024)
+#define MIN_CACHE_SIZE          (1 * 1024 * 1024)
+#define MIN_CACHE_SIZE_NONE     (4 * 1024)
 
 struct cache {
     void *(*lookup)(struct cache *cache, uint64_t pc, int *cache_clean_event);
     void *(*append)(struct cache *cache, uint64_t pc, void *data, int size, int *cache_clean_event);
+    uint64_t (*lookup_pc)(struct cache *cache, void *host_pc, void **host_pc_start);
 };
 
 struct cache *createCache(void *memory, int size, int nb_of_pc_bit_to_drop);
 void removeCache(struct cache *cache);
 void cleanCaches(uint64_t from_pc, uint64_t to_pc_exclude);
+
+struct cache *createCacheNone(void *memory, int size);
 
 #endif
 

@@ -1,1 +1,1 @@
-add_library(cache cache.c)
+add_library(cache cache.c cacheNone.c)

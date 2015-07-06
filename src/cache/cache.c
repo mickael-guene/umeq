@@ -57,7 +57,13 @@ struct internal_cache {
     struct cache_info info;
     struct cache_entry *entry;
     char *area;
+    void *area_end;
 };
+
+struct entry_header {
+    uint16_t size;
+    uint64_t guest_pc;
+} __attribute__ ((packed));
 
 static void *lookup(struct cache *cache, uint64_t pc, int *cache_clean_event);
 static void *append(struct cache *cache, uint64_t pc, void *data, int size, int *cache_clean_event);
@@ -154,6 +160,17 @@ static void *lookup(struct cache *cache, uint64_t pc, int *cache_clean_event)
     return res;
 }
 
+/* before each jit data we append jit size (including this header) + guest_pc */
+static void append_header(struct internal_cache *acache, uint64_t pc, int size)
+{
+    struct entry_header *header = (struct entry_header *) &acache->area[acache->info.write_pos];
+
+    header->size = size + sizeof(struct entry_header);
+    header->guest_pc = pc;
+
+    acache->info.write_pos += sizeof(struct entry_header);
+}
+
 static void *append(struct cache *cache, uint64_t pc, void *data, int size, int *cache_clean_event)
 {
     struct internal_cache *acache = container_of(cache, struct internal_cache, cache);
@@ -162,7 +179,7 @@ static void *append(struct cache *cache, uint64_t pc, void *data, int size, int 
     int way;
 
     /* handle jitter area full */
-    if (acache->info.write_pos + size > acache->config.jitter_area_size) {
+    if (acache->info.write_pos + size + sizeof(struct entry_header) > acache->config.jitter_area_size) {
         reset(acache);
         *cache_clean_event = 1;
     }
@@ -179,11 +196,34 @@ static void *append(struct cache *cache, uint64_t pc, void *data, int size, int 
 
     /* copy code and update entry */
     entry->pc = pc;
+    append_header(acache, pc , size);
     entry->ptr = &acache->area[acache->info.write_pos];
     memcpy(entry->ptr, data, size);
     acache->info.write_pos += size;
 
     return entry->ptr;
+}
+
+static uint64_t lookup_pc(struct cache *cache, void *host_pc, void **host_pc_start)
+{
+    struct internal_cache *acache = container_of(cache, struct internal_cache, cache);
+    void *start_size_ptr = acache->area;
+    uint64_t res = 0;
+
+    do {
+        uint16_t size = *((uint16_t *)start_size_ptr);
+
+        if (host_pc >= start_size_ptr && host_pc < start_size_ptr + size) {
+            struct entry_header *header = (struct entry_header *) start_size_ptr;
+
+            res = header->guest_pc;
+            *host_pc_start = start_size_ptr + sizeof(struct entry_header);
+            break;
+        }
+        start_size_ptr += size;
+    } while(start_size_ptr < acache->area_end);
+
+    return res;
 }
 
 /* api */
@@ -198,6 +238,7 @@ struct cache *createCache(void *memory, int size, int nb_of_pc_bit_to_drop)
     acache->next = NULL;
     acache->cache.lookup = lookup;
     acache->cache.append = append;
+    acache->cache.lookup_pc = lookup_pc;
     acache->config.nb_of_pc_bit_to_drop = nb_of_pc_bit_to_drop;
     /* we measure around 300 bytes per entry => we reserve around 1/16 of cache for entries */
     acache->config.cache_entry_nb = size / ( 16 * CACHE_WAY * sizeof(struct cache_entry));
@@ -208,6 +249,7 @@ struct cache *createCache(void *memory, int size, int nb_of_pc_bit_to_drop)
     acache->info.clean = 0;
     acache->entry = (struct cache_entry *) (memory + sizeof(struct internal_cache));
     acache->area = (char *) (memory + sizeof(struct internal_cache) + acache->config.cache_entry_size);
+    acache->area_end = memory + size;
 
     ll_append_cache(acache);
 

@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include "jitter.h"
+#include "cache.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,10 +31,6 @@ extern "C" {
 
 #define KB  (1024)
 #define MB  (KB * KB)
-
-#define JIT_AREA_SIZE               16 * KB
-#define JIT_AREA_MAGIC_SIZE         16
-#define JIT_AREA_JIT_BUFFER_SIZE    JIT_AREA_SIZE - sizeof(uint64_t) - JIT_AREA_MAGIC_SIZE
 
 extern char *exe_filename;
 
@@ -65,15 +62,7 @@ enum memory_profile {
 struct tls_context {
     struct target *target;
     void *target_runtime;
-};
-
-union jit_area {
-    char buffer[JIT_AREA_SIZE];
-    struct {
-        uint64_t guest_pc;
-        char magic[JIT_AREA_MAGIC_SIZE];
-        char jit_buffer[JIT_AREA_JIT_BUFFER_SIZE];
-    } cooked;
+    struct cache *cache;
 };
 
 extern enum memory_profile memory_profile;

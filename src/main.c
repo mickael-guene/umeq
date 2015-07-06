@@ -68,13 +68,44 @@ static void setup_thread_area(struct tls_context *main_thread_tls_context)
     syscall(SYS_arch_prctl, ARCH_SET_FS, main_thread_tls_context);
 }
 
-static void setup_jit_area(union jit_area *jit_area)
+static void loop_common(struct target *target, struct backend *backend, struct cache *cache, uint64_t entry,
+                        void *target_runtime, jitContext handle)
 {
-    int i;
+    uint64_t currentPc = entry;
+    uint64_t prevCurrentPc = ~0;
+    struct backend_execute_result result = {0, 0};
+    struct irInstructionAllocator *ir = getIrInstructionAllocator(handle);
+    char jitBuffer[16 * 1024];
 
-    for(i = 0; i < 15; i++)
-        jit_area->cooked.magic[i] = 0x66;
-    jit_area->cooked.magic[15] = 0x90;
+    while(target->isLooping(target)) {
+        void *cache_area;
+        int is_cache_was_cleaned = 0;
+
+        cache_area = cache->lookup(cache, currentPc, &is_cache_was_cleaned);
+        if (cache_area) {
+            prevCurrentPc = currentPc;
+            result = backend->execute(backend, cache_area, (uint64_t) target_runtime);
+            currentPc = result.result;
+        } else {
+            int jitSize;
+
+            resetJitter(handle);
+            target->disassemble(target, ir, currentPc, cache_memory_config[memory_profile].max_insn/*10*/);
+            //displayIr(handle);
+            jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
+            if (jitSize > 0) {
+                cache_area = cache->append(cache, currentPc, jitBuffer, jitSize, &is_cache_was_cleaned);
+                /* only link forward to avoid loop */
+                if (prevCurrentPc < currentPc && result.link_patch_area && is_cache_was_cleaned == 0) {
+                    backend->patch(backend, result.link_patch_area, cache_area);
+                }
+                prevCurrentPc = currentPc;
+                result = backend->execute(backend, cache_area, (uint64_t) target_runtime);
+                currentPc = result.result;
+            } else
+                assert(0);
+        }
+    }
 }
 
 /* FIXME: try to factorize loop_nocache and loop_cache */
@@ -82,52 +113,36 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
 {
     jitContext handle;
     void *targetHandle;
-    struct irInstructionAllocator *ir;
     struct backend *backend;
-    union jit_area jit_area;
-    char *beX86_64Memory = alloca(nocache_memory_config.be_context_size);
-    char *jitterMemory = alloca(nocache_memory_config.jitter_context_size);
+    char *beX86_64Memory = alloca(cache_memory_config[memory_profile].be_context_size);
+    char *jitterMemory = alloca(cache_memory_config[memory_profile].jitter_context_size);
     char *context_memory = alloca(current_target_arch.get_context_size());
     struct target *target;
     void *target_runtime;
-    uint64_t currentPc = entry;
     struct tls_context parent_tls_context;
     struct tls_context *current_tls_context;
-    struct backend_execute_result result;
+    struct cache *cache = NULL;
+    char *cacheMemory = alloca(MIN_CACHE_SIZE_NONE);
 
-    setup_jit_area(&jit_area);
     /* get current tls context */
     syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
 
     /* allocate jitter and target context */
-    backend = createX86_64Backend(beX86_64Memory, nocache_memory_config.be_context_size);
-    handle = createJitter(jitterMemory, backend, nocache_memory_config.jitter_context_size);
-    ir = getIrInstructionAllocator(handle);
+    backend = createX86_64Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
+    handle = createJitter(jitterMemory, backend, cache_memory_config[memory_profile].jitter_context_size);
     targetHandle = current_target_arch.create_target_context(context_memory, backend);
     target = current_target_arch.get_target_structure(targetHandle);
     target_runtime = current_target_arch.get_target_runtime(targetHandle);
     /* init target */
     target->init(target, current_tls_context->target, (uint64_t) entry, (uint64_t) stack_entry, signum, parent_target);
+    cache = createCacheNone(cacheMemory, MIN_CACHE_SIZE_NONE);
     /* now that new context is ready to run, setup as the current one */
     parent_tls_context = *current_tls_context;
     current_tls_context->target = target;
     current_tls_context->target_runtime = target_runtime;
+    current_tls_context->cache = cache;
 
-    /* enter main loop */
-    while(target->isLooping(target)) {
-        int jitSize;
-
-        resetJitter(handle);
-        target->disassemble(target, ir, currentPc, nocache_memory_config.max_insn);
-        //displayIr(handle);
-        jit_area.cooked.guest_pc = currentPc;
-        jitSize = jitCode(handle, jit_area.cooked.jit_buffer, JIT_AREA_JIT_BUFFER_SIZE);
-        if (jitSize > 0) {
-            result = backend->execute(backend, jit_area.cooked.jit_buffer, (uint64_t) target_runtime);
-            currentPc = result.result;
-        } else
-            assert(0);
-    }
+    loop_common(target, backend, cache, entry, target_runtime, handle);
     /* restore parent tls context */
     *current_tls_context = parent_tls_context;
 
@@ -138,30 +153,23 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
 {
     jitContext handle;
     void *targetHandle;
-    struct irInstructionAllocator *ir;
     struct backend *backend;
-    union jit_area jit_area;
     char *beX86_64Memory = alloca(cache_memory_config[memory_profile].be_context_size);
     char *jitterMemory = alloca(cache_memory_config[memory_profile].jitter_context_size);
     char *context_memory = alloca(current_target_arch.get_context_size());
     struct target *target;
     void *target_runtime;
-    uint64_t currentPc = entry;
     struct tls_context parent_tls_context;
     struct tls_context *current_tls_context;
     struct cache *cache = NULL;
-    struct backend_execute_result result = {0, 0};
-    uint64_t prevCurrentPc = ~0;
     char *cacheMemory = alloca(cache_memory_config[memory_profile].cache_size);
 
-    setup_jit_area(&jit_area);
     /* get current tls context */
     syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
 
     /* allocate jitter and target context */
     backend = createX86_64Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
     handle = createJitter(jitterMemory, backend, cache_memory_config[memory_profile].jitter_context_size);
-    ir = getIrInstructionAllocator(handle);
     targetHandle = current_target_arch.create_target_context(context_memory, backend);
     target = current_target_arch.get_target_structure(targetHandle);
     target_runtime = current_target_arch.get_target_runtime(targetHandle);
@@ -172,37 +180,9 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     parent_tls_context = *current_tls_context;
     current_tls_context->target = target;
     current_tls_context->target_runtime = target_runtime;
+    current_tls_context->cache = cache;
 
-    while(target->isLooping(target)) {
-        void *cache_area;
-        int is_cache_was_cleaned = 0;
-
-        cache_area = cache->lookup(cache, currentPc, &is_cache_was_cleaned);
-        if (cache_area) {
-            prevCurrentPc = currentPc;
-            result = backend->execute(backend, cache_area + sizeof(uint64_t) + JIT_AREA_MAGIC_SIZE, (uint64_t) target_runtime);
-            currentPc = result.result;
-        } else {
-            int jitSize;
-
-            resetJitter(handle);
-            target->disassemble(target, ir, currentPc, cache_memory_config[memory_profile].max_insn/*10*/);
-            //displayIr(handle);
-            jit_area.cooked.guest_pc = currentPc;
-            jitSize = jitCode(handle, jit_area.cooked.jit_buffer, JIT_AREA_JIT_BUFFER_SIZE);
-            if (jitSize > 0) {
-                cache_area = cache->append(cache, currentPc, jit_area.buffer, jitSize + sizeof(uint64_t) + JIT_AREA_MAGIC_SIZE, &is_cache_was_cleaned);
-                /* only link forward to avoid loop */
-                if (prevCurrentPc < currentPc && result.link_patch_area && is_cache_was_cleaned == 0) {
-                    backend->patch(backend, result.link_patch_area, cache_area + sizeof(uint64_t) + JIT_AREA_MAGIC_SIZE);
-                }
-                prevCurrentPc = currentPc;
-                result = backend->execute(backend, cache_area + sizeof(uint64_t) + JIT_AREA_MAGIC_SIZE, (uint64_t) target_runtime);
-                currentPc = result.result;
-            } else
-                assert(0);
-        }
-    }
+    loop_common(target, backend, cache, entry, target_runtime, handle);
     removeCache(cache);
     /* restore parent tls context */
     *current_tls_context = parent_tls_context;

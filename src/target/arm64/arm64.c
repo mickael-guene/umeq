@@ -26,6 +26,8 @@
 #include <stddef.h>
 #include <signal.h>
 #include <string.h>
+#include <asm/prctl.h>
+#include <sys/prctl.h>
 
 #include "target.h"
 #include "arm64.h"
@@ -117,24 +119,6 @@ static void setup_siginfo(uint32_t signum, siginfo_t *siginfo, struct siginfo_ar
     }
 }
 
-static void *find_marker_start(unsigned char *buf) {
-    int i;
-    int j;
-
-    for(i = 0; i > -JIT_AREA_SIZE ;i--) {
-        if (buf[i] == 0x90) {
-            for(j = -1; j >= -16; j--) {
-                if (buf[i + j] != 0x66)
-                    break;
-            }
-            if (j == -16)
-                return &buf[i+j+1];
-        }
-    }
-
-    return NULL;
-}
-
 static int find_insn_nb(uint64_t guest_pc, int offset)
 {
     struct backend *backend;
@@ -173,14 +157,17 @@ static uint64_t restore_precise_pc(struct arm64_target *prev_context, ucontext_t
         /* we are somewhere in umeq code */
         res = prev_context->regs.pc;
     } else {
-        /* we are in code jiterring */
-        void *marker_start = find_marker_start(host_pc_signal);
-        void *jit_host_start_pc = marker_start + JIT_AREA_MAGIC_SIZE;
+        struct tls_context *current_tls_context;
+        struct cache *cache;
+        void *jit_host_start_pc;
         uint64_t jit_guest_start_pc;
         int insn_nb;
 
-        assert(marker_start != NULL);
-        jit_guest_start_pc = *((uint64_t *)(marker_start - sizeof(uint64_t)));
+        syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
+        cache = current_tls_context->cache;
+
+        jit_guest_start_pc = cache->lookup_pc(cache, host_pc_signal, &jit_host_start_pc);
+        assert(jit_guest_start_pc != 0);
         insn_nb = find_insn_nb(jit_guest_start_pc, host_pc_signal - jit_host_start_pc);
 
         res = prev_context->regs.pc + 4 * insn_nb;
