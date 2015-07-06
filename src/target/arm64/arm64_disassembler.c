@@ -2863,6 +2863,8 @@ static int dis_sys(struct arm64_target *context, uint32_t insn, struct irInstruc
         mk_call_void(context, ir, "arm64_clean_caches",
                         ir->add_mov_const_64(ir, (uint64_t) arm64_clean_caches),
                         param);
+
+        mk_exit(context, ir, mk_64(ir, context->pc + 4));
         isExit = 1;
     } else
         fatal("op1=%d / crn=%d / crm=%d / op2=%d\n", op1, crn, crm, op2);
@@ -4045,7 +4047,7 @@ static int dis_system(struct arm64_target *context, uint32_t insn, struct irInst
                 if (l)
                     assert(0 && "sysl");
                 else
-                    dis_sys(context, insn, ir);
+                    isExit = dis_sys(context, insn, ir);
                 break;
             case 2 ...3:
                 isExit = dis_msr_register(context, insn, ir);
