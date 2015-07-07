@@ -1458,7 +1458,18 @@ static int dis_t2_ldr_register(struct arm_target *context, uint32_t insn, struct
 
 static int dis_t2_ldrt(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
-    assert(0);
+    int rn = INSN1(3, 0);
+    int rt = INSN2(15, 12);
+    uint32_t imm32 = INSN2(7, 0);
+    struct irRegister *address;
+
+    assert(rt != 15);
+    assert(rn != 15);
+
+    address = ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32));
+    write_reg(context, ir, rt, ir->add_load_32(ir, mk_address(ir, address)));
+
+    return 0;
 }
 
 static int dis_t2_ldr_immediate_t4(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1571,6 +1582,26 @@ static int dis_t2_ldrd_literal(struct arm_target *context, uint32_t insn, struct
     return 0;
 }
 
+static int dis_t32_ldrbt_t1_ldrsbt_t1(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rn = INSN1(3, 0);
+    int rt = INSN2(15, 12);
+    uint32_t imm32 = INSN2(7, 0);
+    int is_signed = INSN1(8, 8);
+    struct irRegister *address;
+
+    assert(rt != 15);
+    assert(rn != 15);
+
+    address = ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32));
+    if (is_signed)
+        write_reg(context, ir, rt, ir->add_8S_to_32(ir, ir->add_load_8(ir, mk_address(ir, address))));
+    else
+        write_reg(context, ir, rt, ir->add_8U_to_32(ir, ir->add_load_8(ir, mk_address(ir, address))));
+
+    return 0;
+}
+
 static int dis_t32_ldrb_t2_ldrsb_t1(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
 {
     int rn = INSN1(3, 0);
@@ -1587,6 +1618,26 @@ static int dis_t32_ldrb_t2_ldrsb_t1(struct arm_target *context, uint32_t insn, s
         write_reg(context, ir, rt, ir->add_8S_to_32(ir, ir->add_load_8(ir, mk_address(ir, address))));
     else
         write_reg(context, ir, rt, ir->add_8U_to_32(ir, ir->add_load_8(ir, mk_address(ir, address))));
+
+    return 0;
+}
+
+static int dis_t32_ldrht_t1_ldrsht_t1(struct arm_target *context, uint32_t insn, struct irInstructionAllocator *ir)
+{
+    int rn = INSN1(3, 0);
+    int rt = INSN2(15, 12);
+    uint32_t imm32 = INSN2(7, 0);
+    int is_signed = INSN1(8, 8);
+    struct irRegister *address;
+
+    assert(rt != 15);
+    assert(rn != 15);
+
+    address = ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32));
+    if (is_signed)
+        write_reg(context, ir, rt, ir->add_16S_to_32(ir, ir->add_load_16(ir, mk_address(ir, address))));
+    else
+        write_reg(context, ir, rt, ir->add_16U_to_32(ir, ir->add_load_16(ir, mk_address(ir, address))));
 
     return 0;
 }
@@ -3689,6 +3740,8 @@ static int dis_t2_ldr_byte_A_hints(struct arm_target *context, uint32_t insn, st
                         isExit = dis_t32_ldrb_register(context, insn, ir);
                     else if ((op2 & 0x3c) == 0x30 || (op2 & 0x24) == 0x24)
                         isExit = dis_t32_ldrb_t3_ldrsb_t2(context, insn, ir);
+                    else if ((op2 & 0x3c) == 0x38)
+                        isExit = dis_t32_ldrbt_t1_ldrsbt_t1(context, insn, ir);
                     else
                         fatal("op1 = %d / op2 = %d(0x%x) / rn = %d\n", op1, op2, op2, rn);
                     break;
@@ -3726,6 +3779,8 @@ static int dis_t2_ldr_halfword_A_unallocated_hints(struct arm_target *context, u
                         isExit = dis_t32_t2_ldrh_ldrsh_register(context, insn, ir);
                     else if ((op2 & 0x3c) == 0x30 || (op2 & 0x24) == 0x24)
                         isExit = dis_t32_ldrh_t3_ldrsh_2(context, insn, ir);
+                    else if ((op2 & 0x3c) == 0x38)
+                        isExit = dis_t32_ldrht_t1_ldrsht_t1(context, insn, ir);
                     else
                         fatal("op1 = %d / op2 = %d(0x%x) / rn = %d\n", op1, op2, op2, rn);
                     break;
