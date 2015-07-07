@@ -2560,7 +2560,7 @@ static int dis_t2_ubfx(struct arm_target *context, uint32_t insn, struct irInstr
     int rd = INSN2(11, 8);
     int lsb = (INSN2(14, 12) << 2) | INSN2(7, 6);
     int rn = INSN1(3, 0);
-    uint32_t mask = (1 << (widthm1 + 1)) - 1;
+    uint32_t mask = (1UL << (widthm1 + 1)) - 1;
 
     write_reg(context, ir, rd, ir->add_and_32(ir,
                                               ir->add_shr_32(ir, read_reg(context, ir, rn), mk_8(ir, lsb)),
