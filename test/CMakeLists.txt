@@ -42,3 +42,8 @@ ADD_TEST(Static.libc.Hello.a.out.O2.thumb ../src/umeq-arm ${CMAKE_SOURCE_DIR}/te
 
 #add arm64 opcode test suite
 INCLUDE(${CMAKE_SOURCE_DIR}/test/static/arm64/opcode/CMakeLists.txt)
+
+#add arm opcode test suite
+INCLUDE(${CMAKE_SOURCE_DIR}/test/static/arm/opcode/arm/CMakeLists.txt)
+INCLUDE(${CMAKE_SOURCE_DIR}/test/static/arm/opcode/t1/CMakeLists.txt)
+INCLUDE(${CMAKE_SOURCE_DIR}/test/static/arm/opcode/t2/CMakeLists.txt)
