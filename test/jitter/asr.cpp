@@ -74,36 +74,6 @@ TEST_F(AsrTest, asr32) {
     EXPECT_EQ((uint32_t)((int32_t)op1>>op2), out);
 }
 
-TEST_F(AsrTest, asr32_overflow) {
-    uint32_t op1 = 0x4010500f;
-    uint8_t op2 = 64;
-    uint32_t out = 0;
-
-    ir->add_store_32(ir,
-                    ir->add_asr_32(ir,
-                                  ir->add_mov_const_32(ir, op1),
-                                  ir->add_mov_const_8(ir, op2)),
-                    ir->add_mov_const_64(ir, (uint64_t) &out));
-    jitAndExcecute();
-
-    EXPECT_EQ(0, out);
-}
-
-TEST_F(AsrTest, asr32_sign_overflow) {
-    uint32_t op1 = 0x8010500f;
-    uint8_t op2 = 64;
-    uint32_t out = 0;
-
-    ir->add_store_32(ir,
-                    ir->add_asr_32(ir,
-                                  ir->add_mov_const_32(ir, op1),
-                                  ir->add_mov_const_8(ir, op2)),
-                    ir->add_mov_const_64(ir, (uint64_t) &out));
-    jitAndExcecute();
-
-    EXPECT_EQ(0xffffffff, out);
-}
-
 TEST_F(AsrTest, asr64) {
     uint64_t op1 = ~0;
     uint8_t op2 = 2;

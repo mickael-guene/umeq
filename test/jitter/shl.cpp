@@ -74,21 +74,6 @@ TEST_F(ShlTest, shl32) {
     EXPECT_EQ(op1<<op2, out);
 }
 
-TEST_F(ShlTest, shl32_overflow) {
-    uint32_t op1 = 258;
-    uint8_t op2 = 65;
-    uint32_t out = 0;
-
-    ir->add_store_32(ir,
-                    ir->add_shl_32(ir,
-                                  ir->add_mov_const_32(ir, op1),
-                                  ir->add_mov_const_8(ir, op2)),
-                    ir->add_mov_const_64(ir, (uint64_t) &out));
-    jitAndExcecute();
-
-    EXPECT_EQ(0, out);
-}
-
 TEST_F(ShlTest, shl64) {
     uint64_t op1 = 131313321;
     uint8_t op2 = 21;

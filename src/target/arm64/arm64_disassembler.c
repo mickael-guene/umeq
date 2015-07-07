@@ -894,6 +894,7 @@ static int dis_add_sub_shifted_register_insn(struct arm64_target *context, uint3
     } else {
         op1 = read_w(ir, rn, ZERO_REG);
         if (imm6) {
+            assert(imm6 < 32);
             switch(shift) {
                 case 0://lsl
                     op2 = ir->add_shl_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imm6));
@@ -1950,6 +1951,7 @@ static int dis_extr(struct arm64_target *context, uint32_t insn, struct irInstru
                                 ir->add_shl_64(ir, read_x(ir, rn, ZERO_REG), mk_8(ir, 64 - imms)));
             write_x(ir, rd, res, ZERO_REG);
         } else {
+            assert(imms < 32);
             res = ir->add_or_32(ir,
                                 ir->add_shr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imms)),
                                 ir->add_shl_32(ir, read_w(ir, rn, ZERO_REG), mk_8(ir, 32 - imms)));
@@ -2118,10 +2120,10 @@ static int dis_rorv(struct arm64_target *context, uint32_t insn, struct irInstru
     struct irRegister *res;
 
     if (is_64) {
-        res = ir->add_ror_64(ir, read_x(ir, rn, ZERO_REG), ir->add_64_to_8(ir, read_x(ir, rm, ZERO_REG)));
+        res = ir->add_ror_64(ir, read_x(ir, rn, ZERO_REG), ir->add_64_to_8(ir, ir->add_and_64(ir, read_x(ir, rm, ZERO_REG), mk_64(ir, 0x3f))));
         write_x(ir, rd, res, ZERO_REG);
     } else {
-        res = ir->add_ror_32(ir, read_w(ir, rn, ZERO_REG), ir->add_64_to_8(ir, read_x(ir, rm, ZERO_REG)));
+        res = ir->add_ror_32(ir, read_w(ir, rn, ZERO_REG), ir->add_64_to_8(ir, ir->add_and_64(ir, read_x(ir, rm, ZERO_REG), mk_64(ir, 0x1f))));
         write_w(ir, rd, res, ZERO_REG);
     }
 

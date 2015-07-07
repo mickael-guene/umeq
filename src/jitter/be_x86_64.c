@@ -402,45 +402,10 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                             add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_OR_8, X86_BINOP_OR, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
                             break;
                         case IR_BINOP_SHL_8: case IR_BINOP_SHL_16: case IR_BINOP_SHL_32: case IR_BINOP_SHL_64:
-                            {
-                                struct x86Register *dst = allocateRegister(inter, insn->u.binop.dst);
-                                struct x86Register *op1 = allocateRegister(inter, insn->u.binop.op1);
-                                struct x86Register *op2 = allocateRegister(inter, insn->u.binop.op2);
-                                struct x86Register *shift_result = allocateRegister(inter, NULL);
-                                struct x86Register *mask = allocateRegister(inter, NULL);
-                                struct x86Register *zero = allocateRegister(inter, NULL);
-                                struct x86Register *op2_mask = allocateRegister(inter, NULL);
-                                struct x86Register *pred = allocateRegister(inter, NULL);
-
-                                add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_SHL_8, X86_BINOP_SHL, shift_result, op1, op2);
-                                /* if shift is greater or equal than 64 then return zero since x86 64 bits shift is modulo 64 ... */
-                                add_mov_const(inter, mask, 0xc0);
-                                add_binop(inter, X86_BINOP_64, X86_BINOP_AND, op2_mask, op2, mask);
-                                add_mov_const(inter, zero, 0);
-                                add_binop(inter, X86_BINOP_64, X86_BINOP_CMPEQ, pred, op2_mask, zero);
-                                add_ite(inter, dst, pred, shift_result, zero);
-                            }
+                            add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_SHL_8, X86_BINOP_SHL, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
                             break;
                         case IR_BINOP_SHR_8: case IR_BINOP_SHR_16: case IR_BINOP_SHR_32: case IR_BINOP_SHR_64:
-                            {
-                                struct x86Register *dst = allocateRegister(inter, insn->u.binop.dst);
-                                struct x86Register *op1 = allocateRegister(inter, insn->u.binop.op1);
-                                struct x86Register *op2 = allocateRegister(inter, insn->u.binop.op2);
-                                struct x86Register *shift_result = allocateRegister(inter, NULL);
-                                struct x86Register *mask = allocateRegister(inter, NULL);
-                                struct x86Register *zero = allocateRegister(inter, NULL);
-                                struct x86Register *op2_mask = allocateRegister(inter, NULL);
-                                struct x86Register *pred = allocateRegister(inter, NULL);
-
-                                add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_SHR_8, X86_BINOP_SHR, shift_result, op1, op2);
-                                /* if shift is greater or equal than 64 then return zero since x86 64 bits shift is modulo 64 ... */
-                                add_mov_const(inter, mask, 0xc0);
-                                add_binop(inter, X86_BINOP_64, X86_BINOP_AND, op2_mask, op2, mask);
-                                add_mov_const(inter, zero, 0);
-                                add_binop(inter, X86_BINOP_64, X86_BINOP_CMPEQ, pred, op2_mask, zero);
-                                add_ite(inter, dst, pred, shift_result, zero);
-
-                            }
+                            add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_SHR_8, X86_BINOP_SHR, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
                             break;
                         case IR_BINOP_ASR_8: goto_p0 = 56; goto binop_asr;
                         case IR_BINOP_ASR_16: goto_p0 = 48; goto binop_asr;
@@ -453,12 +418,6 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                                 struct x86Register *shiftValue;
                                 struct x86Register *shiftLeftResult;
                                 struct x86Register *shiftRightResult;
-                                struct x86Register *mask = allocateRegister(inter, NULL);
-                                struct x86Register *sixtyThree = allocateRegister(inter, NULL);
-                                struct x86Register *zero = allocateRegister(inter, NULL);
-                                struct x86Register *op2_mask = allocateRegister(inter, NULL);
-                                struct x86Register *pred = allocateRegister(inter, NULL);
-                                struct x86Register *op2_limit = allocateRegister(inter, NULL);
 
                                 if (goto_p0) {
                                     shiftValue = allocateRegister(inter, NULL);
@@ -470,24 +429,11 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                                 } else {
                                     shiftRightResult = allocateRegister(inter, insn->u.binop.op1);
                                 }
-                                /* limit op2 value to 63 */
-                                add_mov_const(inter, mask, 0xc0);
-                                add_binop(inter, X86_BINOP_64, X86_BINOP_AND, op2_mask, op2, mask);
-                                add_mov_const(inter, zero, 0);
-                                add_binop(inter, X86_BINOP_64, X86_BINOP_CMPEQ, pred, op2_mask, zero);
-                                add_mov_const(inter, sixtyThree, 63);
-                                add_ite(inter, op2_limit, pred, op2, sixtyThree);
-                                add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_ASR_8, X86_BINOP_ASR, dst, shiftRightResult, op2_limit);
+                                add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_ASR_8, X86_BINOP_ASR, dst, shiftRightResult, op2);
                             }
                             break;
-                            case IR_BINOP_ROR_8: case IR_BINOP_ROR_16: case IR_BINOP_ROR_32: case IR_BINOP_ROR_64:
-                            {
-                                struct x86Register *dst = allocateRegister(inter, insn->u.binop.dst);
-                                struct x86Register *op1 = allocateRegister(inter, insn->u.binop.op1);
-                                struct x86Register *op2 = allocateRegister(inter, insn->u.binop.op2);
-
-                                add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_ROR_8, X86_BINOP_ROR, dst, op1, op2);
-                            }
+                        case IR_BINOP_ROR_8: case IR_BINOP_ROR_16: case IR_BINOP_ROR_32: case IR_BINOP_ROR_64:
+                            add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_ROR_8, X86_BINOP_ROR, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
                             break;
                         case IR_BINOP_CMPEQ_8: case IR_BINOP_CMPEQ_16: case IR_BINOP_CMPEQ_32: case IR_BINOP_CMPEQ_64:
                             add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_CMPEQ_8, X86_BINOP_CMPEQ, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));

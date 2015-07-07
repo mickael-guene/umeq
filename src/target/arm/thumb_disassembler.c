@@ -925,7 +925,7 @@ static int dis_t1_asr_immediate(struct arm_target *context, uint32_t insn, struc
     struct irRegister *result;
 
     if (imm5 == 0)
-        imm5 += 32;
+        imm5 = 31;
     result = ir->add_asr_32(ir, rm_reg, mk_8(ir, imm5));
     if (s) {
         write_sco(context, ir, mk_sco(context, ir,
@@ -1709,6 +1709,9 @@ static int dis_t2_data_processing_register_shift(struct arm_target *context, uin
     int rn = INSN1(3, 0);
     int rd = INSN2(11, 8);
     int rm = INSN2(3, 0);
+    struct irRegister *pred;
+    struct irRegister *op_true;
+    struct irRegister *op_false;
     struct irRegister *result;
     struct irRegister *rn_reg;
     struct irRegister *rm_reg;
@@ -1722,19 +1725,30 @@ static int dis_t2_data_processing_register_shift(struct arm_target *context, uin
     rm_reg = read_reg(context, ir, rm);
     switch(shift_mode) {
         case 0:
-            result = ir->add_shl_32(ir,
-                                    rn_reg,
-                                    ir->add_32_to_8(ir, rm_reg));
+            pred = ir->add_and_32(ir, rm_reg, mk_32(ir, 0x000000e0));
+            op_true = mk_32(ir, 0);
+            op_false = ir->add_shl_32(ir,
+                                      rn_reg,
+                                      ir->add_32_to_8(ir, rm_reg));
+            result = ir->add_ite_32(ir, pred, op_true, op_false);
             break;
         case 1:
-            result = ir->add_shr_32(ir,
-                                    rn_reg,
-                                    ir->add_32_to_8(ir, rm_reg));
+            pred = ir->add_and_32(ir, rm_reg, mk_32(ir, 0x000000e0));
+            op_true = mk_32(ir, 0);
+            op_false = ir->add_shr_32(ir,
+                                      rn_reg,
+                                      ir->add_32_to_8(ir, rm_reg));
+            result = ir->add_ite_32(ir, pred, op_true, op_false);
             break;
         case 2:
-            result = ir->add_asr_32(ir,
-                                    rn_reg,
-                                    ir->add_32_to_8(ir, rm_reg));
+            pred = ir->add_and_32(ir, rm_reg, mk_32(ir, 0x000000e0));
+            op_true  = ir->add_asr_32(ir,
+                                      rn_reg,
+                                      mk_8(ir, 31));
+            op_false = ir->add_asr_32(ir,
+                                      rn_reg,
+                                      ir->add_32_to_8(ir, rm_reg));
+            result = ir->add_ite_32(ir, pred, op_true, op_false);
             break;
         case 3:
             //ror
@@ -2305,6 +2319,9 @@ static int dis_t1_data_processing(struct arm_target *context, uint32_t insn, str
     int rm = INSN(5, 3);
     int opcode = INSN(9, 6);
     int s = !inItBlock(context) || opcode == 8 || opcode == 10 || opcode == 11;
+    struct irRegister *pred;
+    struct irRegister *op_true;
+    struct irRegister *op_false;
     struct irRegister *params[4];
     struct irRegister *nextCpsr;
     struct irRegister *result = NULL;
@@ -2330,19 +2347,30 @@ static int dis_t1_data_processing(struct arm_target *context, uint32_t insn, str
             result = ir->add_xor_32(ir, op1, op2);
             break;
         case 2://lsl
-            result = ir->add_shl_32(ir,
-                                    op1,
-                                    ir->add_32_to_8(ir, op2));
+            pred = ir->add_and_32(ir, op2, mk_32(ir, 0x000000e0));
+            op_true = mk_32(ir, 0);
+            op_false = ir->add_shl_32(ir,
+                                      op1,
+                                      ir->add_32_to_8(ir, op2));
+            result = ir->add_ite_32(ir, pred, op_true, op_false);
             break;
         case 3://lsr
-            result = ir->add_shr_32(ir,
-                                    op1,
-                                    ir->add_32_to_8(ir, op2));
+            pred = ir->add_and_32(ir, op2, mk_32(ir, 0x000000e0));
+            op_true = mk_32(ir, 0);
+            op_false = ir->add_shr_32(ir,
+                                      op1,
+                                      ir->add_32_to_8(ir, op2));
+            result = ir->add_ite_32(ir, pred, op_true, op_false);
             break;
         case 4://asr
-            result = ir->add_asr_32(ir,
-                                    op1,
-                                    ir->add_32_to_8(ir, op2));
+            pred = ir->add_and_32(ir, op2, mk_32(ir, 0x000000e0));
+            op_true  = ir->add_asr_32(ir,
+                                      op1,
+                                      mk_8(ir, 31));
+            op_false = ir->add_asr_32(ir,
+                                      op1,
+                                      ir->add_32_to_8(ir, op2));
+            result = ir->add_ite_32(ir, pred, op_true, op_false);
             break;
         case 5://adc
             {
@@ -3668,14 +3696,18 @@ static int dis_t2_data_processing_shifted_register(struct arm_target *context, u
             }
             break;
         case 1://shift right
-            op = ir->add_shr_32(ir,
-                                rm_reg,
-                                mk_8(ir, (shift_imm == 0)?32:shift_imm));
+            if (shift_imm == 0) {
+                op = mk_32(ir, 0);
+            } else {
+                op = ir->add_shr_32(ir,
+                                    rm_reg,
+                                    mk_8(ir, shift_imm));
+            }
             break;
         case 2://arithmetic shift right
             op = ir->add_asr_32(ir,
                                 rm_reg,
-                                mk_8(ir, (shift_imm == 0)?32:shift_imm));
+                                mk_8(ir, (shift_imm == 0)?31:shift_imm));
             break;
         case 3://rotate right
             if (shift_imm == 0) {

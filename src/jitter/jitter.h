@@ -70,6 +70,7 @@ struct irInstructionAllocator {
     struct irRegister *(*add_or_16)(struct irInstructionAllocator *, struct irRegister *op1, struct irRegister *op2);
     struct irRegister *(*add_or_32)(struct irInstructionAllocator *, struct irRegister *op1, struct irRegister *op2);
     struct irRegister *(*add_or_64)(struct irInstructionAllocator *, struct irRegister *op1, struct irRegister *op2);
+    /* shift value in op2 is only defined when it's < operator width. Else result is not defined. */
     struct irRegister *(*add_shl_8)(struct irInstructionAllocator *, struct irRegister *op1, struct irRegister *op2);
     struct irRegister *(*add_shl_16)(struct irInstructionAllocator *, struct irRegister *op1, struct irRegister *op2);
     struct irRegister *(*add_shl_32)(struct irInstructionAllocator *, struct irRegister *op1, struct irRegister *op2);

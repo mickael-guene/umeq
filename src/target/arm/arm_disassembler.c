@@ -650,7 +650,7 @@ static int dis_load_store_word_and_unsigned_byte_register_offset(struct arm_targ
             if (shift_imm)
                 index = ir->add_asr_32(ir, read_reg(context, ir, rm), mk_8(ir, shift_imm));
             else
-                index = ir->add_asr_32(ir, read_reg(context, ir, rm), mk_8(ir, 32));
+                index = ir->add_asr_32(ir, read_reg(context, ir, rm), mk_8(ir, 31));
             break;
         case 3:
             if (shift_imm)
@@ -739,14 +739,18 @@ static int dis_data_processing_register_insn(struct arm_target *context, uint32_
             }
             break;
         case 1://shift right
-            op = ir->add_shr_32(ir,
+            if (shift_imm == 0) {
+                op = mk_32(ir, 0);
+            } else {
+                op = ir->add_shr_32(ir,
                                 rm_reg,
-                                mk_8(ir, (shift_imm == 0)?32:shift_imm));
+                                mk_8(ir, shift_imm));
+            }
             break;
         case 2://arithmetic shift right
             op = ir->add_asr_32(ir,
                                 rm_reg,
-                                mk_8(ir, (shift_imm == 0)?32:shift_imm));
+                                mk_8(ir, (shift_imm == 0)?31:shift_imm));
             break;
         case 3://rotate right
             if (shift_imm == 0) {
@@ -1898,7 +1902,7 @@ static int dis_pkh(struct arm_target *context, uint32_t insn, struct irInstructi
     struct irRegister *res;
 
     if (tb)
-        operand2 = ir->add_asr_32(ir, read_reg(context, ir, rm), mk_8(ir, imm5?imm5:32));
+        operand2 = ir->add_asr_32(ir, read_reg(context, ir, rm), mk_8(ir, imm5?imm5:31));
     else
         operand2 = ir->add_shl_32(ir, read_reg(context, ir, rm), mk_8(ir, imm5));
     if (tb)
@@ -2361,6 +2365,9 @@ static int dis_data_processing_register_shifted_insn(struct arm_target *context,
     int rs = INSN(11, 8);
     int shift_mode = INSN(6, 5);
     int rm = INSN(3, 0);
+    struct irRegister *pred;
+    struct irRegister *op_true;
+    struct irRegister *op_false;
     struct irRegister *op;
     struct irRegister *rm_reg;
     struct irRegister *rs_reg;
@@ -2380,19 +2387,30 @@ static int dis_data_processing_register_shifted_insn(struct arm_target *context,
     }
     switch(shift_mode) {
         case 0:
-            op = ir->add_shl_32(ir,
-                                rm_reg,
-                                ir->add_32_to_8(ir, rs_reg));
+            pred = ir->add_and_32(ir, rs_reg, mk_32(ir, 0x000000e0));
+            op_true = mk_32(ir, 0);
+            op_false = ir->add_shl_32(ir,
+                                      rm_reg,
+                                      ir->add_32_to_8(ir, rs_reg));
+            op = ir->add_ite_32(ir, pred, op_true, op_false);
             break;
         case 1:
-            op = ir->add_shr_32(ir,
-                                rm_reg,
-                                ir->add_32_to_8(ir, rs_reg));
+            pred = ir->add_and_32(ir, rs_reg, mk_32(ir, 0x000000e0));
+            op_true = mk_32(ir, 0);
+            op_false = ir->add_shr_32(ir,
+                                      rm_reg,
+                                      ir->add_32_to_8(ir, rs_reg));
+            op = ir->add_ite_32(ir, pred, op_true, op_false);
             break;
         case 2:
-            op = ir->add_asr_32(ir,
-                                rm_reg,
-                                ir->add_32_to_8(ir, rs_reg));
+            pred = ir->add_and_32(ir, rs_reg, mk_32(ir, 0x000000e0));
+            op_true = ir->add_asr_32(ir,
+                                     rm_reg,
+                                     mk_8(ir, 31));
+            op_false = ir->add_asr_32(ir,
+                                      rm_reg,
+                                      ir->add_32_to_8(ir, rs_reg));
+            op = ir->add_ite_32(ir, pred, op_true, op_false);
             break;
         case 3:
             //ror
