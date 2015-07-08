@@ -1034,29 +1034,32 @@ static int dis_logical_shifted_register(struct arm64_target *context, uint32_t i
     struct irRegister *op2_inverted;
 
     /* compute op2 */
-    switch(shift) {
-        case 0://LSL
-            op2 = ir->add_shl_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
-            break;
-        case 1://LSR
-            if (is_64)
-                op2 = ir->add_shr_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
-            else
-                op2 = ir->add_32U_to_64(ir, ir->add_shr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imm6)));
-            break;
-        case 2://ASR
-            if (is_64)
-                op2 = ir->add_asr_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
-            else
-                op2 = ir->add_32U_to_64(ir, ir->add_asr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imm6)));
-            break;
-        case 3://ROR
-            if (is_64)
-                op2 = mk_ror_imm_64(ir, read_x(ir, rm, ZERO_REG), imm6);
-            else
-                op2 = ir->add_32U_to_64(ir, mk_ror_imm_32(ir, read_w(ir, rm, ZERO_REG), imm6));
-            break;
-    }
+    if (imm6) {
+        switch(shift) {
+            case 0://LSL
+                op2 = ir->add_shl_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
+                break;
+            case 1://LSR
+                if (is_64)
+                    op2 = ir->add_shr_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
+                else
+                    op2 = ir->add_32U_to_64(ir, ir->add_shr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imm6)));
+                break;
+            case 2://ASR
+                if (is_64)
+                    op2 = ir->add_asr_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
+                else
+                    op2 = ir->add_32U_to_64(ir, ir->add_asr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imm6)));
+                break;
+            case 3://ROR
+                if (is_64)
+                    op2 = mk_ror_imm_64(ir, read_x(ir, rm, ZERO_REG), imm6);
+                else
+                    op2 = ir->add_32U_to_64(ir, mk_ror_imm_32(ir, read_w(ir, rm, ZERO_REG), imm6));
+                break;
+        }
+    } else
+        op2 = read_x(ir, rm, ZERO_REG);
 
     if (n)
         op2_inverted = ir->add_xor_64(ir, op2, mk_64(ir, ~0UL));
