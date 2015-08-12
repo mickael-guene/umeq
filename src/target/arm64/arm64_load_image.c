@@ -167,7 +167,7 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
         pos++;
     }
     while(*additionnal_env != NULL) {
-        *ptr_area++ = (uint32_t) str_area;
+        *ptr_area++ = (uint64_t) str_area;
         strcpy(g_2_h(str_area), *additionnal_env);
         str_area += strlen(*additionnal_env) + 1;
         additionnal_env++;
