@@ -88,6 +88,44 @@ int __isnanf(float x)
     return (exponent == 0x7f800000) && (mantissa != 0);
 }
 
+int __fpclassify(double x)
+{
+    union double_unpack data = {x};
+    uint64_t d = data.d;
+    uint64_t exponent = d & 0x7ff0000000000000UL;
+    uint64_t mantissa = d & 0x000fffffffffffffUL;
+
+    if (exponent == 0x7ff0000000000000UL && mantissa)
+        return FP_NAN;
+    else if (exponent == 0x7ff0000000000000UL && !mantissa)
+        return FP_INFINITE;
+    else if (!exponent && mantissa)
+        return FP_SUBNORMAL;
+    else if (!exponent && !mantissa)
+        return FP_ZERO;
+    else
+        return FP_NORMAL;
+}
+
+int __fpclassifyf(float x)
+{
+    union float_unpack data = {x};
+    uint32_t s = data.s;
+    uint32_t exponent = s & 0x7f800000;
+    uint32_t mantissa = s & 0x007fffff;
+
+    if (exponent == 0x7f800000 && mantissa)
+        return FP_NAN;
+    else if (exponent == 0x7f800000 && !mantissa)
+        return FP_INFINITE;
+    else if (!exponent && mantissa)
+        return FP_SUBNORMAL;
+    else if (!exponent && !mantissa)
+        return FP_ZERO;
+    else
+        return FP_NORMAL;
+}
+
 int feraiseexcept(int excepts)
 {
     unsigned int mxcsr;

@@ -255,6 +255,114 @@ static inline int64_t ssat64(struct arm64_registers *regs, __int128_t op)
 
 #include "arm64_helpers_simd_fpu_common.c"
 
+static inline float frecpe32(struct arm64_registers *regs, float a)
+{
+    union float_uint32_t res;
+    union float_uint32_t a32 = { .sf =a };
+    float_status dummy = {0};
+
+    dummy.default_nan_mode = DN?1:0;
+    dummy.flush_to_zero = FZ?1:0;
+    if (isnan(a))
+        res.sf = fp_process_nan_32(regs, a);
+    else
+        res.s = float32_val(HELPER(recpe_f32)(make_float32(a32.s), &dummy));
+
+    return res.sf;
+}
+
+static inline double frecpe64(struct arm64_registers *regs, double a)
+{
+    union double_uint64_t res;
+    union double_uint64_t a64 = { .df =a };
+    float_status dummy = {0};
+
+    dummy.default_nan_mode = DN?1:0;
+    dummy.flush_to_zero = FZ?1:0;
+    if (isnan(a))
+        res.df = fp_process_nan_64(regs, a);
+    else
+        res.d = float64_val(HELPER(recpe_f64)(make_float64(a64.d), &dummy));
+
+    return res.df;
+}
+
+static inline float frecps32(struct arm64_registers *regs, float a, float b)
+{
+    float res;
+    int typea = fpclassify(a);
+    int typeb = fpclassify(b);
+
+    a = -a;
+    if (typea == FP_NAN || typeb == FP_NAN)
+        res = fp_process_nans_32(regs, a, b);
+    else if ((typea == FP_INFINITE && typeb == FP_ZERO) || (typea == FP_ZERO && typeb == FP_INFINITE))
+        res = 2.0;
+    else if (typea == FP_INFINITE || typeb == FP_INFINITE)
+        res = signbit(a)^signbit(b)?infinite_negative_32.sf:infinite_positive_32.sf;
+    else
+        res = 2.0 + a * b;
+
+    return res;
+}
+
+static inline double frecps64(struct arm64_registers *regs, double a, double b)
+{
+    double res;
+    int typea = fpclassify(a);
+    int typeb = fpclassify(b);
+
+    a = -a;
+    if (typea == FP_NAN || typeb == FP_NAN)
+        res = fp_process_nans_64(regs, a, b);
+    else if ((typea == FP_INFINITE && typeb == FP_ZERO) || (typea == FP_ZERO && typeb == FP_INFINITE))
+        res = 2.0;
+    else if (typea == FP_INFINITE || typeb == FP_INFINITE)
+        res = signbit(a)^signbit(b)?infinite_negative_64.df:infinite_positive_64.df;
+    else
+        res = 2.0 + a * b;
+
+    return res;
+}
+
+static inline float frsqrts32(struct arm64_registers *regs, float a, float b)
+{
+    float res;
+    int typea = fpclassify(a);
+    int typeb = fpclassify(b);
+
+    a = -a;
+    if (typea == FP_NAN || typeb == FP_NAN)
+        res = fp_process_nans_32(regs, a, b);
+    else if ((typea == FP_INFINITE && typeb == FP_ZERO) || (typea == FP_ZERO && typeb == FP_INFINITE))
+        res = 1.5;
+    else if (typea == FP_INFINITE || typeb == FP_INFINITE)
+        res = signbit(a)^signbit(b)?infinite_negative_32.sf:infinite_positive_32.sf;
+    else
+        res = (3.0 + a * b) / 2.0;
+
+    return res;
+}
+
+static inline double frsqrts64(struct arm64_registers *regs, double a, double b)
+{
+    double res;
+    int typea = fpclassify(a);
+    int typeb = fpclassify(b);
+
+    a = -a;
+    if (typea == FP_NAN || typeb == FP_NAN)
+        res = fp_process_nans_64(regs, a, b);
+    else if ((typea == FP_INFINITE && typeb == FP_ZERO) || (typea == FP_ZERO && typeb == FP_INFINITE))
+        res = 1.5;
+    else if (typea == FP_INFINITE || typeb == FP_INFINITE)
+        res = signbit(a)^signbit(b)?infinite_negative_64.df:infinite_positive_64.df;
+    else
+        res = (3.0 + a * b) / 2.0;
+
+    return res;
+}
+
 void arm64_hlp_dirty_simd_dup_element(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -1486,14 +1594,13 @@ static void dis_frecpe(uint64_t _regs, uint32_t insn)
     int rn = INSN(9,5);
     int i;
     union simd_register res = {0};
-    float_status dummy = {0};
 
     if (is_double) {
         for(i = 0; i < (is_scalar?1:2); i++)
-            res.d[i] = float64_val(HELPER(recpe_f64)(make_float64(regs->v[rn].d[i]), &dummy));
+            res.df[i] = frecpe64(regs, regs->v[rn].df[i]);
     } else {
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            res.s[i] = float32_val(HELPER(recpe_f32)(make_float32(regs->v[rn].s[i]), &dummy));
+            res.sf[i] = frecpe32(regs, regs->v[rn].sf[i]);
     }
 
     regs->v[rd] = res;
@@ -2412,15 +2519,15 @@ static void dis_fmax_fmin(uint64_t _regs, uint32_t insn)
     if (is_double) {
         for(i = 0; i < 2; i++)
             if (is_min)
-                res.df[i] = mind(regs->v[rn].df[i],regs->v[rm].df[i]);
+                res.df[i] = fmin64(regs, regs->v[rn].df[i], regs->v[rm].df[i]);
             else
-                res.df[i] = maxd(regs->v[rn].df[i],regs->v[rm].df[i]);
+                res.df[i] = fmax64(regs, regs->v[rn].df[i], regs->v[rm].df[i]);
     } else {
         for(i = 0; i < (q?4:2); i++)
             if (is_min)
-                res.sf[i] = minf(regs->v[rn].sf[i],regs->v[rm].sf[i]);
+                res.sf[i] = fmin32(regs, regs->v[rn].sf[i], regs->v[rm].sf[i]);
             else
-                res.sf[i] = maxf(regs->v[rn].sf[i],regs->v[rm].sf[i]);
+                res.sf[i] = fmax32(regs, regs->v[rn].sf[i], regs->v[rm].sf[i]);
     }
     regs->v[rd] = res;
 }
@@ -2528,21 +2635,11 @@ static void dis_frecps(uint64_t _regs, uint32_t insn)
 
     if (is_double) {
         for(i = 0; i < (is_scalar?1:(q?2:1)); i++) {
-            if (isnan(regs->v[rn].df[i]))
-                res.d[i] = (regs->v[rn].d[i]^0x8000000000000000UL) | (1UL << 51);
-            else if (isnan(regs->v[rm].df[i]))
-                res.d[i] = regs->v[rm].d[i] | (1UL << 51);
-            else
-                res.df[i] = 2.0 - regs->v[rn].df[i] * regs->v[rm].df[i];
+            res.df[i] = frecps64(regs, regs->v[rn].df[i], regs->v[rm].df[i]);
         }
     } else {
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
-            if (isnan(regs->v[rn].sf[i]))
-                res.s[i] = (regs->v[rn].s[i]^0x80000000) | (1 << 22);
-            else if (isnan(regs->v[rm].sf[i]))
-                res.s[i] = regs->v[rm].s[i] | (1 << 22);
-            else
-                res.sf[i] = 2.0 - regs->v[rn].sf[i] * regs->v[rm].sf[i];
+            res.sf[i] = frecps32(regs, regs->v[rn].sf[i], regs->v[rm].sf[i]);
         }
     }
 
@@ -2563,21 +2660,11 @@ static void dis_frsqrts(uint64_t _regs, uint32_t insn)
 
     if (is_double) {
         for(i = 0; i < (is_scalar?1:(q?2:1)); i++) {
-            if (isnan(regs->v[rn].df[i]))
-                res.d[i] = (regs->v[rn].d[i]^0x8000000000000000UL) | (1UL << 51);
-            else if (isnan(regs->v[rm].df[i]))
-                res.d[i] = regs->v[rm].d[i] | (1UL << 51);
-            else
-                res.df[i] = (3.0 - regs->v[rn].df[i] * regs->v[rm].df[i]) / 2.0;
+            res.df[i] = frsqrts64(regs, regs->v[rn].df[i], regs->v[rm].df[i]);
         }
     } else {
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
-            if (isnan(regs->v[rn].sf[i]))
-                res.s[i] = (regs->v[rn].s[i]^0x80000000) | (1 << 22);
-            else if (isnan(regs->v[rm].sf[i]))
-                res.s[i] = regs->v[rm].s[i] | (1 << 22);
-            else
-                res.sf[i] = (3.0 - regs->v[rn].sf[i] * regs->v[rm].sf[i]) / 2.0;
+            res.sf[i] = frsqrts32(regs, regs->v[rn].sf[i], regs->v[rm].sf[i]);
         }
     }
 
@@ -2648,25 +2735,25 @@ static void dis_fmaxp_fminp(uint64_t _regs, uint32_t insn)
     if (is_double) {
         for(i = 0; i < 1; i++) {
             if (is_min) {
-                res.df[i] = mind(regs->v[rn].df[2*i],regs->v[rn].df[2*i + 1]);
+                res.df[i] = fmin64(regs, regs->v[rn].df[2*i], regs->v[rn].df[2*i + 1]);
                 if (!is_scalar)
-                    res.df[i+1] = mind(regs->v[rm].df[2*i],regs->v[rm].df[2*i + 1]);
+                    res.df[i+1] = fmin64(regs, regs->v[rm].df[2*i], regs->v[rm].df[2*i + 1]);
             } else {
-                res.df[i] = maxd(regs->v[rn].df[2*i],regs->v[rn].df[2*i + 1]);
+                res.df[i] = fmax64(regs, regs->v[rn].df[2*i], regs->v[rn].df[2*i + 1]);
                 if (!is_scalar)
-                    res.df[i+1] = maxd(regs->v[rm].df[2*i],regs->v[rm].df[2*i + 1]);
+                    res.df[i+1] = fmax64(regs, regs->v[rm].df[2*i], regs->v[rm].df[2*i + 1]);
             }
         }
     } else {
         for(i = 0; i < (is_scalar?1:(q?2:1)); i++) {
             if (is_min) {
-                res.sf[i] = minf(regs->v[rn].sf[2*i],regs->v[rn].sf[2*i + 1]);
+                res.sf[i] = fmin32(regs, regs->v[rn].sf[2*i], regs->v[rn].sf[2*i + 1]);
                 if (!is_scalar)
-                    res.sf[(q?2:1) + i] = minf(regs->v[rm].sf[2*i],regs->v[rm].sf[2*i + 1]);
+                    res.sf[(q?2:1) + i] = fmin32(regs, regs->v[rm].sf[2*i], regs->v[rm].sf[2*i + 1]);
             } else {
-                res.sf[i] = maxf(regs->v[rn].sf[2*i],regs->v[rn].sf[2*i + 1]);
+                res.sf[i] = fmax32(regs, regs->v[rn].sf[2*i], regs->v[rn].sf[2*i + 1]);
                 if (!is_scalar)
-                    res.sf[(q?2:1) + i] = maxf(regs->v[rm].sf[2*i],regs->v[rm].sf[2*i + 1]);
+                    res.sf[(q?2:1) + i] = fmax32(regs, regs->v[rm].sf[2*i], regs->v[rm].sf[2*i + 1]);
             }
         }
     }
@@ -3393,13 +3480,13 @@ static void dis_fmaxv_fminv(uint64_t _regs, uint32_t insn)
     assert(is_double == 0);
     assert(q);
     if (is_min) {
-        tmp[0] = minf(regs->v[rn].sf[0],regs->v[rn].sf[1]);
-        tmp[1] = minf(regs->v[rn].sf[2],regs->v[rn].sf[3]);
-        res.sf[0] = minf(tmp[0],tmp[1]);
+        tmp[0] = fmin32(regs, regs->v[rn].sf[0], regs->v[rn].sf[1]);
+        tmp[1] = fmin32(regs, regs->v[rn].sf[2], regs->v[rn].sf[3]);
+        res.sf[0] = fmin32(regs, tmp[0], tmp[1]);
     } else {
-        tmp[0] = maxf(regs->v[rn].sf[0],regs->v[rn].sf[1]);
-        tmp[1] = maxf(regs->v[rn].sf[2],regs->v[rn].sf[3]);
-        res.sf[0] = maxf(tmp[0],tmp[1]);
+        tmp[0] = fmax32(regs, regs->v[rn].sf[0], regs->v[rn].sf[1]);
+        tmp[1] = fmax32(regs, regs->v[rn].sf[2], regs->v[rn].sf[3]);
+        res.sf[0] = fmax32(regs, tmp[0], tmp[1]);
     }
 
     regs->v[rd] = res;

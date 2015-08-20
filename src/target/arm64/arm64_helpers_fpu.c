@@ -313,13 +313,13 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
                 res.df[0] = regs->v[rn].df[0] - regs->v[rm].df[0];
                 break;
             case 4://fmax
-                res.df[0] = maxd(regs->v[rn].df[0],regs->v[rm].df[0]);
+                res.df[0] = fmax64(regs, regs->v[rn].df[0], regs->v[rm].df[0]);
                 break;
             case 6://fmaxnm
                 res.df[0] = maxnmd(regs->v[rn].df[0],regs->v[rm].df[0]);
                 break;
             case 5://fmin
-                res.df[0] = mind(regs->v[rn].df[0],regs->v[rm].df[0]);
+                res.df[0] = fmin64(regs, regs->v[rn].df[0], regs->v[rm].df[0]);
                 break;
             case 7://fminnm
                 res.df[0] = minnmd(regs->v[rn].df[0],regs->v[rm].df[0]);
@@ -345,13 +345,13 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
                 res.sf[0] = regs->v[rn].sf[0] - regs->v[rm].sf[0];
                 break;
             case 4://fmax
-                res.sf[0] = maxf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
+                res.sf[0] = fmax32(regs, regs->v[rn].sf[0], regs->v[rm].sf[0]);
                 break;
             case 6://fmaxnm
                 res.sf[0] = maxnmf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
                 break;
             case 5://fmin
-                res.sf[0] = minf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
+                res.sf[0] = fmin32(regs, regs->v[rn].sf[0], regs->v[rm].sf[0]);
                 break;
             case 7://fminnm
                 res.sf[0] = minnmf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
