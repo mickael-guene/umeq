@@ -253,7 +253,7 @@ static long read_simd(int pid, struct user_fpsimd_state_arm64 *regs)
             goto read_simd_error;
     }
     res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, fpcr), &data);
-    regs->fpsr = (uint32_t) data;
+    regs->fpcr = (uint32_t) data;
     if (res)
         goto read_simd_error;
     res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, fpsr), &data);
