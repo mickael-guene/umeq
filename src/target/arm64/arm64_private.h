@@ -25,6 +25,8 @@
 #include "target.h"
 #include "target64.h"
 
+#include "softfloat.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -55,9 +57,10 @@ struct arm64_registers {
     uint64_t pc;
     union simd_register v[32];
     uint64_t tpidr_el0;
+    float_status fp_status;
+    uint32_t fpcr_others;
     uint32_t nzcv;
-    uint32_t fpcr;
-    uint32_t fpsr;
+    uint32_t qc;
     uint32_t is_in_syscall;
     uint32_t is_stepin;
     uint64_t is_syscall_entry_show;

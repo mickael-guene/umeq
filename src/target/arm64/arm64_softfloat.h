@@ -18,28 +18,20 @@
  * 02110-1301 USA.
  */
 
-#include <stdlib.h>
-
-#include <stddef.h>
-#include <stdint.h>
-
-#include "softfloat.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifndef __ARM64_HELPERS_STOLEN_FROM_QEMU__
-#define __ARM64_HELPERS_STOLEN_FROM_QEMU__ 1
+#ifndef __ARM64_SOFTFLOAT__
+#define __ARM64_SOFTFLOAT__ 1
 
-#define HELPER(a)   qemu_stolen_##a
+#include "softfloat.h"
+#include "arm64_helpers.h"
 
-extern float32 HELPER(recpe_f32)(float32 input, void *fpstp);
-extern float64 HELPER(recpe_f64)(float64 input, void *fpstp);
-extern float32 HELPER(frecpx_f32)(float32 a, void *fpstp);
-extern float64 HELPER(frecpx_f64)(float64 a, void *fpstp);
-extern float32 HELPER(rsqrte_f32)(float32 input, void *fpstp);
-extern float64 HELPER(rsqrte_f64)(float64 input, void *fpstp);
+enum rm softfloat_rm_to_arm64_rm(int softfloat_rm);
+int arm64_rm_to_softfloat_rm(enum rm arm_rm);
+uint32_t softfloat_to_arm64_fpsr(float_status *fp_status, uint32_t qc);
+uint32_t softfloat_to_arm64_cpsr(float_status *fp_status, uint32_t fpcr_others);
 
 #endif
 

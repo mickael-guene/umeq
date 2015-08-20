@@ -26,28 +26,12 @@
 #include "arm64_helpers.h"
 #include "runtime.h"
 #include "softfloat.h"
-
-/* FIXME: rounding */
-/* FIXME: support signaling */
+#include "arm64_softfloat.h"
 
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
+#define IEEE_H16        ((regs->fpcr_others & 0x04000000) == 0)
 
 #include "arm64_helpers_simd_fpu_common.c"
-
-static void set_arm64_exception(uint64_t _regs, int excepts)
-{
-    /* raise x86 execption which will be use to generate arm64 execeptions on fpsr read */
-    feraiseexcept(excepts);
-}
-
-static void set_host_rounding_mode_from_arm64(uint64_t _regs)
-{
-    const int arm64_rounding_mode_to_host[4] = {FE_TONEAREST, FE_UPWARD, FE_DOWNWARD, FE_TOWARDZERO};
-    struct arm64_registers *regs = (struct arm64_registers *) _regs;
-    int arm64_rm = (regs->fpcr >> 22) & 3;
-
-    fesetround(arm64_rounding_mode_to_host[arm64_rm]);
-}
 
 static void dis_fcvt(uint64_t _regs, uint32_t insn)
 {
@@ -60,30 +44,30 @@ static void dis_fcvt(uint64_t _regs, uint32_t insn)
 
     if (type == 1 && opc == 0) {
         //fcvt Sd, Dn
-        res.sf[0] = regs->v[rn].df[0];
+        res.s[0] = float32_maybe_silence_nan(float64_to_float32(regs->v[rn].d[0], &regs->fp_status));
     } else if (type == 0 && opc == 1) {
         //fcvt Dd, Sn
-        res.df[0] = regs->v[rn].sf[0];
+        res.d[0] = float64_maybe_silence_nan(float32_to_float64(regs->v[rn].s[0], &regs->fp_status));
     } else if (type == 0 && opc ==3) {
         //fcvt Hd, Sn
-        float_status dummy = {0};
-        float16 r = float32_to_float16(regs->v[rn].s[0], 1, &dummy);
-        res.h[0] = float16_val(r);
+        res.h[0] = float32_to_float16(regs->v[rn].s[0], IEEE_H16, &regs->fp_status);
+        if (IEEE_H16)
+            res.h[0] = float16_maybe_silence_nan(res.h[0]);
     } else if (type == 1 && opc ==3) {
         //fcvt Hd, Dn
-        float_status dummy = {0};
-        float16 r = float64_to_float16(regs->v[rn].d[0], 1, &dummy);
-        res.h[0] = float16_val(r);
+        res.h[0] = float64_to_float16(regs->v[rn].d[0], IEEE_H16, &regs->fp_status);
+        if (IEEE_H16)
+            res.h[0] = float16_maybe_silence_nan(res.h[0]);
     } else if (type == 3 && opc == 0) {
         //fcvt Sd, Hn
-        float_status dummy = {0};
-        float32 r = float16_to_float32(regs->v[rn].h[0], 1, &dummy);
-        res.s[0] = float32_val(r);
+        res.s[0] = float16_to_float32(regs->v[rn].h[0], IEEE_H16, &regs->fp_status);
+        if (IEEE_H16)
+            res.s[0] = float32_maybe_silence_nan(res.s[0]);
     }else if (type == 3 && opc == 1) {
         //fcvt Dd, Hn
-        float_status dummy = {0};
-        float64 r = float16_to_float64(regs->v[rn].h[0], 1, &dummy);
-        res.d[0] = float64_val(r);
+        res.d[0] = float16_to_float64(regs->v[rn].h[0], IEEE_H16, &regs->fp_status);
+        if (IEEE_H16)
+            res.d[0] = float64_maybe_silence_nan(res.d[0]);
     } else
         fatal("type=%d / opc=%d\n", type, opc);
     regs->v[rd] = res;
@@ -96,17 +80,26 @@ static void dis_frint(uint64_t _regs, uint32_t insn, enum rm rmode)
     int rd = INSN(4,0);
     int rn = INSN(9,5);
     union simd_register res = {0};
+    signed char float_rounding_mode_save = regs->fp_status.float_rounding_mode;
+    int old_flags = get_float_exception_flags(&regs->fp_status);
+    int new_flags;
 
+    /* save rounding mode */
+    regs->fp_status.float_rounding_mode = arm64_rm_to_softfloat_rm(rmode);
+    /* do the convertion */
     if (is_double) {
-        res.df[0] = fcvt_rm(regs->v[rn].df[0], rmode);
-        if (res.df[0] == 0.0 && regs->v[rn].df[0] < 0)
-            res.d[0] = 0x8000000000000000UL;
+        res.d[0] = float64_round_to_int(regs->v[rn].d[0], &regs->fp_status);
     } else {
-        res.sf[0] = fcvt_rm(regs->v[rn].sf[0], rmode);
-        /* handle -0 case */
-        if (res.sf[0] == 0.0 && regs->v[rn].sf[0] < 0)
-            res.s[0] = 0x80000000;
+        res.s[0] = float32_round_to_int(regs->v[rn].s[0], &regs->fp_status);
     }
+    /* Suppress any inexact exceptions the conversion produced */
+    if (!(old_flags & float_flag_inexact)) {
+        new_flags = get_float_exception_flags(&regs->fp_status);
+        set_float_exception_flags(new_flags & ~float_flag_inexact, &regs->fp_status);
+    }
+    /* restore rounding mode */
+    regs->fp_status.float_rounding_mode = float_rounding_mode_save;
+
     regs->v[rd] = res;
 }
 
@@ -138,15 +131,25 @@ static void dis_frinta(uint64_t _regs, uint32_t insn)
 static void dis_frintx(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
-    enum rm rm = (regs->fpcr >> 22) & 3;
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    union simd_register res = {0};
 
-    dis_frint(_regs, insn, rm);
+    /* do the convertion */
+    if (is_double) {
+        res.d[0] = float64_round_to_int(regs->v[rn].d[0], &regs->fp_status);
+    } else {
+        res.s[0] = float32_round_to_int(regs->v[rn].s[0], &regs->fp_status);
+    }
+
+    regs->v[rd] = res;
 }
 
 static void dis_frinti(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
-    enum rm rm = (regs->fpcr >> 22) & 3;
+    enum rm rm = softfloat_rm_to_arm64_rm(get_float_rounding_mode(&regs->fp_status));
 
     dis_frint(_regs, insn, rm);
 }
@@ -159,29 +162,13 @@ static void dis_fccmp_fccmpe(uint64_t _regs, uint32_t insn)
     int rm = INSN(20,16);
     int cond = INSN(15,12);
     int nzcv = INSN(3,0);
+    int is_quiet = (INSN(4, 4) == 0);
 
     if (arm64_hlp_compute_flags_pred(_regs, cond, regs->nzcv)) {
-        if (is_double) {
-            double op1 = regs->v[rn].df[0];
-            double op2 = regs->v[rm].df[0];
-
-            if (op1 == op2)
-                nzcv = 0x6;
-            else if (op1 < op2)
-                nzcv = 0x8;
-            else
-                nzcv = 0x2;
-        } else {
-            float op1 = regs->v[rn].sf[0];
-            float op2 = regs->v[rm].sf[0];
-
-            if (op1 == op2)
-                nzcv = 0x6;
-            else if (op1 < op2)
-                nzcv = 0x8;
-            else
-                nzcv = 0x2;
-        }
+        if (is_double)
+            nzcv = fcmp64(regs, regs->v[rn].d[0], regs->v[rm].d[0], is_quiet);
+        else
+            nzcv = fcmp32(regs, regs->v[rn].s[0], regs->v[rm].s[0], is_quiet);
     }
     regs->nzcv = (nzcv << 28) | (regs->nzcv & 0x0fffffff);
 }
@@ -198,23 +185,13 @@ static void dis_fsqrt(uint64_t _regs, uint32_t insn)
     int i;
 
     assert(is_scalar);
-    if (is_double) {
+    if (is_double)
         for(i = 0; i < (is_scalar?1:2); i++)
-            if (regs->v[rn].d[i]&0x8000000000000000UL) {
-                set_arm64_exception(_regs, FE_INVALID);
-                res.df[i] = NAN;
-            }
-            else
-                res.df[i] = sqrt(regs->v[rn].df[i]);
-    } else {
+            res.d[i] = fsqrt64(regs, regs->v[rn].d[i]);
+    else
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            if (regs->v[rn].s[i]&0x80000000) {
-                set_arm64_exception(_regs, FE_INVALID);
-                res.sf[i] = NAN;
-            }
-            else
-                res.sf[i] = sqrtf(regs->v[rn].sf[i]);
-    }
+            res.s[i] = fsqrt32(regs, regs->v[rn].s[i]);
+
     regs->v[rd] = res;
 }
 
@@ -226,24 +203,21 @@ void arm64_hlp_dirty_scvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn)
     int rd = INSN(4,0);
     int rn = INSN(9,5);
 
+    regs->v[rd].d[1] = 0;
     switch(sf_type0) {
         case 0:
-            regs->v[rd].d[1] = 0;
-            regs->v[rd].sf[0] = (float)(int32_t) regs->r[rn];
-            regs->v[rd].sf[1] = 0;
+            regs->v[rd].s[0] = float32_val(int32_to_float32(regs->r[rn], &regs->fp_status));
+            regs->v[rd].s[1] = 0;
             break;
         case 1:
-            regs->v[rd].d[1] = 0;
-            regs->v[rd].df[0] = (double)(int32_t) regs->r[rn];
+            regs->v[rd].d[0] = float64_val(int32_to_float64(regs->r[rn], &regs->fp_status));
             break;
         case 2:
-            regs->v[rd].d[1] = 0;
-            regs->v[rd].sf[0] = (float)(int64_t) regs->r[rn];
-            regs->v[rd].sf[1] = 0;
+            regs->v[rd].s[0] = float32_val(int64_to_float32(regs->r[rn], &regs->fp_status));
+            regs->v[rd].s[1] = 0;
             break;
         case 3:
-            regs->v[rd].d[1] = 0;
-            regs->v[rd].df[0] = (double)(int64_t) regs->r[rn];
+            regs->v[rd].d[0] = float64_val(int64_to_float64(regs->r[rn], &regs->fp_status));
             break;
         default:
             fatal("sf_type0 = %d\n", sf_type0);
@@ -255,35 +229,14 @@ void arm64_hlp_dirty_floating_point_compare_simd(uint64_t _regs, uint32_t insn)
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
     int is_double = INSN(22,22);
     int is_compare_zero = INSN(3,3);
-    //int is_signaling = INSN(4,4);
+    int is_quiet = (INSN(4,4) == 0);
     int rm = INSN(20,16);
     int rn = INSN(9,5);
 
-    if (is_double) {
-        double op1 = regs->v[rn].df[0];
-        double op2 = is_compare_zero?0.0:regs->v[rm].df[0];
-
-        if (isnan(op1) || isnan(op2))
-            regs->nzcv = 0x30000000;
-        else if (op1 == op2)
-            regs->nzcv = 0x60000000;
-        else if (op1 > op2)
-            regs->nzcv = 0x20000000;
-        else
-            regs->nzcv = 0x80000000;
-    } else {
-        float op1 = regs->v[rn].sf[0];
-        float op2 = is_compare_zero?0.0:regs->v[rm].sf[0];
-
-        if (isnan(op1) || isnan(op2))
-            regs->nzcv = 0x30000000;
-        else if (op1 == op2)
-            regs->nzcv = 0x60000000;
-        else if (op1 > op2)
-            regs->nzcv = 0x20000000;
-        else
-            regs->nzcv = 0x80000000;
-    }
+    if (is_double)
+        regs->nzcv = fcmp64(regs, regs->v[rn].d[0], is_compare_zero?0:regs->v[rm].d[0], is_quiet) << 28;
+    else
+        regs->nzcv = fcmp32(regs, regs->v[rn].s[0], is_compare_zero?0:regs->v[rm].s[0], is_quiet) << 28;
 }
 
 void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs, uint32_t insn)
@@ -295,37 +248,35 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
     int rn = INSN(9,5);
     int rd = INSN(4,0);
     union simd_register res = {0};
-    //int original_rounding_mode = fegetround();
 
-    //set_host_rounding_mode_from_arm64(_regs);
     if (is_double) {
         switch(opcode) {
             case 0://fmul
-                res.df[0] = regs->v[rn].df[0] * regs->v[rm].df[0];
+                res.d[0] = fmul64(regs, regs->v[rn].d[0], regs->v[rm].d[0]);
                 break;
             case 1://fdiv
-                res.df[0] = regs->v[rn].df[0] / regs->v[rm].df[0];
+                res.d[0] = fdiv64(regs, regs->v[rn].d[0], regs->v[rm].d[0]);
                 break;
             case 2://fadd
-                res.df[0] = regs->v[rn].df[0] + regs->v[rm].df[0];
+                res.d[0] = fadd64(regs, regs->v[rn].d[0], regs->v[rm].d[0]);
                 break;
             case 3://fsub
-                res.df[0] = regs->v[rn].df[0] - regs->v[rm].df[0];
+                res.d[0] = fsub64(regs, regs->v[rn].d[0], regs->v[rm].d[0]);
                 break;
             case 4://fmax
-                res.df[0] = fmax64(regs, regs->v[rn].df[0], regs->v[rm].df[0]);
+                res.d[0] = fmax64(regs, regs->v[rn].d[0], regs->v[rm].d[0]);
                 break;
             case 6://fmaxnm
-                res.df[0] = maxnmd(regs->v[rn].df[0],regs->v[rm].df[0]);
+                res.d[0] = fmaxnm64(regs, regs->v[rn].d[0],regs->v[rm].d[0]);
                 break;
             case 5://fmin
-                res.df[0] = fmin64(regs, regs->v[rn].df[0], regs->v[rm].df[0]);
+                res.d[0] = fmin64(regs, regs->v[rn].d[0], regs->v[rm].d[0]);
                 break;
             case 7://fminnm
-                res.df[0] = minnmd(regs->v[rn].df[0],regs->v[rm].df[0]);
+                res.d[0] = fminnm64(regs, regs->v[rn].d[0],regs->v[rm].d[0]);
                 break;
             case 8://fnmul
-                res.df[0] = -(regs->v[rn].df[0] * regs->v[rm].df[0]);
+                res.d[0] = fneg64(regs, fmul64(regs, regs->v[rn].d[0], regs->v[rm].d[0]));
                 break;
             default:
                 fatal("opcode = %d(0x%x)\n", opcode, opcode);
@@ -333,38 +284,37 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
     } else {
         switch(opcode) {
             case 0://fmul
-                res.sf[0] = regs->v[rn].sf[0] * regs->v[rm].sf[0];
+                res.s[0] = fmul32(regs, regs->v[rn].s[0], regs->v[rm].s[0]);
                 break;
             case 1://fdiv
-                res.sf[0] = regs->v[rn].sf[0] / regs->v[rm].sf[0];
+                res.s[0] = fdiv32(regs, regs->v[rn].s[0], regs->v[rm].s[0]);
                 break;
             case 2://fadd
-                res.sf[0] = regs->v[rn].sf[0] + regs->v[rm].sf[0];
+                res.s[0] = fadd32(regs, regs->v[rn].s[0], regs->v[rm].s[0]);
                 break;
             case 3://fsub
-                res.sf[0] = regs->v[rn].sf[0] - regs->v[rm].sf[0];
+                res.s[0] = fsub32(regs, regs->v[rn].s[0], regs->v[rm].s[0]);
                 break;
             case 4://fmax
-                res.sf[0] = fmax32(regs, regs->v[rn].sf[0], regs->v[rm].sf[0]);
+                res.s[0] = fmax32(regs, regs->v[rn].s[0], regs->v[rm].s[0]);
                 break;
             case 6://fmaxnm
-                res.sf[0] = maxnmf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
+                res.s[0] = fmaxnm32(regs, regs->v[rn].s[0],regs->v[rm].s[0]);
                 break;
             case 5://fmin
-                res.sf[0] = fmin32(regs, regs->v[rn].sf[0], regs->v[rm].sf[0]);
+                res.s[0] = fmin32(regs, regs->v[rn].s[0], regs->v[rm].s[0]);
                 break;
             case 7://fminnm
-                res.sf[0] = minnmf(regs->v[rn].sf[0],regs->v[rm].sf[0]);
+                res.s[0] = fminnm32(regs, regs->v[rn].s[0],regs->v[rm].s[0]);
                 break;
             case 8://fnmul
-                res.sf[0] = -(regs->v[rn].sf[0] * regs->v[rm].sf[0]);
+                res.s[0] = fneg32(regs, fmul32(regs, regs->v[rn].s[0], regs->v[rm].s[0]));
                 break;
             default:
                 fatal("opcode = %d(0x%x)\n", opcode, opcode);
         }
     }
     regs->v[rd] = res;
-    //fesetround(original_rounding_mode);
 }
 
 void arm64_hlp_dirty_floating_point_immediate_simd(uint64_t _regs, uint32_t insn)
@@ -445,16 +395,16 @@ void arm64_hlp_dirty_floating_point_data_processing_3_source_simd(uint64_t _regs
     if (is_double) {
         switch(o1_o0) {
             case 0://fmadd
-                res.df[0] = regs->v[ra].df[0] + regs->v[rn].df[0] * regs->v[rm].df[0];
+                res.d[0] = fmadd64(regs, regs->v[rn].d[0], regs->v[rm].d[0], regs->v[ra].d[0]);
                 break;
             case 1://fmsub
-                res.df[0] = regs->v[ra].df[0] - regs->v[rn].df[0] * regs->v[rm].df[0];
+                res.d[0] = fmadd64(regs, fneg64(regs, regs->v[rn].d[0]), regs->v[rm].d[0], regs->v[ra].d[0]);
                 break;
             case 2://fnmadd
-                res.df[0] = -regs->v[ra].df[0] - regs->v[rn].df[0] * regs->v[rm].df[0];
+                res.d[0] = fmadd64(regs, fneg64(regs, regs->v[rn].d[0]), regs->v[rm].d[0], fneg64(regs, regs->v[ra].d[0]));
                 break;
             case 3://fnmsub
-                res.df[0] = -regs->v[ra].df[0] + regs->v[rn].df[0] * regs->v[rm].df[0];
+                res.d[0] = fmadd64(regs, regs->v[rn].d[0], regs->v[rm].d[0], fneg64(regs, regs->v[ra].d[0]));
                 break;
             default:
                 fatal("o1_o0 = %d(0x%x)\n", o1_o0, o1_o0);
@@ -462,16 +412,16 @@ void arm64_hlp_dirty_floating_point_data_processing_3_source_simd(uint64_t _regs
     } else {
         switch(o1_o0) {
             case 0://fmadd
-                res.sf[0] = (double)regs->v[ra].sf[0] + (double)regs->v[rn].sf[0] * (double)regs->v[rm].sf[0];
+                res.s[0] = fmadd32(regs, regs->v[rn].s[0], regs->v[rm].s[0], regs->v[ra].s[0]);
                 break;
             case 1://fmsub
-                res.sf[0] = (double)regs->v[ra].sf[0] - (double)regs->v[rn].sf[0] * (double)regs->v[rm].sf[0];
+                res.s[0] = fmadd32(regs, fneg32(regs, regs->v[rn].s[0]), regs->v[rm].s[0], regs->v[ra].s[0]);
                 break;
             case 2://fnmadd
-                res.sf[0] = -(double)regs->v[ra].sf[0] - (double)regs->v[rn].sf[0] * (double)regs->v[rm].sf[0];
+                res.s[0] = fmadd32(regs, fneg32(regs, regs->v[rn].s[0]), regs->v[rm].s[0], fneg32(regs, regs->v[ra].s[0]));
                 break;
             case 3://fnmsub
-                res.sf[0] = -(double)regs->v[ra].sf[0] + (double)regs->v[rn].sf[0] * (double)regs->v[rm].sf[0];
+                res.s[0] = fmadd32(regs, regs->v[rn].s[0], regs->v[rm].s[0], fneg32(regs, regs->v[ra].s[0]));
                 break;
             default:
                 fatal("o1_o0 = %d(0x%x)\n", o1_o0, o1_o0);
@@ -490,18 +440,18 @@ void arm64_hlp_dirty_ucvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn)
     regs->v[rd].d[1] = 0;
     switch(sf_type0) {
         case 0:
-            regs->v[rd].sf[0] = (float)(uint32_t) regs->r[rn];
-            regs->v[rd].sf[1] = 0;
+            regs->v[rd].s[0] = float32_val(uint32_to_float32(regs->r[rn], &regs->fp_status));
+            regs->v[rd].s[1] = 0;
             break;
         case 1:
-            regs->v[rd].df[0] = (double)(uint32_t) regs->r[rn];
+            regs->v[rd].d[0] = float64_val(uint32_to_float64(regs->r[rn], &regs->fp_status));
             break;
         case 2:
-            regs->v[rd].sf[0] = (float) regs->r[rn];
-            regs->v[rd].sf[1] = 0;
+            regs->v[rd].s[0] = float32_val(uint64_to_float32(regs->r[rn], &regs->fp_status));
+            regs->v[rd].s[1] = 0;
             break;
         case 3:
-            regs->v[rd].df[0] = (double) regs->r[rn];
+            regs->v[rd].d[0] = float64_val(uint64_to_float64(regs->r[rn], &regs->fp_status));
             break;
         default:
             fatal("sf_type0 = %d\n", sf_type0);
@@ -514,24 +464,43 @@ static void dis_fcvtu_scalar_integer(uint64_t _regs, uint32_t insn, enum rm rmod
     int sf_type0 = (INSN(31,31) << 1) | INSN(22,22);
     int rd = INSN(4,0);
     int rn = INSN(9,5);
+    signed char float_rounding_mode_save = regs->fp_status.float_rounding_mode;
 
+    regs->fp_status.float_rounding_mode = arm64_rm_to_softfloat_rm(rmode);
     regs->v[rd].d[1] = 0;
     switch(sf_type0) {
         case 0:
-            regs->r[rd] = (uint32_t) usat32_d(fcvt_rm(regs->v[rn].sf[0], rmode));
+            if (float32_is_any_nan(regs->v[rn].s[0])) {
+                float_raise(float_flag_invalid, &regs->fp_status);
+                regs->r[rd] = 0;
+            } else
+                regs->r[rd] = (uint32_t)float32_to_uint32(regs->v[rn].s[0], &regs->fp_status);
             break;
         case 1:
-            regs->r[rd] = (uint32_t) usat32_d(fcvt_rm(regs->v[rn].df[0], rmode));
+            if (float64_is_any_nan(regs->v[rn].d[0])) {
+                float_raise(float_flag_invalid, &regs->fp_status);
+                regs->r[rd] = 0;
+            } else
+                regs->r[rd] = (uint32_t)float64_to_uint32(regs->v[rn].d[0], &regs->fp_status);
             break;
         case 2:
-            regs->r[rd] = (uint64_t) usat64_d(fcvt_rm(regs->v[rn].sf[0], rmode));
+            if (float32_is_any_nan(regs->v[rn].s[0])) {
+                float_raise(float_flag_invalid, &regs->fp_status);
+                regs->r[rd] = 0;
+            } else
+                regs->r[rd] = float32_to_uint64(regs->v[rn].s[0], &regs->fp_status);
             break;
         case 3:
-            regs->r[rd] = (uint64_t) usat64_d(fcvt_rm(regs->v[rn].df[0], rmode));
+            if (float64_is_any_nan(regs->v[rn].d[0])) {
+                float_raise(float_flag_invalid, &regs->fp_status);
+                regs->r[rd] = 0;
+            } else
+                regs->r[rd] = float64_to_uint64(regs->v[rn].d[0], &regs->fp_status);
             break;
         default:
             fatal("sf_type0 = %d\n", sf_type0);
     }
+    regs->fp_status.float_rounding_mode = float_rounding_mode_save;
 }
 static void dis_fcvts_scalar_integer(uint64_t _regs, uint32_t insn, enum rm rmode)
 {
@@ -539,24 +508,43 @@ static void dis_fcvts_scalar_integer(uint64_t _regs, uint32_t insn, enum rm rmod
     int sf_type0 = (INSN(31,31) << 1) | INSN(22,22);
     int rd = INSN(4,0);
     int rn = INSN(9,5);
+    signed char float_rounding_mode_save = regs->fp_status.float_rounding_mode;
 
+    regs->fp_status.float_rounding_mode = arm64_rm_to_softfloat_rm(rmode);
     regs->v[rd].d[1] = 0;
     switch(sf_type0) {
         case 0:
-            regs->r[rd] = (uint32_t)(int32_t) ssat32_d(fcvt_rm(regs->v[rn].sf[0], rmode));
+            if (float32_is_any_nan(regs->v[rn].s[0])) {
+                float_raise(float_flag_invalid, &regs->fp_status);
+                regs->r[rd] = 0;
+            } else
+                regs->r[rd] = (uint32_t)float32_to_int32(regs->v[rn].s[0], &regs->fp_status);
             break;
         case 1:
-            regs->r[rd] = (uint32_t)(int32_t) ssat32_d(fcvt_rm(regs->v[rn].df[0], rmode));
+            if (float64_is_any_nan(regs->v[rn].d[0])) {
+                float_raise(float_flag_invalid, &regs->fp_status);
+                regs->r[rd] = 0;
+            } else
+                regs->r[rd] = (uint32_t)float64_to_int32(regs->v[rn].d[0], &regs->fp_status);
             break;
         case 2:
-            regs->r[rd] = (int64_t) ssat64_d(fcvt_rm(regs->v[rn].sf[0], rmode));
+            if (float32_is_any_nan(regs->v[rn].s[0])) {
+                float_raise(float_flag_invalid, &regs->fp_status);
+                regs->r[rd] = 0;
+            } else
+                regs->r[rd] = float32_to_int64(regs->v[rn].s[0], &regs->fp_status);
             break;
         case 3:
-            regs->r[rd] = (int64_t) ssat64_d(fcvt_rm(regs->v[rn].df[0], rmode));
+            if (float64_is_any_nan(regs->v[rn].d[0])) {
+                float_raise(float_flag_invalid, &regs->fp_status);
+                regs->r[rd] = 0;
+            } else
+                regs->r[rd] = float64_to_int64(regs->v[rn].d[0], &regs->fp_status);
             break;
         default:
             fatal("sf_type0 = %d\n", sf_type0);
     }
+    regs->fp_status.float_rounding_mode = float_rounding_mode_save;
 }
 
 static void dis_fcvtau_scalar_integer(uint64_t _regs, uint32_t insn)
@@ -620,19 +608,19 @@ static void dis_fcvtzs_fixed(uint64_t _regs, uint32_t insn)
     switch(sf_type0) {
         case 0:
             //Wd, Sn
-            regs->r[rd] = (uint32_t)(int32_t) ssat32_d(fcvt_fract(regs->v[rn].sf[0], fracbits));
+            regs->r[rd] = fcvtzs32_fixed_32(regs, regs->v[rn].s[0], fracbits);
             break;
         case 1:
             //Wd, Dn
-            regs->r[rd] = (uint32_t)(int32_t) ssat32_d(fcvt_fract(regs->v[rn].df[0], fracbits));
+            regs->r[rd] = fcvtzs64_fixed_32(regs, regs->v[rn].d[0], fracbits);
             break;
         case 2:
             //Xd, Sn
-            regs->r[rd] = (int64_t) ssat64_d(fcvt_fract(regs->v[rn].sf[0], fracbits));
+            regs->r[rd] = fcvtzs32_fixed_64(regs, regs->v[rn].s[0], fracbits);
             break;
         case 3:
             //Xd, Dn
-            regs->r[rd] = (int64_t) ssat64_d(fcvt_fract(regs->v[rn].df[0], fracbits));
+            regs->r[rd] = fcvtzs64_fixed_64(regs, regs->v[rn].d[0], fracbits);
             break;
         default:
             fatal("sf_type0=%d\n", sf_type0);
@@ -650,19 +638,19 @@ static void dis_fcvtzu_fixed(uint64_t _regs, uint32_t insn)
     switch(sf_type0) {
         case 0:
             //Wd, Sn
-            regs->r[rd] = (uint32_t) usat32_d(fcvt_fract(regs->v[rn].sf[0], fracbits));
+            regs->r[rd] = fcvtzu32_fixed_32(regs, regs->v[rn].s[0], fracbits);
             break;
         case 1:
             //Wd, Dn
-            regs->r[rd] = (uint32_t) usat32_d(fcvt_fract(regs->v[rn].df[0], fracbits));
+            regs->r[rd] = fcvtzu64_fixed_32(regs, regs->v[rn].d[0], fracbits);
             break;
         case 2:
             //Xd, Sn
-            regs->r[rd] = (uint64_t) usat64_d(fcvt_fract(regs->v[rn].sf[0], fracbits));
+            regs->r[rd] = fcvtzu32_fixed_64(regs, regs->v[rn].s[0], fracbits);
             break;
         case 3:
             //Xd, Dn
-            regs->r[rd] = (uint64_t) usat64_d(fcvt_fract(regs->v[rn].df[0], fracbits));
+            regs->r[rd] = fcvtzu64_fixed_64(regs, regs->v[rn].d[0], fracbits);
             break;
     }
 }
@@ -679,19 +667,23 @@ static void dis_scvtf_fixed(uint64_t _regs, uint32_t insn)
     switch(sf_type0) {
         case 0:
             //Sd, Wn
-            res.sf[0] = (double)(int32_t)regs->r[rn] / (1UL << fracbits);
+            res.s[0] = float32_val(int32_to_float32(regs->r[rn], &regs->fp_status));
+            res.s[0] = float32_scalbn(res.s[0], -fracbits, &regs->fp_status);
             break;
         case 1:
             //Dd, Wn
-            res.df[0] = (double)(int32_t)regs->r[rn] / (1UL << fracbits);
+            res.d[0] = float64_val(int32_to_float64(regs->r[rn], &regs->fp_status));
+            res.d[0] = float64_scalbn(res.d[0], -fracbits, &regs->fp_status);
             break;
         case 2:
             //Sd, Xn
-            res.sf[0] = (double)(int64_t)regs->r[rn] / (1UL << fracbits);
+            res.s[0] = float32_val(int64_to_float32(regs->r[rn], &regs->fp_status));
+            res.s[0] = float32_scalbn(res.s[0], -fracbits, &regs->fp_status);
             break;
         case 3:
             //Dd, Xn
-            res.df[0] = (double)(int64_t)regs->r[rn] / (1UL << fracbits);
+            res.d[0] = float64_val(int64_to_float64(regs->r[rn], &regs->fp_status));
+            res.d[0] = float64_scalbn(res.d[0], -fracbits, &regs->fp_status);
             break;
         default:
             fatal("sf_type0=%d\n", sf_type0);
@@ -711,19 +703,23 @@ static void dis_ucvtf_fixed(uint64_t _regs, uint32_t insn)
     switch(sf_type0) {
         case 0:
             //Sd, Wn
-            res.sf[0] = (double)(uint32_t)regs->r[rn] / (1UL << fracbits);
+            res.s[0] = float32_val(uint32_to_float32(regs->r[rn], &regs->fp_status));
+            res.s[0] = float32_scalbn(res.s[0], -fracbits, &regs->fp_status);
             break;
         case 1:
             //Dd, Wn
-            res.df[0] = (double)(uint32_t)regs->r[rn] / (1UL << fracbits);
+            res.d[0] = float64_val(uint32_to_float64(regs->r[rn], &regs->fp_status));
+            res.d[0] = float64_scalbn(res.d[0], -fracbits, &regs->fp_status);
             break;
         case 2:
             //Sd, Xn
-            res.sf[0] = (double)(uint64_t)regs->r[rn] / (1UL << fracbits);
+            res.s[0] = float32_val(uint64_to_float32(regs->r[rn], &regs->fp_status));
+            res.s[0] = float32_scalbn(res.s[0], -fracbits, &regs->fp_status);
             break;
         case 3:
             //Dd, Xn
-            res.df[0] = (double)(uint64_t)regs->r[rn] / (1UL << fracbits);
+            res.d[0] = float64_val(uint64_to_float64(regs->r[rn], &regs->fp_status));
+            res.d[0] = float64_scalbn(res.d[0], -fracbits, &regs->fp_status);
             break;
         default:
             fatal("sf_type0=%d\n", sf_type0);
@@ -834,64 +830,53 @@ void arm64_hlp_dirty_conversion_between_floating_point_and_fixed_point(uint64_t 
     }
 }
 
-/* We are lazy on fpsr exceptions status. We use x86 fpsr to handle them.
- * This means that umeq code should not use fpu code except for helper code.
- * You can still use fpu code outside helper but you have to be sure either
- * to not generate exception or to save/restore x86 exception status.
+/* Convert between softfloat and arm fpcr and fpsr registers
 */
 void arm64_hlp_write_fpsr(uint64_t _regs, uint32_t value)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
-    int excepts = 0;
+    int exceptions = 0;
 
-    regs->fpsr = value;
-    /* we update x86 status registers according to arm64 fpsr */
-    if (regs->fpsr & ARM64_FPSR_IOC)
-        excepts |= FE_INVALID;
-    if (regs->fpsr & ARM64_FPSR_DZC)
-        excepts |= FE_DIVBYZERO;
-    if (regs->fpsr & ARM64_FPSR_OFC)
-        excepts |= FE_OVERFLOW;
-    if (regs->fpsr & ARM64_FPSR_UFC)
-        excepts |= FE_UNDERFLOW;
-    if (regs->fpsr & ARM64_FPSR_IXC)
-        excepts |= FE_INEXACT;
-    feclearexcept(FE_ALL_EXCEPT);
-    feraiseexcept(excepts);
+    /* qc are handle out of softfloat */
+    regs->qc = value & 0x08000000;
+    /* now handle exceptions bits */
+    if (value & ARM64_FPSR_IDC)
+        exceptions |= float_flag_input_denormal;
+    if (value & ARM64_FPSR_IXC)
+        exceptions |= float_flag_inexact;
+    if (value & ARM64_FPSR_UFC)
+        exceptions |= float_flag_underflow;
+    if (value & ARM64_FPSR_OFC)
+        exceptions |= float_flag_overflow;
+    if (value & ARM64_FPSR_DZC)
+        exceptions |= float_flag_divbyzero;
+    if (value & ARM64_FPSR_IOC)
+        exceptions |= float_flag_invalid;
+    set_float_exception_flags(exceptions, &regs->fp_status);
 }
 
 uint32_t arm64_hlp_read_fpsr(uint64_t _regs)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
-    int excepts = fetestexcept(FE_ALL_EXCEPT);
 
-    /* we update arm64 fpsr according to x86 status registers */
-    regs->fpsr &= ~(ARM64_FPSR_IOC | ARM64_FPSR_DZC | ARM64_FPSR_OFC | ARM64_FPSR_UFC | ARM64_FPSR_IXC);
-    if (excepts & FE_INVALID)
-        regs->fpsr |= ARM64_FPSR_IOC;
-    if (excepts & FE_DIVBYZERO)
-        regs->fpsr |= ARM64_FPSR_DZC;
-    if (excepts & FE_OVERFLOW)
-        regs->fpsr |= ARM64_FPSR_OFC;
-    if (excepts & FE_UNDERFLOW)
-        regs->fpsr |= ARM64_FPSR_UFC;
-    if (excepts & FE_INEXACT)
-        regs->fpsr |= ARM64_FPSR_IXC;
-
-    return regs->fpsr;
+    return softfloat_to_arm64_fpsr(&regs->fp_status, regs->qc);
 }
 
 void arm64_hlp_write_fpcr(uint64_t _regs, uint32_t value)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
 
-    regs->fpcr = value;
-    set_host_rounding_mode_from_arm64(_regs);
+    set_default_nan_mode((value>>25)&1, &regs->fp_status);
+    set_flush_to_zero((value>>24)&1, &regs->fp_status);
+    set_flush_inputs_to_zero((value>>24)&1, &regs->fp_status);
+    set_float_rounding_mode(arm64_rm_to_softfloat_rm((value>>22)&3), &regs->fp_status);
+    /* save AHP, IDE, IXE, UFE, OFE, DZE, IOE in fpcr_others */
+    regs->fpcr_others = value & 0x04009f00;
 }
 
 uint32_t arm64_hlp_read_fpcr(uint64_t _regs)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
 
-    return regs->fpcr;
+    return softfloat_to_arm64_cpsr(&regs->fp_status, regs->fpcr_others);
 }

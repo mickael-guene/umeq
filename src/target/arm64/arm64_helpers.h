@@ -37,6 +37,7 @@ extern "C" {
 #define ARM64_FPSR_OFC      4
 #define ARM64_FPSR_UFC      8
 #define ARM64_FPSR_IXC      16
+#define ARM64_FPSR_IDC      128
 
 enum ops {
     OPS_ADD = 0,

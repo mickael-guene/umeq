@@ -270,10 +270,11 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
             context->regs.r[i] = 0;
             context->regs.v[i].v128 = 0;
         }
-        context->regs.nzcv = 0;
+        context->regs.nzcv = prev_context->regs.nzcv;
         context->regs.tpidr_el0 = prev_context->regs.tpidr_el0;
-        context->regs.fpcr = prev_context->regs.fpcr;
-        context->regs.fpsr = prev_context->regs.fpsr;
+        context->regs.fp_status = prev_context->regs.fp_status;
+        context->regs.fpcr_others = prev_context->regs.fpcr_others;
+        context->regs.qc = prev_context->regs.qc;
         /* fixup register value */
         context->regs.r[0] = signum;
         context->regs.r[29] = sp + offsetof(struct rt_sigframe_arm64, fp);
@@ -299,8 +300,9 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
             context->regs.v[i].v128 = parent_context->regs.v[i].v128;
         }
         context->regs.nzcv = parent_context->regs.nzcv;
-        context->regs.fpcr = parent_context->regs.fpcr;
-        context->regs.fpsr = parent_context->regs.fpsr;
+        context->regs.fp_status = parent_context->regs.fp_status;
+        context->regs.fpcr_others = parent_context->regs.fpcr_others;
+        context->regs.qc = parent_context->regs.qc;
         context->regs.tpidr_el0 = parent_context->regs.r[3];
         context->regs.r[0] = 0;
         context->regs.r[31] = stack_ptr;
@@ -317,9 +319,16 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
        	context->regs.r[31] = stack_ptr;
        	context->regs.pc = entry;
         context->regs.tpidr_el0 = 0;
-        context->regs.fpcr = 0;
-        context->regs.fpsr = 0;
         context->regs.nzcv = 0;
+        set_float_detect_tininess(float_tininess_before_rounding, &context->regs.fp_status);
+        set_float_rounding_mode(float_round_nearest_even, &context->regs.fp_status);
+        set_float_exception_flags(0, &context->regs.fp_status);
+        set_floatx80_rounding_precision(0, &context->regs.fp_status);
+        set_flush_to_zero(0, &context->regs.fp_status);
+        set_flush_inputs_to_zero(0, &context->regs.fp_status);
+        set_default_nan_mode(0, &context->regs.fp_status);
+        context->regs.fpcr_others = 0;
+        context->regs.qc = 0;
         context->sp_init = stack_ptr;
         context->pc = entry;
         context->regs.is_in_syscall = 0;

@@ -26,10 +26,11 @@
 #include "arm64_helpers.h"
 #include "runtime.h"
 #include "softfloat.h"
-#include "arm64_helpers_stolen_from_qemu.h"
+#include "arm64_softfloat.h"
 
 //#define DUMP_STACK 1
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
+#define IEEE_H16        ((regs->fpcr_others & 0x04000000) == 0)
 
 void arm64_hlp_dump_simd(uint64_t regs)
 {
@@ -148,8 +149,9 @@ static inline uint64_t smin64(int64_t op1, int64_t op2)
 }
 static inline void set_qc(struct arm64_registers *regs)
 {
-    regs->fpsr |= 1 << 27;
+    regs->qc = 1 << 27;
 }
+
 #define DECLARE_USAT(size,max) \
 static inline uint##size##_t usat##size(struct arm64_registers *regs, int64_t op) \
 { \
@@ -157,10 +159,10 @@ static inline uint##size##_t usat##size(struct arm64_registers *regs, int64_t op
  \
     if (op > max) { \
         res = max; \
-        regs->fpsr |= 1 << 27; \
+        set_qc(regs); \
     } else if (op < 0) { \
         res = 0; \
-        regs->fpsr |= 1 << 27; \
+        set_qc(regs); \
     } else \
         res = op; \
  \
@@ -176,10 +178,10 @@ static inline uint64_t usat64(struct arm64_registers *regs, __int128_t op)
 
     if (op > max) {
         res = max;
-        regs->fpsr |= 1 << 27;
+        set_qc(regs);
     } else if (op < 0) {
         res = 0;
-        regs->fpsr |= 1 << 27;
+        set_qc(regs);
     } else
         res = op;
 
@@ -193,7 +195,7 @@ static inline uint##size##_t usat##size##_u(struct arm64_registers *regs, uint64
  \
     if (op > max) { \
         res = max; \
-        regs->fpsr |= 1 << 27; \
+        set_qc(regs); \
     } else \
         res = op; \
  \
@@ -209,7 +211,7 @@ static inline uint64_t usat64_u(struct arm64_registers *regs, __uint128_t op)
 
     if (op > max) {
         res = max;
-        regs->fpsr |= 1 << 27;
+        set_qc(regs);
     } else
         res = op;
 
@@ -223,10 +225,10 @@ static inline int##size##_t ssat##size(struct arm64_registers *regs, int64_t op)
  \
     if (op > max) { \
         res = max; \
-        regs->fpsr |= 1 << 27; \
+        set_qc(regs); \
     } else if (op < min) { \
         res = min; \
-        regs->fpsr |= 1 << 27; \
+        set_qc(regs); \
     } else \
         res = op; \
  \
@@ -243,10 +245,10 @@ static inline int64_t ssat64(struct arm64_registers *regs, __int128_t op)
 
     if (op > max) {
         res = max;
-        regs->fpsr |= 1 << 27;
+        set_qc(regs);
     } else if (op < min) {
         res = min;
-        regs->fpsr |= 1 << 27;
+        set_qc(regs);
     } else
         res = op;
 
@@ -254,114 +256,6 @@ static inline int64_t ssat64(struct arm64_registers *regs, __int128_t op)
 }
 
 #include "arm64_helpers_simd_fpu_common.c"
-
-static inline float frecpe32(struct arm64_registers *regs, float a)
-{
-    union float_uint32_t res;
-    union float_uint32_t a32 = { .sf =a };
-    float_status dummy = {0};
-
-    dummy.default_nan_mode = DN?1:0;
-    dummy.flush_to_zero = FZ?1:0;
-    if (isnan(a))
-        res.sf = fp_process_nan_32(regs, a);
-    else
-        res.s = float32_val(HELPER(recpe_f32)(make_float32(a32.s), &dummy));
-
-    return res.sf;
-}
-
-static inline double frecpe64(struct arm64_registers *regs, double a)
-{
-    union double_uint64_t res;
-    union double_uint64_t a64 = { .df =a };
-    float_status dummy = {0};
-
-    dummy.default_nan_mode = DN?1:0;
-    dummy.flush_to_zero = FZ?1:0;
-    if (isnan(a))
-        res.df = fp_process_nan_64(regs, a);
-    else
-        res.d = float64_val(HELPER(recpe_f64)(make_float64(a64.d), &dummy));
-
-    return res.df;
-}
-
-static inline float frecps32(struct arm64_registers *regs, float a, float b)
-{
-    float res;
-    int typea = fpclassify(a);
-    int typeb = fpclassify(b);
-
-    a = -a;
-    if (typea == FP_NAN || typeb == FP_NAN)
-        res = fp_process_nans_32(regs, a, b);
-    else if ((typea == FP_INFINITE && typeb == FP_ZERO) || (typea == FP_ZERO && typeb == FP_INFINITE))
-        res = 2.0;
-    else if (typea == FP_INFINITE || typeb == FP_INFINITE)
-        res = signbit(a)^signbit(b)?infinite_negative_32.sf:infinite_positive_32.sf;
-    else
-        res = 2.0 + a * b;
-
-    return res;
-}
-
-static inline double frecps64(struct arm64_registers *regs, double a, double b)
-{
-    double res;
-    int typea = fpclassify(a);
-    int typeb = fpclassify(b);
-
-    a = -a;
-    if (typea == FP_NAN || typeb == FP_NAN)
-        res = fp_process_nans_64(regs, a, b);
-    else if ((typea == FP_INFINITE && typeb == FP_ZERO) || (typea == FP_ZERO && typeb == FP_INFINITE))
-        res = 2.0;
-    else if (typea == FP_INFINITE || typeb == FP_INFINITE)
-        res = signbit(a)^signbit(b)?infinite_negative_64.df:infinite_positive_64.df;
-    else
-        res = 2.0 + a * b;
-
-    return res;
-}
-
-static inline float frsqrts32(struct arm64_registers *regs, float a, float b)
-{
-    float res;
-    int typea = fpclassify(a);
-    int typeb = fpclassify(b);
-
-    a = -a;
-    if (typea == FP_NAN || typeb == FP_NAN)
-        res = fp_process_nans_32(regs, a, b);
-    else if ((typea == FP_INFINITE && typeb == FP_ZERO) || (typea == FP_ZERO && typeb == FP_INFINITE))
-        res = 1.5;
-    else if (typea == FP_INFINITE || typeb == FP_INFINITE)
-        res = signbit(a)^signbit(b)?infinite_negative_32.sf:infinite_positive_32.sf;
-    else
-        res = (3.0 + a * b) / 2.0;
-
-    return res;
-}
-
-static inline double frsqrts64(struct arm64_registers *regs, double a, double b)
-{
-    double res;
-    int typea = fpclassify(a);
-    int typeb = fpclassify(b);
-
-    a = -a;
-    if (typea == FP_NAN || typeb == FP_NAN)
-        res = fp_process_nans_64(regs, a, b);
-    else if ((typea == FP_INFINITE && typeb == FP_ZERO) || (typea == FP_ZERO && typeb == FP_INFINITE))
-        res = 1.5;
-    else if (typea == FP_INFINITE || typeb == FP_INFINITE)
-        res = signbit(a)^signbit(b)?infinite_negative_64.df:infinite_positive_64.df;
-    else
-        res = (3.0 + a * b) / 2.0;
-
-    return res;
-}
 
 void arm64_hlp_dirty_simd_dup_element(uint64_t _regs, uint32_t insn)
 {
@@ -634,7 +528,6 @@ static void dis_sqrshrn_sqshrn_uqrshrn_uqshrn(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
-/* FIXME: add fpcr rounding mode */
 static void dis_ucvtf_fixed(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -649,17 +542,20 @@ static void dis_ucvtf_fixed(uint64_t _regs, uint32_t insn)
 
     if (is_double) {
         assert(q);
-        for(i = 0; i < (is_scalar?1:2); i++)
-            res.df[i] = (double)(uint64_t)regs->v[rn].d[i] / (1UL << fracbits);
+        for(i = 0; i < (is_scalar?1:2); i++) {
+            res.d[i] = float64_val(uint64_to_float64(regs->v[rn].d[i], &regs->fp_status));
+            res.d[i] = float64_scalbn(res.d[i], -fracbits, &regs->fp_status);
+        }
     } else {
-        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-        res.sf[i] = (double)(uint32_t)regs->v[rn].s[i] / (1UL << fracbits);
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
+            res.s[i] = float32_val(uint32_to_float32(regs->v[rn].s[i], &regs->fp_status));
+            res.s[i] = float32_scalbn(res.s[i], -fracbits, &regs->fp_status);
+        }
     }
 
     regs->v[rd] = res;
 }
 
-/* FIXME: add fpcr rounding mode */
 static void dis_scvtf_fixed(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -674,11 +570,15 @@ static void dis_scvtf_fixed(uint64_t _regs, uint32_t insn)
 
     if (is_double) {
         assert(q);
-        for(i = 0; i < (is_scalar?1:2); i++)
-            res.df[i] = (double)(int64_t)regs->v[rn].d[i] / (1UL << fracbits);
+        for(i = 0; i < (is_scalar?1:2); i++) {
+            res.d[i] = float64_val(int64_to_float64(regs->v[rn].d[i], &regs->fp_status));
+            res.d[i] = float64_scalbn(res.d[i], -fracbits, &regs->fp_status);
+        }
     } else {
-        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-        res.sf[i] = (double)(int32_t)regs->v[rn].s[i] / (1UL << fracbits);
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
+            res.s[i] = float32_val(int32_to_float32(regs->v[rn].s[i], &regs->fp_status));
+            res.s[i] = float32_scalbn(res.s[i], -fracbits, &regs->fp_status);
+        }
     }
 
     regs->v[rd] = res;
@@ -694,19 +594,12 @@ static void dis_fsqrt(uint64_t _regs, uint32_t insn)
     union simd_register res = {0};
     int i;
 
-    if (is_double) {
+    if (is_double)
         for(i = 0; i < 2; i++)
-            if (regs->v[rn].d[i]&0x8000000000000000UL)
-                res.df[i] = NAN;
-            else
-                res.df[i] = sqrt(regs->v[rn].df[i]);
-    } else {
+            res.d[i] = fsqrt64(regs, regs->v[rn].d[i]);
+    else
         for(i = 0; i < (q?4:2); i++)
-            if (regs->v[rn].s[i]&0x80000000)
-                res.sf[i] = NAN;
-            else
-                res.sf[i] = sqrtf(regs->v[rn].sf[i]);
-    }
+            res.s[i] = fsqrt32(regs, regs->v[rn].s[i]);
 
     regs->v[rd] = res;
 }
@@ -726,10 +619,10 @@ static void dis_fcvtzu_fixed(uint64_t _regs, uint32_t insn)
     if (is_double) {
         assert(q);
         for(i = 0; i < (is_scalar?1:2); i++)
-            res.d[i] = (uint64_t) usat64_d(fcvt_fract(regs->v[rn].df[i], fracbits));
+            res.d[i] = fcvtzu64_fixed_64(regs, regs->v[rn].d[i], fracbits);
     } else {
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            res.s[i] = (uint32_t) usat32_d(fcvt_fract(regs->v[rn].sf[i], fracbits));
+            res.s[i] = fcvtzu32_fixed_32(regs, regs->v[rn].s[i], fracbits);
     }
 
     regs->v[rd] = res;
@@ -750,10 +643,10 @@ static void dis_fcvtzs_fixed(uint64_t _regs, uint32_t insn)
     if (is_double) {
         assert(q);
         for(i = 0; i < (is_scalar?1:2); i++)
-            res.d[i] = (int64_t) ssat64_d(fcvt_fract(regs->v[rn].df[i], fracbits));
+            res.d[i] = fcvtzs64_fixed_64(regs, regs->v[rn].d[i], fracbits);
     } else {
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            res.s[i] = (int32_t) ssat32_d(fcvt_fract(regs->v[rn].sf[i], fracbits));
+            res.s[i] = fcvtzs32_fixed_32(regs, regs->v[rn].s[i], fracbits);
     }
 
     regs->v[rd] = res;
@@ -1196,22 +1089,15 @@ static void dis_fcvtxn(uint64_t _regs, uint32_t insn)
 
     if (!is_scalar)
         res.v.lsb = regs->v[rd].v.lsb;
-    if (is_double) {
-        for(i = 0; i < (is_scalar?1:2); i++) {
-            float_status dummy = {0};
-            dummy.float_rounding_mode = float_round_to_zero;
-            float32 r = float64_to_float32(regs->v[rn].d[i], &dummy);
-            /* FIXME: lsb bit should be set only when result is inexact */
-            res.s[is_scalar?i:(q?2+i:i)] = float32_val(r) | 1;
-        }
-    } else {
+    if (is_double)
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.s[is_scalar?i:(q?2+i:i)] = fcvtxn64(regs, regs->v[rn].d[i]);
+    else
         assert(0);
-    }
 
     regs->v[rd] = res;
 }
 
-/* FIXME: use fpcr rounding mode */
 static void dis_fcvtn(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -1226,20 +1112,19 @@ static void dis_fcvtn(uint64_t _regs, uint32_t insn)
         res.v.lsb = regs->v[rd].v.lsb;
     if (is_double) {
         for(i = 0; i < 2; i++) {
-            res.sf[q?2+i:i] = regs->v[rn].df[i];
+            res.s[q?2+i:i] = float32_maybe_silence_nan(float64_to_float32(regs->v[rn].d[i], &regs->fp_status));
         }
     } else {
         for(i = 0; i < 4; i++) {
-            float_status dummy = {0};
-            float16 r = float32_to_float16(regs->v[rn].s[i], 1, &dummy);
-            res.h[q?4+i:i] = float16_val(r);
+            res.h[q?4+i:i] = float32_to_float16(regs->v[rn].s[i], IEEE_H16, &regs->fp_status);
+            if (IEEE_H16)
+                res.h[q?4+i:i] = float16_maybe_silence_nan(res.h[q?4+i:i]);
         }
     }
 
     regs->v[rd] = res;
 }
 
-/* FIXME: use fpcr rounding mode */
 static void dis_fcvtl(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
@@ -1252,13 +1137,13 @@ static void dis_fcvtl(uint64_t _regs, uint32_t insn)
 
     if (is_double) {
         for(i = 0; i < 2; i++) {
-            res.df[i] = regs->v[rn].sf[q?2+i:i];;
+            res.d[i] = float64_maybe_silence_nan(float32_to_float64(regs->v[rn].s[q?2+i:i], &regs->fp_status));
         }
     } else {
         for(i = 0; i < 4; i++) {
-            float_status dummy = {0};
-            float32 r = float16_to_float32(regs->v[rn].h[q?4+i:i], 1, &dummy);
-            res.s[i] = float32_val(r);
+            res.s[i] = float16_to_float32(regs->v[rn].h[q?4+i:i], IEEE_H16, &regs->fp_status);
+            if (IEEE_H16)
+                res.s[i] = float32_maybe_silence_nan(res.s[i]);
         }
     }
 
@@ -1274,20 +1159,27 @@ static void dis_frint(uint64_t _regs, uint32_t insn, enum rm rmode)
     int rn = INSN(9,5);
     int i;
     union simd_register res = {0};
+    signed char float_rounding_mode_save = regs->fp_status.float_rounding_mode;
+    int old_flags = get_float_exception_flags(&regs->fp_status);
+    int new_flags;
 
+    /* save rounding mode */
+    regs->fp_status.float_rounding_mode = arm64_rm_to_softfloat_rm(rmode);
+    /* do the convertion */
     if (is_double) {
-        for(i = 0; i < 2; i++) {
-            res.df[i] = fcvt_rm(regs->v[rn].df[i], rmode);
-            if (res.df[i] == 0.0 && regs->v[rn].df[i] < 0)
-                res.d[i] = 0x8000000000000000UL;
-        }
+        for(i = 0; i < 2; i++)
+            res.d[i] = float64_round_to_int(regs->v[rn].d[i], &regs->fp_status);
     } else {
-        for(i = 0; i < (q?4:2); i++) {
-            res.sf[i] = fcvt_rm(regs->v[rn].sf[i], rmode);
-            if (res.sf[i] == 0.0 && regs->v[rn].sf[i] < 0)
-                res.s[i] = 0x80000000;
-        }
+        for(i = 0; i < (q?4:2); i++)
+            res.s[i] = float32_round_to_int(regs->v[rn].s[i], &regs->fp_status);
     }
+    /* Suppress any inexact exceptions the conversion produced */
+    if (!(old_flags & float_flag_inexact)) {
+        new_flags = get_float_exception_flags(&regs->fp_status);
+        set_float_exception_flags(new_flags & ~float_flag_inexact, &regs->fp_status);
+    }
+    /* restore rounding mode */
+    regs->fp_status.float_rounding_mode = float_rounding_mode_save;
 
     regs->v[rd] = res;
 }
@@ -1310,7 +1202,7 @@ static void dis_frintn(uint64_t _regs, uint32_t insn)
 static void dis_frinti(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
-    enum rm rm = (regs->fpcr >> 22) & 3;
+    enum rm rm = softfloat_rm_to_arm64_rm(get_float_rounding_mode(&regs->fp_status));
 
     dis_frint(_regs, insn, rm);
 }
@@ -1323,9 +1215,23 @@ static void dis_frintz(uint64_t _regs, uint32_t insn)
 static void dis_frintx(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
-    enum rm rm = (regs->fpcr >> 22) & 3;
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int i;
+    union simd_register res = {0};
 
-    dis_frint(_regs, insn, rm);
+    /* do the convertion */
+    if (is_double) {
+        for(i = 0; i < 2; i++)
+            res.d[i] = float64_round_to_int(regs->v[rn].d[i], &regs->fp_status);
+    } else {
+        for(i = 0; i < (q?4:2); i++)
+            res.s[i] = float32_round_to_int(regs->v[rn].s[i], &regs->fp_status);
+    }
+
+    regs->v[rd] = res;
 }
 
 static void dis_frintm(uint64_t _regs, uint32_t insn)
@@ -1343,15 +1249,28 @@ static void dis_fcvtu(uint64_t _regs, uint32_t insn, enum rm rmode)
     int rn = INSN(9,5);
     int i;
     union simd_register res = {0};
+    signed char float_rounding_mode_save = regs->fp_status.float_rounding_mode;
 
+    regs->fp_status.float_rounding_mode = arm64_rm_to_softfloat_rm(rmode);
     if (is_double) {
-        for(i = 0; i < (is_scalar?1:2); i++)
-            res.d[i] = (uint64_t) usat64_d(fcvt_rm(regs->v[rn].df[i], rmode));
+        for(i = 0; i < (is_scalar?1:2); i++) {
+            if (float64_is_any_nan(regs->v[rn].d[i])) {
+                float_raise(float_flag_invalid, &regs->fp_status);
+                res.d[i] = 0;
+            } else
+                res.d[i] = float64_to_uint64(regs->v[rn].d[i], &regs->fp_status);
+        }
     } else {
-        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            res.s[i] = (uint32_t) usat32_d(fcvt_rm(regs->v[rn].sf[i], rmode));
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
+            if (float32_is_any_nan(regs->v[rn].s[i])) {
+                float_raise(float_flag_invalid, &regs->fp_status);
+                res.s[i] = 0;
+            } else
+                res.s[i] = float32_to_uint32(regs->v[rn].s[i], &regs->fp_status);
+        }
     }
 
+    regs->fp_status.float_rounding_mode = float_rounding_mode_save;
     regs->v[rd] = res;
 }
 
@@ -1365,15 +1284,28 @@ static void dis_fcvts(uint64_t _regs, uint32_t insn, enum rm rmode)
     int rn = INSN(9,5);
     int i;
     union simd_register res = {0};
+    signed char float_rounding_mode_save = regs->fp_status.float_rounding_mode;
 
+    regs->fp_status.float_rounding_mode = arm64_rm_to_softfloat_rm(rmode);
     if (is_double) {
-        for(i = 0; i < (is_scalar?1:2); i++)
-            res.d[i] = (int64_t) ssat64_d(fcvt_rm(regs->v[rn].df[i], rmode));
+        for(i = 0; i < (is_scalar?1:2); i++) {
+            if (float64_is_any_nan(regs->v[rn].d[i])) {
+                float_raise(float_flag_invalid, &regs->fp_status);
+                res.d[i] = 0;
+            } else
+                res.d[i] = float64_to_int64(regs->v[rn].d[i], &regs->fp_status);
+        }
     } else {
-        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            res.s[i] = (int32_t) ssat32_d(fcvt_rm(regs->v[rn].sf[i], rmode));
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
+            if (float32_is_any_nan(regs->v[rn].s[i])) {
+                float_raise(float_flag_invalid, &regs->fp_status);
+                res.s[i] = 0;
+            } else
+                res.s[i] = float32_to_int32(regs->v[rn].s[i], &regs->fp_status);
+        }
     }
 
+    regs->fp_status.float_rounding_mode = float_rounding_mode_save;
     regs->v[rd] = res;
 }
 
@@ -1427,7 +1359,7 @@ static void dis_fcvtas(uint64_t _regs, uint32_t insn)
     dis_fcvts(_regs, insn, RM_TIEAWAY);
 }
 
-static double recip_sqrt_estimate(double a)
+static double recip_sqrt_estimate_d(double a)
 {
     int q0, q1, s;
     double r;
@@ -1468,7 +1400,7 @@ static void dis_ursqrte(uint64_t _regs, uint32_t insn)
                 dp_operand.i = (0x3feULL << 52) | ((uint64_t)(op & 0x7fffffff) << 21);
             else
                 dp_operand.i = (0x3fdULL << 52) | ((uint64_t)(op & 0x3fffffff) << 22);
-            estimate.d = recip_sqrt_estimate(dp_operand.d);
+            estimate.d = recip_sqrt_estimate_d(dp_operand.d);
             res.s[i] = 0x80000000 | ((estimate.i >> 21) & 0x7fffffff);
         }
     }
@@ -1476,7 +1408,7 @@ static void dis_ursqrte(uint64_t _regs, uint32_t insn)
     regs->v[rd] = res;
 }
 
-static double recip_estimate(double a)
+static double recip_estimate_d(double a)
 {
     int q, s;
     double r;
@@ -1509,7 +1441,7 @@ static void dis_urecpe(uint64_t _regs, uint32_t insn)
             } dp_operand, estimate;
 
             dp_operand.i = (0x3feULL << 52) | ((int64_t)(op & 0x7fffffff) << 21);
-            estimate.d = recip_estimate(dp_operand.d);
+            estimate.d = recip_estimate_d(dp_operand.d);
             res.s[i] = 0x80000000 | ((estimate.i >> 21) & 0x7fffffff);
         }
     }
@@ -1530,10 +1462,10 @@ static void dis_ucvtf(uint64_t _regs, uint32_t insn)
 
     if (is_double) {
         for(i = 0; i < (is_scalar?1:2); i++)
-            res.df[i] = (double) regs->v[rn].d[i];
+            res.d[i] = float64_val(uint64_to_float64(regs->v[rn].d[i], &regs->fp_status));
     } else {
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            res.sf[i] = (float) regs->v[rn].s[i];
+            res.s[i] = float32_val(uint32_to_float32(regs->v[rn].s[i], &regs->fp_status));
     }
 
     regs->v[rd] = res;
@@ -1552,10 +1484,10 @@ static void dis_scvtf(uint64_t _regs, uint32_t insn)
 
     if (is_double) {
         for(i = 0; i < (is_scalar?1:2); i++)
-            res.df[i] = (double)(int64_t) regs->v[rn].d[i];
+            res.d[i] = float64_val(int64_to_float64(regs->v[rn].d[i], &regs->fp_status));
     } else {
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            res.sf[i] = (float)(int32_t) regs->v[rn].s[i];
+            res.s[i] = float32_val(int32_to_float32(regs->v[rn].s[i], &regs->fp_status));
     }
 
     regs->v[rd] = res;
@@ -1571,15 +1503,13 @@ static void dis_frsqrte(uint64_t _regs, uint32_t insn)
     int rn = INSN(9,5);
     int i;
     union simd_register res = {0};
-    float_status dummy = {0};
 
-    if (is_double) {
+    if (is_double)
         for(i = 0; i < (is_scalar?1:2); i++)
-            res.d[i] = float64_val(HELPER(rsqrte_f64)(make_float64(regs->v[rn].d[i]), &dummy));
-    } else {
+            res.d[i] = frsqrte64(regs, regs->v[rn].d[i]);
+    else
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            res.s[i] = float32_val(HELPER(rsqrte_f32)(make_float32(regs->v[rn].s[i]), &dummy));
-    }
+            res.s[i] = frsqrte32(regs, regs->v[rn].s[i]);
 
     regs->v[rd] = res;
 }
@@ -1595,13 +1525,12 @@ static void dis_frecpe(uint64_t _regs, uint32_t insn)
     int i;
     union simd_register res = {0};
 
-    if (is_double) {
+    if (is_double)
         for(i = 0; i < (is_scalar?1:2); i++)
-            res.df[i] = frecpe64(regs, regs->v[rn].df[i]);
-    } else {
+            res.d[i] = frecpe64(regs, regs->v[rn].d[i]);
+    else
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            res.sf[i] = frecpe32(regs, regs->v[rn].sf[i]);
-    }
+            res.s[i] = frecpe32(regs, regs->v[rn].s[i]);
 
     regs->v[rd] = res;
 }
@@ -1613,13 +1542,11 @@ static void dis_frecpx(uint64_t _regs, uint32_t insn)
     int rd = INSN(4,0);
     int rn = INSN(9,5);
     union simd_register res = {0};
-    float_status dummy = {0};
 
-    if (is_double) {
-        res.d[0] = float64_val(HELPER(frecpx_f64)(make_float64(regs->v[rn].d[0]), &dummy));
-    } else {
-        res.s[0] = float32_val(HELPER(frecpx_f32)(make_float32(regs->v[rn].s[0]), &dummy));
-    }
+    if (is_double)
+        res.d[0] = frecpx64(regs, regs->v[rn].d[0]);
+    else
+        res.s[0] = frecpx32(regs, regs->v[rn].s[0]);
 
     regs->v[rd] = res;
 }
@@ -2329,15 +2256,15 @@ static void dis_fmla_fmls(uint64_t _regs, uint32_t insn)
     if (is_double) {
         for(i = 0; i < 2; i++)
             if (is_sub)
-                res.df[i] = regs->v[rd].df[i] - regs->v[rn].df[i] * regs->v[rm].df[i];
+                res.d[i] = fmadd64(regs, fneg64(regs, regs->v[rn].d[i]), regs->v[rm].d[i], regs->v[rd].d[i]);
             else
-                res.df[i] = regs->v[rd].df[i] + regs->v[rn].df[i] * regs->v[rm].df[i];
+                res.d[i] = fmadd64(regs, regs->v[rn].d[i], regs->v[rm].d[i], regs->v[rd].d[i]);
     } else {
         for(i = 0; i < (q?4:2); i++)
             if (is_sub)
-                res.sf[i] = (double)regs->v[rd].sf[i] - (double)regs->v[rn].sf[i] * (double)regs->v[rm].sf[i];
+                res.s[i] = fmadd32(regs, fneg32(regs, regs->v[rn].s[i]), regs->v[rm].s[i], regs->v[rd].s[i]);
             else
-                res.sf[i] = (double)regs->v[rd].sf[i] + (double)regs->v[rn].sf[i] * (double)regs->v[rm].sf[i];
+                res.s[i] = fmadd32(regs, regs->v[rn].s[i], regs->v[rm].s[i], regs->v[rd].s[i]);
     }
     regs->v[rd] = res;
 }
@@ -2356,17 +2283,13 @@ static void dis_fabd(uint64_t _regs, uint32_t insn)
 
     switch(size) {
         case 2:
-            for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
-                res.sf[i] = regs->v[rn].sf[i]-regs->v[rm].sf[i];
-                res.s[i] = res.s[i] & ~0x80000000;
-            }
+            for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+                res.s[i] = fabs32(regs, fsub32(regs, regs->v[rn].s[i], regs->v[rm].s[i]));
             break;
         case 3:
             assert(q);
-            for(i = 0; i < (is_scalar?1:2); i++) {
-                res.df[i] = regs->v[rn].df[i]-regs->v[rm].df[i];
-                res.d[i] = res.d[i] & ~0x8000000000000000UL;
-            }
+            for(i = 0; i < (is_scalar?1:2); i++)
+                res.d[i] = fabs64(regs, fsub64(regs, regs->v[rn].d[i], regs->v[rm].d[i]));
             break;
         default:
             assert(0);
@@ -2390,21 +2313,21 @@ static void dis_fadd_fsub(uint64_t _regs, uint32_t insn)
         assert(q);
         for(i = 0; i < 2; i++)
             if (is_sub)
-                res.df[i] = regs->v[rn].df[i] - regs->v[rm].df[i];
+                res.d[i] = fsub64(regs, regs->v[rn].d[i], regs->v[rm].d[i]);
             else
-                res.df[i] = regs->v[rn].df[i] + regs->v[rm].df[i];
+                res.d[i] = fadd64(regs, regs->v[rn].d[i], regs->v[rm].d[i]);
     } else {
         for(i = 0; i < (q?4:2); i++)
             if (is_sub)
-                res.sf[i] = regs->v[rn].sf[i] - regs->v[rm].sf[i];
+                res.s[i] = fsub32(regs, regs->v[rn].s[i], regs->v[rm].s[i]);
             else
-                res.sf[i] = regs->v[rn].sf[i] + regs->v[rm].sf[i];
+                res.s[i] = fadd32(regs, regs->v[rn].s[i], regs->v[rm].s[i]);
     }
     regs->v[rd] = res;
 }
 
 /* macro to implement fcmxx family */
-#define DIS_FCM(_op_,_is_zero_) \
+#define DIS_FCM(_fct_,_is_zero_) \
 do { \
 struct arm64_registers *regs = (struct arm64_registers *) _regs; \
 int q = INSN(30,30); \
@@ -2418,52 +2341,52 @@ int i; \
  \
 if (is_double) { \
     for(i = 0; i < (is_scalar?1:2); i++) \
-        res.d[i] = regs->v[rn].df[i] _op_ (_is_zero_?0:regs->v[rm].df[i])?~0UL:0; \
+        res.d[i] = _fct_##64(regs, regs->v[rn].d[i], _is_zero_?0:regs->v[rm].d[i])?~0UL:0; \
 } else { \
     for(i = 0; i < (is_scalar?1:(q?4:2)); i++) \
-        res.s[i] = regs->v[rn].sf[i] _op_ (_is_zero_?0:regs->v[rm].sf[i])?~0UL:0; \
+        res.s[i] = _fct_##32(regs, regs->v[rn].s[i], _is_zero_?0:regs->v[rm].s[i])?~0:0; \
 } \
 regs->v[rd] = res; \
 } while(0)
 
 static void dis_fcmeq_zero(uint64_t _regs, uint32_t insn)
 {
-DIS_FCM(==,1);
+DIS_FCM(fcmpeq,1);
 }
 
 static void dis_fcmge_zero(uint64_t _regs, uint32_t insn)
 {
-DIS_FCM(>=,1);
+DIS_FCM(fcmpge,1);
 }
 
 static void dis_fcmgt_zero(uint64_t _regs, uint32_t insn)
 {
-DIS_FCM(>,1);
+DIS_FCM(fcmpgt,1);
 }
 
 static void dis_fcmle_zero(uint64_t _regs, uint32_t insn)
 {
-DIS_FCM(<=,1);
+DIS_FCM(fcmple,1);
 }
 
 static void dis_fcmlt_zero(uint64_t _regs, uint32_t insn)
 {
-DIS_FCM(<,1);
+DIS_FCM(fcmplt,1);
 }
 
 static void dis_fcmeq(uint64_t _regs, uint32_t insn)
 {
-DIS_FCM(==,0);
+DIS_FCM(fcmpeq,0);
 }
 
 static void dis_fcmge(uint64_t _regs, uint32_t insn)
 {
-DIS_FCM(>=,0);
+DIS_FCM(fcmpge,0);
 }
 
 static void dis_fcmgt(uint64_t _regs, uint32_t insn)
 {
-DIS_FCM(>,0);
+DIS_FCM(fcmpgt,0);
 }
 
 static void dis_facge(uint64_t _regs, uint32_t insn)
@@ -2479,25 +2402,11 @@ static void dis_facge(uint64_t _regs, uint32_t insn)
     int i;
 
     if (is_double) {
-        double op1;
-        double op2;
-
-        for(i = 0; i < (is_scalar?1:2); i++) {
-            op1 = regs->v[rn].df[i]>=0?regs->v[rn].df[i]:-regs->v[rn].df[i];
-            op2 = regs->v[rm].df[i]>=0?regs->v[rm].df[i]:-regs->v[rm].df[i];
-
-            res.d[i] = op1>=op2?~0UL:0;
-        }
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.d[i] = fcmpge64(regs, fabs64(regs, regs->v[rn].d[i]), fabs64(regs, regs->v[rm].d[i]))?~0UL:0;
     } else {
-        float op1;
-        float op2;
-
-        for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
-            op1 = regs->v[rn].sf[i]>=0?regs->v[rn].sf[i]:-regs->v[rn].sf[i];
-            op2 = regs->v[rm].sf[i]>=0?regs->v[rm].sf[i]:-regs->v[rm].sf[i];
-
-            res.s[i] = op1>=op2?~0UL:0;
-        }
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.s[i] = fcmpge32(regs, fabs32(regs, regs->v[rn].s[i]), fabs32(regs, regs->v[rm].s[i]))?~0:0;
     }
     regs->v[rd] = res;
 }
@@ -2519,15 +2428,15 @@ static void dis_fmax_fmin(uint64_t _regs, uint32_t insn)
     if (is_double) {
         for(i = 0; i < 2; i++)
             if (is_min)
-                res.df[i] = fmin64(regs, regs->v[rn].df[i], regs->v[rm].df[i]);
+                res.d[i] = fmin64(regs, regs->v[rn].d[i], regs->v[rm].d[i]);
             else
-                res.df[i] = fmax64(regs, regs->v[rn].df[i], regs->v[rm].df[i]);
+                res.d[i] = fmax64(regs, regs->v[rn].d[i], regs->v[rm].d[i]);
     } else {
         for(i = 0; i < (q?4:2); i++)
             if (is_min)
-                res.sf[i] = fmin32(regs, regs->v[rn].sf[i], regs->v[rm].sf[i]);
+                res.s[i] = fmin32(regs, regs->v[rn].s[i], regs->v[rm].s[i]);
             else
-                res.sf[i] = fmax32(regs, regs->v[rn].sf[i], regs->v[rm].sf[i]);
+                res.s[i] = fmax32(regs, regs->v[rn].s[i], regs->v[rm].s[i]);
     }
     regs->v[rd] = res;
 }
@@ -2549,15 +2458,15 @@ static void dis_fmaxnm_fminnm(uint64_t _regs, uint32_t insn)
     if (is_double) {
         for(i = 0; i < 2; i++)
             if (is_min)
-                res.df[i] = minnmd(regs->v[rn].df[i],regs->v[rm].df[i]);
+                res.d[i] = fminnm64(regs, regs->v[rn].d[i],regs->v[rm].d[i]);
             else
-                res.df[i] = maxnmd(regs->v[rn].df[i],regs->v[rm].df[i]);
+                res.d[i] = fmaxnm64(regs, regs->v[rn].d[i],regs->v[rm].d[i]);
     } else {
         for(i = 0; i < (q?4:2); i++)
             if (is_min)
-                res.sf[i] = minnmf(regs->v[rn].sf[i],regs->v[rm].sf[i]);
+                res.s[i] = fminnm32(regs, regs->v[rn].s[i],regs->v[rm].s[i]);
             else
-                res.sf[i] = maxnmf(regs->v[rn].sf[i],regs->v[rm].sf[i]);
+                res.s[i] = fmaxnm32(regs, regs->v[rn].s[i],regs->v[rm].s[i]);
     }
     regs->v[rd] = res;
 }
@@ -2575,13 +2484,12 @@ static void dis_fdiv(uint64_t _regs, uint32_t insn)
     int i;
 
     assert(is_scalar==0);
-    if (is_double) {
+    if (is_double)
         for(i = 0; i < 2; i++)
-            res.df[i] = regs->v[rn].df[i] / regs->v[rm].df[i];
-    } else {
+            res.d[i] = fdiv64(regs, regs->v[rn].d[i], regs->v[rm].d[i]);
+    else
         for(i = 0; i < (q?4:2); i++)
-            res.sf[i] = regs->v[rn].sf[i] / regs->v[rm].sf[i];
-    }
+            res.s[i] = fdiv32(regs, regs->v[rn].s[i], regs->v[rm].s[i]);
     regs->v[rd] = res;
 }
 
@@ -2598,25 +2506,11 @@ static void dis_facgt(uint64_t _regs, uint32_t insn)
     int i;
 
     if (is_double) {
-        double op1;
-        double op2;
-
-        for(i = 0; i < (is_scalar?1:2); i++) {
-            op1 = regs->v[rn].df[i]>0?regs->v[rn].df[i]:-regs->v[rn].df[i];
-            op2 = regs->v[rm].df[i]>0?regs->v[rm].df[i]:-regs->v[rm].df[i];
-
-            res.d[i] = op1>op2?~0UL:0;
-        }
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.d[i] = fcmpgt64(regs, fabs64(regs, regs->v[rn].d[i]), fabs64(regs, regs->v[rm].d[i]))?~0UL:0;
     } else {
-        float op1;
-        float op2;
-
-        for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
-            op1 = regs->v[rn].sf[i]>0?regs->v[rn].sf[i]:-regs->v[rn].sf[i];
-            op2 = regs->v[rm].sf[i]>0?regs->v[rm].sf[i]:-regs->v[rm].sf[i];
-
-            res.s[i] = op1>op2?~0UL:0;
-        }
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.s[i] = fcmpgt32(regs, fabs32(regs, regs->v[rn].s[i]), fabs32(regs, regs->v[rm].s[i]))?~0:0;
     }
     regs->v[rd] = res;
 }
@@ -2633,15 +2527,12 @@ static void dis_frecps(uint64_t _regs, uint32_t insn)
     union simd_register res = {0};
     int i;
 
-    if (is_double) {
-        for(i = 0; i < (is_scalar?1:(q?2:1)); i++) {
-            res.df[i] = frecps64(regs, regs->v[rn].df[i], regs->v[rm].df[i]);
-        }
-    } else {
-        for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
-            res.sf[i] = frecps32(regs, regs->v[rn].sf[i], regs->v[rm].sf[i]);
-        }
-    }
+    if (is_double)
+        for(i = 0; i < (is_scalar?1:(q?2:1)); i++)
+            res.d[i] = frecps64(regs, regs->v[rn].d[i], regs->v[rm].d[i]);
+    else
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.s[i] = frecps32(regs, regs->v[rn].s[i], regs->v[rm].s[i]);
 
     regs->v[rd] = res;
 }
@@ -2658,15 +2549,12 @@ static void dis_frsqrts(uint64_t _regs, uint32_t insn)
     union simd_register res = {0};
     int i;
 
-    if (is_double) {
-        for(i = 0; i < (is_scalar?1:(q?2:1)); i++) {
-            res.df[i] = frsqrts64(regs, regs->v[rn].df[i], regs->v[rm].df[i]);
-        }
-    } else {
-        for(i = 0; i < (is_scalar?1:(q?4:2)); i++) {
-            res.sf[i] = frsqrts32(regs, regs->v[rn].sf[i], regs->v[rm].sf[i]);
-        }
-    }
+    if (is_double)
+        for(i = 0; i < (is_scalar?1:(q?2:1)); i++)
+            res.d[i] = frsqrts64(regs, regs->v[rn].d[i], regs->v[rm].d[i]);
+    else
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.s[i] = frsqrts32(regs, regs->v[rn].s[i], regs->v[rm].s[i]);
 
     regs->v[rd] = res;
 }
@@ -2735,25 +2623,25 @@ static void dis_fmaxp_fminp(uint64_t _regs, uint32_t insn)
     if (is_double) {
         for(i = 0; i < 1; i++) {
             if (is_min) {
-                res.df[i] = fmin64(regs, regs->v[rn].df[2*i], regs->v[rn].df[2*i + 1]);
+                res.d[i] = fmin64(regs, regs->v[rn].d[2*i], regs->v[rn].d[2*i + 1]);
                 if (!is_scalar)
-                    res.df[i+1] = fmin64(regs, regs->v[rm].df[2*i], regs->v[rm].df[2*i + 1]);
+                    res.d[i+1] = fmin64(regs, regs->v[rm].d[2*i], regs->v[rm].d[2*i + 1]);
             } else {
-                res.df[i] = fmax64(regs, regs->v[rn].df[2*i], regs->v[rn].df[2*i + 1]);
+                res.d[i] = fmax64(regs, regs->v[rn].d[2*i], regs->v[rn].d[2*i + 1]);
                 if (!is_scalar)
-                    res.df[i+1] = fmax64(regs, regs->v[rm].df[2*i], regs->v[rm].df[2*i + 1]);
+                    res.d[i+1] = fmax64(regs, regs->v[rm].d[2*i], regs->v[rm].d[2*i + 1]);
             }
         }
     } else {
         for(i = 0; i < (is_scalar?1:(q?2:1)); i++) {
             if (is_min) {
-                res.sf[i] = fmin32(regs, regs->v[rn].sf[2*i], regs->v[rn].sf[2*i + 1]);
+                res.s[i] = fmin32(regs, regs->v[rn].s[2*i], regs->v[rn].s[2*i + 1]);
                 if (!is_scalar)
-                    res.sf[(q?2:1) + i] = fmin32(regs, regs->v[rm].sf[2*i], regs->v[rm].sf[2*i + 1]);
+                    res.s[(q?2:1) + i] = fmin32(regs, regs->v[rm].s[2*i], regs->v[rm].s[2*i + 1]);
             } else {
-                res.sf[i] = fmax32(regs, regs->v[rn].sf[2*i], regs->v[rn].sf[2*i + 1]);
+                res.s[i] = fmax32(regs, regs->v[rn].s[2*i], regs->v[rn].s[2*i + 1]);
                 if (!is_scalar)
-                    res.sf[(q?2:1) + i] = fmax32(regs, regs->v[rm].sf[2*i], regs->v[rm].sf[2*i + 1]);
+                    res.s[(q?2:1) + i] = fmax32(regs, regs->v[rm].s[2*i], regs->v[rm].s[2*i + 1]);
             }
         }
     }
@@ -2776,25 +2664,25 @@ static void dis_fmaxnmp_fminnmp(uint64_t _regs, uint32_t insn)
     if (is_double) {
         for(i = 0; i < 1; i++) {
             if (is_min) {
-                res.df[i] = minnmd(regs->v[rn].df[2*i],regs->v[rn].df[2*i + 1]);
+                res.d[i] = fminnm64(regs, regs->v[rn].d[2*i],regs->v[rn].d[2*i + 1]);
                 if (!is_scalar)
-                    res.df[i+1] = minnmd(regs->v[rm].df[2*i],regs->v[rm].df[2*i + 1]);
+                    res.d[i+1] = fminnm64(regs, regs->v[rm].d[2*i],regs->v[rm].d[2*i + 1]);
             } else {
-                res.df[i] = maxnmd(regs->v[rn].df[2*i],regs->v[rn].df[2*i + 1]);
+                res.d[i] = fmaxnm64(regs, regs->v[rn].d[2*i],regs->v[rn].d[2*i + 1]);
                 if (!is_scalar)
-                    res.df[i+1] = maxnmd(regs->v[rm].df[2*i],regs->v[rm].df[2*i + 1]);
+                    res.d[i+1] = fmaxnm64(regs, regs->v[rm].d[2*i],regs->v[rm].d[2*i + 1]);
             }
         }
     } else {
         for(i = 0; i < (is_scalar?1:(q?2:1)); i++) {
             if (is_min) {
-                res.sf[i] = minnmf(regs->v[rn].sf[2*i],regs->v[rn].sf[2*i + 1]);
+                res.s[i] = fminnm32(regs, regs->v[rn].s[2*i],regs->v[rn].s[2*i + 1]);
                 if (!is_scalar)
-                    res.sf[(q?2:1) + i] = minnmf(regs->v[rm].sf[2*i],regs->v[rm].sf[2*i + 1]);
+                    res.s[(q?2:1) + i] = fminnm32(regs, regs->v[rm].s[2*i],regs->v[rm].s[2*i + 1]);
             } else {
-                res.sf[i] = maxnmf(regs->v[rn].sf[2*i],regs->v[rn].sf[2*i + 1]);
+                res.s[i] = fmaxnm32(regs, regs->v[rn].s[2*i],regs->v[rn].s[2*i + 1]);
                 if (!is_scalar)
-                    res.sf[(q?2:1) + i] = maxnmf(regs->v[rm].sf[2*i],regs->v[rm].sf[2*i + 1]);
+                    res.s[(q?2:1) + i] = fmaxnm32(regs, regs->v[rm].s[2*i],regs->v[rm].s[2*i + 1]);
             }
         }
     }
@@ -2815,15 +2703,15 @@ static void dis_faddp(uint64_t _regs, uint32_t insn)
 
     if (is_double) {
         for(i = 0; i < 1; i++) {
-            res.df[i] = regs->v[rn].df[2*i] + regs->v[rn].df[2*i + 1];
+            res.d[i] = fadd64(regs, regs->v[rn].d[2*i], regs->v[rn].d[2*i + 1]);
             if (!is_scalar)
-                res.df[i+1] = regs->v[rm].df[2*i] + regs->v[rm].df[2*i + 1];
+                res.d[i+1] = fadd64(regs, regs->v[rm].d[2*i], regs->v[rm].d[2*i + 1]);
         }
     } else {
         for(i = 0; i < (is_scalar?1:(q?2:1)); i++) {
-            res.sf[i] = regs->v[rn].sf[2*i] + regs->v[rn].sf[2*i + 1];
+            res.s[i] = fadd32(regs, regs->v[rn].s[2*i], regs->v[rn].s[2*i + 1]);
             if (!is_scalar)
-                res.sf[(q?2:1) + i] = regs->v[rm].sf[2*i] + regs->v[rm].sf[2*i + 1];
+                res.s[(q?2:1) + i] = fadd32(regs, regs->v[rm].s[2*i], regs->v[rm].s[2*i + 1]);
         }
     }
     regs->v[rd] = res;
@@ -2842,19 +2730,37 @@ static void dis_fmul(uint64_t _regs, uint32_t insn)
     union simd_register res = {0};
 
     /* scalar is only for fmulx */
-    if (is_double) {
+    if (is_double)
         for(i = 0; i < (is_scalar?1:2); i++)
-            res.df[i] = regs->v[rn].df[i] * regs->v[rm].df[i];
-    } else {
+            res.d[i] = fmul64(regs, regs->v[rn].d[i], regs->v[rm].d[i]);
+    else
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            res.sf[i] = regs->v[rn].sf[i] * regs->v[rm].sf[i];
-    }
+            res.s[i] = fmul32(regs, regs->v[rn].s[i], regs->v[rm].s[i]);
+
     regs->v[rd] = res;
 }
 
 static void dis_fmulx(uint64_t _regs, uint32_t insn)
 {
-    dis_fmul(_regs, insn);
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int is_scalar = INSN(28,28);
+    int q = INSN(30,30);
+    int is_double = INSN(22,22);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(20,16);
+    int i;
+    union simd_register res = {0};
+
+    /* scalar is only for fmulx */
+    if (is_double)
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.d[i] = fmulx64(regs, regs->v[rn].d[i], regs->v[rm].d[i]);
+    else
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.s[i] = fmulx32(regs, regs->v[rn].s[i], regs->v[rm].s[i]);
+
+    regs->v[rd] = res;
 }
 
 static void dis_addp(uint64_t _regs, uint32_t insn)
@@ -3474,19 +3380,19 @@ static void dis_fmaxv_fminv(uint64_t _regs, uint32_t insn)
     int rd = INSN(4,0);
     int rn = INSN(9,5);
     int is_min = INSN(23,23);
-    float tmp[2];
+    uint32_t tmp[2];
     union simd_register res = {0};
 
     assert(is_double == 0);
     assert(q);
     if (is_min) {
-        tmp[0] = fmin32(regs, regs->v[rn].sf[0], regs->v[rn].sf[1]);
-        tmp[1] = fmin32(regs, regs->v[rn].sf[2], regs->v[rn].sf[3]);
-        res.sf[0] = fmin32(regs, tmp[0], tmp[1]);
+        tmp[0] = fmin32(regs, regs->v[rn].s[0], regs->v[rn].s[1]);
+        tmp[1] = fmin32(regs, regs->v[rn].s[2], regs->v[rn].s[3]);
+        res.s[0] = fmin32(regs, tmp[0], tmp[1]);
     } else {
-        tmp[0] = fmax32(regs, regs->v[rn].sf[0], regs->v[rn].sf[1]);
-        tmp[1] = fmax32(regs, regs->v[rn].sf[2], regs->v[rn].sf[3]);
-        res.sf[0] = fmax32(regs, tmp[0], tmp[1]);
+        tmp[0] = fmax32(regs, regs->v[rn].s[0], regs->v[rn].s[1]);
+        tmp[1] = fmax32(regs, regs->v[rn].s[2], regs->v[rn].s[3]);
+        res.s[0] = fmax32(regs, tmp[0], tmp[1]);
     }
 
     regs->v[rd] = res;
@@ -3500,19 +3406,19 @@ static void dis_fmaxnmv_fminnmv(uint64_t _regs, uint32_t insn)
     int rd = INSN(4,0);
     int rn = INSN(9,5);
     int is_min = INSN(23,23);
-    float tmp[2];
+    uint32_t tmp[2];
     union simd_register res = {0};
 
     assert(is_double == 0);
     assert(q);
     if (is_min) {
-        tmp[0] = minnmf(regs->v[rn].sf[0],regs->v[rn].sf[1]);
-        tmp[1] = minnmf(regs->v[rn].sf[2],regs->v[rn].sf[3]);
-        res.sf[0] = minnmf(tmp[0],tmp[1]);
+        tmp[0] = fminnm32(regs, regs->v[rn].s[0],regs->v[rn].s[1]);
+        tmp[1] = fminnm32(regs, regs->v[rn].s[2],regs->v[rn].s[3]);
+        res.s[0] = fminnm32(regs, tmp[0],tmp[1]);
     } else {
-        tmp[0] = maxnmf(regs->v[rn].sf[0],regs->v[rn].sf[1]);
-        tmp[1] = maxnmf(regs->v[rn].sf[2],regs->v[rn].sf[3]);
-        res.sf[0] = maxnmf(tmp[0],tmp[1]);
+        tmp[0] = fmaxnm32(regs, regs->v[rn].s[0],regs->v[rn].s[1]);
+        tmp[1] = fmaxnm32(regs, regs->v[rn].s[2],regs->v[rn].s[3]);
+        res.s[0] = fmaxnm32(regs, tmp[0],tmp[1]);
     }
 
     regs->v[rd] = res;
@@ -4198,17 +4104,17 @@ static void dis_fmla_fmls_by_element(uint64_t _regs, uint32_t insn)
         rm += M << 4;
         for(i = 0; i < (is_scalar?1:2); i++)
             if (is_sub)
-                res.df[i] = regs->v[rd].df[i] - regs->v[rn].df[i] * regs->v[rm].df[index];
+                res.d[i] = fmadd64(regs, fneg64(regs, regs->v[rn].d[i]), regs->v[rm].d[index], regs->v[rd].d[i]);
             else
-                res.df[i] = regs->v[rd].df[i] + regs->v[rn].df[i] * regs->v[rm].df[index];
+                res.d[i] = fmadd64(regs, regs->v[rn].d[i], regs->v[rm].d[index], regs->v[rd].d[i]);
     } else {
         index = (H << 1) | L;
         rm += M << 4;
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
             if (is_sub)
-                res.sf[i] = (double)regs->v[rd].sf[i] - (double)regs->v[rn].sf[i] * (double)regs->v[rm].sf[index];
+                res.s[i] = fmadd32(regs, fneg32(regs, regs->v[rn].s[i]), regs->v[rm].s[index], regs->v[rd].s[i]);
             else
-                res.sf[i] = (double)regs->v[rd].sf[i] + (double)regs->v[rn].sf[i] * (double)regs->v[rm].sf[index];
+                res.s[i] = fmadd32(regs, regs->v[rn].s[i], regs->v[rm].s[index], regs->v[rd].s[i]);
     }
     regs->v[rd] = res;
 }
@@ -4233,19 +4139,44 @@ static void dis_fmul_by_element(uint64_t _regs, uint32_t insn)
         index = H;
         rm += M << 4;
         for(i = 0; i < (is_scalar?1:2); i++)
-            res.df[i] = regs->v[rn].df[i] * regs->v[rm].df[index];
+            res.d[i] = fmul64(regs, regs->v[rn].d[i], regs->v[rm].d[index]);
     } else {
         index = (H << 1) | L;
         rm += M << 4;
         for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
-            res.sf[i] = regs->v[rn].sf[i] * regs->v[rm].sf[index];
+            res.s[i] = fmul32(regs, regs->v[rn].s[i], regs->v[rm].s[index]);
     }
     regs->v[rd] = res;
 }
 
 static void dis_fmulx_by_element(uint64_t _regs, uint32_t insn)
 {
-    dis_fmul_by_element(_regs, insn);
+    struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int q = INSN(30,30);
+    int is_scalar = INSN(28,28);
+    int rd = INSN(4,0);
+    int rn = INSN(9,5);
+    int rm = INSN(19,16);
+    int is_double = INSN(22,22);
+    int H = INSN(11,11);
+    int L = INSN(21,21);
+    int M = INSN(20,20);
+    union simd_register res = {0};
+    int index;
+    int i;
+
+    if (is_double) {
+        index = H;
+        rm += M << 4;
+        for(i = 0; i < (is_scalar?1:2); i++)
+            res.d[i] = fmulx64(regs, regs->v[rn].d[i], regs->v[rm].d[index]);
+    } else {
+        index = (H << 1) | L;
+        rm += M << 4;
+        for(i = 0; i < (is_scalar?1:(q?4:2)); i++)
+            res.s[i] = fmulx32(regs, regs->v[rn].s[i], regs->v[rm].s[index]);
+    }
+    regs->v[rd] = res;
 }
 
 static void dis_sqdmlal_sqdmlsl_by_element(uint64_t _regs, uint32_t insn)

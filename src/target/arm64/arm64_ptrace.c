@@ -27,6 +27,7 @@
 #include <sys/uio.h>
 #include <elf.h>
 #include <errno.h>
+#include <string.h>
 
 #include <stdio.h>
 
@@ -36,6 +37,7 @@
 #include "runtime.h"
 #include "arm64_helpers.h"
 #include "umeq.h"
+#include "arm64_softfloat.h"
 
 #define MAGIC1  0x7a711e06171129a2UL
 #define MAGIC2  0xc6925d1ed6dcd674UL
@@ -149,6 +151,28 @@ static long get_regs_base(int pid, uint64_t *regs_base) {
     return res;
 }
 
+static long read_fp_status(int pid, float_status *fp_status)
+{
+    long res;
+    uint64_t regs_base;
+    uint64_t data[2];
+
+    res = get_regs_base(pid, &regs_base);
+    if (res)
+        goto read_fp_status_error;
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, fp_status), &data[0]);
+    if (res)
+        goto read_fp_status_error;
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, fp_status) + 8, &data[1]);
+    if (res)
+        goto read_fp_status_error;
+    /* copy to float_status */
+    memcpy(fp_status, data, sizeof(float_status));
+
+    read_fp_status_error:
+    return res;
+}
+
 /* FIXME: check returns value */
 static long read_gpr(int pid, struct user_pt_regs_arm64 *regs)
 {
@@ -239,6 +263,9 @@ static long read_simd(int pid, struct user_fpsimd_state_arm64 *regs)
     uint64_t data;
     long res;
     int i;
+    float_status fp_status;
+    uint32_t qc;
+    uint32_t fpcr_others;
 
     res = get_regs_base(pid, &regs_base);
     if (res)
@@ -252,14 +279,19 @@ static long read_simd(int pid, struct user_fpsimd_state_arm64 *regs)
         if (res)
             goto read_simd_error;
     }
-    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, fpcr), &data);
-    regs->fpcr = (uint32_t) data;
+    res = read_fp_status(pid, &fp_status);
     if (res)
         goto read_simd_error;
-    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, fpsr), &data);
-    regs->fpsr = (uint32_t) data;
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, qc), &data);
     if (res)
         goto read_simd_error;
+    qc = (uint32_t) data;
+    res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, regs_base + offsetof(struct arm64_registers, fpcr_others), &data);
+    if (res)
+        goto read_simd_error;
+    fpcr_others = (uint32_t) data;
+    regs->fpcr = softfloat_to_arm64_cpsr(&fp_status, fpcr_others);
+    regs->fpsr = softfloat_to_arm64_fpsr(&fp_status, qc);
 
     read_simd_error:
     return res;
