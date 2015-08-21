@@ -34,7 +34,7 @@
 #define EM_AARCH64 183
 #endif
 
-#define PAGE_SIZE                       4096
+#define PAGE_SIZE                       4096UL
 #define PAGE_MASK                       (PAGE_SIZE - 1)
 #define DL_LOAD_ADDR                    0x40000000
 #define DL_SHARE_ADDR                   0x20000000
@@ -108,16 +108,22 @@ static int elfToMapProtection(uint32_t flags)
 
 static int mapSegment(int fd, Elf64_Phdr *segment, struct load_auxv_info_64 *auxv_info, int is_dl, int is_share_object)
 {
+    uint64_t vaddr;
+    uint64_t offset;
+    uint64_t padding;
+    int status = 0;
+    guest_ptr mapFileResult;
+
+    /* adjest load address according to module type */
     if (is_dl)
         segment->p_vaddr += DL_LOAD_ADDR;
     else if (is_share_object)
         segment->p_vaddr += DL_SHARE_ADDR;
 
-    int status = 0;
-    uint64_t vaddr = segment->p_vaddr & ~PAGE_MASK;
-    uint64_t offset = segment->p_offset & ~PAGE_MASK;
-    uint64_t padding = segment->p_vaddr & PAGE_MASK;
-    guest_ptr mapFileResult;
+    /* aligned on page start */
+    vaddr = segment->p_vaddr & ~PAGE_MASK;
+    offset = segment->p_offset & ~PAGE_MASK;
+    padding = segment->p_vaddr & PAGE_MASK;
 
     // TODO : perhaps need to check it's entirely into this map segment and
     // not completely sure calculation is ok
@@ -127,38 +133,46 @@ static int mapSegment(int fd, Elf64_Phdr *segment, struct load_auxv_info_64 *aux
         auxv_info->load_AT_PHDR = load_AT_PHDR_init + segment->p_vaddr - segment->p_offset;
     }
 
-    /* mapping and clearing bss if needed */
-    mapFileResult = mmap_guest(vaddr, segment->p_filesz + padding, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED, fd, offset);
-    if (mapFileResult == vaddr) {
+    /* map file part */
+    if (segment->p_filesz) {
+        mapFileResult = mmap_guest(vaddr, segment->p_filesz + padding, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED, fd, offset);
+        if (mapFileResult != vaddr)
+            goto exit;
+        else
+            status = 1;
+    }
+    /* map memory part */
+    if (segment->p_memsz != segment->p_filesz) {
         uint64_t zeroAddr = segment->p_vaddr + segment->p_filesz;
         uint64_t zeroAddrAlignedOnNextPage = (zeroAddr + PAGE_SIZE - 1) & ~PAGE_MASK;
         uint64_t zeroAddrSize = segment->p_memsz - segment->p_filesz;
         int64_t zeroAddrMapSize = zeroAddrSize - (zeroAddrAlignedOnNextPage - zeroAddr);
         char *zeroAddrBuffer = (char *) g_2_h(zeroAddr);
 
-        if (!is_dl)
-            startbrk_64 = segment->p_vaddr + segment->p_memsz;
-        if (zeroAddrSize) {
-            /* need to map more memory for bss ? */
-            if (zeroAddrMapSize > 0) {
-                mapFileResult = mmap_guest(zeroAddrAlignedOnNextPage, zeroAddrMapSize, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
-                if (mapFileResult != zeroAddrAlignedOnNextPage)
-                    goto exit;
-            }
-            /* clear bss */
-            while(zeroAddrSize--)
-                *zeroAddrBuffer++ = 0;
-            // clear memory until end of page
-            if (elfToMapProtection(segment->p_flags) & PROT_WRITE) {
-                while((long) zeroAddrBuffer % PAGE_SIZE != 0)
-                    *zeroAddrBuffer++ = 0;
-            }
-            status = 1;
-        } else
-            status = 1;
-    }
+        assert(segment->p_memsz > segment->p_filesz);
 
-exit:
+        /* need to map more memory for bss ? */
+        if (zeroAddrMapSize > 0) {
+            mapFileResult = mmap_guest(zeroAddrAlignedOnNextPage, zeroAddrMapSize, elfToMapProtection(segment->p_flags), MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
+            if (mapFileResult != zeroAddrAlignedOnNextPage)
+                goto exit;
+        }
+        /* clear bss */
+        while(zeroAddrSize--)
+            *zeroAddrBuffer++ = 0;
+        // clear memory until end of page
+        if (elfToMapProtection(segment->p_flags) & PROT_WRITE) {
+            while((long) zeroAddrBuffer % PAGE_SIZE != 0)
+                *zeroAddrBuffer++ = 0;
+        }
+        status = 1;
+
+    }
+    /* setup startbrk_64 at the end of the last segment */
+    if (!is_dl)
+        startbrk_64 = segment->p_vaddr + segment->p_memsz;
+
+    exit:
     return status;
 }
 
