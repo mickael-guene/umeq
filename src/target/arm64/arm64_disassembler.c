@@ -1206,8 +1206,13 @@ static int dis_conditionnal_branch_immediate_insn(struct arm64_target *context, 
     dump_state(context, ir);
 
     /* if cond is true then do the branch else jump to next insn */
-    mk_exit_pred(context, ir, mk_64(ir, context->pc + imm19), pred);
-    mk_exit(context, ir, mk_64(ir, context->pc + 4));
+    if (context->regs.is_stepin) {
+        struct irRegister *next_pc = ir->add_ite_64(ir, ir->add_32U_to_64(ir, pred), mk_64(ir, context->pc + imm19), mk_64(ir, context->pc + 4));
+        mk_exit(context, ir, next_pc);
+    } else {
+        mk_exit_pred(context, ir, mk_64(ir, context->pc + imm19), pred);
+        mk_exit(context, ir, mk_64(ir, context->pc + 4));
+    }
 
     return 1;
 }
@@ -1266,8 +1271,13 @@ static int dis_cbz_A_cbnz(struct arm64_target *context, uint32_t insn, struct ir
     }
 
     /* if cond is true then branch to destination else jump to next insn */
-    mk_exit_pred(context, ir, mk_64(ir, context->pc + imm19), pred);
-    mk_exit(context, ir, mk_64(ir, context->pc + 4));
+    if (context->regs.is_stepin) {
+        struct irRegister *next_pc = ir->add_ite_64(ir, pred, mk_64(ir, context->pc + imm19), mk_64(ir, context->pc + 4));
+        mk_exit(context, ir, next_pc);
+    } else {
+        mk_exit_pred(context, ir, mk_64(ir, context->pc + imm19), pred);
+        mk_exit(context, ir, mk_64(ir, context->pc + 4));
+    }
 
     return 1;
 }
@@ -2166,8 +2176,13 @@ static int dis_tbz_A_tbnz(struct arm64_target *context, uint32_t insn, struct ir
         pred = ir->add_cmpeq_64(ir, res, mk_64(ir, 0));
 
     /* if cond is true then do the branch else jump to next insn */
-    mk_exit_pred(context, ir, mk_64(ir, context->pc + imm14), pred);
-    mk_exit(context, ir, mk_64(ir, context->pc + 4));
+    if (context->regs.is_stepin) {
+        struct irRegister *next_pc = ir->add_ite_64(ir, pred, mk_64(ir, context->pc + imm14), mk_64(ir, context->pc + 4));
+        mk_exit(context, ir, next_pc);
+    } else {
+        mk_exit_pred(context, ir, mk_64(ir, context->pc + imm14), pred);
+        mk_exit(context, ir, mk_64(ir, context->pc + 4));
+    }
 
     return 1;
 }
