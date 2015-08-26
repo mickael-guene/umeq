@@ -532,41 +532,47 @@ void ptrace_exec_event(struct arm64_target *context)
 {
     static int is_exec_event_need = 1;
 
-    if (is_exec_event_need) {
-        if (is_under_proot) {
-            /* syscall execve exit sequence */
-             /* this will be translated into sysexec exit */
-            context->regs.is_in_syscall = 2;
-            syscall((long) 313, 1);
-             /* this will be translated into SIGTRAP */
-            context->regs.is_in_syscall = 0;
-            syscall((long) 313, 2);
-        } else {
-            //context->regs.r[8] = 221;
-            syscall(SYS_gettid, MAGIC1, MAGIC2, 2);
-            context->regs.is_in_syscall = 0;
+    if (maybe_ptraced) {
+        if (is_exec_event_need) {
+            if (is_under_proot) {
+                /* syscall execve exit sequence */
+                 /* this will be translated into sysexec exit */
+                context->regs.is_in_syscall = 2;
+                syscall((long) 313, 1);
+                 /* this will be translated into SIGTRAP */
+                context->regs.is_in_syscall = 0;
+                syscall((long) 313, 2);
+            } else {
+                //context->regs.r[8] = 221;
+                syscall(SYS_gettid, MAGIC1, MAGIC2, 2);
+                context->regs.is_in_syscall = 0;
+            }
+            is_exec_event_need = 0;
         }
-        is_exec_event_need = 0;
     }
 }
 
 void ptrace_syscall_enter(struct arm64_target *context)
 {
-    context->regs.is_in_syscall = 1;
-    if (is_under_proot)
-        syscall((long) 313, 0);
-    else
-        syscall(SYS_gettid, MAGIC1, MAGIC2, 0);
+    if (maybe_ptraced) {
+        context->regs.is_in_syscall = 1;
+        if (is_under_proot)
+            syscall((long) 313, 0);
+        else
+            syscall(SYS_gettid, MAGIC1, MAGIC2, 0);
+    }
 }
 
 void ptrace_syscall_exit(struct arm64_target *context)
 {
-    context->regs.is_in_syscall = 2;
-    if (is_under_proot)
-        syscall((long) 313, 1);
-    else
-        syscall(SYS_gettid, MAGIC1, MAGIC2, 1);
-    context->regs.is_in_syscall = 0;
+    if (maybe_ptraced) {
+        context->regs.is_in_syscall = 2;
+        if (is_under_proot)
+            syscall((long) 313, 1);
+        else
+            syscall(SYS_gettid, MAGIC1, MAGIC2, 1);
+        context->regs.is_in_syscall = 0;
+    }
 }
 
 /* syscall emulation */
@@ -580,6 +586,8 @@ long arm64_ptrace(struct arm64_target *context)
 
     switch(request) {
         case PTRACE_TRACEME:
+            maybe_ptraced = 1;
+            /* fallthrough */
         case PTRACE_CONT:
         case PTRACE_SETOPTIONS:
         case PTRACE_KILL:

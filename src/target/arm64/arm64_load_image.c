@@ -37,6 +37,10 @@ static int strcmp_env(char *s1, char *s2)
 
 static int is_environment_variable_copy(char *current, void **additionnal_env, void **unset_env)
 {
+    if (strcmp(current, "__UMEQ_INTERNAL_MAYBE_PTRACED__=1") == 0) {
+        maybe_ptraced = 1;
+        return 0;
+    }
     while(*additionnal_env) {
         if (strcmp_env(current, *additionnal_env) == 0)
             return 0;

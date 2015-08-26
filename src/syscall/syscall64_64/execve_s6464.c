@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <assert.h>
 
+#include "umeq.h"
 #include "syscall64_64_private.h"
 
 /* FIXME: use alloca to allocate space for ptr */
@@ -51,6 +52,9 @@ long execve_s6464(uint64_t filename_p, uint64_t argv_p, uint64_t envp_p)
     }
     ptr[index++] = NULL;
     envp = &ptr[index];
+    /* add internal umeq environment variable if process may be ptraced */
+    if (maybe_ptraced)
+        ptr[index++] = "__UMEQ_INTERNAL_MAYBE_PTRACED__=1";
     if (envp_p) {
         while(*envp_guest != 0) {
             ptr[index++] = (char *) g_2_h(*envp_guest);

@@ -41,7 +41,8 @@
 #include "version.h"
 
 char *exe_filename;
-int is_under_proot;
+int is_under_proot = 0;
+int maybe_ptraced = 0;
 
 struct memory_config {
     int max_insn;
