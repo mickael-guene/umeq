@@ -65,6 +65,7 @@ struct arm64_registers {
     uint32_t is_stepin;
     uint64_t is_syscall_entry_show;
     uint64_t helper_pc;
+    uint32_t fast_math_is_allow;
 };
 
 struct arm64_target {

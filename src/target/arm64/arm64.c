@@ -292,6 +292,8 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.is_in_syscall = 0;
         context->is_in_signal = 1 + (stack_ptr?2:0);
         context->regs.is_stepin = 0;
+        /* prevent fpu usage in signal handlers to avoid potential troubles .... */
+        context->regs.fast_math_is_allow = 0;
     } else if (param) {
         /* new thread */
         struct arm64_target *parent_context = container_of(param, struct arm64_target, target);
@@ -310,6 +312,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.is_in_syscall = 0;
         context->is_in_signal = 0;
         context->regs.is_stepin = 0;
+        context->regs.fast_math_is_allow = parent_context->regs.fast_math_is_allow;
     } else if (stack_ptr) {
         /* main thread */
         for(i = 0; i < 32; i++) {
@@ -334,6 +337,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.is_in_syscall = 0;
         context->is_in_signal = 0;
         context->regs.is_stepin = 0;
+        context->regs.fast_math_is_allow = 1;
     } else {
         //fork;
         //nothing to do

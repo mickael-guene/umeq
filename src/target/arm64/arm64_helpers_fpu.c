@@ -852,14 +852,27 @@ void arm64_hlp_write_fpsr(uint64_t _regs, uint32_t value)
         exceptions |= float_flag_divbyzero;
     if (value & ARM64_FPSR_IOC)
         exceptions |= float_flag_invalid;
+    /* setup softfloat state */
     set_float_exception_flags(exceptions, &regs->fp_status);
+    /* clear host state */
+    feclearexcept(FE_ALL_EXCEPT);
 }
 
 uint32_t arm64_hlp_read_fpsr(uint64_t _regs)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
+    int host_exceptions = fetestexcept(FE_ALL_EXCEPT);
+    uint32_t arm64_exceptions_from_host = 0;
 
-    return softfloat_to_arm64_fpsr(&regs->fp_status, regs->qc);
+    /* get host state */
+    arm64_exceptions_from_host |= (host_exceptions&FE_DIVBYZERO)?ARM64_FPSR_DZC:0;
+    arm64_exceptions_from_host |= (host_exceptions&FE_INEXACT)?ARM64_FPSR_IXC:0;
+    arm64_exceptions_from_host |= (host_exceptions&FE_INVALID)?ARM64_FPSR_IOC:0;
+    arm64_exceptions_from_host |= (host_exceptions&FE_OVERFLOW)?ARM64_FPSR_OFC:0;
+    arm64_exceptions_from_host |= (host_exceptions&FE_UNDERFLOW)?ARM64_FPSR_UFC:0;
+
+    /* and add it to softfloat state */
+    return softfloat_to_arm64_fpsr(&regs->fp_status, regs->qc) | arm64_exceptions_from_host;
 }
 
 void arm64_hlp_write_fpcr(uint64_t _regs, uint32_t value)
@@ -870,6 +883,13 @@ void arm64_hlp_write_fpcr(uint64_t _regs, uint32_t value)
     set_flush_to_zero((value>>24)&1, &regs->fp_status);
     set_flush_inputs_to_zero((value>>24)&1, &regs->fp_status);
     set_float_rounding_mode(arm64_rm_to_softfloat_rm((value>>22)&3), &regs->fp_status);
+    /* update fast_math_is_allow */
+    if (get_default_nan_mode(&regs->fp_status) ||
+        get_flush_to_zero(&regs->fp_status) ||
+        get_float_rounding_mode(&regs->fp_status) != float_round_nearest_even)
+        regs->fast_math_is_allow = 0;
+    else
+        regs->fast_math_is_allow = 1;
     /* save AHP, IDE, IXE, UFE, OFE, DZE, IOE in fpcr_others */
     regs->fpcr_others = value & 0x04009f00;
 }
