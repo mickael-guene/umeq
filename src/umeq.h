@@ -31,6 +31,7 @@ extern "C" {
 
 #define KB  (1024)
 #define MB  (KB * KB)
+#define FAST_MATH_ALLOW     1
 
 extern char *exe_filename;
 

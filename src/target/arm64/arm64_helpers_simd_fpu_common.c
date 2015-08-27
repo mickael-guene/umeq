@@ -19,6 +19,7 @@
  */
 
 #include <fenv.h>
+#include "umeq.h"
 
 #define float32_two make_float32(0x40000000)
 #define float32_three make_float32(0x40400000)
@@ -30,6 +31,55 @@
 #define float64_512 make_float64(0x4080000000000000LL)
 #define float64_256 make_float64(0x4070000000000000LL)
 #define float64_maxnorm make_float64(0x7fefffffffffffffLL)
+
+/* struct and functions for fast math */
+union float_uint32_t {
+    float f;
+    uint32_t i;
+};
+
+union double_uint64_t {
+    double f;
+    uint64_t i;
+};
+
+static inline int is_not_nan_or_infinite_32(uint32_t a)
+{
+    return ((a&0x7f800000) == 0x7f800000)?0:1;
+}
+
+static inline int is_not_nan_or_infinite_64(uint64_t a)
+{
+    return ((a&0x7ff0000000000000UL) == 0x7ff0000000000000UL)?0:1;
+}
+
+static inline float make_float(uint32_t i)
+{
+    union float_uint32_t a = { .i = i };
+
+    return a.f;
+}
+
+static inline uint32_t make_uint32_t(float f)
+{
+    union float_uint32_t a = { .f = f };
+
+    return a.i;
+}
+
+static inline double make_double(uint64_t i)
+{
+    union double_uint64_t a = { .i = i };
+
+    return a.f;
+}
+
+static inline uint64_t make_uint64_t(double f)
+{
+    union double_uint64_t a = { .f = f };
+
+    return a.i;
+}
 
 static inline uint32_t extract32(uint32_t value, int start, int length)
 {
@@ -199,32 +249,56 @@ static inline uint64_t fabs64(struct arm64_registers *regs, uint64_t a)
 
 static inline uint32_t fsub32(struct arm64_registers *regs, uint32_t a, uint32_t b)
 {
-    return float32_val(float32_sub(make_float32(a), make_float32(b), &regs->fp_status));
+    if (FAST_MATH_ALLOW && regs->fast_math_is_allow &&
+        is_not_nan_or_infinite_32(a) && is_not_nan_or_infinite_32(b)) {
+        return make_uint32_t(make_float(a) - make_float(b));
+    } else
+        return float32_val(float32_sub(make_float32(a), make_float32(b), &regs->fp_status));
 }
 
 static inline uint64_t fsub64(struct arm64_registers *regs, uint64_t a, uint64_t b)
 {
-    return float64_val(float64_sub(make_float64(a), make_float64(b), &regs->fp_status));
+    if (FAST_MATH_ALLOW && regs->fast_math_is_allow &&
+        is_not_nan_or_infinite_64(a) && is_not_nan_or_infinite_64(b)) {
+        return make_uint64_t(make_double(a) - make_double(b));
+    } else
+        return float64_val(float64_sub(make_float64(a), make_float64(b), &regs->fp_status));
 }
 
 static inline uint32_t fadd32(struct arm64_registers *regs, uint32_t a, uint32_t b)
 {
-    return float32_val(float32_add(make_float32(a), make_float32(b), &regs->fp_status));
+    if (FAST_MATH_ALLOW && regs->fast_math_is_allow &&
+        is_not_nan_or_infinite_32(a) && is_not_nan_or_infinite_32(b)) {
+        return make_uint32_t(make_float(a) + make_float(b));
+    } else
+        return float32_val(float32_add(make_float32(a), make_float32(b), &regs->fp_status));
 }
 
 static inline uint64_t fadd64(struct arm64_registers *regs, uint64_t a, uint64_t b)
 {
-    return float64_val(float64_add(make_float64(a), make_float64(b), &regs->fp_status));
+    if (FAST_MATH_ALLOW && regs->fast_math_is_allow &&
+        is_not_nan_or_infinite_64(a) && is_not_nan_or_infinite_64(b)) {
+        return make_uint64_t(make_double(a) + make_double(b));
+    } else
+        return float64_val(float64_add(make_float64(a), make_float64(b), &regs->fp_status));
 }
 
 static inline uint32_t fmul32(struct arm64_registers *regs, uint32_t a, uint32_t b)
 {
-    return float32_val(float32_mul(make_float32(a), make_float32(b), &regs->fp_status));
+    if (FAST_MATH_ALLOW && regs->fast_math_is_allow &&
+        is_not_nan_or_infinite_32(a) && is_not_nan_or_infinite_32(b)) {
+        return make_uint32_t(make_float(a) * make_float(b));
+    } else
+        return float32_val(float32_mul(make_float32(a), make_float32(b), &regs->fp_status));
 }
 
 static inline uint64_t fmul64(struct arm64_registers *regs, uint64_t a, uint64_t b)
 {
-    return float64_val(float64_mul(make_float64(a), make_float64(b), &regs->fp_status));
+    if (FAST_MATH_ALLOW && regs->fast_math_is_allow &&
+        is_not_nan_or_infinite_64(a) && is_not_nan_or_infinite_64(b)) {
+        return make_uint64_t(make_double(a) * make_double(b));
+    } else
+        return float64_val(float64_mul(make_float64(a), make_float64(b), &regs->fp_status));
 }
 
 static inline uint32_t fmulx32(struct arm64_registers *regs, uint32_t a, uint32_t b)
