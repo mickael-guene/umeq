@@ -79,7 +79,7 @@ uint32_t softfloat_to_arm64_fpsr(float_status *fp_status, uint32_t qc)
         fpsr |= ARM64_FPSR_IDC;
     if (exceptions & float_flag_inexact)
         fpsr |= ARM64_FPSR_IXC;
-    if (exceptions & float_flag_underflow)
+    if (exceptions & (float_flag_underflow | float_flag_output_denormal))
         fpsr |= ARM64_FPSR_UFC;
     if (exceptions & float_flag_overflow)
         fpsr |= ARM64_FPSR_OFC;
