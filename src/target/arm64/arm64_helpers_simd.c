@@ -3163,8 +3163,8 @@ static void dis_smlal_smlsl_umlal_umlsl(uint64_t _regs, uint32_t insn)
 static void dis_sqdmlal_sqdmlsl(uint64_t _regs, uint32_t insn)
 {
     struct arm64_registers *regs = (struct arm64_registers *) _regs;
-    int q = INSN(30,30);
     int is_scalar = INSN(28,28);
+    int q = is_scalar?0:INSN(30,30);
     int size = INSN(23,22);
     int rd = INSN(4,0);
     int rn = INSN(9,5);
@@ -5488,6 +5488,10 @@ void arm64_hlp_dirty_advanced_simd_scalar_three_different_simd(uint64_t _regs, u
     int opcode = INSN(15,12);
 
     switch(opcode) {
+        case 9:
+        case 11:
+            dis_sqdmlal_sqdmlsl(_regs, insn);
+            break;
         case 13:
             dis_sqdmull(_regs, insn);
             break;
