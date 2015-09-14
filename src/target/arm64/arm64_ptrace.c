@@ -352,11 +352,11 @@ static int is_in_exec_event_in_signal_emulation(pid_t pid)
 
 static void clear_exec_event_in_signal_emulation(pid_t pid)
 {
-    long res;
-
     /* we register both entry and exit but only exit info will be use in exec exit emulation */
-    res = syscall(SYS_ptrace, PTRACE_POKEDATA, pid, &host_exec_info.exec_event_in_signal_emulation, 0);
-    assert(res == 0);
+    syscall(SYS_ptrace, PTRACE_POKEDATA, pid, &host_exec_info.exec_event_in_signal_emulation, 0);
+    /* Note that here we don't assert on error since this function may be call on not ptraced process.
+     * This is the case when a parent wait for STOP signal on a child.
+     * This fix https://github.com/mickael-guene/umeq/issues/1 */
 }
 
 static void set_exec_event_in_signal_emulation(pid_t pid, int signal)
