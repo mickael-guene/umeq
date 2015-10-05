@@ -5,6 +5,12 @@
 
 #include "breakpoints.h"
 #include "cache.h"
+#ifdef __TARGET32
+#include "target32.h"
+#endif
+#ifdef __TARGET64
+#include "target64.h"
+#endif
 
 #if 1
 #define ARM_BRK             0xe7f001f1
@@ -63,16 +69,16 @@ void gdb_insert_breakpoint(unsigned int addr, int len, int type)
 
     switch(len) {
         case 2:
-            newBreakpoint->opcode = *((uint16_t *)(uint64_t) addr);
-            *((uint16_t *)(uint64_t)addr) = T1_BRK;
+            newBreakpoint->opcode = *((uint16_t *) g_2_h((guest_ptr) addr));
+            *((uint16_t *) g_2_h((guest_ptr) addr)) = T1_BRK;
             break;
         case 3:
-            newBreakpoint->opcode = *((uint32_t *)(uint64_t) addr);
-            *((uint32_t *)(uint64_t)addr) = T2_BRK;
+            newBreakpoint->opcode = *((uint32_t *) g_2_h((guest_ptr) addr));
+            *((uint32_t *) g_2_h((guest_ptr) addr)) = T2_BRK;
             break;
         case 4:
-            newBreakpoint->opcode = *((uint32_t *)(uint64_t) addr);
-            *((uint32_t *)(uint64_t)addr) = ARM_BRK;
+            newBreakpoint->opcode = *((uint32_t *) g_2_h((guest_ptr) addr));
+            *((uint32_t *) g_2_h((guest_ptr) addr)) = ARM_BRK;
             break;
         default:
             assert(0 && "gdb_insert_breakpoint: invalid len");
@@ -100,9 +106,9 @@ void gdb_remove_breakpoint(unsigned int addr, int len, int type)
     if (pCurrent) {
         breakpoint *pNext = pCurrent->pNext;
         if (pCurrent->len == 2)
-            *((uint16_t *)(uint64_t)pCurrent->addr) = pCurrent->opcode;
+            *((uint16_t *) g_2_h((guest_ptr) pCurrent->addr)) = pCurrent->opcode;
         else
-            *((uint32_t *)(uint64_t)pCurrent->addr) = pCurrent->opcode;
+            *((uint32_t *) g_2_h((guest_ptr) pCurrent->addr)) = pCurrent->opcode;
         //free(pCurrent);
         releaseBreakpoint(pCurrent);
         if (pPrev)
@@ -122,9 +128,9 @@ void gdb_remove_all()
     while(pBreakpoint) {
         breakpoint *pNext = pBreakpoint->pNext;
         if (pBreakpoint->len == 2)
-            *((uint16_t *)(uint64_t)pBreakpoint->addr) = pBreakpoint->opcode;
+            *((uint16_t *) g_2_h((guest_ptr) pBreakpoint->addr)) = pBreakpoint->opcode;
         else
-            *((uint32_t *)(uint64_t)pBreakpoint->addr) = pBreakpoint->opcode;
+            *((uint32_t *) g_2_h((guest_ptr) pBreakpoint->addr)) = pBreakpoint->opcode;
         //free(pBreakpoint);
         releaseBreakpoint(pBreakpoint);
         pBreakpoint = pNext;
@@ -140,9 +146,9 @@ void gdb_reinstall_opcodes()
     //find matching breakpoint
     while(pCurrent) {
         if (pCurrent->len == 2)
-            *((uint16_t *)(uint64_t)pCurrent->addr) = pCurrent->opcode;
+            *((uint16_t *) g_2_h((guest_ptr) pCurrent->addr)) = pCurrent->opcode;
         else
-            *((uint32_t *)(uint64_t)pCurrent->addr) = pCurrent->opcode;
+            *((uint32_t *) g_2_h((guest_ptr) pCurrent->addr)) = pCurrent->opcode;
         pCurrent = pCurrent->pNext;
     }
 }
@@ -154,11 +160,11 @@ void gdb_uninstall_opcodes()
     //find matching breakpoint
     while(pCurrent) {
         if (pCurrent->len == 2)
-            *((uint16_t *)(uint64_t)pCurrent->addr) = T1_BRK;
+            *((uint16_t *) g_2_h((guest_ptr) pCurrent->addr)) = T1_BRK;
         else if (pCurrent->len == 3)
-            *((uint32_t *)(uint64_t)pCurrent->addr) = T2_BRK;
+            *((uint32_t *) g_2_h((guest_ptr) pCurrent->addr)) = T2_BRK;
         else
-            *((uint32_t *)(uint64_t)pCurrent->addr) = ARM_BRK;
+            *((uint32_t *) g_2_h((guest_ptr) pCurrent->addr)) = ARM_BRK;
         pCurrent = pCurrent->pNext;
     }
 }

@@ -66,10 +66,10 @@ add_subdirectory (${UMEQ_ARCH_HOST_NAME})
 
 # umeq-arm
 add_executable(umeq-arm ${SRCS})
-target_link_libraries(umeq-arm -nostdlib -Wl,-Ttext-segment=${UMEQ_LOAD_ADDR} -Wl,-z,execstack -static -Wl,--start-group jitter loader32 cache runtime arm_target ${UMEQ_SYSCALL_32} softfloat gdb -Wl,--end-group)
+target_link_libraries(umeq-arm -nostdlib -Wl,-Ttext-segment=${UMEQ_LOAD_ADDR} -Wl,-z,execstack -static -Wl,--start-group jitter loader32 cache runtime arm_target ${UMEQ_SYSCALL_32} softfloat gdb32 -Wl,--end-group)
 
 # umeq-arm64 is only build for 64 bits hosts
 if (UMEQ_ARCH_HOST_SIZE EQUAL 64)
 	add_executable(umeq-arm64 ${SRCS})
-	target_link_libraries(umeq-arm64 -nostdlib -Wl,-Ttext-segment=0x8000000000 -Wl,-z,execstack -static -Wl,--start-group jitter loader64 cache runtime arm64_target syscall64_64 softfloat gdb -Wl,--end-group)
+	target_link_libraries(umeq-arm64 -nostdlib -Wl,-Ttext-segment=0x8000000000 -Wl,-z,execstack -static -Wl,--start-group jitter loader64 cache runtime arm64_target syscall64_64 softfloat gdb64 -Wl,--end-group)
 endif (UMEQ_ARCH_HOST_SIZE EQUAL 64)

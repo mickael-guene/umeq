@@ -14,6 +14,12 @@
 
 #include "gdb.h"
 #include "breakpoints.h"
+#ifdef __TARGET32
+#include "target32.h"
+#endif
+#ifdef __TARGET64
+#include "target64.h"
+#endif
 
 static int isServerStarted = 0;
 static int fd_dbg = -1;
@@ -110,7 +116,7 @@ static void gdb_read_memory(char *buf, unsigned int addr, unsigned int len)
         sprintf(buf, "E14");
     } else {
         for(i = 0; i < len; i++) {
-            unsigned char value = *((unsigned char *) (uint64_t) (addr+i));
+            unsigned char value = *((unsigned char *) g_2_h((guest_ptr) (addr + i)));
             unsigned int hnibble = (value >> 4);
             unsigned int lnibble = (value & 0xf);
 
