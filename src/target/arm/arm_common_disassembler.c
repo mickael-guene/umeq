@@ -51,10 +51,10 @@ static uint64_t advSimdExpandImm(int op, int cmode, uint32_t _imm8)
             res = (imm8 << 56) | (imm8 << 40) | (imm8 << 24) | (imm8 << 8);
             break;
         case 12:
-            res = (imm8 << 40) | (0xffUL << 32) | (imm8 << 8) | 0xff;
+            res = (imm8 << 40) | (0xffULL << 32) | (imm8 << 8) | 0xff;
             break;
         case 13:
-            res = (imm8 << 48) | (0xffffUL << 32) | (imm8 << 16) | 0xffff;
+            res = (imm8 << 48) | (0xffffULL << 32) | (imm8 << 16) | 0xffff;
             break;
         case 14:
             if (op) {

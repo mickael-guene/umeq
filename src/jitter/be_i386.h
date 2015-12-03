@@ -18,18 +18,22 @@
  * 02110-1301 USA.
  */
 
-#define _GNU_SOURCE
-#include <unistd.h>
-#include <sys/syscall.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
+#include "jitter.h"
 
-int shmctl(int shmid, int cmd, struct shmid_ds *buf)
-{
-/* FIXME:  */
-#if 1
-	return -1;
-#else
-    return syscall(SYS_shmctl, shmid, cmd, buf);
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+#ifndef __BE_I386__
+#define __BE_I386__ 1
+
+#define BE_I386_MIN_CONTEXT_SIZE     (32 * 1024)
+
+struct backend *createI386Backend(void *memory, int size);
+void deleteI386Backend(struct backend *backend);
+
+#endif
+
+#ifdef __cplusplus
 }
+#endif

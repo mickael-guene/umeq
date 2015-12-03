@@ -191,7 +191,8 @@ int arm_ptrace(struct arm_target *context)
                 assert(addr < 16 * 4);
                 /* FIXME: Need rework with a framework to handle tlsarea usage */
                 res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+                /* FIXME: fs base ? */
+                //res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
 
                 res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + addr, &data_host);
                 data_host = (data_host & 0xffffffff00000000UL) | data;
@@ -227,7 +228,8 @@ int arm_ptrace(struct arm_target *context)
 
                 /* FIXME: Need rework with a framework to handle tlsarea usage */
                 res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+                /* FIXME: fs base ? */
+                //res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
                 for(i=0;i<16;i++) {
                     res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + i * 4, &data_reg);
                     user_regs_arm->uregs[i] = (unsigned int) data_reg;
@@ -255,7 +257,8 @@ int arm_ptrace(struct arm_target *context)
                 int i;
 
                 res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+                /* FIXME: fs base ? */
+                //res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
                 for(i=0;i<15;i++) {
                     res = write_32(pid, user_regs_arm->uregs[i], (void *) (data_long + i * 4));
                 }
@@ -287,7 +290,8 @@ int arm_ptrace(struct arm_target *context)
                 unsigned long data_long;
 
                 res = syscall(SYS_ptrace, (long) PTRACE_GETREGS, (long) pid, (long) addr, (long) &user_regs);
-                res = syscall(SYS_ptrace, (long) PTRACE_PEEKTEXT, (long) pid, (long) user_regs.fs_base + 8, (long) &data_long);
+                /* FIXME: fs base ? */
+                //res = syscall(SYS_ptrace, (long) PTRACE_PEEKTEXT, (long) pid, (long) user_regs.fs_base + 8, (long) &data_long);
                 res = syscall(SYS_ptrace, (long) PTRACE_PEEKTEXT, (long) pid, (long) data_long + 17 * 4, (long) &data_tls);
                 *data_guest = data_tls;
 
@@ -303,7 +307,8 @@ int arm_ptrace(struct arm_target *context)
                 int i;
 
                 res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+                /* FIXME: fs base ? */
+                //res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
                 for(i=0;i<32;i++) {
                     res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm_registers, e.d[i]), &data_reg);
                     user_vfp_regs_arm->fpregs[i] = data_reg;
@@ -325,7 +330,8 @@ int arm_ptrace(struct arm_target *context)
                 void *addr_tracee;
 
                 res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+                /* FIXME: fs base ? */
+                //res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
                 arm_target_tracee = container_of((void *)data_long, struct arm_target, regs);
                 if (addr == PTRACE_GETFDPIC_INTERP)
                     addr_tracee = &arm_target_tracee->fdpic_info.dl_addr;

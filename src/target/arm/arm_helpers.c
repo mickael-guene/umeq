@@ -38,6 +38,10 @@
 #include "softfloat.h"
 #include "arm_helpers_stolen_from_qemu.h"
 
+/* FIXME: to allow compile but need to find a woraround ... */
+typedef int64_t __int128_t;
+typedef uint64_t __uint128_t;
+
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
 #define INSN1(msb, lsb) INSN(msb+16, lsb+16)
 #define INSN2(msb, lsb) INSN(msb, lsb)

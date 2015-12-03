@@ -21,6 +21,8 @@
 #include <stdint.h>
 #include <math.h>
 #include <fenv.h>
+/* FIXME: remove assert code */
+#include <assert.h>
 
 union double_unpack {
     double df;
@@ -34,6 +36,9 @@ union float_unpack {
 
 double floor(double x)
 {
+#if 1
+    assert(0 && "implement me");
+#else
     double res;
 
     asm volatile("roundsd $1, %[x], %[res]"
@@ -42,10 +47,14 @@ double floor(double x)
                  :);
 
     return res;
+#endif
 }
 
 double sqrt(double x)
 {
+#if 1
+    assert(0 && "implement me");
+#else
     double res;
 
     asm volatile("sqrtsd %[x], %[res]"
@@ -54,10 +63,14 @@ double sqrt(double x)
                  :);
 
     return res;
+#endif
 }
 
 float sqrtf(float x)
 {
+#if 1
+    assert(0 && "implement me");
+#else
     float res;
 
     asm volatile("sqrtss %[x], %[res]"
@@ -66,6 +79,7 @@ float sqrtf(float x)
                  :);
 
     return res;
+#endif
 }
 
 int __isnan(double x)
@@ -229,4 +243,9 @@ int abs(int j)
 long labs(long j)
 {
     return j>=0?j:-j;
+}
+
+void __udivdi3()
+{
+    assert(0);
 }

@@ -18,18 +18,19 @@
  * 02110-1301 USA.
  */
 
-#define _GNU_SOURCE
-#include <unistd.h>
-#include <sys/syscall.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-
-int shmctl(int shmid, int cmd, struct shmid_ds *buf)
-{
-/* FIXME:  */
-#if 1
-	return -1;
-#else
-    return syscall(SYS_shmctl, shmid, cmd, buf);
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+#ifndef __SYSCALL32_32__
+#define __SYSCALL32_32__ 1
+
+#include "sysnum.h"
+
+extern int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5);
+
+#endif
+
+#ifdef __cplusplus
 }
+#endif

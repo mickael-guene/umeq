@@ -29,8 +29,9 @@ extern "C" {
 #define __TARGET32__ 1
 
 typedef uint32_t guest_ptr;
-#define g_2_h(ptr)  ((void *)(uint64_t)((ptr) + (mmap_offset)))
-#define h_2_g(ptr)  ((guest_ptr) (((uint64_t)(ptr)) - (mmap_offset)))
+/* FIXME: adapt according to host */
+#define g_2_h(ptr)  ((void *)(uint32_t)(uint64_t)((ptr) + (mmap_offset)))
+#define h_2_g(ptr)  ((guest_ptr) (((uint64_t)(uint32_t)(ptr)) - (mmap_offset)))
 
 extern uint64_t mmap_offset;
 extern guest_ptr mmap_guest(guest_ptr addr, size_t length, int prot, int flags, int fd, off_t offset);

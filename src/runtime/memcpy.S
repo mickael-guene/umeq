@@ -1,7 +1,5 @@
 .GLOBAL memcpy
 
+/* FIXME : implement i386.S */
 memcpy:
-	movq %rdi, %rax
-	movq %rdx, %rcx
-	rep movsb
-	ret
+	nop

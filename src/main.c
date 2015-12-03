@@ -36,6 +36,7 @@
 #include "jitter.h"
 #include "target.h"
 #include "be_x86_64.h"
+#include "be_i386.h"
 #include "runtime.h"
 #include "umeq.h"
 #include "version.h"
@@ -66,7 +67,8 @@ static void setup_thread_area(struct tls_context *main_thread_tls_context)
     main_thread_tls_context->target = NULL;
     main_thread_tls_context->target_runtime = NULL;
 
-    syscall(SYS_arch_prctl, ARCH_SET_FS, main_thread_tls_context);
+    /* FIXME: i386 compile */
+    //syscall(SYS_arch_prctl, ARCH_SET_FS, main_thread_tls_context);
 }
 
 static void loop_common(struct target *target, struct backend *backend, struct cache *cache, uint64_t entry,
@@ -126,10 +128,12 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     char *cacheMemory = alloca(MIN_CACHE_SIZE_NONE);
 
     /* get current tls context */
-    syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
+    /* FIXME: i386 compile */
+    //syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
 
     /* allocate jitter and target context */
-    backend = createX86_64Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
+    //backend = createX86_64Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
+    backend = createI386Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
     handle = createJitter(jitterMemory, backend, cache_memory_config[memory_profile].jitter_context_size);
     targetHandle = current_target_arch.create_target_context(context_memory, backend);
     target = current_target_arch.get_target_structure(targetHandle);
@@ -166,10 +170,12 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     char *cacheMemory = alloca(cache_memory_config[memory_profile].cache_size);
 
     /* get current tls context */
-    syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
+    /* FIXME: i386 compile */
+    //syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
 
     /* allocate jitter and target context */
-    backend = createX86_64Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
+    //backend = createX86_64Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
+    backend = createI386Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
     handle = createJitter(jitterMemory, backend, cache_memory_config[memory_profile].jitter_context_size);
     targetHandle = current_target_arch.create_target_context(context_memory, backend);
     target = current_target_arch.get_target_structure(targetHandle);

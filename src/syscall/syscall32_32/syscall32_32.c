@@ -18,18 +18,22 @@
  * 02110-1301 USA.
  */
 
-#define _GNU_SOURCE
-#include <unistd.h>
-#include <sys/syscall.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
+#include <stdint.h>
+#include <errno.h>
 
-int shmctl(int shmid, int cmd, struct shmid_ds *buf)
+#include "syscall32_32.h"
+#include "runtime.h"
+
+#define IS_NULL(px,type) ((px)?(type *)g_2_h((px)):NULL)
+
+int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5)
 {
-/* FIXME:  */
-#if 1
-	return -1;
-#else
-    return syscall(SYS_shmctl, shmid, cmd, buf);
-#endif
+    int res = -ENOSYS;
+
+    switch(no) {
+        default:
+            fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);
+    }
+
+    return res;
 }

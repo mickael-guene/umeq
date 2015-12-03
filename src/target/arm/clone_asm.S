@@ -20,27 +20,12 @@
 
 .GLOBAL clone_asm
 
+/* FIXME : implement i386.S */
 clone_asm:
-    mov    %rdi,%rax
-    mov    %rsi,%rdi
-    mov    %rdx,%rsi
-    mov    %rcx,%rdx
-    mov    %r8,%r10
-    mov    %r9,%r8
-    mov    0x8(%rsp),%r9
-    syscall
-    testq  %rax,%rax
-    jz     clone_thread_trampoline_arm
-    retq
+    nop
 
 .GLOBAL clone_exit_asm
 
+/* FIXME : implement i386.S */
 clone_exit_asm:
-    mov %rdx, %r15
-    mov %rcx, %r14
-    mov $11, %rax
-    syscall
-    movb $0, (%r14)
-    mov %r15,%rdi
-    mov $60, %rax
-    syscall
+    nop

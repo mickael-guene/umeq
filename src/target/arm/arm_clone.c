@@ -54,7 +54,12 @@ void clone_thread_trampoline_arm()
     void *patch_address;
     int res;
 
+    /* FIXME: how to get tls area ? */
+#if 1
+    assert(0 && "implement me");
+#else
     syscall(SYS_arch_prctl, ARCH_GET_FS, &new_thread_tls_context);
+#endif
     assert(new_thread_tls_context != NULL);
     stack = (void *) new_thread_tls_context - mmap_size[memory_profile] + sizeof(struct tls_context);
     parent_context = (void *) new_thread_tls_context - sizeof(struct arm_target);
