@@ -382,6 +382,8 @@ static void allocateRegisters(struct inter *inter)
 }
 
 /* code generation */
+#define VREG_OFFSET(idx)    (-(idx) * 4 - 4)
+
 #define MODRM_MODE_0        0x00
 #define MODRM_MODE_1        0x40
 #define MODRM_MODE_2        0x80
@@ -402,7 +404,7 @@ static char *gen_mov_const_in_virtual_reg(char *pos, int index, uint32_t value)
 {
     *pos++ = 0xc7;
     *pos++ = MODRM_MODE_1 | (EBP << MODRM_RM_SHIFT);
-    *pos++ = -index * 4 - 4;
+    *pos++ = VREG_OFFSET(index);
     *pos++ = (value >> 0) & 0xff;
     *pos++ = (value >> 8) & 0xff;
     *pos++ = (value >> 16) & 0xff;
@@ -415,7 +417,7 @@ static char *gen_mov_from_virtual_to_physical(char *pos, int from, int to)
 {
     *pos++ = 0x8b;
     *pos++ = MODRM_MODE_1 | (EBP << MODRM_RM_SHIFT) | (to << MODRM_REG_SHIFT);
-    *pos++ = -from * 4 - 4;
+    *pos++ = VREG_OFFSET(from);
 
     return pos;
 }
@@ -424,7 +426,7 @@ static char *gen_mov_from_physical_to_virtual(char *pos, int from, int to)
 {
     *pos++ = 0x89;
     *pos++ = MODRM_MODE_1 | (EBP << MODRM_RM_SHIFT) | (from << MODRM_REG_SHIFT);
-    *pos++ = -to * 4 - 4;
+    *pos++ = VREG_OFFSET(to);
 
     return pos;
 }
@@ -451,6 +453,27 @@ static char *gen_store_8(char *pos, struct x86Instruction *insn)
     pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.address->index, EAX);
     pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.src->index, ECX);
     *pos++ = 0x88;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+
+    return pos;
+}
+
+static char *gen_store_16(char *pos, struct x86Instruction *insn)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.address->index, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.src->index, ECX);
+    *pos++ = 0x66;
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+
+    return pos;
+}
+
+static char *gen_store_32(char *pos, struct x86Instruction *insn)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.address->index, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.src->index, ECX);
+    *pos++ = 0x89;
     *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
 
     return pos;
@@ -498,6 +521,12 @@ static int generateCode(struct inter *inter, char *buffer)
                 break;
             case X86_STORE_8:
                 pos = gen_store_8(pos, insn);
+                break;
+            case X86_STORE_16:
+                pos = gen_store_16(pos, insn);
+                break;
+            case X86_STORE_32:
+                pos = gen_store_32(pos, insn);
                 break;
             case X86_CAST:
                 pos = gen_cast(pos, insn);
