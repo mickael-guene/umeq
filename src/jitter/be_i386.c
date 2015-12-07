@@ -70,6 +70,8 @@ enum x86InstructionType {
     X86_ITE,
     X86_CAST,
     X86_EXIT,
+    X86_READ_8, X86_READ_16, X86_READ_32, X86_READ_64,
+    X86_WRITE_8, X86_WRITE_16, X86_WRITE_32, X86_WRITE_64,
     X86_INSN_MARKER
 };
 
@@ -106,6 +108,14 @@ struct x86Instruction {
             struct x86Register *dst;
             struct x86Register *op;
         } cast;
+        struct {
+            struct x86Register *dst;
+            int32_t offset;
+        } read_context;
+        struct {
+            struct x86Register *src;
+            int32_t offset;
+        } write_context;
     } u;
 };
 
@@ -270,6 +280,31 @@ static void add_cast(struct inter *inter, enum irCastType type, struct x86Regist
     inter->instructionIndex++;
 }
 
+static void add_read(struct inter *inter, enum x86InstructionType type, struct x86Register *dst, int32_t offset)
+{
+    struct memoryPool *pool = &inter->instructionPoolAllocator;
+    struct x86Instruction *insn = (struct x86Instruction *) pool->alloc(pool, sizeof(struct x86Instruction));
+
+    insn->type = type;
+    insn->u.read_context.dst = dst;
+    insn->u.read_context.offset = offset;
+
+    inter->instructionIndex++;
+}
+
+static void add_write(struct inter *inter, enum x86InstructionType type, struct x86Register *src, int32_t offset)
+{
+    struct memoryPool *pool = &inter->instructionPoolAllocator;
+    struct x86Instruction *insn = (struct x86Instruction *) pool->alloc(pool, sizeof(struct x86Instruction));
+
+    src->lastReadIndex = inter->instructionIndex;
+    insn->type = type;
+    insn->u.write_context.src = src;
+    insn->u.write_context.offset = offset;
+
+    inter->instructionIndex++;
+}
+
 static void allocateInstructions(struct inter *inter, struct irInstruction *irArray, int irInsnNb)
 {
     int i;
@@ -369,6 +404,14 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                     add_exit(inter, allocateRegister(inter, insn->u.exit.value), allocateRegister(inter, insn->u.exit.pred));
                 else
                     add_exit(inter, allocateRegister(inter, insn->u.exit.value), NULL);
+                break;
+            case IR_READ_8: case IR_READ_16: case IR_READ_32: case IR_READ_64:
+                /* if register is never use then drop the read */
+                if (insn->u.read_context.dst->lastReadIndex != -1)
+                    add_read(inter, X86_READ_8 + insn->type - IR_READ_8, allocateRegister(inter, insn->u.read_context.dst), insn->u.read_context.offset);
+                break;
+            case IR_WRITE_8: case IR_WRITE_16: case IR_WRITE_32: case IR_WRITE_64:
+                add_write(inter, X86_WRITE_8 + insn->type - IR_WRITE_8, allocateRegister(inter, insn->u.write_context.src), insn->u.write_context.offset);
                 break;
             default:
                 fprintf(stderr, "Unknown ir type %d\n", insn->type);
@@ -523,6 +566,26 @@ static void allocateRegisters(struct inter *inter)
                 printf(":");
                 displayReg(insn->u.ite.falseOp);
 #endif
+                break;
+            case X86_READ_8: case X86_READ_16: case X86_READ_32: case X86_READ_64:
+                {
+                    getFreeReg(freeRegList, insn->u.read_context.dst);
+#ifdef DEBUG_REG_ALLOC
+                    printf("read_context ");
+                    displayReg(insn->u.read_context.dst);
+                    printf(", context[%d]",insn->u.read_context.offset);
+#endif
+                }
+                break;
+            case X86_WRITE_8: case X86_WRITE_16: case X86_WRITE_32: case X86_WRITE_64:
+                {
+                    setRegFreeIfNoMoreUse(freeRegList, insn->u.write_context.src, i);
+#ifdef DEBUG_REG_ALLOC
+                    printf("write_context ");
+                    printf("context[%d], ",insn->u.write_context.offset);
+                    displayReg(insn->u.write_context.src);
+#endif
+                }
                 break;
             default:
                 fprintf(stderr, "Unknown insn type %d\n", insn->type);
@@ -1055,6 +1118,127 @@ static char *gen_binop64(char *pos, struct x86Instruction *insn)
     return pos;
 }
 
+static char *gen_read_8(char *pos, struct x86Instruction *insn)
+{
+    *pos++ = 0x8a;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.read_context.dst->index);
+
+    return pos;
+}
+
+static char *gen_read_16(char *pos, struct x86Instruction *insn)
+{
+    *pos++ = 0x66;
+    *pos++ = 0x8b;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.read_context.dst->index);
+
+    return pos;
+}
+
+static char *gen_read_32(char *pos, struct x86Instruction *insn)
+{
+    *pos++ = 0x8b;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.read_context.dst->index);
+
+    return pos;
+}
+
+static char *gen_read_64(char *pos, struct x86Instruction *insn)
+{
+    *pos++ = 0x8b;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.read_context.dst->index);
+    *pos++ = 0x8b;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = ((insn->u.read_context.offset + 4) >> 0) & 0xff;
+    *pos++ = ((insn->u.read_context.offset + 4) >> 8) & 0xff;
+    *pos++ = ((insn->u.read_context.offset + 4) >> 16) & 0xff;
+    *pos++ = ((insn->u.read_context.offset + 4) >> 24) & 0xff;
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.read_context.dst->index2);
+
+    return pos;
+}
+
+static char *gen_write_8(char *pos, struct x86Instruction *insn)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.write_context.src->index, EAX);
+    *pos++ = 0x88;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
+
+    return pos;
+}
+
+static char *gen_write_16(char *pos, struct x86Instruction *insn)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.write_context.src->index, EAX);
+    *pos++ = 0x66;
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
+
+    return pos;
+}
+
+static char *gen_write_32(char *pos, struct x86Instruction *insn)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.write_context.src->index, EAX);
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
+
+    return pos;
+}
+
+static char *gen_write_64(char *pos, struct x86Instruction *insn)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.write_context.src->index, EAX);
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
+
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.write_context.src->index2, EAX);
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = ((insn->u.read_context.offset + 4) >> 0) & 0xff;
+    *pos++ = ((insn->u.read_context.offset + 4) >> 8) & 0xff;
+    *pos++ = ((insn->u.read_context.offset + 4) >> 16) & 0xff;
+    *pos++ = ((insn->u.read_context.offset + 4) >> 24) & 0xff;
+
+    return pos;
+}
+
 static int generateCode(struct inter *inter, char *buffer)
 {
     int i;
@@ -1097,6 +1281,30 @@ static int generateCode(struct inter *inter, char *buffer)
                 break;
             case X86_ITE:
                 pos = gen_ite(pos, insn);
+                break;
+            case X86_READ_8:
+                pos = gen_read_8(pos, insn);
+                break;
+            case X86_READ_16:
+                pos = gen_read_16(pos, insn);
+                break;
+            case X86_READ_32:
+                pos = gen_read_32(pos, insn);
+                break;
+            case X86_READ_64:
+                pos = gen_read_64(pos, insn);
+                break;
+            case X86_WRITE_8:
+                pos = gen_write_8(pos, insn);
+                break;
+            case X86_WRITE_16:
+                pos = gen_write_16(pos, insn);
+                break;
+            case X86_WRITE_32:
+                pos = gen_write_32(pos, insn);
+                break;
+            case X86_WRITE_64:
+                pos = gen_write_64(pos, insn);
                 break;
             default:
                 fprintf(stderr, "unknown insn type for generatecode %d\n", insn->type);
