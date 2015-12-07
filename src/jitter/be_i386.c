@@ -297,6 +297,31 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                         case IR_BINOP_SHR_8: case IR_BINOP_SHR_16: case IR_BINOP_SHR_32: case IR_BINOP_SHR_64:
                             add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_SHR_8, X86_BINOP_SHR, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
                             break;
+                        case IR_BINOP_ASR_8: goto_p0 = 24; goto binop_asr;
+                        case IR_BINOP_ASR_16: goto_p0 = 16; goto binop_asr;
+                        case IR_BINOP_ASR_32: goto_p0 = 0; goto binop_asr;
+                        case IR_BINOP_ASR_64: goto_p0 = 0; goto binop_asr;
+                            binop_asr: {
+                                struct x86Register *dst = allocateRegister(inter, insn->u.binop.dst);
+                                struct x86Register *op1 = allocateRegister(inter, insn->u.binop.op1);
+                                struct x86Register *op2 = allocateRegister(inter, insn->u.binop.op2);
+                                struct x86Register *shiftValue;
+                                struct x86Register *shiftLeftResult;
+                                struct x86Register *shiftRightResult;
+
+                                if (goto_p0) {
+                                    shiftValue = allocateRegister(inter, NULL);
+                                    add_mov_const(inter, shiftValue, goto_p0);
+                                    shiftLeftResult = allocateRegister(inter, NULL);
+                                    add_binop(inter, X86_BINOP_32, X86_BINOP_SHL, shiftLeftResult, op1, shiftValue);
+                                    shiftRightResult = allocateRegister(inter, NULL);
+                                    add_binop(inter, X86_BINOP_32, X86_BINOP_ASR, shiftRightResult, shiftLeftResult, shiftValue);
+                                } else {
+                                    shiftRightResult = allocateRegister(inter, insn->u.binop.op1);
+                                }
+                                add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_ASR_8, X86_BINOP_ASR, dst, shiftRightResult, op2);
+                            }
+                            break;
                         default:
                             assert(0);
                     }
@@ -666,6 +691,7 @@ static char *gen_binop(char *pos, struct x86Instruction *insn, uint32_t mask)
             break;
         case X86_BINOP_SHL: subtype = 4; goto unop;
         case X86_BINOP_SHR: subtype = 5; goto unop;
+        case X86_BINOP_ASR: subtype = 7; goto unop;
             unop: {
                 pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
                 pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
@@ -699,6 +725,7 @@ static char *gen_binop64(char *pos, struct x86Instruction *insn)
     static const char binopToOpcode2[] = {0x11/*adc*/, 0x19/*sbb*/, 0x31/*xor*/, 0x21/*and*/,
                                          0x09/*or*/, 0xd3/*shl*/, 0xd3/*shr*/, 0xd3/*sar*/, 0xd3/*ror*/,
                                          0xff/*cmpeq*/, 0xff/*cmpne*/};
+    int subtype;
 
     /* do ops with result in eax */
     switch(insn->u.binop.type) {
@@ -744,29 +771,32 @@ static char *gen_binop64(char *pos, struct x86Instruction *insn)
             pos = gen_add_between_physicals(pos, EAX, EDX);
             pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index2);
             break;
-        case X86_BINOP_SHR:
-            /* upper part */
-            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index2, EAX);
-            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
-            *pos++ = binopToOpcode1[insn->u.binop.type];
-            *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
-            pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index2);
-            /* lower part */
-            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
-            *pos++ = binopToOpcode1[insn->u.binop.type];
-            *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
-             /* store lower shift left into EDX */
-            pos = gen_mov_from_physical_to_physical(pos, EAX, EDX);
-             /* now shift left by (32 - shift) of upper 32 bits */
-            pos = gen_mov_const_in_physical_reg(pos, EAX, 32);
-            pos = gen_sub_between_physicals(pos, EAX, ECX);
-            pos = gen_mov_from_physical_to_physical(pos, EAX, ECX);
-            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index2, EAX);
-            *pos++ = binopToOpcode1[insn->u.binop.type];
-            *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
-             /* now just add both part and write in virtual */
-            pos = gen_add_between_physicals(pos, EAX, EDX);
-            pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index);
+        case X86_BINOP_SHR: subtype = 5; goto unop;
+        case X86_BINOP_ASR: subtype = 7; goto unop;
+            unop: {
+                /* upper part */
+                pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index2, EAX);
+                pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
+                *pos++ = binopToOpcode1[insn->u.binop.type];
+                *pos++ = MODRM_MODE_3 | (subtype << MODRM_REG_SHIFT) | EAX;
+                pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index2);
+                /* lower part */
+                pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
+                *pos++ = binopToOpcode1[insn->u.binop.type];
+                *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
+                 /* store lower shift left into EDX */
+                pos = gen_mov_from_physical_to_physical(pos, EAX, EDX);
+                 /* now shift left by (32 - shift) of upper 32 bits */
+                pos = gen_mov_const_in_physical_reg(pos, EAX, 32);
+                pos = gen_sub_between_physicals(pos, EAX, ECX);
+                pos = gen_mov_from_physical_to_physical(pos, EAX, ECX);
+                pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index2, EAX);
+                *pos++ = binopToOpcode1[insn->u.binop.type];
+                *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
+                 /* now just add both part and write in virtual */
+                pos = gen_add_between_physicals(pos, EAX, EDX);
+                pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index);
+            }
             break;
         default:
             fprintf(stderr, "Implement binop type %d\n", insn->u.binop.type);
