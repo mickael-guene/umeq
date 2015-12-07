@@ -67,6 +67,7 @@ enum x86InstructionType {
     X86_LOAD_8, X86_LOAD_16, X86_LOAD_32, X86_LOAD_64,
     X86_STORE_8, X86_STORE_16, X86_STORE_32, X86_STORE_64,
     X86_BINOP_8, X86_BINOP_16, X86_BINOP_32, X86_BINOP_64,
+    X86_ITE,
     X86_CAST,
     X86_EXIT,
     X86_INSN_MARKER
@@ -94,6 +95,12 @@ struct x86Instruction {
             struct x86Register *op1;
             struct x86Register *op2;
         } binop;
+        struct {
+            struct x86Register *dst;
+            struct x86Register *pred;
+            struct x86Register *trueOp;
+            struct x86Register *falseOp;
+        } ite;
         struct {
             enum irCastType type;
             struct x86Register *dst;
@@ -230,6 +237,24 @@ static void add_binop(struct inter *inter, enum x86InstructionType type, enum x8
     inter->instructionIndex++;
 }
 
+static void add_ite(struct inter *inter, struct x86Register *dst, struct x86Register *pred, struct x86Register *trueOp, struct x86Register *falseOp)
+{
+    struct memoryPool *pool = &inter->instructionPoolAllocator;
+    struct x86Instruction *insn = (struct x86Instruction *) pool->alloc(pool, sizeof(struct x86Instruction));
+
+    pred->lastReadIndex = inter->instructionIndex;
+    trueOp->lastReadIndex = inter->instructionIndex;
+    falseOp->lastReadIndex = inter->instructionIndex;
+
+    insn->type = X86_ITE;
+    insn->u.ite.dst = dst;
+    insn->u.ite.pred = pred;
+    insn->u.ite.trueOp = trueOp;
+    insn->u.ite.falseOp = falseOp;
+
+    inter->instructionIndex++;
+}
+
 static void add_cast(struct inter *inter, enum irCastType type, struct x86Register *dst, struct x86Register *op)
 {
     struct memoryPool *pool = &inter->instructionPoolAllocator;
@@ -326,6 +351,9 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                             assert(0);
                     }
                 }
+                break;
+            case IR_ITE_8: case IR_ITE_16: case IR_ITE_32: case IR_ITE_64:
+                add_ite(inter, allocateRegister(inter, insn->u.ite.dst), allocateRegister(inter, insn->u.ite.pred), allocateRegister(inter, insn->u.ite.trueOp), allocateRegister(inter, insn->u.ite.falseOp));
                 break;
             case IR_EXIT:
                 if (insn->u.exit.pred)
@@ -472,6 +500,21 @@ static void allocateRegisters(struct inter *inter)
                 displayReg(insn->u.exit.pred);
 #endif
                 break;
+            case X86_ITE:
+                getFreeReg(freeRegList, insn->u.ite.dst);
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.ite.pred, i);
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.ite.trueOp, i);
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.ite.falseOp, i);
+#ifdef DEBUG_REG_ALLOC
+                displayReg(insn->u.ite.dst);
+                printf(" = ");
+                displayReg(insn->u.ite.pred);
+                printf("?");
+                displayReg(insn->u.ite.trueOp);
+                printf(":");
+                displayReg(insn->u.ite.falseOp);
+#endif
+                break;
             default:
                 fprintf(stderr, "Unknown insn type %d\n", insn->type);
                 assert(0);
@@ -507,6 +550,14 @@ static void allocateRegisters(struct inter *inter)
 #define EBP                 5
 #define ESI                 6
 #define EDI                 7
+
+static char *gen_or_between_physicals(char *pos, int dst, int op)
+{
+    *pos++ = 0x09;
+    *pos++ = MODRM_MODE_3 | (dst << MODRM_RM_SHIFT) | (op << MODRM_REG_SHIFT);
+
+    return pos;
+}
 
 static char *gen_add_between_physicals(char *pos, int dst, int op)
 {
@@ -666,6 +717,44 @@ static char *gen_exit(char *pos, struct x86Instruction *insn)
 
     /* ret */
     *pos++ = 0xc3;
+
+    return pos;
+}
+
+static char *gen_ite(char *pos, struct x86Instruction *insn)
+{
+    char *patch;
+
+    /* mov dst with false predicate */
+    pos = gen_mov_from_virtual_to_virtual_hlp(pos, insn->u.ite.falseOp->index, insn->u.ite.dst->index);
+    if (insn->u.mov.dst->index2 != -1)
+        pos = gen_mov_from_virtual_to_virtual_hlp(pos, insn->u.ite.falseOp->index2, insn->u.ite.dst->index2);
+
+    /* move predicate in eax */
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.ite.pred->index, EAX);
+    if (insn->u.mov.dst->index2 != -1) {
+        pos = gen_mov_from_virtual_to_physical(pos, insn->u.ite.pred->index, ECX);
+        pos = gen_or_between_physicals(pos, EAX, ECX);
+    }
+
+    /* compare eax with zero */
+    *pos++ = 0x3d;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+
+    /* branch to end if eax is zero */
+    *pos++ = 0x74;
+    patch = pos++;
+
+    /* mov dst with true predicate */
+    pos = gen_mov_from_virtual_to_virtual_hlp(pos, insn->u.ite.trueOp->index, insn->u.ite.dst->index);
+    if (insn->u.mov.dst->index2 != -1)
+        pos = gen_mov_from_virtual_to_virtual_hlp(pos, insn->u.ite.trueOp->index2, insn->u.ite.dst->index2);
+
+    /* patch jump distance */
+    *patch = pos - patch - 1;
 
     return pos;
 }
@@ -845,6 +934,9 @@ static int generateCode(struct inter *inter, char *buffer)
                 break;
             case X86_EXIT:
                 pos = gen_exit(pos, insn);
+                break;
+            case X86_ITE:
+                pos = gen_ite(pos, insn);
                 break;
             default:
                 fprintf(stderr, "unknown insn type for generatecode %d\n", insn->type);
