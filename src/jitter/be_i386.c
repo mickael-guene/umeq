@@ -70,6 +70,7 @@ enum x86InstructionType {
     X86_ITE,
     X86_CAST,
     X86_EXIT,
+    X86_CALL,
     X86_READ_8, X86_READ_16, X86_READ_32, X86_READ_64,
     X86_WRITE_8, X86_WRITE_16, X86_WRITE_32, X86_WRITE_64,
     X86_INSN_MARKER
@@ -108,6 +109,11 @@ struct x86Instruction {
             struct x86Register *dst;
             struct x86Register *op;
         } cast;
+        struct {
+            struct x86Register *address;
+            struct x86Register *param[4];
+            struct x86Register *result;
+        } call;
         struct {
             struct x86Register *dst;
             int32_t offset;
@@ -305,6 +311,27 @@ static void add_write(struct inter *inter, enum x86InstructionType type, struct 
     inter->instructionIndex++;
 }
 
+static void add_call(struct inter *inter, struct x86Register *address, struct x86Register *params[4], struct x86Register *result)
+{
+    struct memoryPool *pool = &inter->instructionPoolAllocator;
+    struct x86Instruction *insn = (struct x86Instruction *) pool->alloc(pool, sizeof(struct x86Instruction));
+    int i;
+
+    address->lastReadIndex = inter->instructionIndex;
+    for(i = 0; i < 4; i++) {
+        if (params[i])
+            params[i]->lastReadIndex = inter->instructionIndex;
+    }
+
+    insn->type = X86_CALL;
+    insn->u.call.address = address;
+    for(i = 0; i < 4; i++)
+        insn->u.call.param[i] = params[i];
+    insn->u.call.result = result;
+
+    inter->instructionIndex++;
+}
+
 static void allocateInstructions(struct inter *inter, struct irInstruction *irArray, int irInsnNb)
 {
     int i;
@@ -404,6 +431,26 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                     add_exit(inter, allocateRegister(inter, insn->u.exit.value), allocateRegister(inter, insn->u.exit.pred));
                 else
                     add_exit(inter, allocateRegister(inter, insn->u.exit.value), NULL);
+                break;
+            case IR_CALL_VOID: case IR_CALL_8: case IR_CALL_16: case IR_CALL_32: case IR_CALL_64:
+                {
+                    struct x86Register *params[4];
+                    struct x86Register *result;
+                    int i;
+
+                    for(i = 0; i < 4; i++) {
+                        if (insn->u.call.param[i])
+                            params[i] = allocateRegister(inter, insn->u.call.param[i]);
+                        else
+                            params[i] = NULL;
+                    }
+                    if (insn->u.call.result)
+                        result = allocateRegister(inter, insn->u.call.result);
+                    else
+                        result = NULL;
+
+                    add_call(inter, allocateRegister(inter, insn->u.call.address), params, result);
+                }
                 break;
             case IR_READ_8: case IR_READ_16: case IR_READ_32: case IR_READ_64:
                 /* if register is never use then drop the read */
@@ -566,6 +613,32 @@ static void allocateRegisters(struct inter *inter)
                 printf(":");
                 displayReg(insn->u.ite.falseOp);
 #endif
+                break;
+            case X86_CALL:
+                {
+                    int j;
+
+                    if (insn->u.call.result)
+                        getFreeReg(freeRegList, insn->u.call.result);
+                    setRegFreeIfNoMoreUse(freeRegList, insn->u.call.address, i);
+                    for(j = 0; j < 4; j++)
+                        if (insn->u.call.param[j])
+                            setRegFreeIfNoMoreUse(freeRegList, insn->u.call.param[j], i);
+#ifdef DEBUG_REG_ALLOC
+                    printf("call (");
+                    displayReg(insn->u.call.address);
+                    printf("), [");
+                    displayReg(insn->u.call.param[0]);
+                    printf(",");
+                    displayReg(insn->u.call.param[1]);
+                    printf(",");
+                    displayReg(insn->u.call.param[2]);
+                    printf(",");
+                    displayReg(insn->u.call.param[3]);
+                    printf("] => ");
+                    displayReg(insn->u.call.result);
+#endif
+                }
                 break;
             case X86_READ_8: case X86_READ_16: case X86_READ_32: case X86_READ_64:
                 {
@@ -1239,6 +1312,68 @@ static char *gen_write_64(char *pos, struct x86Instruction *insn)
     return pos;
 }
 
+static char *gen_push_physical_on_stack(char *pos, int index, int *sp_offset)
+{
+    *pos++ = 0x50 + index;
+    *sp_offset += 4;
+
+    return pos;
+}
+
+static char *gen_add_sp(char *pos, int offset)
+{
+    *pos++ = 0x81;
+    *pos++ = MODRM_MODE_3 | (0/*subcode*/ << MODRM_REG_SHIFT) | ESP;
+    *pos++ = (offset >> 0) & 0xff;
+    *pos++ = (offset >> 8) & 0xff;
+    *pos++ = (offset >> 16) & 0xff;
+    *pos++ = (offset >> 24) & 0xff;
+
+    return pos;
+}
+
+static char *gen_call(char *pos, struct x86Instruction *insn)
+{
+    int sp_offset = 0;
+    int i;
+
+    /* push parameters onto stack */
+    for(i = 3; i >= 0; i--) {
+        if (insn->u.call.param[i]) {
+            if (insn->u.call.param[i]->index2 != -1) {
+                pos = gen_mov_from_virtual_to_physical(pos, insn->u.call.param[i]->index2, EAX);
+                pos = gen_push_physical_on_stack(pos, EAX, &sp_offset);
+            }
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.call.param[i]->index, EAX);
+            pos = gen_push_physical_on_stack(pos, EAX, &sp_offset);
+        }
+    }
+
+    /* push 64 bit context on stack */
+    pos = gen_mov_const_in_physical_reg(pos, EAX, 0);
+    pos = gen_push_physical_on_stack(pos, EAX, &sp_offset);
+    pos = gen_push_physical_on_stack(pos, EDI, &sp_offset);
+
+    /* mov address into eax */
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.call.address->index, EAX);
+
+    /* jump to helper */
+    *pos++ = 0xff;
+    *pos++ = MODRM_MODE_3 | (2/*subcode*/ << MODRM_REG_SHIFT) | EAX;
+
+    /* restore sp */
+    pos = gen_add_sp(pos, sp_offset);
+
+    /* save result */
+    if (insn->u.call.result) {
+        pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.call.result->index);
+        if (insn->u.call.result->index2 != -1)
+            pos = gen_mov_from_physical_to_virtual(pos, EDX, insn->u.call.result->index2);
+    }
+
+    return pos;
+}
+
 static int generateCode(struct inter *inter, char *buffer)
 {
     int i;
@@ -1281,6 +1416,9 @@ static int generateCode(struct inter *inter, char *buffer)
                 break;
             case X86_ITE:
                 pos = gen_ite(pos, insn);
+                break;
+            case X86_CALL:
+                pos = gen_call(pos, insn);
                 break;
             case X86_READ_8:
                 pos = gen_read_8(pos, insn);
