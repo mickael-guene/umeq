@@ -48,10 +48,25 @@ struct x86Register {
     int lastReadIndex;
 };
 
+enum x86BinopType {
+    X86_BINOP_ADD,
+    X86_BINOP_SUB,
+    X86_BINOP_XOR,
+    X86_BINOP_AND,
+    X86_BINOP_OR,
+    X86_BINOP_SHL,
+    X86_BINOP_SHR,
+    X86_BINOP_ASR,
+    X86_BINOP_ROR,
+    X86_BINOP_CMPEQ,
+    X86_BINOP_CMPNE
+};
+
 enum x86InstructionType {
     X86_MOV_CONST,
     X86_LOAD_8, X86_LOAD_16, X86_LOAD_32, X86_LOAD_64,
     X86_STORE_8, X86_STORE_16, X86_STORE_32, X86_STORE_64,
+    X86_BINOP_8, X86_BINOP_16, X86_BINOP_32, X86_BINOP_64,
     X86_CAST,
     X86_EXIT,
     X86_INSN_MARKER
@@ -73,6 +88,12 @@ struct x86Instruction {
             struct x86Register *pred;
             int is_patchable;
         } exit;
+        struct {
+            enum x86BinopType type;
+            struct x86Register *dst;
+            struct x86Register *op1;
+            struct x86Register *op2;
+        } binop;
         struct {
             enum irCastType type;
             struct x86Register *dst;
@@ -192,6 +213,23 @@ static void add_exit(struct inter *inter, struct x86Register *value, struct x86R
     inter->instructionIndex++;
 }
 
+static void add_binop(struct inter *inter, enum x86InstructionType type, enum x86BinopType subType, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2)
+{
+    struct memoryPool *pool = &inter->instructionPoolAllocator;
+    struct x86Instruction *insn = (struct x86Instruction *) pool->alloc(pool, sizeof(struct x86Instruction));
+
+    op1->lastReadIndex = inter->instructionIndex;
+    op2->lastReadIndex = inter->instructionIndex;
+
+    insn->type = type;
+    insn->u.binop.type = subType;
+    insn->u.binop.dst = dst;
+    insn->u.binop.op1 = op1;
+    insn->u.binop.op2 = op2;
+
+    inter->instructionIndex++;
+}
+
 static void add_cast(struct inter *inter, enum irCastType type, struct x86Register *dst, struct x86Register *op)
 {
     struct memoryPool *pool = &inter->instructionPoolAllocator;
@@ -233,6 +271,17 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                     if (insn->u.store.address->type == IR_REG_64)
                         add_cast(inter, IR_CAST_64_TO_32, address32, allocateRegister(inter, insn->u.store.address));
                     add_store(inter, X86_STORE_8 + insn->type - IR_STORE_8, allocateRegister(inter, insn->u.store.src), address32);
+                }
+                break;
+            case IR_BINOP:
+                {
+                    switch(insn->u.binop.type) {
+                        case IR_BINOP_ADD_8: case IR_BINOP_ADD_16: case IR_BINOP_ADD_32: case IR_BINOP_ADD_64:
+                            add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_ADD_8, X86_BINOP_ADD, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
+                            break;
+                        default:
+                            assert(0);
+                    }
                 }
                 break;
             case IR_EXIT:
@@ -352,6 +401,22 @@ static void allocateRegisters(struct inter *inter)
                 printf(" = %s ", typeToString[insn->u.cast.type]);
                 displayReg(insn->u.cast.op);
                 }
+#endif
+                break;
+            case X86_BINOP_8:
+            case X86_BINOP_16:
+            case X86_BINOP_32:
+            case X86_BINOP_64:
+                getFreeReg(freeRegList, insn->u.binop.dst);
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.binop.op1, i);
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.binop.op2, i);
+#ifdef DEBUG_REG_ALLOC
+                printf("binop ");
+                displayReg(insn->u.binop.dst);
+                printf(", ");
+                displayReg(insn->u.binop.op1);
+                printf(", ");
+                displayReg(insn->u.binop.op2);
 #endif
                 break;
             case X86_EXIT:
@@ -479,6 +544,26 @@ static char *gen_store_32(char *pos, struct x86Instruction *insn)
     return pos;
 }
 
+static char *gen_store_64(char *pos, struct x86Instruction *insn)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.address->index, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.src->index, ECX);
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.address->index, EAX);
+    /* add four to eax */
+    *pos++ = 0x05;
+    *pos++ = 4;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.src->index2, ECX);
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+
+    return pos;
+}
+
 static char *gen_cast(char *pos, struct x86Instruction *insn)
 {
     switch(insn->u.cast.type) {
@@ -507,11 +592,70 @@ static char *gen_exit(char *pos, struct x86Instruction *insn)
     return pos;
 }
 
+static char *gen_binop(char *pos, struct x86Instruction *insn, uint32_t mask)
+{
+    static const char binopToOpcode[] = {0x01/*add*/, 0x29/*sub*/, 0x31/*xor*/, 0x21/*and*/,
+                                         0x09/*or*/, 0xd3/*shl*/, 0xd3/*shr*/, 0xd3/*sar*/, 0xd3/*ror*/,
+                                         0xff/*cmpeq*/, 0xff/*cmpne*/};
+
+    /* do ops with result in eax */
+    switch(insn->u.binop.type) {
+        case X86_BINOP_ADD:
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
+            *pos++ = binopToOpcode[insn->u.binop.type];
+            *pos++ = MODRM_MODE_3 | (ECX << MODRM_REG_SHIFT) | EAX;
+            break;
+        default:
+            fprintf(stderr, "Implement binop type %d\n", insn->u.binop.type);
+            assert(0);
+    }
+    /* mask if needed */
+    if (mask) {
+        *pos++ = 0x25;
+        *pos++ = (mask >> 0) & 0xff;
+        *pos++ = (mask >> 8) & 0xff;
+        *pos++ = (mask >> 16) & 0xff;
+        *pos++ = (mask >> 24) & 0xff;
+    }
+    /* store result */
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index);
+
+    return pos;
+}
+
+static char *gen_binop64(char *pos, struct x86Instruction *insn)
+{
+    /* do ops with result in eax */
+    switch(insn->u.binop.type) {
+        case X86_BINOP_ADD:
+            /* lower part */
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
+            *pos++ = 0x01;//add
+            *pos++ = MODRM_MODE_3 | (ECX << MODRM_REG_SHIFT) | EAX;
+            pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index);
+            /* upper part */
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index2, EAX);
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index2, ECX);
+            *pos++ = 0x11;//adc
+            *pos++ = MODRM_MODE_3 | (ECX << MODRM_REG_SHIFT) | EAX;
+            pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index2);
+            break;
+        default:
+            fprintf(stderr, "Implement binop type %d\n", insn->u.binop.type);
+            assert(0);
+    }
+
+    return pos;
+}
+
 static int generateCode(struct inter *inter, char *buffer)
 {
     int i;
     struct x86Instruction *insn = (struct x86Instruction *) inter->instructionPoolAllocator.buffer;
     char *pos = buffer;
+    uint32_t mask;
 
     for (i = 0; i < inter->instructionIndex; ++i, insn++)
     {
@@ -527,6 +671,18 @@ static int generateCode(struct inter *inter, char *buffer)
                 break;
             case X86_STORE_32:
                 pos = gen_store_32(pos, insn);
+                break;
+            case X86_STORE_64:
+                pos = gen_store_64(pos, insn);
+                break;
+            case X86_BINOP_8: mask = 0xff; goto binop;
+            case X86_BINOP_16: mask = 0xffff; goto binop;
+            case X86_BINOP_32: mask = 0; goto binop;
+                binop:
+                    pos = gen_binop(pos, insn, mask);
+                break;
+            case X86_BINOP_64:
+                pos = gen_binop64(pos, insn);
                 break;
             case X86_CAST:
                 pos = gen_cast(pos, insn);
