@@ -294,6 +294,9 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                         case IR_BINOP_SHL_8: case IR_BINOP_SHL_16: case IR_BINOP_SHL_32: case IR_BINOP_SHL_64:
                             add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_SHL_8, X86_BINOP_SHL, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
                             break;
+                        case IR_BINOP_SHR_8: case IR_BINOP_SHR_16: case IR_BINOP_SHR_32: case IR_BINOP_SHR_64:
+                            add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_SHR_8, X86_BINOP_SHR, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
+                            break;
                         default:
                             assert(0);
                     }
@@ -661,12 +664,14 @@ static char *gen_binop(char *pos, struct x86Instruction *insn, uint32_t mask)
             *pos++ = binopToOpcode[insn->u.binop.type];
             *pos++ = MODRM_MODE_3 | (ECX << MODRM_REG_SHIFT) | EAX;
             break;
-        case X86_BINOP_SHL:
-            subtype = 4;
-            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
-            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
-            *pos++ = binopToOpcode[insn->u.binop.type];
-            *pos++ = MODRM_MODE_3 | (subtype << MODRM_REG_SHIFT) | EAX;
+        case X86_BINOP_SHL: subtype = 4; goto unop;
+        case X86_BINOP_SHR: subtype = 5; goto unop;
+            unop: {
+                pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
+                pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
+                *pos++ = binopToOpcode[insn->u.binop.type];
+                *pos++ = MODRM_MODE_3 | (subtype << MODRM_REG_SHIFT) | EAX;
+            }
             break;
         default:
             fprintf(stderr, "Implement binop type %d\n", insn->u.binop.type);
@@ -738,6 +743,30 @@ static char *gen_binop64(char *pos, struct x86Instruction *insn)
              /* now just add both part and write in virtual */
             pos = gen_add_between_physicals(pos, EAX, EDX);
             pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index2);
+            break;
+        case X86_BINOP_SHR:
+            /* upper part */
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index2, EAX);
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
+            *pos++ = binopToOpcode1[insn->u.binop.type];
+            *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
+            pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index2);
+            /* lower part */
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
+            *pos++ = binopToOpcode1[insn->u.binop.type];
+            *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
+             /* store lower shift left into EDX */
+            pos = gen_mov_from_physical_to_physical(pos, EAX, EDX);
+             /* now shift left by (32 - shift) of upper 32 bits */
+            pos = gen_mov_const_in_physical_reg(pos, EAX, 32);
+            pos = gen_sub_between_physicals(pos, EAX, ECX);
+            pos = gen_mov_from_physical_to_physical(pos, EAX, ECX);
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index2, EAX);
+            *pos++ = binopToOpcode1[insn->u.binop.type];
+            *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
+             /* now just add both part and write in virtual */
+            pos = gen_add_between_physicals(pos, EAX, EDX);
+            pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index);
             break;
         default:
             fprintf(stderr, "Implement binop type %d\n", insn->u.binop.type);
