@@ -361,6 +361,9 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
             case IR_ITE_8: case IR_ITE_16: case IR_ITE_32: case IR_ITE_64:
                 add_ite(inter, allocateRegister(inter, insn->u.ite.dst), allocateRegister(inter, insn->u.ite.pred), allocateRegister(inter, insn->u.ite.trueOp), allocateRegister(inter, insn->u.ite.falseOp));
                 break;
+            case IR_CAST:
+                add_cast(inter, insn->u.cast.type, allocateRegister(inter, insn->u.cast.dst), allocateRegister(inter, insn->u.cast.op));
+                break;
             case IR_EXIT:
                 if (insn->u.exit.pred)
                     add_exit(inter, allocateRegister(inter, insn->u.exit.value), allocateRegister(inter, insn->u.exit.pred));
@@ -557,6 +560,14 @@ static void allocateRegisters(struct inter *inter)
 #define ESI                 6
 #define EDI                 7
 
+static char *gen_and_between_physicals(char *pos, int dst, int op)
+{
+    *pos++ = 0x21;
+    *pos++ = MODRM_MODE_3 | (dst << MODRM_RM_SHIFT) | (op << MODRM_REG_SHIFT);
+
+    return pos;
+}
+
 static char *gen_xor_between_physicals(char *pos, int dst, int op)
 {
     *pos++ = 0x31;
@@ -707,9 +718,60 @@ static char *gen_store_64(char *pos, struct x86Instruction *insn)
     return pos;
 }
 
+static char *gen_upper_unsigned_cast_hlp(char *pos, struct x86Register *dst, struct x86Register *op, uint32_t mask)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, op->index, EAX);
+    pos = gen_mov_const_in_physical_reg(pos, ECX, mask);
+    pos = gen_and_between_physicals(pos, EAX, ECX);
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index);
+    if (dst->index2 != -1)
+        pos = gen_mov_const_in_virtual_reg(pos, dst->index2, 0);
+
+    return pos;
+}
+
+static char *gen_upper_signed_cast_hlp(char *pos, struct x86Register *dst, struct x86Register *op, int shift_value)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, op->index, EAX);
+    if (shift_value) {
+        pos = gen_mov_const_in_physical_reg(pos, ECX, shift_value);
+        *pos++ = 0xd3;
+        *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
+        *pos++ = 0xd3;
+        *pos++ = MODRM_MODE_3 | (7/*asr*/ << MODRM_REG_SHIFT) | EAX;
+    }
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index);
+    if (dst->index2 != -1) {
+        pos = gen_mov_const_in_physical_reg(pos, ECX, 31 - shift_value);
+        *pos++ = 0xd3;
+        *pos++ = MODRM_MODE_3 | (7/*asr*/ << MODRM_REG_SHIFT) | EAX;
+        pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index2);
+    }
+
+    return pos;
+}
+
 static char *gen_cast(char *pos, struct x86Instruction *insn)
 {
     switch(insn->u.cast.type) {
+        case IR_CAST_8U_TO_16: case IR_CAST_8U_TO_32: case IR_CAST_8U_TO_64:
+            pos = gen_upper_unsigned_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 0xff);
+            break;
+        case IR_CAST_8S_TO_16: case IR_CAST_8S_TO_32: case IR_CAST_8S_TO_64:
+            pos = gen_upper_signed_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 24);
+            break;
+        case IR_CAST_16S_TO_32: case IR_CAST_16S_TO_64:
+            pos = gen_upper_signed_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 16);
+            break;
+        case IR_CAST_32S_TO_64:
+            pos = gen_upper_signed_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 0);
+            break;
+        case IR_CAST_64_TO_8: case IR_CAST_32_TO_8: case IR_CAST_16_TO_8:
+            pos = gen_upper_unsigned_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 0xff);
+            break;
+        case IR_CAST_64_TO_16: case IR_CAST_32_TO_16:
+            pos = gen_upper_unsigned_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 0xffff);
+            break;
         case IR_CAST_64_TO_32:
             pos = gen_mov_from_virtual_to_virtual_hlp(pos, insn->u.cast.op->index, insn->u.cast.dst->index);
             break;
