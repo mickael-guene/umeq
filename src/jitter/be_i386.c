@@ -282,6 +282,15 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                         case IR_BINOP_SUB_8: case IR_BINOP_SUB_16: case IR_BINOP_SUB_32: case IR_BINOP_SUB_64:
                             add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_SUB_8, X86_BINOP_SUB, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
                             break;
+                        case IR_BINOP_XOR_8: case IR_BINOP_XOR_16: case IR_BINOP_XOR_32: case IR_BINOP_XOR_64:
+                            add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_XOR_8, X86_BINOP_XOR, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
+                            break;
+                        case IR_BINOP_AND_8: case IR_BINOP_AND_16: case IR_BINOP_AND_32: case IR_BINOP_AND_64:
+                            add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_AND_8, X86_BINOP_AND, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
+                            break;
+                        case IR_BINOP_OR_8: case IR_BINOP_OR_16: case IR_BINOP_OR_32: case IR_BINOP_OR_64:
+                            add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_OR_8, X86_BINOP_OR, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
+                            break;
                         default:
                             assert(0);
                     }
@@ -605,6 +614,9 @@ static char *gen_binop(char *pos, struct x86Instruction *insn, uint32_t mask)
     switch(insn->u.binop.type) {
         case X86_BINOP_ADD:
         case X86_BINOP_SUB:
+        case X86_BINOP_XOR:
+        case X86_BINOP_AND:
+        case X86_BINOP_OR:
             pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
             pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
             *pos++ = binopToOpcode[insn->u.binop.type];
@@ -641,6 +653,9 @@ static char *gen_binop64(char *pos, struct x86Instruction *insn)
     switch(insn->u.binop.type) {
         case X86_BINOP_ADD:
         case X86_BINOP_SUB:
+        case X86_BINOP_XOR:
+        case X86_BINOP_AND:
+        case X86_BINOP_OR:
             /* lower part */
             pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
             pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
