@@ -985,6 +985,12 @@ static char *gen_cast(char *pos, struct x86Instruction *insn)
         case IR_CAST_8U_TO_16: case IR_CAST_8U_TO_32: case IR_CAST_8U_TO_64:
             pos = gen_upper_unsigned_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 0xff);
             break;
+        case IR_CAST_16U_TO_32: case IR_CAST_16U_TO_64:
+            pos = gen_upper_unsigned_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 0xffff);
+            break;
+        case IR_CAST_32U_TO_64:
+            pos = gen_upper_unsigned_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 0xffffffff);
+            break;
         case IR_CAST_8S_TO_16: case IR_CAST_8S_TO_32: case IR_CAST_8S_TO_64:
             pos = gen_upper_signed_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 24);
             break;
