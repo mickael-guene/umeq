@@ -265,12 +265,7 @@ int abs(int j)
     return j>=0?j:-j;
 }
 
-long labs(long j)
+long long llabs(long long j)
 {
     return j>=0?j:-j;
-}
-
-unsigned long __udivdi3 (unsigned long a, unsigned long b)
-{
-    assert(0);
 }

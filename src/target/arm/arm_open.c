@@ -276,7 +276,7 @@ static void write_offset_proc_self_maps(int fd_orig, int fd_res)
 
     while (getline_internal(line, sizeof(line), fd_orig) != -1) {
         line_with_remove_addresses = split_line(line, &start_addr, &end_addr);
-        if ((start_addr >= mmap_offset) && (start_addr < mmap_offset + 4 * 1024 * 1024 * 1024UL)) {
+        if ((start_addr >= mmap_offset) && (start_addr < mmap_offset + 4 * 1024 * 1024 * 1024ULL)) {
             char new_line[512];
             ssize_t res;
 

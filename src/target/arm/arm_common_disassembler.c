@@ -536,11 +536,11 @@ static int dis_common_vbic_insn(struct arm_target *context, uint32_t insn, struc
 
     write_reg_d(context, ir, d, ir->add_and_64(ir,
                                                read_reg_d(context, ir, n),
-                                               ir->add_xor_64(ir, read_reg_d(context, ir, m), mk_64(ir, ~0UL))));
+                                               ir->add_xor_64(ir, read_reg_d(context, ir, m), mk_64(ir, ~0ULL))));
     if (Q) {
         write_reg_d(context, ir,  d + 1, ir->add_and_64(ir,
                                                         read_reg_d(context, ir, n + 1),
-                                                        ir->add_xor_64(ir, read_reg_d(context, ir, m + 1), mk_64(ir, ~0UL))));
+                                                        ir->add_xor_64(ir, read_reg_d(context, ir, m + 1), mk_64(ir, ~0ULL))));
     }
 
     return 0;
@@ -578,13 +578,13 @@ static int dis_common_vbif_vbit_vbsl(struct arm_target *context, uint32_t insn, 
                                               ir->add_and_64(ir, read_reg_d(context, ir, op1), read_reg_d(context, ir, op2)),
                                               ir->add_and_64(ir,
                                                              read_reg_d(context, ir, op3),
-                                                             ir->add_xor_64(ir, read_reg_d(context, ir, op2), mk_64(ir, ~0UL)))));
+                                                             ir->add_xor_64(ir, read_reg_d(context, ir, op2), mk_64(ir, ~0ULL)))));
     if (Q) {
     write_reg_d(context, ir, d + 1, ir->add_or_64(ir,
                                                   ir->add_and_64(ir, read_reg_d(context, ir, op1 + 1), read_reg_d(context, ir, op2 + 1)),
                                                   ir->add_and_64(ir,
                                                                  read_reg_d(context, ir, op3 + 1),
-                                                                 ir->add_xor_64(ir, read_reg_d(context, ir, op2 + 1), mk_64(ir, ~0UL)))));
+                                                                 ir->add_xor_64(ir, read_reg_d(context, ir, op2 + 1), mk_64(ir, ~0ULL)))));
     }
 
     return 0;

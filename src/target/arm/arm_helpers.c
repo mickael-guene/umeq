@@ -417,7 +417,7 @@ static inline int##size##_t ssat##size(struct arm_registers *regs, int64_t op) \
 }
 DECLARE_SSAT(8,0x7f,-0x80)
 DECLARE_SSAT(16,0x7fff,-0x8000)
-DECLARE_SSAT(32,0x7fffffff,-0x80000000L)
+DECLARE_SSAT(32,0x7fffffff,-0x80000000LL)
 static inline int64_t ssat64(struct arm_registers *regs, ___int128_t op)
 {
     int64_t res;
@@ -2494,8 +2494,8 @@ static uint32_t signedSat32Q(int64_t i, int *isSat)
 
 static int64_t signedSatQ(int64_t i, int n, int *isSat)
 {
-    int64_t sat_pos = (1UL << (n - 1)) - 1;
-    int64_t sat_neg = -(1UL << (n - 1));
+    int64_t sat_pos = (1ULL << (n - 1)) - 1;
+    int64_t sat_neg = -(1ULL << (n - 1));
     int64_t res;
     *isSat = 0;
 
@@ -4794,9 +4794,9 @@ static void dis_common_vaba_vabd_simd(uint64_t _regs, uint32_t insn, uint32_t is
                 for(i = 0; i < 2; i++) {
                     uint64_t absdiff;
                     if (U)
-                        absdiff = labs((uint64_t) regs->e.simd[n + r].u32[i] - (uint64_t) regs->e.simd[m + r].u32[i]);
+                        absdiff = llabs((uint64_t) regs->e.simd[n + r].u32[i] - (uint64_t) regs->e.simd[m + r].u32[i]);
                     else
-                        absdiff = labs((int64_t) regs->e.simd[n + r].s32[i] - (int64_t) regs->e.simd[m + r].s32[i]);
+                        absdiff = llabs((int64_t) regs->e.simd[n + r].s32[i] - (int64_t) regs->e.simd[m + r].s32[i]);
                     res[r].u32[i] = (is_acc?regs->e.simd[d + r].u32[i]:0) + absdiff;
                 }
             }
@@ -5572,9 +5572,9 @@ static void dis_common_vabal_vabdl_simd(uint64_t _regs, uint32_t insn, uint32_t 
             for(i = 0; i < 2; i++) {
                 uint64_t absdiff;
                 if (U)
-                    absdiff = labs((uint64_t) regs->e.simd[n].u32[i] - (uint64_t) regs->e.simd[m].u32[i]);
+                    absdiff = llabs((uint64_t) regs->e.simd[n].u32[i] - (uint64_t) regs->e.simd[m].u32[i]);
                 else
-                    absdiff = labs((int64_t) regs->e.simd[n].s32[i] - (int64_t) regs->e.simd[m].s32[i]);
+                    absdiff = llabs((int64_t) regs->e.simd[n].s32[i] - (int64_t) regs->e.simd[m].s32[i]);
                 res.u64[i] = (is_acc?regs->e.simq[d >> 1].u64[i]:0) + absdiff;
             }
             break;
@@ -6009,7 +6009,7 @@ static void dis_common_vqdmulh_vqrdmulh_scalar_simd(uint64_t _regs, uint32_t ins
             index = INSN(5, 5);
             for(r = 0; r < reg_nb; r++)
                 for(i = 0; i < 2; i++) {
-                    ___int128_t product = int128_add(int64_to_int128_t(is_round?1L<<31:0),
+                    ___int128_t product = int128_add(int64_to_int128_t(is_round?1LL<<31:0),
                                                     int128_mul(int64_to_int128_t(2),
                                                                int128_mul(int64_to_int128_t(regs->e.simd[n + r].s32[i]),
                                                                           int64_to_int128_t(regs->e.simd[m].s32[index]))));
@@ -6273,7 +6273,7 @@ static void dis_common_vqabs_simd(uint64_t _regs, uint32_t insn)
         case 2:
             for(r = 0; r < reg_nb; r++)
                 for(i = 0; i < 2; i++)
-                    res[r].s32[i] = ssat32(regs, labs(regs->e.simd[m + r].s32[i]));
+                    res[r].s32[i] = ssat32(regs, llabs(regs->e.simd[m + r].s32[i]));
             break;
         default:
             fatal("size = %d\n", size);
@@ -7360,25 +7360,25 @@ static void dis_common_vsli_immediate_simd(uint64_t _regs, uint32_t insn)
         res[r] = regs->e.simd[d + r];
     if (imm >> 6) {
         shift_value = imm6;
-        mask = ~0UL << shift_value;
+        mask = ~0ULL << shift_value;
         for(r = 0; r < reg_nb; r++)
             for(i = 0; i < 1; i++)
                 res[r].u64[i] = (res[r].u64[i] & ~mask) | (regs->e.simd[m + r].u64[i] << shift_value);
     } else if (imm >> 5) {
         shift_value = imm6 - 32;
-        mask = ~0UL << shift_value;
+        mask = ~0ULL << shift_value;
         for(r = 0; r < reg_nb; r++)
             for(i = 0; i < 2; i++)
                 res[r].u32[i] = (res[r].u32[i] & ~mask) | (regs->e.simd[m + r].u32[i] << shift_value);
     } else if (imm >> 4) {
         shift_value = imm6 - 16;
-        mask = ~0UL << shift_value;
+        mask = ~0ULL << shift_value;
         for(r = 0; r < reg_nb; r++)
             for(i = 0; i < 4; i++)
                 res[r].u16[i] = (res[r].u16[i] & ~mask) | (regs->e.simd[m + r].u16[i] << shift_value);
     } else if (imm >> 3) {
         shift_value = imm6 - 8;
-        mask = ~0UL << shift_value;
+        mask = ~0ULL << shift_value;
         for(r = 0; r < reg_nb; r++)
             for(i = 0; i < 8; i++)
                 res[r].u8[i] = (res[r].u8[i] & ~mask) | (regs->e.simd[m + r].u8[i] << shift_value);

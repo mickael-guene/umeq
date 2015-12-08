@@ -128,6 +128,20 @@ TEST_F(CastTest, cast16sto32) {
     EXPECT_EQ(res, out);
 }
 
+TEST_F(CastTest, cast16uto32) {
+    uint16_t op = 39000;
+    uint32_t out = 0;
+    uint32_t res = op;
+
+    ir->add_store_32(ir,
+                     ir->add_16U_to_32(ir,
+                                      ir->add_mov_const_16(ir, op)),
+                     ir->add_mov_const_64(ir, (uint64_t) &out));
+    jitAndExcecute();
+
+    EXPECT_EQ(res, out);
+}
+
 TEST_F(CastTest, cast16sto64) {
     uint16_t op = 128;
     uint64_t out = 0;
@@ -143,6 +157,20 @@ TEST_F(CastTest, cast16sto64) {
     EXPECT_EQ(res, out);
 }
 
+TEST_F(CastTest, cast16uto64) {
+    uint16_t op = 128;
+    uint64_t out = 0;
+    uint64_t res = op;
+
+    ir->add_store_64(ir,
+                     ir->add_16U_to_64(ir,
+                                      ir->add_mov_const_16(ir, op)),
+                     ir->add_mov_const_64(ir, (uint64_t) &out));
+    jitAndExcecute();
+
+    EXPECT_EQ(res, out);
+}
+
 TEST_F(CastTest, cast32sto64) {
     uint32_t op = ~0;
     uint64_t out = 0;
@@ -151,6 +179,20 @@ TEST_F(CastTest, cast32sto64) {
 
     ir->add_store_64(ir,
                      ir->add_32S_to_64(ir,
+                                      ir->add_mov_const_32(ir, op)),
+                     ir->add_mov_const_64(ir, (uint64_t) &out));
+    jitAndExcecute();
+
+    EXPECT_EQ(res, out);
+}
+
+TEST_F(CastTest, cast32uto64) {
+    uint32_t op = ~0;
+    uint64_t out = 0;
+    uint64_t res = op;
+
+    ir->add_store_64(ir,
+                     ir->add_32U_to_64(ir,
                                       ir->add_mov_const_32(ir, op)),
                      ir->add_mov_const_64(ir, (uint64_t) &out));
     jitAndExcecute();
