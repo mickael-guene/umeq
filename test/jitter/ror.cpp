@@ -29,7 +29,7 @@
 #define ROR8(a, b)  (uint8_t)((((a)>>(b))&(0xff >> b)) | ((a)<<(8-(b)))&(0xff<<(8-(b))))
 #define ROR16(a, b)  (uint16_t)((((a)>>(b))&(0xffff >> b)) | ((a)<<(16-(b)))&(0xffff<<(16-(b))))
 #define ROR32(a, b)  (uint32_t)((((a)>>(b))&(0xffffffff >> b)) | ((a)<<(32-(b)))&(0xffffffff<<(32-(b))))
-#define ROR64(a, b)  (uint64_t)((((a)>>(b))&(~0UL >> b)) | ((a)<<(64-(b)))&(~0UL<<(64-(b))))
+#define ROR64(a, b)  (uint64_t)((((a)>>(b))&(~0ULL >> b)) | ((a)<<(64-(b)))&(~0ULL<<(64-(b))))
 
 class RorTest : public jitterFixture {
 };
