@@ -123,7 +123,12 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     struct target *target;
     void *target_runtime;
     struct tls_context parent_tls_context;
+#if 0
     struct tls_context *current_tls_context;
+#else
+    struct tls_context tls_context;
+    struct tls_context *current_tls_context = &tls_context;
+#endif
     struct cache *cache = NULL;
     char *cacheMemory = alloca(MIN_CACHE_SIZE_NONE);
 
@@ -165,7 +170,12 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     struct target *target;
     void *target_runtime;
     struct tls_context parent_tls_context;
+#if 0
     struct tls_context *current_tls_context;
+#else
+    struct tls_context tls_context;
+    struct tls_context *current_tls_context = &tls_context;
+#endif
     struct cache *cache = NULL;
     char *cacheMemory = alloca(cache_memory_config[memory_profile].cache_size);
 
@@ -322,7 +332,7 @@ void setup_memory_profile()
 void main_wrapper(void *sp)
 {
     unsigned int argc = *(unsigned int *)sp;
-    char **argv = (char **)(sp + 8);
+    char **argv = (char **)(sp + 4);
     int res;
 
     setup_memory_profile();

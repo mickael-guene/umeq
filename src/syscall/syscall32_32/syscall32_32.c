@@ -18,11 +18,16 @@
  * 02110-1301 USA.
  */
 
+#define _GNU_SOURCE         /* See feature_test_macros(7) */
+#include <unistd.h>
+#include <sys/syscall.h>   /* For SYS_xxx definitions */
 #include <stdint.h>
 #include <errno.h>
 
 #include "syscall32_32.h"
 #include "runtime.h"
+
+#include "target32.h"
 
 #define IS_NULL(px,type) ((px)?(type *)g_2_h((px)):NULL)
 
@@ -31,6 +36,31 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
     int res = -ENOSYS;
 
     switch(no) {
+        case PR_write:
+            res = syscall(SYS_write, (int)p0, (void *)g_2_h(p1), (size_t)p2);
+            break;
+        case PR_geteuid32:
+            res = syscall(SYS_geteuid);
+            break;
+        case PR_getuid32:
+            res = syscall(SYS_getuid);
+            break;
+        case PR_getegid32:
+            res = syscall(SYS_getegid);
+            break;
+        case PR_getgid32:
+            res = syscall(SYS_getgid);
+            break;
+/* FIXME: Handle readlink of /proc/self/exe => cf syscall64_64 */
+        case PR_readlink:
+            res = syscall(SYS_readlink, (const char *)g_2_h(p0), (char *)g_2_h(p1), (size_t)p2);
+            break;
+        case PR_fstat64:
+            res = syscall(SYS_fstat64, (int) p0, (struct stat *)g_2_h(p1));
+            break;
+        case PR_exit_group:
+            res = syscall(SYS_exit_group, (int)p0);
+            break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);
     }

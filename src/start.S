@@ -22,4 +22,6 @@
 
 /* FIXME : implement i386.S */
 _start:
-    nop
+	xor %ebp, %ebp
+	push %esp
+	call main_wrapper

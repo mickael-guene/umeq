@@ -80,8 +80,13 @@ static long mremap_syscall(void *old_address, size_t old_size, size_t new_size, 
 
 static long mmap_syscall(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
+#if 0
     assert(flags & MAP_FIXED);
     return syscall(SYS_mmap, addr, length, prot, flags, fd, offset);
+#else
+    assert(flags & MAP_FIXED);
+    return syscall(SYS_mmap2, addr, length, prot, flags, fd, offset >> 12);
+#endif
 }
 
 static int is_syscall_error(long res)

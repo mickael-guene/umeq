@@ -62,6 +62,31 @@ void arm_hlp_syscall(uint64_t regs)
                                             context->regs.r[3], context->regs.r[4], context->regs.r[5]);
     } else if (how == HOW_custom_implementation) {
         switch(no_neutral) {
+            case PR_mmap2:
+                res = arm_mmap2(context);
+                break;
+            case PR_uname:
+                res = arm_uname(context);
+                break;
+            case PR_brk:
+                res = arm_brk(context);
+                break;
+            case PR_ARM_set_tls:
+                context->regs.c13_tls2 = context->regs.r[0];
+                res = 0;
+                break;
+            case PR_exit:
+                if (context->is_in_signal) {
+                    /* in case we are in signal handler we leave immediatly */
+                    res = syscall(SYS_exit, context->regs.r[0]);
+                } else {
+                    /* if inside the thread then we will release context memory */
+                    context->isLooping = 0;
+                    context->exitStatus = context->regs.r[0];
+                    /* stay in syscall */
+                    return ;
+                }
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }
