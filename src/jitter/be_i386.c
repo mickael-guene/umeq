@@ -409,6 +409,9 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                                 add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_ASR_8, X86_BINOP_ASR, dst, shiftRightResult, op2);
                             }
                             break;
+                        case IR_BINOP_ROR_8: case IR_BINOP_ROR_16: case IR_BINOP_ROR_32: case IR_BINOP_ROR_64:
+                            add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_ROR_8, X86_BINOP_ROR, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
+                            break;
                         case IR_BINOP_CMPEQ_8: case IR_BINOP_CMPEQ_16: case IR_BINOP_CMPEQ_32: case IR_BINOP_CMPEQ_64:
                             add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_CMPEQ_8, X86_BINOP_CMPEQ, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
                             break;
@@ -921,14 +924,46 @@ static char *gen_cast(char *pos, struct x86Instruction *insn)
 
 static char *gen_exit(char *pos, struct x86Instruction *insn)
 {
-    /* FIXME : to be rework */
-    assert(insn->u.exit.pred == NULL);
-    /* For the moment we return exit value into eax+edx */
+    char *patch;
+
+    /* predicate code */
+    if (insn->u.exit.pred) {
+        /* compute predicate */
+        pos = gen_mov_from_virtual_to_physical(pos, insn->u.exit.pred->index, EAX);
+        if (insn->u.exit.pred->index2 != -1) {
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.exit.pred->index2, ECX);
+            pos = gen_or_between_physicals(pos, EAX, ECX);
+        }
+        /* compare eax with 0 */
+        *pos++ = 0x3d;
+        *pos++ = 0;
+        *pos++ = 0;
+        *pos++ = 0;
+        *pos++ = 0;
+        /* jump below exit */
+        *pos++ = 0x74;
+        patch = pos++;
+    }
+
+    /* return value in address given by ESI */
     pos = gen_mov_from_virtual_to_physical(pos, insn->u.exit.value->index, EAX);
-    pos = gen_mov_from_virtual_to_physical(pos, insn->u.exit.value->index2, EDX);
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_0 | (ESI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.exit.value->index2, EAX);
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_1 | (ESI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = 4;
+    pos = gen_mov_const_in_physical_reg(pos, EAX, 0);
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_1 | (ESI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = 8;
 
     /* ret */
     *pos++ = 0xc3;
+
+    /* patch jump distance if needed */
+    if (insn->u.exit.pred)
+        *patch = pos - patch - 1;
 
     return pos;
 }
@@ -1043,6 +1078,61 @@ static char *gen_cmp64(char *pos, int isEq, struct x86Register *dst, struct x86R
     return pos;
 }
 
+static char *gen_ror32(char *pos, enum x86InstructionType type, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, op2->index, ECX);
+    if (type == X86_BINOP_16)
+        *pos++ = 0x66;
+    *pos++ = (type == X86_BINOP_8)?0xd2:0xd3;
+    *pos++ = MODRM_MODE_3 | (1 << MODRM_REG_SHIFT) | EAX;
+
+    return pos;
+}
+
+static char *gen_ror64(char *pos, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2)
+{
+    /* upper part */
+     /* shift right part from index2 */
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index2, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, op2->index, ECX);
+    *pos++ = 0xd3; //shift
+    *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
+     /* store lower shift right into EDX */
+    pos = gen_mov_from_physical_to_physical(pos, EAX, EDX);
+     /* left shift part from index */
+    pos = gen_mov_const_in_physical_reg(pos, EAX, 32);
+    pos = gen_sub_between_physicals(pos, EAX, ECX);
+    pos = gen_mov_from_physical_to_physical(pos, EAX, ECX);
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
+    *pos++ = 0xd3; //shift
+    *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
+     /* add both part and save */
+    pos = gen_add_between_physicals(pos, EAX, EDX);
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index2);
+
+    /* lower part */
+     /* shift right part from index */
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, op2->index, ECX);
+    *pos++ = 0xd3; //shift
+    *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
+     /* store lower shift right into EDX */
+    pos = gen_mov_from_physical_to_physical(pos, EAX, EDX);
+     /* left shift part from index2 */
+    pos = gen_mov_const_in_physical_reg(pos, EAX, 32);
+    pos = gen_sub_between_physicals(pos, EAX, ECX);
+    pos = gen_mov_from_physical_to_physical(pos, EAX, ECX);
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index2, EAX);
+    *pos++ = 0xd3; //shift
+    *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
+     /* add both part and save */
+    pos = gen_add_between_physicals(pos, EAX, EDX);
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index);
+
+    return pos;
+}
+
 static char *gen_binop(char *pos, struct x86Instruction *insn, uint32_t mask)
 {
     static const char binopToOpcode[] = {0x01/*add*/, 0x29/*sub*/, 0x31/*xor*/, 0x21/*and*/,
@@ -1071,6 +1161,9 @@ static char *gen_binop(char *pos, struct x86Instruction *insn, uint32_t mask)
                 *pos++ = binopToOpcode[insn->u.binop.type];
                 *pos++ = MODRM_MODE_3 | (subtype << MODRM_REG_SHIFT) | EAX;
             }
+            break;
+        case X86_BINOP_ROR:
+            pos = gen_ror32(pos, insn->type, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
             break;
         case X86_BINOP_CMPEQ:
             pos = gen_cmp32(pos, 1, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
@@ -1176,6 +1269,9 @@ static char *gen_binop64(char *pos, struct x86Instruction *insn)
                 pos = gen_add_between_physicals(pos, EAX, EDX);
                 pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index);
             }
+            break;
+        case X86_BINOP_ROR:
+            pos = gen_ror64(pos, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
             break;
         case X86_BINOP_CMPEQ:
             pos = gen_cmp64(pos, 1, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);

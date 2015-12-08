@@ -24,10 +24,13 @@ execute_be_i386:
 	push %ebp
 	mov %esp, %ebp
 	push %edi
+	push %esi
 	sub $64, %esp
 	mov 0x14(%ebp), %edi
+	mov 0x8(%ebp), %esi
 	call *0x10(%ebp)
 	add $64, %esp
+	pop %esi
 	pop %edi
 	pop %ebp
 	ret
