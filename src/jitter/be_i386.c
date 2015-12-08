@@ -84,6 +84,10 @@ struct x86Instruction {
             uint64_t value;
         } mov;
         struct {
+            struct x86Register *dst;
+            struct x86Register *address;
+        } load;
+        struct {
             struct x86Register *src;
             struct x86Register *address;
         } store;
@@ -200,6 +204,20 @@ static void add_mov_const(struct inter *inter, struct x86Register *dst, uint64_t
     insn->u.mov.dst = dst;
     insn->u.mov.dst->isConstant = 1;
     insn->u.mov.value = value;
+
+    inter->instructionIndex++;
+}
+
+static void add_load(struct inter *inter, enum x86InstructionType type, struct x86Register *dst, struct x86Register *address)
+{
+    struct memoryPool *pool = &inter->instructionPoolAllocator;
+    struct x86Instruction *insn = (struct x86Instruction *) pool->alloc(pool, sizeof(struct x86Instruction));
+
+    address->lastReadIndex = inter->instructionIndex;
+
+    insn->type = type;
+    insn->u.load.dst = dst;
+    insn->u.load.address = address;
 
     inter->instructionIndex++;
 }
@@ -347,6 +365,12 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
             case IR_MOV_CONST_32:
             case IR_MOV_CONST_64:
                 add_mov_const(inter, allocateRegister(inter, insn->u.mov.dst), insn->u.mov.value);
+                break;
+            case IR_LOAD_8:
+            case IR_LOAD_16:
+            case IR_LOAD_32:
+            case IR_LOAD_64:
+                add_load(inter, X86_LOAD_8 + insn->type - IR_LOAD_8, allocateRegister(inter, insn->u.load.dst), allocateRegister(inter, insn->u.load.address));
                 break;
             case IR_STORE_8:
             case IR_STORE_16:
@@ -542,6 +566,20 @@ static void allocateRegisters(struct inter *inter)
                 printf("mov_const ");
                 displayReg(insn->u.mov.dst);
                 printf(", 0x%016lx", insn->u.mov.value);
+#endif
+                break;
+            case X86_LOAD_8:
+            case X86_LOAD_16:
+            case X86_LOAD_32:
+            case X86_LOAD_64:
+                getFreeReg(freeRegList, insn->u.load.dst);
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.load.address, i);
+#ifdef DEBUG_REG_ALLOC
+                printf("load ");
+                displayReg(insn->u.load.dst);
+                printf(", [");
+                displayReg(insn->u.load.address);
+                printf("]");
 #endif
                 break;
             case X86_STORE_8:
@@ -802,6 +840,57 @@ static char *gen_mov_const(char *pos, struct x86Instruction *insn)
     pos = gen_mov_const_in_virtual_reg(pos, insn->u.mov.dst->index, insn->u.mov.value);
     if (insn->u.mov.dst->index2 != -1)
         pos = gen_mov_const_in_virtual_reg(pos, insn->u.mov.dst->index2, insn->u.mov.value >> 32);
+
+    return pos;
+}
+
+static char *gen_load_8(char *pos, struct x86Instruction *insn)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.load.address->index, EAX);
+    *pos++ = 0x8a;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+    pos = gen_mov_from_physical_to_virtual(pos, ECX, insn->u.load.dst->index);
+
+    return pos;
+}
+
+static char *gen_load_16(char *pos, struct x86Instruction *insn)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.load.address->index, EAX);
+    *pos++ = 0x66;
+    *pos++ = 0x8b;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+    pos = gen_mov_from_physical_to_virtual(pos, ECX, insn->u.load.dst->index);
+
+    return pos;
+}
+
+static char *gen_load_32(char *pos, struct x86Instruction *insn)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.load.address->index, EAX);
+    *pos++ = 0x8b;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+    pos = gen_mov_from_physical_to_virtual(pos, ECX, insn->u.load.dst->index);
+
+    return pos;
+}
+
+static char *gen_load_64(char *pos, struct x86Instruction *insn)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.load.address->index, EAX);
+    *pos++ = 0x8b;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+    pos = gen_mov_from_physical_to_virtual(pos, ECX, insn->u.load.dst->index);
+    /* add four to eax */
+    *pos++ = 0x05;
+    *pos++ = 4;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+    /* read second word */
+    *pos++ = 0x8b;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+    pos = gen_mov_from_physical_to_virtual(pos, ECX, insn->u.load.dst->index2);
 
     return pos;
 }
@@ -1556,6 +1645,18 @@ static int generateCode(struct inter *inter, char *buffer)
         switch(insn->type) {
             case X86_MOV_CONST:
                 pos = gen_mov_const(pos, insn);
+                break;
+            case X86_LOAD_8:
+                pos = gen_load_8(pos, insn);
+                break;
+            case X86_LOAD_16:
+                pos = gen_load_16(pos, insn);
+                break;
+            case X86_LOAD_32:
+                pos = gen_load_32(pos, insn);
+                break;
+            case X86_LOAD_64:
+                pos = gen_load_64(pos, insn);
                 break;
             case X86_STORE_8:
                 pos = gen_store_8(pos, insn);
