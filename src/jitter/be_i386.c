@@ -1090,8 +1090,121 @@ static char *gen_ror32(char *pos, enum x86InstructionType type, struct x86Regist
     return pos;
 }
 
+static char *gen_shr64_asr64(char *pos, int subtype, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2)
+{
+    char *patch;
+
+    /* set default value if shift value is zero */
+    pos = gen_mov_from_virtual_to_virtual_hlp(pos, op1->index, dst->index);
+    pos = gen_mov_from_virtual_to_virtual_hlp(pos, op1->index2, dst->index2);
+     /* move shift value in eax to check against zero value */
+    pos = gen_mov_from_virtual_to_physical(pos, op2->index, EAX);
+    /* compare eax with zero */
+    *pos++ = 0x3d;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+    /* branch to end if eax is zero */
+    *pos++ = 0x74;
+    patch = pos++;
+
+    /* upper part */
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index2, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, op2->index, ECX);
+    *pos++ = 0xd3; //shift
+    *pos++ = MODRM_MODE_3 | (subtype << MODRM_REG_SHIFT) | EAX;
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index2);
+    /* lower part */
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
+    *pos++ = 0xd3; //shift
+    *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
+     /* store lower shift left into EDX */
+    pos = gen_mov_from_physical_to_physical(pos, EAX, EDX);
+     /* now shift left by (32 - shift) of upper 32 bits */
+    pos = gen_mov_const_in_physical_reg(pos, EAX, 32);
+    pos = gen_sub_between_physicals(pos, EAX, ECX);
+    pos = gen_mov_from_physical_to_physical(pos, EAX, ECX);
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index2, EAX);
+    *pos++ = 0xd3; //shift
+    *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
+     /* now just add both part and write in virtual */
+    pos = gen_add_between_physicals(pos, EAX, EDX);
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index);
+
+    /* patch jump distance */
+    *patch = pos - patch - 1;
+
+    return pos;
+}
+
+static char *gen_shl64(char *pos, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2)
+{
+    char *patch;
+
+    /* set default value if shift value is zero */
+    pos = gen_mov_from_virtual_to_virtual_hlp(pos, op1->index, dst->index);
+    pos = gen_mov_from_virtual_to_virtual_hlp(pos, op1->index2, dst->index2);
+     /* move shift value in eax to check against zero value */
+    pos = gen_mov_from_virtual_to_physical(pos, op2->index, EAX);
+    /* compare eax with zero */
+    *pos++ = 0x3d;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+    /* branch to end if eax is zero */
+    *pos++ = 0x74;
+    patch = pos++;
+
+    /* lower part */
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, op2->index, ECX);
+    *pos++ = 0xd3; //shift
+    *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index);
+    /* upper part */
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index2, EAX);
+    *pos++ = 0xd3; //shift
+    *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
+     /* store upper shift left into EDX */
+    pos = gen_mov_from_physical_to_physical(pos, EAX, EDX);
+     /* now shift righ by (32 - shift) of lower 32 bits */
+    pos = gen_mov_const_in_physical_reg(pos, EAX, 32);
+    pos = gen_sub_between_physicals(pos, EAX, ECX);
+    pos = gen_mov_from_physical_to_physical(pos, EAX, ECX);
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
+    *pos++ = 0xd3; //shift
+    *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
+     /* now just add both part and write in virtual */
+    pos = gen_add_between_physicals(pos, EAX, EDX);
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index2);
+
+    /* patch jump distance */
+    *patch = pos - patch - 1;
+
+    return pos;
+}
+
 static char *gen_ror64(char *pos, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2)
 {
+    char *patch;
+
+    /* set default value if shift value is zero */
+    pos = gen_mov_from_virtual_to_virtual_hlp(pos, op1->index, dst->index);
+    pos = gen_mov_from_virtual_to_virtual_hlp(pos, op1->index2, dst->index2);
+     /* move shift value in eax to check against zero value */
+    pos = gen_mov_from_virtual_to_physical(pos, op2->index, EAX);
+    /* compare eax with zero */
+    *pos++ = 0x3d;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+    /* branch to end if eax is zero */
+    *pos++ = 0x74;
+    patch = pos++;
+
     /* upper part */
      /* shift right part from index2 */
     pos = gen_mov_from_virtual_to_physical(pos, op1->index2, EAX);
@@ -1129,6 +1242,9 @@ static char *gen_ror64(char *pos, struct x86Register *dst, struct x86Register *o
      /* add both part and save */
     pos = gen_add_between_physicals(pos, EAX, EDX);
     pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index);
+
+    /* patch jump distance */
+    *patch = pos - patch - 1;
 
     return pos;
 }
@@ -1220,54 +1336,12 @@ static char *gen_binop64(char *pos, struct x86Instruction *insn)
             pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index2);
             break;
         case X86_BINOP_SHL:
-            /* lower part */
-            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
-            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
-            *pos++ = binopToOpcode1[insn->u.binop.type];
-            *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
-            pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index);
-            /* upper part */
-            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index2, EAX);
-            *pos++ = binopToOpcode1[insn->u.binop.type];
-            *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
-             /* store upper shift left into EDX */
-            pos = gen_mov_from_physical_to_physical(pos, EAX, EDX);
-             /* now shift righ by (32 - shift) of lower 32 bits */
-            pos = gen_mov_const_in_physical_reg(pos, EAX, 32);
-            pos = gen_sub_between_physicals(pos, EAX, ECX);
-            pos = gen_mov_from_physical_to_physical(pos, EAX, ECX);
-            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
-            *pos++ = binopToOpcode1[insn->u.binop.type];
-            *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
-             /* now just add both part and write in virtual */
-            pos = gen_add_between_physicals(pos, EAX, EDX);
-            pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index2);
+            pos = gen_shl64(pos, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
             break;
         case X86_BINOP_SHR: subtype = 5; goto unop;
         case X86_BINOP_ASR: subtype = 7; goto unop;
             unop: {
-                /* upper part */
-                pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index2, EAX);
-                pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
-                *pos++ = binopToOpcode1[insn->u.binop.type];
-                *pos++ = MODRM_MODE_3 | (subtype << MODRM_REG_SHIFT) | EAX;
-                pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index2);
-                /* lower part */
-                pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
-                *pos++ = binopToOpcode1[insn->u.binop.type];
-                *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
-                 /* store lower shift left into EDX */
-                pos = gen_mov_from_physical_to_physical(pos, EAX, EDX);
-                 /* now shift left by (32 - shift) of upper 32 bits */
-                pos = gen_mov_const_in_physical_reg(pos, EAX, 32);
-                pos = gen_sub_between_physicals(pos, EAX, ECX);
-                pos = gen_mov_from_physical_to_physical(pos, EAX, ECX);
-                pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index2, EAX);
-                *pos++ = binopToOpcode1[insn->u.binop.type];
-                *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
-                 /* now just add both part and write in virtual */
-                pos = gen_add_between_physicals(pos, EAX, EDX);
-                pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index);
+                pos = gen_shr64_asr64(pos, subtype, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
             }
             break;
         case X86_BINOP_ROR:
