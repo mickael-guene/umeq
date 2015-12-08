@@ -49,9 +49,39 @@ TEST_F(RorTest, ror8) {
     EXPECT_EQ(ROR8(op1,op2), out);
 }
 
+TEST_F(RorTest, ror8_zero) {
+    uint8_t op1 = 5;
+    uint8_t op2 = 0;
+    uint8_t out = 0;
+
+    ir->add_store_8(ir,
+                    ir->add_ror_8(ir,
+                                  ir->add_mov_const_8(ir, op1),
+                                  ir->add_mov_const_8(ir, op2)),
+                    ir->add_mov_const_64(ir, (uint64_t) &out));
+    jitAndExcecute();
+
+    EXPECT_EQ(ROR8(op1,op2), out);
+}
+
 TEST_F(RorTest, ror16) {
     uint16_t op1 = 258;
     uint8_t op2 = 6;
+    uint16_t out = 0;
+
+    ir->add_store_16(ir,
+                    ir->add_ror_16(ir,
+                                  ir->add_mov_const_16(ir, op1),
+                                  ir->add_mov_const_8(ir, op2)),
+                    ir->add_mov_const_64(ir, (uint64_t) &out));
+    jitAndExcecute();
+
+    EXPECT_EQ(ROR16(op1,op2), out);
+}
+
+TEST_F(RorTest, ror16_zero) {
+    uint16_t op1 = 258;
+    uint8_t op2 = 0;
     uint16_t out = 0;
 
     ir->add_store_16(ir,
@@ -79,6 +109,21 @@ TEST_F(RorTest, ror32) {
     EXPECT_EQ(ROR32(op1,op2), out);
 }
 
+TEST_F(RorTest, ror32_zero) {
+    uint32_t op1 = 25818;
+    uint8_t op2 = 0;
+    uint32_t out = 0;
+
+    ir->add_store_32(ir,
+                    ir->add_ror_32(ir,
+                                  ir->add_mov_const_32(ir, op1),
+                                  ir->add_mov_const_8(ir, op2)),
+                    ir->add_mov_const_64(ir, (uint64_t) &out));
+    jitAndExcecute();
+
+    EXPECT_EQ(ROR32(op1,op2), out);
+}
+
 TEST_F(RorTest, ror64) {
     uint64_t op1 = 131313321;
     uint8_t op2 = 2;
@@ -93,3 +138,19 @@ TEST_F(RorTest, ror64) {
 
     EXPECT_EQ(ROR64(op1,op2), out);
 }
+
+TEST_F(RorTest, ror64_zero) {
+    uint64_t op1 = 131313321;
+    uint8_t op2 = 0;
+    uint64_t out = 0;
+
+    ir->add_store_64(ir,
+                    ir->add_ror_64(ir,
+                                  ir->add_mov_const_64(ir, op1),
+                                  ir->add_mov_const_8(ir, op2)),
+                    ir->add_mov_const_64(ir, (uint64_t) &out));
+    jitAndExcecute();
+
+    EXPECT_EQ(ROR64(op1,op2), out);
+}
+
