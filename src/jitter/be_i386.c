@@ -761,21 +761,21 @@ static char *gen_or_between_physicals(char *pos, int dst, int op)
     return pos;
 }
 
-static char *gen_add_between_physicals(char *pos, int dst, int op)
+/*static char *gen_add_between_physicals(char *pos, int dst, int op)
 {
     *pos++ = 0x01;
     *pos++ = MODRM_MODE_3 | (dst << MODRM_RM_SHIFT) | (op << MODRM_REG_SHIFT);
 
     return pos;
-}
+}*/
 
-static char *gen_sub_between_physicals(char *pos, int dst, int op)
+/*static char *gen_sub_between_physicals(char *pos, int dst, int op)
 {
     *pos++ = 0x29;
     *pos++ = MODRM_MODE_3 | (dst << MODRM_RM_SHIFT) | (op << MODRM_REG_SHIFT);
 
     return pos;
-}
+}*/
 
 static char *gen_mov_const_in_physical_reg(char *pos, int index, uint32_t value)
 {
@@ -810,13 +810,13 @@ static char *gen_mov_from_virtual_to_physical(char *pos, int from, int to)
     return pos;
 }
 
-static char *gen_mov_from_physical_to_physical(char *pos, int from, int to)
+/*static char *gen_mov_from_physical_to_physical(char *pos, int from, int to)
 {
     *pos++ = 0x89;
     *pos++ = MODRM_MODE_3 | (to << MODRM_RM_SHIFT) | (from << MODRM_REG_SHIFT);
 
     return pos;
-}
+}*/
 
 static char *gen_mov_from_physical_to_virtual(char *pos, int from, int to)
 {
@@ -840,6 +840,26 @@ static char *gen_mov_const(char *pos, struct x86Instruction *insn)
     pos = gen_mov_const_in_virtual_reg(pos, insn->u.mov.dst->index, insn->u.mov.value);
     if (insn->u.mov.dst->index2 != -1)
         pos = gen_mov_const_in_virtual_reg(pos, insn->u.mov.dst->index2, insn->u.mov.value >> 32);
+
+    return pos;
+}
+
+static char *gen_push_physical_on_stack(char *pos, int index, int *sp_offset)
+{
+    *pos++ = 0x50 + index;
+    *sp_offset += 4;
+
+    return pos;
+}
+
+static char *gen_add_sp(char *pos, int offset)
+{
+    *pos++ = 0x81;
+    *pos++ = MODRM_MODE_3 | (0/*subcode*/ << MODRM_REG_SHIFT) | ESP;
+    *pos++ = (offset >> 0) & 0xff;
+    *pos++ = (offset >> 8) & 0xff;
+    *pos++ = (offset >> 16) & 0xff;
+    *pos++ = (offset >> 24) & 0xff;
 
     return pos;
 }
@@ -1185,161 +1205,52 @@ static char *gen_ror32(char *pos, enum x86InstructionType type, struct x86Regist
     return pos;
 }
 
-static char *gen_shr64_asr64(char *pos, int subtype, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2)
+static uint64_t shl64_helper(uint64_t op, uint32_t shift_value)
 {
-    char *patch;
-
-    /* set default value if shift value is zero */
-    pos = gen_mov_from_virtual_to_virtual_hlp(pos, op1->index, dst->index);
-    pos = gen_mov_from_virtual_to_virtual_hlp(pos, op1->index2, dst->index2);
-     /* move shift value in eax to check against zero value */
-    pos = gen_mov_from_virtual_to_physical(pos, op2->index, EAX);
-    /* compare eax with zero */
-    *pos++ = 0x3d;
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
-    /* branch to end if eax is zero */
-    *pos++ = 0x74;
-    patch = pos++;
-
-    /* upper part */
-    pos = gen_mov_from_virtual_to_physical(pos, op1->index2, EAX);
-    pos = gen_mov_from_virtual_to_physical(pos, op2->index, ECX);
-    *pos++ = 0xd3; //shift
-    *pos++ = MODRM_MODE_3 | (subtype << MODRM_REG_SHIFT) | EAX;
-    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index2);
-    /* lower part */
-    pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
-    *pos++ = 0xd3; //shift
-    *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
-     /* store lower shift left into EDX */
-    pos = gen_mov_from_physical_to_physical(pos, EAX, EDX);
-     /* now shift left by (32 - shift) of upper 32 bits */
-    pos = gen_mov_const_in_physical_reg(pos, EAX, 32);
-    pos = gen_sub_between_physicals(pos, EAX, ECX);
-    pos = gen_mov_from_physical_to_physical(pos, EAX, ECX);
-    pos = gen_mov_from_virtual_to_physical(pos, op1->index2, EAX);
-    *pos++ = 0xd3; //shift
-    *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
-     /* now just add both part and write in virtual */
-    pos = gen_add_between_physicals(pos, EAX, EDX);
-    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index);
-
-    /* patch jump distance */
-    *patch = pos - patch - 1;
-
-    return pos;
+    return op << shift_value;
 }
 
-static char *gen_shl64(char *pos, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2)
+static uint64_t shr64_helper(uint64_t op, uint32_t shift_value)
 {
-    char *patch;
-
-    /* set default value if shift value is zero */
-    pos = gen_mov_from_virtual_to_virtual_hlp(pos, op1->index, dst->index);
-    pos = gen_mov_from_virtual_to_virtual_hlp(pos, op1->index2, dst->index2);
-     /* move shift value in eax to check against zero value */
-    pos = gen_mov_from_virtual_to_physical(pos, op2->index, EAX);
-    /* compare eax with zero */
-    *pos++ = 0x3d;
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
-    /* branch to end if eax is zero */
-    *pos++ = 0x74;
-    patch = pos++;
-
-    /* lower part */
-    pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
-    pos = gen_mov_from_virtual_to_physical(pos, op2->index, ECX);
-    *pos++ = 0xd3; //shift
-    *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
-    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index);
-    /* upper part */
-    pos = gen_mov_from_virtual_to_physical(pos, op1->index2, EAX);
-    *pos++ = 0xd3; //shift
-    *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
-     /* store upper shift left into EDX */
-    pos = gen_mov_from_physical_to_physical(pos, EAX, EDX);
-     /* now shift righ by (32 - shift) of lower 32 bits */
-    pos = gen_mov_const_in_physical_reg(pos, EAX, 32);
-    pos = gen_sub_between_physicals(pos, EAX, ECX);
-    pos = gen_mov_from_physical_to_physical(pos, EAX, ECX);
-    pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
-    *pos++ = 0xd3; //shift
-    *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
-     /* now just add both part and write in virtual */
-    pos = gen_add_between_physicals(pos, EAX, EDX);
-    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index2);
-
-    /* patch jump distance */
-    *patch = pos - patch - 1;
-
-    return pos;
+    return op >> shift_value;
 }
 
-static char *gen_ror64(char *pos, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2)
+static int64_t asr64_helper(int64_t op, uint32_t shift_value)
 {
-    char *patch;
+    return op >> shift_value;
+}
 
-    /* set default value if shift value is zero */
-    pos = gen_mov_from_virtual_to_virtual_hlp(pos, op1->index, dst->index);
-    pos = gen_mov_from_virtual_to_virtual_hlp(pos, op1->index2, dst->index2);
-     /* move shift value in eax to check against zero value */
+static int64_t ror64_helper(uint64_t op, uint32_t shift_value)
+{
+    if (shift_value == 0)
+        return op;
+
+    return (op >> shift_value) | (op << (64 - shift_value));
+}
+
+static char *gen_shift64(char *pos, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2, uint32_t helper_addr)
+{
+    int sp_offset = 0;
+
+    /* push params on task */
     pos = gen_mov_from_virtual_to_physical(pos, op2->index, EAX);
-    /* compare eax with zero */
-    *pos++ = 0x3d;
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
-    /* branch to end if eax is zero */
-    *pos++ = 0x74;
-    patch = pos++;
-
-    /* upper part */
-     /* shift right part from index2 */
+    pos = gen_push_physical_on_stack(pos, EAX, &sp_offset);
     pos = gen_mov_from_virtual_to_physical(pos, op1->index2, EAX);
-    pos = gen_mov_from_virtual_to_physical(pos, op2->index, ECX);
-    *pos++ = 0xd3; //shift
-    *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
-     /* store lower shift right into EDX */
-    pos = gen_mov_from_physical_to_physical(pos, EAX, EDX);
-     /* left shift part from index */
-    pos = gen_mov_const_in_physical_reg(pos, EAX, 32);
-    pos = gen_sub_between_physicals(pos, EAX, ECX);
-    pos = gen_mov_from_physical_to_physical(pos, EAX, ECX);
+    pos = gen_push_physical_on_stack(pos, EAX, &sp_offset);
     pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
-    *pos++ = 0xd3; //shift
-    *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
-     /* add both part and save */
-    pos = gen_add_between_physicals(pos, EAX, EDX);
-    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index2);
+    pos = gen_push_physical_on_stack(pos, EAX, &sp_offset);
 
-    /* lower part */
-     /* shift right part from index */
-    pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
-    pos = gen_mov_from_virtual_to_physical(pos, op2->index, ECX);
-    *pos++ = 0xd3; //shift
-    *pos++ = MODRM_MODE_3 | (5/*shr*/ << MODRM_REG_SHIFT) | EAX;
-     /* store lower shift right into EDX */
-    pos = gen_mov_from_physical_to_physical(pos, EAX, EDX);
-     /* left shift part from index2 */
-    pos = gen_mov_const_in_physical_reg(pos, EAX, 32);
-    pos = gen_sub_between_physicals(pos, EAX, ECX);
-    pos = gen_mov_from_physical_to_physical(pos, EAX, ECX);
-    pos = gen_mov_from_virtual_to_physical(pos, op1->index2, EAX);
-    *pos++ = 0xd3; //shift
-    *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
-     /* add both part and save */
-    pos = gen_add_between_physicals(pos, EAX, EDX);
+    /* call helper */
+    pos = gen_mov_const_in_physical_reg(pos, EAX, helper_addr);
+    *pos++ = 0xff;
+    *pos++ = MODRM_MODE_3 | (2/*subcode*/ << MODRM_REG_SHIFT) | EAX;
+
+    /* restore sp */
+    pos = gen_add_sp(pos, sp_offset);
+
+    /* save result */
     pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index);
-
-    /* patch jump distance */
-    *patch = pos - patch - 1;
+    pos = gen_mov_from_physical_to_virtual(pos, EDX, dst->index2);
 
     return pos;
 }
@@ -1408,7 +1319,6 @@ static char *gen_binop64(char *pos, struct x86Instruction *insn)
     static const char binopToOpcode2[] = {0x11/*adc*/, 0x19/*sbb*/, 0x31/*xor*/, 0x21/*and*/,
                                          0x09/*or*/, 0xd3/*shl*/, 0xd3/*shr*/, 0xd3/*sar*/, 0xd3/*ror*/,
                                          0xff/*cmpeq*/, 0xff/*cmpne*/};
-    int subtype;
 
     /* do ops with result in eax */
     switch(insn->u.binop.type) {
@@ -1431,16 +1341,16 @@ static char *gen_binop64(char *pos, struct x86Instruction *insn)
             pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index2);
             break;
         case X86_BINOP_SHL:
-            pos = gen_shl64(pos, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
+            pos = gen_shift64(pos, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2, (uint32_t)&shl64_helper);
             break;
-        case X86_BINOP_SHR: subtype = 5; goto unop;
-        case X86_BINOP_ASR: subtype = 7; goto unop;
-            unop: {
-                pos = gen_shr64_asr64(pos, subtype, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
-            }
+        case X86_BINOP_SHR:
+            pos = gen_shift64(pos, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2, (uint32_t)&shr64_helper);
+            break;
+        case X86_BINOP_ASR:
+            pos = gen_shift64(pos, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2, (uint32_t)&asr64_helper);
             break;
         case X86_BINOP_ROR:
-            pos = gen_ror64(pos, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
+            pos = gen_shift64(pos, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2, (uint32_t)&ror64_helper);
             break;
         case X86_BINOP_CMPEQ:
             pos = gen_cmp64(pos, 1, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
@@ -1573,26 +1483,6 @@ static char *gen_write_64(char *pos, struct x86Instruction *insn)
     *pos++ = ((insn->u.read_context.offset + 4) >> 8) & 0xff;
     *pos++ = ((insn->u.read_context.offset + 4) >> 16) & 0xff;
     *pos++ = ((insn->u.read_context.offset + 4) >> 24) & 0xff;
-
-    return pos;
-}
-
-static char *gen_push_physical_on_stack(char *pos, int index, int *sp_offset)
-{
-    *pos++ = 0x50 + index;
-    *sp_offset += 4;
-
-    return pos;
-}
-
-static char *gen_add_sp(char *pos, int offset)
-{
-    *pos++ = 0x81;
-    *pos++ = MODRM_MODE_3 | (0/*subcode*/ << MODRM_REG_SHIFT) | ESP;
-    *pos++ = (offset >> 0) & 0xff;
-    *pos++ = (offset >> 8) & 0xff;
-    *pos++ = (offset >> 16) & 0xff;
-    *pos++ = (offset >> 24) & 0xff;
 
     return pos;
 }
