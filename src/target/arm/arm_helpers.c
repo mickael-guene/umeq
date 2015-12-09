@@ -1129,8 +1129,8 @@ static uint32_t signedSat32Q(int64_t i, int *isSat)
 
 static int64_t signedSatQ(int64_t i, int n, int *isSat)
 {
-    int64_t sat_pos = (1UL << (n - 1)) - 1;
-    int64_t sat_neg = -(1UL << (n - 1));
+    int64_t sat_pos = (1ULL << (n - 1)) - 1;
+    int64_t sat_neg = -(1ULL << (n - 1));
     int64_t res;
     *isSat = 0;
 
