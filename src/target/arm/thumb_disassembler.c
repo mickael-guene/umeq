@@ -2585,7 +2585,7 @@ static int dis_t2_bfc(struct arm_target *context, uint32_t insn, struct irInstru
     int msb = INSN2(4, 0);
     int lsb = (INSN2(14, 12) << 2) + INSN2(7, 6);
     int width = msb - lsb + 1;
-    int mask = ~(((1UL << width) - 1) << lsb);
+    int mask = ~(((1ULL << width) - 1) << lsb);
 
     assert(rd != 15);
 
@@ -2603,7 +2603,7 @@ static int dis_t2_bfi(struct arm_target *context, uint32_t insn, struct irInstru
     int msb = INSN2(4, 0);
     int lsb = (INSN2(14, 12) << 2) | INSN2(7, 6);
     int width = msb - lsb + 1;
-    uint32_t mask_rn = (((1UL << width) - 1) << lsb);
+    uint32_t mask_rn = (((1ULL << width) - 1) << lsb);
     uint32_t mask_rd = ~mask_rn;
     struct irRegister *op1;
     struct irRegister *op2;
@@ -2639,7 +2639,7 @@ static int dis_t2_ubfx(struct arm_target *context, uint32_t insn, struct irInstr
     int rd = INSN2(11, 8);
     int lsb = (INSN2(14, 12) << 2) | INSN2(7, 6);
     int rn = INSN1(3, 0);
-    uint32_t mask = (1UL << (widthm1 + 1)) - 1;
+    uint32_t mask = (1ULL << (widthm1 + 1)) - 1;
 
     write_reg(context, ir, rd, ir->add_and_32(ir,
                                               ir->add_shr_32(ir, read_reg(context, ir, rn), mk_8(ir, lsb)),
