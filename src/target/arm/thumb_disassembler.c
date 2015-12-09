@@ -748,7 +748,7 @@ static int dis_t1_mov_immediate(struct arm_target *context, uint32_t insn, struc
         params[0] = ir->add_or_32(ir,
                                   ir->add_mov_const_32(ir, opcode),
                                   read_sco(context, ir));
-        params[1] = 0;
+        params[1] = mk_32(ir, 0);
         params[2] = mk_32(ir, imm32);
         params[3] = read_cpsr(context, ir);
 
