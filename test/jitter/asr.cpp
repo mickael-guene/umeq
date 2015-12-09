@@ -149,3 +149,18 @@ TEST_F(AsrTest, asr64_zero) {
     EXPECT_EQ((uint64_t)((int64_t)op1>>op2), out);
 }
 
+TEST_F(AsrTest, asr64_32) {
+    uint64_t op1 = ~0;
+    uint8_t op2 =32;
+    uint64_t out = 0;
+
+    ir->add_store_64(ir,
+                    ir->add_asr_64(ir,
+                                  ir->add_mov_const_64(ir, op1),
+                                  ir->add_mov_const_8(ir, op2)),
+                    ir->add_mov_const_64(ir, (uint64_t) &out));
+    jitAndExcecute();
+
+    EXPECT_EQ((uint64_t)((int64_t)op1>>op2), out);
+}
+
