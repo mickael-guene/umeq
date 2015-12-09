@@ -32,10 +32,10 @@ class CallTest : public jitterFixture {
 #define P032                    0x12341230
 #define P132                    0x12341231
 
-#define P064                    0xDEADBEEF00003210UL
-#define P164                    0xDEADBEEF00003211UL
-#define P264                    0xDEADBEEF00003212UL
-#define P364                    0xDEADBEEF00003213UL
+#define P064                    0xDEADBEEF00003210ULL
+#define P164                    0xDEADBEEF00003211ULL
+#define P264                    0xDEADBEEF00003212ULL
+#define P364                    0xDEADBEEF00003213ULL
 
 #define CALL_VOID_MARKER            0x11
 #define CALL_VOID_MARKER_P032       0x12
@@ -43,8 +43,8 @@ class CallTest : public jitterFixture {
 #define CALL_32_MARKER              0x21
 #define CALL_32_MARKER_P032         0x22
 #define CALL_32_MARKER_P032_P132    0x23
-#define CALL_64_MARKER              0x31
-#define CALL_64_MARKER_P064         0x32
+#define CALL_64_MARKER              0xDEADBEEF00000031ULL
+#define CALL_64_MARKER_P064         0xDEADBEEF00000032ULL
 #define CALL_64_MARKER_P064_P164    0x33
 #define CALL_64_MARKER_P064_P164_P264       0x34
 #define CALL_64_MARKER_P064_P164_P264_P364  0x35
@@ -94,7 +94,7 @@ extern "C" uint32_t call_32_p032_p132_helper(uint64_t context, uint32_t p0, uint
     return 0;
 }
 
-extern "C" uint32_t call_64_helper(uint64_t context)
+extern "C" uint64_t call_64_helper(uint64_t context)
 {
     return CALL_64_MARKER;
 }
@@ -221,7 +221,7 @@ TEST_F(CallTest, call_32_p032_p132) {
     EXPECT_EQ(out, CALL_32_MARKER_P032_P132);
 }
 
-/*TEST_F(CallTest, call_64) {
+TEST_F(CallTest, call_64) {
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
     uint64_t out;
 
@@ -234,7 +234,7 @@ TEST_F(CallTest, call_32_p032_p132) {
     jitAndExcecute();
 
     EXPECT_EQ(out, CALL_64_MARKER);
-}*/
+}
 
 TEST_F(CallTest, call_64_p064) {
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
