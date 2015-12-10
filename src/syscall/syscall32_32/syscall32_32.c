@@ -36,6 +36,15 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
     int res = -ENOSYS;
 
     switch(no) {
+        case PR_access:
+            res = syscall(SYS_access, (const char *) g_2_h(p0), (int) p1);
+            break;
+        case PR_close:
+            res = syscall(SYS_close, (int)p0);
+            break;
+        case PR_read:
+            res = syscall(SYS_read, (int)p0, (void *) g_2_h(p1), (size_t) p2);
+            break;
         case PR_write:
             res = syscall(SYS_write, (int)p0, (void *)g_2_h(p1), (size_t)p2);
             break;
@@ -58,8 +67,17 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_fstat64:
             res = syscall(SYS_fstat64, (int) p0, (struct stat *)g_2_h(p1));
             break;
+        case PR_stat64:
+            res = syscall(SYS_stat64, (const char *)g_2_h(p0), (struct stat *)g_2_h(p1));
+            break;
         case PR_exit_group:
             res = syscall(SYS_exit_group, (int)p0);
+            break;
+        case PR_lseek:
+            res = syscall(SYS_lseek, (int)p0, (off_t)p1, (int)p2);
+            break;
+        case PR_mprotect:
+            res = syscall(SYS_mprotect, (void *) g_2_h(p0), (size_t) p1, (int) p2);
             break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);

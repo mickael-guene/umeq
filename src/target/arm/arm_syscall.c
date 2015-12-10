@@ -65,6 +65,9 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_mmap2:
                 res = arm_mmap2(context);
                 break;
+            case PR_open:
+                res = arm_open(context);
+                break;
             case PR_uname:
                 res = arm_uname(context);
                 break;
