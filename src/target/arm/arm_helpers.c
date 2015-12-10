@@ -84,6 +84,7 @@ static inline int64_t ssat64(struct arm_registers *regs, __int128_t op)
     __int128_t max = 0x7fffffffffffffffUL;
     __int128_t min = -(max+1);
 
+    fatal("Implement this\n");
     if (op > max) {
         res = max;
         regs->fpscr |= 1 << 27;
@@ -120,6 +121,7 @@ static inline uint64_t usat64(struct arm_registers *regs, __int128_t op)
     uint64_t res;
     __int128_t max = 0xffffffffffffffffUL;
 
+    fatal("Implement this\n");
     if (op > max) {
         res = max;
         regs->fpscr |= 1 << 27;
@@ -153,6 +155,7 @@ static inline uint64_t usat64_u(struct arm_registers *regs, __uint128_t op)
     uint64_t res;
     __int128_t max = 0xffffffffffffffffUL;
 
+    fatal("Implement this\n");
     if (op > max) {
         res = max;
         regs->fpscr |= 1 << 27;
@@ -190,6 +193,7 @@ static __int128_t sshl(__int128_t val, int8_t shift, int is_round)
     __int128_t res;
     __uint128_t round = 0;
 
+    fatal("Implement this\n");
     if (is_round) {
         if (shift < 0)
             round = (__uint128_t)1 << (-shift -1);
@@ -2859,6 +2863,7 @@ static void dis_common_vqadd_vqsub_simd(uint64_t _regs, uint32_t insn, uint32_t 
         case 3:
             for(r = 0; r < reg_nb; r++) {
                 for(i = 0; i < 1; i++) {
+                    fatal("Implement this\n");
                     if (is_unsigned)
                         res[r].u64[i] = usat64(regs, (__uint128_t)regs->e.simd[n + r].u64[i] + SUB(is_sub, (__uint128_t)regs->e.simd[m + r].u64[i]));
                     else
@@ -2949,6 +2954,7 @@ static void dis_common_vqshl_vqrshl_simd(uint64_t _regs, uint32_t insn, uint32_t
                         u_res_before_sat = ushl((__uint128_t) regs->e.simd[m + r].u8[i], shift, is_rounding);
                         res[r].u8[i] = usat8_u(regs, usat64_u(regs,u_res_before_sat));
                     } else {
+                        fatal("Implement this\n");
                         s_res_before_sat = sshl((__int128_t) regs->e.simd[m + r].s8[i], shift, is_rounding);
                         res[r].s8[i] = ssat8(regs, ssat64(regs,s_res_before_sat));
                     }
@@ -2963,6 +2969,7 @@ static void dis_common_vqshl_vqrshl_simd(uint64_t _regs, uint32_t insn, uint32_t
                         u_res_before_sat = ushl((__uint128_t) regs->e.simd[m + r].u16[i], shift, is_rounding);
                         res[r].u16[i] = usat16_u(regs, usat64_u(regs,u_res_before_sat));
                     } else {
+                        fatal("Implement this\n");
                         s_res_before_sat = sshl((__int128_t) regs->e.simd[m + r].s16[i], shift, is_rounding);
                         res[r].s16[i] = ssat16(regs, ssat64(regs,s_res_before_sat));
                     }
@@ -2977,6 +2984,7 @@ static void dis_common_vqshl_vqrshl_simd(uint64_t _regs, uint32_t insn, uint32_t
                         u_res_before_sat = ushl((__uint128_t) regs->e.simd[m + r].u32[i], shift, is_rounding);
                         res[r].u32[i] = usat32_u(regs, usat64_u(regs,u_res_before_sat));
                     } else {
+                        fatal("Implement this\n");
                         s_res_before_sat = sshl((__int128_t) regs->e.simd[m + r].s32[i], shift, is_rounding);
                         res[r].s32[i] = ssat32(regs, ssat64(regs,s_res_before_sat));
                     }
@@ -2991,6 +2999,7 @@ static void dis_common_vqshl_vqrshl_simd(uint64_t _regs, uint32_t insn, uint32_t
                         u_res_before_sat = ushl((__uint128_t) regs->e.simd[m + r].u64[i], shift, is_rounding);
                         res[r].u64[i] = usat64_u(regs, usat64_u(regs,u_res_before_sat));
                     } else {
+                        fatal("Implement this\n");
                         s_res_before_sat = sshl((__int128_t) regs->e.simd[m + r].s64[i], shift, is_rounding);
                         res[r].s64[i] = ssat64(regs,s_res_before_sat);
                     }
@@ -3017,6 +3026,7 @@ static void dis_common_vshl_vrshl_simd(uint64_t _regs, uint32_t insn, uint32_t i
     int r;
     union simd_d_register res[2];
 
+    fatal("Implement this\n");
     switch(size) {
         case 0:
             for(r = 0; r < reg_nb; r++) {
@@ -4106,6 +4116,7 @@ static void dis_common_vqdmlal_vqdmlsl_simd(uint64_t _regs, uint32_t insn)
             for(i = 0; i < 2; i++) {
                 int64_t product = ssat64(regs, 2 * (int64_t)regs->e.simd[n].s32[i] * (int64_t)regs->e.simd[m].s32[i]);
 
+                fatal("Implement this\n");
                 res.s64[i] = ssat64(regs, (__int128_t)res.s64[i] + (is_sub?-(__int128_t)product:(__int128_t)product));
             }
             break;
@@ -4421,6 +4432,7 @@ static void dis_common_vqdmlal_vqdmlsl_scalar_simd(uint64_t _regs, uint32_t insn
             for(i = 0; i < 2; i++) {
                 int64_t product = ssat64(regs, 2 * (int64_t)regs->e.simd[n].s32[i] * (int64_t)regs->e.simd[m].s32[index]);
 
+                fatal("Implement this\n");
                 res.s64[i] = ssat64(regs, (__int128_t)res.s64[i] + (is_sub?-(__int128_t)product:(__int128_t)product));
             }
             break;
@@ -5617,6 +5629,7 @@ static void dis_common_vshr_vrshr_simd(uint64_t _regs, uint32_t insn, int is_uns
     union simd_d_register res[2];
     int shift_value;
 
+    fatal("Implement this\n");
     if (imm >> 6) {
         shift_value = 64 - imm6;
         for(r = 0; r < reg_nb; r++)
@@ -5669,6 +5682,7 @@ static void dis_common_vsra_vrsra_simd(uint64_t _regs, uint32_t insn, int is_uns
     union simd_d_register res[2];
     int shift_value;
 
+    fatal("Implement this\n");
     for(r = 0; r < reg_nb; r++)
         res[r] = regs->e.simd[d + r];
     if (imm >> 6) {
@@ -5857,6 +5871,7 @@ static void dis_common_vqshlu_immediate_simd(uint64_t _regs, uint32_t insn)
     union simd_d_register res[2];
     int shift_value;
 
+    fatal("Implement this\n");
     if (imm >> 6) {
         shift_value = imm6;
         for(r = 0; r < reg_nb; r++)
@@ -5897,6 +5912,7 @@ static void dis_common_vqshl_immediate_simd(uint64_t _regs, uint32_t insn, int i
     union simd_d_register res[2];
     int shift_value;
 
+    fatal("Implement this\n");
     if (imm >> 6) {
         shift_value = imm6;
         for(r = 0; r < reg_nb; r++)
@@ -5950,6 +5966,7 @@ static void dis_common_vqrshrun_vqshrun_simd(uint64_t _regs, uint32_t insn, int 
     union simd_d_register res;
     int shift_value;
 
+    fatal("Implement this\n");
     if (imm6 >> 5) {
         shift_value = 64 - imm6;
         for(i = 0; i < 2; i++)
@@ -5979,6 +5996,7 @@ static void dis_common_vrshrn_vshrn_simd(uint64_t _regs, uint32_t insn, int is_r
     union simd_d_register res;
     int shift_value;
 
+    fatal("Implement this\n");
     if (imm6 >> 5) {
         shift_value = 64 - imm6;
         for(i = 0; i < 2; i++)
@@ -6007,6 +6025,7 @@ static void dis_common_vqrshrn_vqshrn_simd(uint64_t _regs, uint32_t insn, int is
     union simd_d_register res;
     int shift_value;
 
+    fatal("Implement this\n");
     if (imm6 >> 5) {
         shift_value = 64 - imm6;
         for(i = 0; i < 2; i++) {

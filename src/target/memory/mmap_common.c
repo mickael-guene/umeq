@@ -680,6 +680,7 @@ static long internal_shmat(uint64_t shmid_p, uint64_t shmaddr_p, uint64_t shmflg
     uint64_t end_addr = 0;
     uint64_t length;
 
+    assert(0);
     /* first find segment size */
     /* FIXME: to compile */
     //res = syscall(SYS_shmctl, shmid, IPC_STAT, &shm_info);
@@ -718,6 +719,7 @@ static long internal_shmdt(uint64_t shmaddr_p)
 {
     long res;
 
+    assert(0);
     /* FIXME: to compile */
     //res = syscall(SYS_shmdt, g_2_h(shmaddr_p));
     if (!is_syscall_error(res))
