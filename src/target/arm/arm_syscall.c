@@ -45,7 +45,7 @@ void arm_hlp_syscall(uint64_t regs)
 
     /* syscall entry sequence */
     context->regs.is_in_syscall = 1;
-    syscall((long) 313, 0);
+    //syscall((long) 313, 0);
     /* translate syscall nb into neutral no */
     if (no == 0xf0005)
         no_neutral = PR_ARM_set_tls;
@@ -65,6 +65,9 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_mmap2:
                 res = arm_mmap2(context);
                 break;
+            case PR_munmap:
+                res = arm_munmap(context);
+                break;
             case PR_open:
                 res = arm_open(context);
                 break;
@@ -77,6 +80,9 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_ARM_set_tls:
                 context->regs.c13_tls2 = context->regs.r[0];
                 res = 0;
+                break;
+            case PR_rt_sigaction:
+                res = arm_rt_sigaction(context);
                 break;
             case PR_exit:
                 if (context->is_in_signal) {
@@ -104,7 +110,7 @@ void arm_hlp_syscall(uint64_t regs)
     context->regs.r[0] = res;
     /* syscall exit sequence */
     context->regs.is_in_syscall = 2;
-    syscall((long) 313, 1);
+    //syscall((long) 313, 1);
     /* no more in syscall */
     context->regs.is_in_syscall = 0;
 }
