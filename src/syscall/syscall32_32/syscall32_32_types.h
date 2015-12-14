@@ -22,17 +22,44 @@
 extern "C" {
 #endif
 
-#ifndef __SYSCALL32_32_PRIVATE__
-#define __SYSCALL32_32_PRIVATE__ 1
+#ifndef __SYSCALL32_32_TYPES__
+#define __SYSCALL32_32_TYPES__ 1
 
-#include "target32.h"
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <stdint.h>
 
-extern int writev_s3232(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p);
-extern int futex_s3232(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32_t timeout_p, uint32_t uaddr2_p, uint32_t val3_p);
-extern int fnctl64_s3232(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p);
-extern int stat64_s3232(uint32_t pathname_p, uint32_t buf_p);
-extern int fstat64_s3232(uint32_t fd_p, uint32_t buf_p);
-extern int lstat64_s3232(uint32_t pathname_p, uint32_t buf_p);
+struct stat32_32 {
+    uint64_t    st_dev;
+    uint8_t   __pad0[4];
+
+    uint32_t    __st_ino;
+    uint32_t    st_mode;
+    uint32_t    st_nlink;
+
+    uint32_t    st_uid;
+    uint32_t    st_gid;
+
+    uint64_t    st_rdev;
+    uint8_t   __pad3[4];
+    uint8_t   __pad4[4];
+
+    int64_t     st_size;
+    uint32_t    st_blksize;
+    uint8_t   __pad5[4];
+    uint64_t    st_blocks;
+
+    uint32_t    _st_atime;
+    uint32_t    st_atime_nsec;
+
+    uint32_t    _st_mtime;
+    uint32_t    st_mtime_nsec;
+
+    uint32_t    _st_ctime;
+    uint32_t    st_ctime_nsec;
+
+    uint64_t    st_ino;
+};
 
 #endif
 

@@ -64,12 +64,10 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_readlink, (const char *)g_2_h(p0), (char *)g_2_h(p1), (size_t)p2);
             break;
         case PR_fstat64:
-            /* FIXME: to be check */
-            res = syscall(SYS_fstat, (int) p0, (struct stat *)g_2_h(p1));
+            res = fstat64_s3232(p0,p1);
             break;
         case PR_stat64:
-            /* FIXME: to be check */
-            res = syscall(SYS_stat, (const char *)g_2_h(p0), (struct stat *)g_2_h(p1));
+            res = stat64_s3232(p0,p1);
             break;
         case PR_exit_group:
             res = syscall(SYS_exit_group, (int)p0);
@@ -115,8 +113,7 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_getdents64, (int) p0, (struct linux_dirent *)g_2_h(p1), (unsigned int) p2);
             break; 
         case PR_lstat64:
-            /* FIXME: to be check */
-            res = syscall(SYS_lstat64, (const char *)g_2_h(p0), (struct stat *) g_2_h(p1));
+            res = lstat64_s3232(p0,p1);
             break;
         case PR_lgetxattr:
             res = syscall(SYS_lgetxattr, (const char *) g_2_h(p0), (const char *) g_2_h(p1), (void *) g_2_h(p2), (size_t) p3);
