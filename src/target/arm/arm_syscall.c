@@ -96,6 +96,12 @@ void arm_hlp_syscall(uint64_t regs)
                     return ;
                 }
                 break;
+            case PR_arm_fadvise64_64:
+                res = syscall(SYS_fadvise64, (int) context->regs.r[0],
+                                             (off_t) (((uint64_t)context->regs.r[3] << 32) + (uint64_t)context->regs.r[2]),
+                                             (off_t) (((uint64_t)context->regs.r[5] << 32) + (uint64_t)context->regs.r[4]),
+                                             (int) context->regs.r[1]);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }

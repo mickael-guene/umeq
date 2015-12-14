@@ -142,6 +142,9 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS__llseek, (unsigned int) p0, (unsigned long) p1, (unsigned long) p2,
                           (loff_t *)g_2_h(p3), (unsigned int) p4);
             break;
+        case PR_clock_gettime:
+            res = syscall(SYS_clock_gettime, (clockid_t) p0, (struct timespec *)g_2_h(p1));
+            break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);
     }
