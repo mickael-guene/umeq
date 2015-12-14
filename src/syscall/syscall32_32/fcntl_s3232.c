@@ -29,6 +29,10 @@
 #include "runtime.h"
 #include "syscall32_32_private.h"
 
+/* FIXME: Found a way to handle this */
+extern int x86ToArmFlags(long x86_flags);
+extern long armToX86Flags(int arm_flags);
+
 int fnctl64_s3232(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
 {
     int res = -EINVAL;
@@ -38,7 +42,14 @@ int fnctl64_s3232(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
     switch(cmd) {
         case F_GETFD:
         	/* FIXME: check SYS_fcntl or SYS_fcntl64 */
-            res = syscall(SYS_fcntl, fd, cmd);
+            res = syscall(SYS_fcntl64, fd, cmd);
+            break;
+        case F_SETFD:
+            res = syscall(SYS_fcntl64, fd, cmd, (int) opt_p);
+            break;
+        case F_GETFL:
+            res = syscall(SYS_fcntl64, fd, cmd);
+            res = x86ToArmFlags(res);
             break;
         default:
             /* invalid cmd use by ltp testsuite */

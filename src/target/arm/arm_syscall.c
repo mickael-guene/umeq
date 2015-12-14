@@ -84,6 +84,9 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_rt_sigaction:
                 res = arm_rt_sigaction(context);
                 break;
+            case PR_sigaltstack:
+                res = arm_sigaltstack(context);
+                break;
             case PR_exit:
                 if (context->is_in_signal) {
                     /* in case we are in signal handler we leave immediatly */

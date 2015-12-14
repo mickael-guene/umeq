@@ -145,6 +145,57 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_clock_gettime:
             res = syscall(SYS_clock_gettime, (clockid_t) p0, (struct timespec *)g_2_h(p1));
             break;
+        case PR_gettimeofday:
+            res = syscall(SYS_gettimeofday, IS_NULL(p0, struct timeval), IS_NULL(p1, struct timezone));
+            break;
+        case PR_getcwd:
+            res = syscall(SYS_getcwd, (char *) g_2_h(p0), (size_t) p1);
+            break;
+        case PR_chdir:
+            res = syscall(SYS_chdir, (const char *) g_2_h(p0));
+            break;
+        case PR_sysinfo:
+            res = syscall(SYS_sysinfo, g_2_h(p0));
+            break;
+        case PR_prlimit64:
+            res = syscall(SYS_prlimit64, (pid_t) p0, (int) p1, (struct rlimit *)g_2_h(p2), (struct rlimit *)g_2_h(p3));
+            break;
+        case PR_fchdir:
+            res = syscall(SYS_fchdir, (int) p0);
+            break;
+        case PR_getpid:
+            res = syscall(SYS_getpid);
+            break;
+        case PR__newselect:
+            res = syscall(SYS__newselect, (int) p0, IS_NULL(p1, fd_set), IS_NULL(p2, fd_set), IS_NULL(p3, fd_set), IS_NULL(p4, struct timeval));
+            break;
+        case PR_umask:
+            res = syscall(SYS_umask, (mode_t) p0);
+            break;
+        case PR_fchown32:
+            res = syscall(SYS_fchown, (int) p0, (uid_t) p1, (gid_t) p2);
+            break;
+        case PR_unlink:
+            res = syscall(SYS_unlink, (const char *) g_2_h(p0));
+            break;
+        case PR_rename:
+            res = syscall(SYS_rename, (const char *) g_2_h(p0), (const char *) g_2_h(p1));
+            break;
+        case PR_fsync:
+            res = syscall(SYS_fsync, (int) p0);
+            break;
+        case PR_kill:
+            res = syscall(SYS_kill, (pid_t) p0, (int) p1);
+            break;
+        case PR_chmod:
+            res = syscall(SYS_chmod, (const char *) g_2_h(p0), (mode_t) p1);
+            break;
+        case PR_getxattr:
+            res = syscall(SYS_getxattr, (char *) g_2_h(p0), (char *) g_2_h(p1), (void *) g_2_h(p2), (size_t) p3);
+            break;
+        case PR_setxattr:
+            res = syscall(SYS_setxattr, (const char *) g_2_h(p0), (const char *) g_2_h(p1), (const void *) g_2_h(p2), (size_t) p3, (int) p4);
+            break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);
     }
