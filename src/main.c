@@ -31,6 +31,8 @@
 #include <string.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <linux/unistd.h>
+#include <asm/ldt.h>
 
 #include "cache.h"
 #include "jitter.h"
@@ -62,13 +64,74 @@ const struct memory_config cache_memory_config[MEM_PROFILE_NB] = {
     {40, 256 * KB, 256 * KB, 14 * MB},
 };
 
+# ifndef TLS_GET_GS
+#  define TLS_GET_GS() \
+  ({ int __seg; __asm ("movw %%gs, %w0" : "=q" (__seg)); __seg & 0xffff; })
+# endif
+
+# ifndef TLS_SET_GS
+#  define TLS_SET_GS(val) \
+  __asm ("movw %w0, %%gs" :: "q" (val))
+# endif
+
+
+int set_thread_area(struct user_desc *u_info)
+{
+    return syscall(SYS_set_thread_area, u_info);
+}
+
+int get_thread_area(struct user_desc *u_info)
+{
+    return syscall(SYS_get_thread_area, u_info);
+}
+
 static void setup_thread_area(struct tls_context *main_thread_tls_context)
 {
     main_thread_tls_context->target = NULL;
     main_thread_tls_context->target_runtime = NULL;
+#if 0 /* x86 */
+    syscall(SYS_arch_prctl, ARCH_SET_FS, main_thread_tls_context);
+#else
+    {
+        struct user_desc desc;
+        int res;
 
-    /* FIXME: i386 compile */
-    //syscall(SYS_arch_prctl, ARCH_SET_FS, main_thread_tls_context);
+        desc.entry_number = -1;
+        desc.base_addr = (int) main_thread_tls_context;
+        desc.limit = 0xfffff; /* We use 4GB which is 0xfffff pages. */
+        desc.seg_32bit = 1;
+        desc.contents = 0;
+        desc.read_exec_only = 0;
+        desc.limit_in_pages = 1;
+        desc.seg_not_present = 0;
+        desc.useable = 1;
+        res = set_thread_area(&desc);
+        assert(res == 0);
+        TLS_SET_GS (desc.entry_number * 8 + 3);
+    }
+#endif
+}
+
+static struct tls_context *get_tls_context()
+{
+#if 0
+    struct tls_context *tls_context;
+
+    syscall(SYS_arch_prctl, ARCH_GET_FS, &tls_context);
+
+    return tls_context;
+#else
+    {
+        struct user_desc desc;
+        int res;
+
+        desc.entry_number = TLS_GET_GS() >> 3;
+        res = get_thread_area(&desc);
+        assert(res == 0);
+
+        return (struct tls_context *) desc.base_addr;
+    }
+#endif
 }
 
 static void loop_common(struct target *target, struct backend *backend, struct cache *cache, uint64_t entry,
@@ -123,19 +186,12 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     struct target *target;
     void *target_runtime;
     struct tls_context parent_tls_context;
-#if 0
     struct tls_context *current_tls_context;
-#else
-    struct tls_context tls_context;
-    struct tls_context *current_tls_context = &tls_context;
-#endif
     struct cache *cache = NULL;
     char *cacheMemory = alloca(MIN_CACHE_SIZE_NONE);
 
-    /* get current tls context */
-    /* FIXME: i386 compile */
-    //syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
-
+    /* setup current tls context */
+    current_tls_context = get_tls_context();
     /* allocate jitter and target context */
     //backend = createX86_64Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
     backend = createI386Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
@@ -170,19 +226,12 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     struct target *target;
     void *target_runtime;
     struct tls_context parent_tls_context;
-#if 0
     struct tls_context *current_tls_context;
-#else
-    struct tls_context tls_context;
-    struct tls_context *current_tls_context = &tls_context;
-#endif
     struct cache *cache = NULL;
     char *cacheMemory = alloca(cache_memory_config[memory_profile].cache_size);
 
     /* get current tls context */
-    /* FIXME: i386 compile */
-    //syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
-
+    current_tls_context = get_tls_context();
     /* allocate jitter and target context */
     //backend = createX86_64Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
     backend = createI386Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);

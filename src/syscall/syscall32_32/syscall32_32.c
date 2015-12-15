@@ -229,6 +229,12 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_execve:
             res = execve_s3232(p0,p1,p2);
             break;
+        case PR_setitimer:
+            res = syscall(SYS_setitimer, (int) p0, (const struct itimerval *) g_2_h(p1), IS_NULL(p2, struct itimerval));
+            break;
+        case PR_nanosleep:
+            res = syscall(SYS_nanosleep, (const struct timespec *) g_2_h(p0), IS_NULL(p1, struct timespec *));
+            break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);
     }

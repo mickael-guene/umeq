@@ -23,4 +23,7 @@
 
 /* FIXME : implement i386.S */
 wrap_signal_restorer:
-    nop
+	#pop %eax
+	#mov $119, %eax
+    mov $173, %eax
+    int $0x80

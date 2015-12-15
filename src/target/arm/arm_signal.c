@@ -57,7 +57,6 @@ void wrap_signal_handler(int signum)
     uint64_t stack_entry = (sa_flags&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
     struct umeq_arm_signal_param param;
 
-    assert(0);
     param.siginfo = NULL;
     param.handler = handlers[signum];
     if (handlers[signum].is_fdpic) {
@@ -123,8 +122,9 @@ int arm_rt_sigaction(struct arm_target *context)
             } else {
                 act.k_sa_handler = (act_guest->sa_flags & SA_SIGINFO)?(__sighandler_t)&wrap_signal_sigaction:&wrap_signal_handler;
                 act.sa_mask.__val[0] = act_guest->sa_mask[0];
-                act.sa_flags = act_guest->sa_flags | SA_RESTORER;
-                act.sa_restorer = &wrap_signal_restorer;
+                act.sa_flags = act_guest->sa_flags;
+                act.sa_flags &= ~SA_RESTORER; /* clean restorer so we let kernel do the job */
+                act.sa_restorer = NULL;
             }
         }
 
