@@ -78,6 +78,7 @@ static int clone_thread_arm(struct arm_target *context)
     guest_ptr guest_stack;
     void *stack;
 
+    assert(0);
     //allocate memory for stub thread stack
     guest_stack = mmap_guest((uint64_t) NULL, mmap_size[memory_profile], PROT_EXEC|PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_GROWSDOWN, -1, 0);
     if (is_syscall_error(guest_stack))
@@ -107,8 +108,8 @@ static int clone_thread_arm(struct arm_target *context)
         res = clone_asm(SYS_clone, (unsigned long) context->regs.r[0],
                                     stack,
                                     context->regs.r[2]?g_2_h(context->regs.r[2]):NULL,//ptid
-                                    context->regs.r[4]?g_2_h(context->regs.r[4]):NULL,//ctid
-                                    new_thread_tls_context);
+                                    new_thread_tls_context,
+                                    context->regs.r[4]?g_2_h(context->regs.r[4]):NULL);//ctid
         // only parent return here
     }
 
@@ -128,8 +129,8 @@ static int clone_fork_arm(struct arm_target *context)
                         (unsigned long) (context->regs.r[0] & ~(CLONE_VM | CLONE_SETTLS)),
                         NULL, //host fork use a new stack
                         context->regs.r[2]?g_2_h(context->regs.r[2]):NULL,
-                        context->regs.r[4]?g_2_h(context->regs.r[4]):NULL,
-                        NULL); //continue to use parent tls settings
+                        NULL, //continue to use parent tls settings
+                        context->regs.r[4]?g_2_h(context->regs.r[4]):NULL);
 
     /* support use of a new guest stack */
     if (res == 0 && context->regs.r[1])

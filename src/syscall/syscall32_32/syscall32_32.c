@@ -196,6 +196,39 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_setxattr:
             res = syscall(SYS_setxattr, (const char *) g_2_h(p0), (const char *) g_2_h(p1), (const void *) g_2_h(p2), (size_t) p3, (int) p4);
             break;
+        case PR_getppid:
+            res = syscall(SYS_getppid);
+            break;
+        case PR_getpgrp:
+            res = syscall(SYS_getpgrp);
+            break;
+        case PR_dup:
+            res = syscall(SYS_dup, (int)p0);
+            break;
+        case PR_dup2:
+            res = syscall(SYS_dup2, (int)p0, (int)p1);
+            break;
+        case PR_setpgid:
+            res = syscall(SYS_setpgid, (pid_t)p0, (pid_t)p1);
+            break;
+        case PR_faccessat:
+            res = syscall(SYS_faccessat, (int) p0, (const char *) g_2_h(p1), (int) p2, (int) p3);
+            break;
+        case PR_pipe:
+            res = syscall(SYS_pipe, (int *) g_2_h(p0));
+            break;
+        case PR_tgkill:
+            res = syscall(SYS_tgkill, (int) p0, (int) p1, (int) p2);
+            break;
+        case PR_gettid:
+            res = syscall(SYS_gettid);
+            break;
+        case PR_wait4:
+            res = syscall(SYS_wait4, (pid_t) p0, IS_NULL(p1, int), (int) p2, IS_NULL(p3, struct rusage));
+            break;
+        case PR_execve:
+            res = execve_s3232(p0,p1,p2);
+            break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);
     }
