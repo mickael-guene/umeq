@@ -34,6 +34,7 @@ extern int stat64_s3232(uint32_t pathname_p, uint32_t buf_p);
 extern int fstat64_s3232(uint32_t fd_p, uint32_t buf_p);
 extern int lstat64_s3232(uint32_t pathname_p, uint32_t buf_p);
 extern int execve_s3232(uint32_t filename_p,uint32_t argv_p,uint32_t envp_p);
+extern int fstatat64_s3232(uint32_t dirfd_p, uint32_t pathname_p, uint32_t buf_p, uint32_t flags_p);
 
 #endif
 

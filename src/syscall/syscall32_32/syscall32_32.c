@@ -235,6 +235,22 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_nanosleep:
             res = syscall(SYS_nanosleep, (const struct timespec *) g_2_h(p0), IS_NULL(p1, struct timespec *));
             break;
+        case PR_getrusage:
+            res = syscall(SYS_getrusage, (int) p0, (struct rusage *) g_2_h(p1));
+            break;
+        case PR_utimensat:
+            res = syscall(SYS_utimensat, (int) p0, IS_NULL(p1, const char), IS_NULL(p2, const struct timespec *), (int) p3);
+            break;
+        case PR_fstatat64:
+            res = fstatat64_s3232(p0,p1,p2,p3);
+            break;
+        case PR_unlinkat:
+            res = syscall(SYS_unlinkat, (int) p0, (const char *) g_2_h(p1), (int) p2);
+            break;
+        case PR_vfork:
+            /* implement with fork to avoid sync problem but semantic is not fully preserved ... */
+            res = syscall(SYS_fork);
+            break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);
     }
