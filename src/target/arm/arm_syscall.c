@@ -45,7 +45,7 @@ void arm_hlp_syscall(uint64_t regs)
 
     /* syscall entry sequence */
     context->regs.is_in_syscall = 1;
-    //syscall((long) 313, 0);
+    syscall((long) 350, 0);
     /* translate syscall nb into neutral no */
     if (no == 0xf0005)
         no_neutral = PR_ARM_set_tls;
@@ -93,6 +93,19 @@ void arm_hlp_syscall(uint64_t regs)
                 context->exitStatus = 0;
                 res = 0;
                 break;
+            case PR_ptrace:
+                res = arm_ptrace(context);
+                break;
+            case PR_pread64:
+                res = syscall(SYS_pread64, (int) context->regs.r[0], (void *) g_2_h(context->regs.r[1]),
+                                           (size_t) context->regs.r[2],
+                                           (off_t) (((unsigned long)context->regs.r[5] << 32) + (unsigned long) context->regs.r[4]));
+                break;
+            case PR_pwrite64:
+                res = syscall(SYS_pwrite64, (int) context->regs.r[0], (void *) g_2_h(context->regs.r[1]),
+                                           (size_t) context->regs.r[2],
+                                           (off_t) (((unsigned long)context->regs.r[5] << 32) + (unsigned long) context->regs.r[4]));
+                break;
             case PR_sigaltstack:
                 res = arm_sigaltstack(context);
                 break;
@@ -134,7 +147,7 @@ void arm_hlp_syscall(uint64_t regs)
     context->regs.r[0] = res;
     /* syscall exit sequence */
     context->regs.is_in_syscall = 2;
-    //syscall((long) 313, 1);
+    syscall((long) 350, 1);
     /* no more in syscall */
     context->regs.is_in_syscall = 0;
 }

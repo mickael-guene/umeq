@@ -336,10 +336,10 @@ static uint32_t isLooping(struct target *target)
         /* syscall execve exit sequence */
          /* this will be translated into sysexec exit */
         context->regs.is_in_syscall = 2;
-        syscall((long) 313, 1);
+        syscall((long) 350, 1);
          /* this will be translated into SIGTRAP */
         context->regs.is_in_syscall = 0;
-        syscall((long) 313, 2);
+        syscall((long) 350, 2);
         context->trigger_exec = 0;
     }
 

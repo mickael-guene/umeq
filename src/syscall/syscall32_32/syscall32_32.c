@@ -339,6 +339,26 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_shmctl:
             res = syscall(SYS_ipc, 24/*IPCOP_shmctl*/, (int) p0, (int) p1, 0, IS_NULL(p2, struct shmid_ds), 0, 0);
             break;
+        case PR_setreuid32:
+            res = syscall(SYS_setreuid, (uid_t) p0, (uid_t) p1);
+            break;
+        case PR_socketpair:
+            {
+                unsigned long args[4];
+
+                args[0] = (int) p0;
+                args[1] = (int) p1;
+                args[2] = (int) p2;
+                args[3] = (unsigned long)(int *) g_2_h(p3);
+                res = syscall(SYS_socketcall, 8/*sys_socketpair*/, args);
+            }
+            break;
+        case PR_personality:
+            res = syscall(SYS_personality, (unsigned long) p0);
+            break;
+        case PR_rt_sigsuspend:
+            res = syscall(SYS_rt_sigsuspend, (const sigset_t *) g_2_h(p0), (size_t) p1);
+            break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);
     }

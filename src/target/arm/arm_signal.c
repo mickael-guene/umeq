@@ -73,7 +73,6 @@ void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
     uint64_t stack_entry = (sa_flags&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
     struct umeq_arm_signal_param param;
 
-    assert(0);
     param.siginfo = siginfo;
     param.handler = handlers[signum];
     if (handlers[signum].is_fdpic) {
