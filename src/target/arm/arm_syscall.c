@@ -114,6 +114,12 @@ void arm_hlp_syscall(uint64_t regs)
                                              (off_t) (((uint64_t)context->regs.r[5] << 32) + (uint64_t)context->regs.r[4]),
                                              (int) context->regs.r[1]);
                 break;
+            case PR_shmat:
+                res = arm_shmat(context);
+                break;
+            case PR_shmdt:
+                res = arm_shmdt(context);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }

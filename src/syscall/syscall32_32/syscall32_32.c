@@ -23,6 +23,8 @@
 #include <sys/syscall.h>   /* For SYS_xxx definitions */
 #include <stdint.h>
 #include <errno.h>
+#include <poll.h>
+ #include <signal.h>
 
 #include "syscall32_32.h"
 #include "runtime.h"
@@ -253,6 +255,89 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             break;
         case PR_madvise:
             res = syscall(SYS_madvise, (void *) g_2_h(p0), (size_t) p1, (int) p2);
+            break;
+        case PR_clock_getres:
+            res = syscall(SYS_clock_getres, (clockid_t) p0, IS_NULL(p1, struct timespec));
+            break;
+        case PR_fstatfs:
+            /* FIXME: to be check */
+            res = syscall(SYS_fstatfs, (int) p0, (struct statfs *) g_2_h(p1));
+            break;
+        case PR_getresuid32:
+            res = syscall(SYS_getresuid, (uid_t *) g_2_h(p0), (uid_t *) g_2_h(p1), (uid_t *) g_2_h(p2));
+            break;
+        case PR_getresgid32:
+            res = syscall(SYS_getresgid, (gid_t *) g_2_h(p0), (gid_t *) g_2_h(p1), (gid_t *) g_2_h(p2));
+            break;
+        case PR_fstatfs64:
+            /* FIXME: to be check */
+            res = syscall(SYS_fstatfs64, (int) p0, (struct statfs *) g_2_h(p1));
+            break;
+        case PR_getpeername:
+            {
+                unsigned long args[3];
+
+                args[0] = (int) p0;
+                args[1] = (unsigned long)(const struct sockaddr *) g_2_h(p1);
+                args[2] = (socklen_t) p2;
+                res = syscall(SYS_socketcall, 7 /*sys_getpeername*/, args);
+            }
+            break;
+        case PR_poll:
+            res = syscall(SYS_poll, (struct pollfd *) g_2_h(p0), (nfds_t) p1, (int) p2);
+            break;
+        case PR_recv:
+            {
+                unsigned long args[4];
+
+                args[0] = (int) p0;
+                args[1] = (unsigned long)(void *) g_2_h(p1);
+                args[2] = (size_t) p2;
+                args[3] = (int) p3;
+                res = syscall(SYS_socketcall, 10 /*sys_recv*/, args);
+            }
+            break;
+        case PR_shutdown:
+            {
+                unsigned long args[2];
+
+                args[0] = (int) p0;
+                args[1] = (int) p1;
+                res = syscall(SYS_socketcall, 13 /*sys_shutdown*/, args);
+            }
+            break;
+        case PR_eventfd2:
+            res = syscall(SYS_eventfd2, (unsigned int) p0, (int) p1);
+            break;
+        case PR_pipe2:
+            res = syscall(SYS_pipe2, (int *) g_2_h(p0), (int) p1);
+            break;
+        case PR_getdents:
+            res = syscall(SYS_getdents, (unsigned int) p0, (struct linux_dirent *)g_2_h(p1), (unsigned int) p2);
+            break;
+        case PR_getsockname:
+            {
+                unsigned long args[3];
+
+                args[0] = (int) p0;
+                args[1] = (unsigned long)(struct sockaddr *) g_2_h(p1);
+                args[2] = (unsigned long)(socklen_t *) g_2_h(p2);
+                res = syscall(SYS_socketcall, 6 /*sys_getsockname*/, args);
+            }
+            break;
+        case PR_statfs:
+            /* FIXME: to be check */
+            res = syscall(SYS_statfs, (const char *)g_2_h(p0), (struct statfs *) g_2_h(p1));
+            break;
+        case PR_rt_sigtimedwait:
+            /* FIXME: to be check */
+            res = syscall(SYS_rt_sigtimedwait, (sigset_t *) g_2_h(p0), IS_NULL(p1, siginfo_t), IS_NULL(p2, struct timespec), (size_t) p3);
+            break;
+        case PR_shmget:
+            res = syscall(SYS_ipc, 23/*IPCOP_shmget*/, (key_t) p0, (size_t) p1, (int) p2);
+            break;
+        case PR_shmctl:
+            res = syscall(SYS_ipc, 24/*IPCOP_shmctl*/, (int) p0, (int) p1, 0, IS_NULL(p2, struct shmid_ds), 0, 0);
             break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);

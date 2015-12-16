@@ -680,10 +680,12 @@ static long internal_shmat(uint64_t shmid_p, uint64_t shmaddr_p, uint64_t shmflg
     uint64_t end_addr = 0;
     uint64_t length;
 
-    assert(0);
     /* first find segment size */
-    /* FIXME: to compile */
-    //res = syscall(SYS_shmctl, shmid, IPC_STAT, &shm_info);
+#if 1
+    res = syscall(SYS_ipc, 24/*IPCOP_shmctl*/, shmid, IPC_STAT | 0x100/*IPC_64*/, 0, &shm_info);
+#else
+    res = syscall(SYS_shmctl, shmid, IPC_STAT, &shm_info);
+#endif
     if (is_syscall_error(res))
         return res;
     length = PAGE_ALIGN_UP(shm_info.shm_segsz);
@@ -702,8 +704,17 @@ static long internal_shmat(uint64_t shmid_p, uint64_t shmaddr_p, uint64_t shmflg
     if (start_addr != ENOMEM_64) {
         shmaddr = g_2_h(start_addr);
         /* SHM_REMAP is need since area is map by us at start-up */
-        /* FIXME: to compile */
-        //res = syscall(SYS_shmat, shmid, shmaddr, shmflg | SHM_REMAP);
+#if 1
+        {
+            void *raddr;
+
+            res = syscall(SYS_ipc, 21/*IPCOP_shmat*/, shmid, shmflg | SHM_REMAP, &raddr, shmaddr);
+            if (!res)
+                assert(raddr == shmaddr);
+        }
+#else
+        res = syscall(SYS_shmat, shmid, shmaddr, shmflg | SHM_REMAP);
+#endif
         if (is_syscall_error(res))
             insert_unmap_area(start_addr, end_addr);
         else
@@ -719,9 +730,11 @@ static long internal_shmdt(uint64_t shmaddr_p)
 {
     long res;
 
-    assert(0);
-    /* FIXME: to compile */
-    //res = syscall(SYS_shmdt, g_2_h(shmaddr_p));
+#if 1
+    res = syscall(SYS_ipc, 22/*IPCOP_shmdt*/, g_2_h(shmaddr_p));
+#else
+    res = syscall(SYS_shmdt, g_2_h(shmaddr_p));
+#endif
     if (!is_syscall_error(res))
         shm_remove(shmaddr_p);
 

@@ -51,6 +51,12 @@ int fnctl64_s3232(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
             res = syscall(SYS_fcntl64, fd, cmd);
             res = x86ToArmFlags(res);
             break;
+        case F_SETFL:
+            res = syscall(SYS_fcntl64, fd, cmd, armToX86Flags(opt_p));
+            break;
+        case F_SETLKW:
+            res = syscall(SYS_fcntl64, fd, cmd, (struct flock64 *) g_2_h(opt_p));
+            break;
         default:
             /* invalid cmd use by ltp testsuite */
             if (cmd == 99999)
