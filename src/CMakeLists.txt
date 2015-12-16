@@ -36,4 +36,4 @@ add_subdirectory(syscall)
 add_subdirectory(fpu)
 
 add_executable(umeq-arm main.c start.S)
-target_link_libraries(umeq-arm -m32 -nostdlib -Wl,-Ttext-segment=0xc0000000 -Wl,-z,execstack -static -Wl,--start-group jitter loader32 cache runtime arm_target syscall32_32 softfloat -Wl,--end-group)
+target_link_libraries(umeq-arm -m32 -nostdlib -Wl,-Ttext-segment=0xb0000000 -Wl,-z,execstack -static -Wl,--start-group jitter loader32 cache runtime arm_target syscall32_32 softfloat -Wl,--end-group)
