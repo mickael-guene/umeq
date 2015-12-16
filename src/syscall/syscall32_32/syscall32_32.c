@@ -251,6 +251,9 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             /* implement with fork to avoid sync problem but semantic is not fully preserved ... */
             res = syscall(SYS_fork);
             break;
+        case PR_madvise:
+            res = syscall(SYS_madvise, (void *) g_2_h(p0), (size_t) p1, (int) p2);
+            break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);
     }

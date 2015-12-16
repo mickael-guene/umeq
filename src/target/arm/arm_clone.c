@@ -27,14 +27,16 @@
 #include <string.h>
 #include <asm/prctl.h>
 #include <sys/prctl.h>
+#include <linux/unistd.h>
+#include <asm/ldt.h>
 
 #include "arm_private.h"
 #include "arm_syscall.h"
 #include "cache.h"
 #include "umeq.h"
 
-/* FIXME: we assume a x86_64 host */
-extern int loop(uint32_t entry, uint32_t stack_entry, uint32_t signum, void *parent_target);
+/* FIXME: we assume a i386 host */
+extern int loop(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target);
 extern int clone_asm(long number, ...);
 extern void clone_exit_asm(void *stack , long stacksize, int res, void *patch_address);
 
@@ -46,6 +48,35 @@ static int is_syscall_error(int res)
         return 0;
 }
 
+# ifndef TLS_GET_GS
+#  define TLS_GET_GS() \
+  ({ int __seg; __asm ("movw %%gs, %w0" : "=q" (__seg)); __seg & 0xffff; })
+# endif
+
+extern int get_thread_area(struct user_desc *u_info);
+
+static struct tls_context *get_tls_context()
+{
+#if 0
+    struct tls_context *tls_context;
+
+    syscall(SYS_arch_prctl, ARCH_GET_FS, &tls_context);
+
+    return tls_context;
+#else
+    {
+        struct user_desc desc;
+        int res;
+
+        desc.entry_number = TLS_GET_GS() >> 3;
+        res = get_thread_area(&desc);
+        assert(res == 0);
+
+        return (struct tls_context *) desc.base_addr;
+    }
+#endif
+}
+
 void clone_thread_trampoline_arm()
 {
     struct tls_context *new_thread_tls_context;
@@ -54,22 +85,26 @@ void clone_thread_trampoline_arm()
     void *patch_address;
     int res;
 
-    /* FIXME: how to get tls area ? */
-#if 1
-    assert(0 && "implement me");
-#else
-    syscall(SYS_arch_prctl, ARCH_GET_FS, &new_thread_tls_context);
-#endif
+    new_thread_tls_context = get_tls_context();
     assert(new_thread_tls_context != NULL);
     stack = (void *) new_thread_tls_context - mmap_size[memory_profile] + sizeof(struct tls_context);
     parent_context = (void *) new_thread_tls_context - sizeof(struct arm_target);
 
     res = loop(parent_context->regs.r[15], parent_context->regs.r[1], 0, &parent_context->target);
-
     /* release vma descr */
     patch_address = munmap_guest_ongoing(h_2_g(stack), mmap_size[memory_profile]);
     /* unmap thread stack and exit without using stack */
     clone_exit_asm(stack, mmap_size[memory_profile], res, patch_address);
+}
+
+static void setup_desc(struct tls_context *tls_context, struct user_desc *desc)
+{
+    int res;;
+
+    desc->entry_number = TLS_GET_GS() >> 3;
+    res = get_thread_area(desc);
+    assert(res == 0);
+    desc->base_addr = (int) tls_context;
 }
 
 static int clone_thread_arm(struct arm_target *context)
@@ -78,7 +113,6 @@ static int clone_thread_arm(struct arm_target *context)
     guest_ptr guest_stack;
     void *stack;
 
-    assert(0);
     //allocate memory for stub thread stack
     guest_stack = mmap_guest((uint64_t) NULL, mmap_size[memory_profile], PROT_EXEC|PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_GROWSDOWN, -1, 0);
     if (is_syscall_error(guest_stack))
@@ -88,6 +122,7 @@ static int clone_thread_arm(struct arm_target *context)
     if (stack) {//to be check what is return value of mmap
         struct tls_context *new_thread_tls_context;
         struct arm_target *parent_target;
+        struct user_desc desc;
 
         stack = stack + mmap_size[memory_profile] - sizeof(struct arm_target) - sizeof(struct tls_context);
         //copy arm context onto stack
@@ -104,11 +139,13 @@ static int clone_thread_arm(struct arm_target *context)
         parent_target->regs.r[13] = context->regs.r[1];
         // do the same for c13_tls2 so it has the correct value
         parent_target->regs.c13_tls2 = context->regs.r[3];
+        //prepare desc
+        setup_desc(new_thread_tls_context, &desc);
         //clone
         res = clone_asm(SYS_clone, (unsigned long) context->regs.r[0],
                                     stack,
                                     context->regs.r[2]?g_2_h(context->regs.r[2]):NULL,//ptid
-                                    new_thread_tls_context,
+                                    &desc,
                                     context->regs.r[4]?g_2_h(context->regs.r[4]):NULL);//ctid
         // only parent return here
     }

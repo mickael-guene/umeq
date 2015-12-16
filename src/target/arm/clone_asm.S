@@ -22,10 +22,40 @@
 
 /* FIXME : implement i386.S */
 clone_asm:
-    nop
+    push %ebp
+    mov %esp, %ebp
+    push %ebx
+    push %esi
+    push %edi
+    mov 0x08(%ebp), %eax
+    mov 0x0c(%ebp), %ebx
+    mov 0x10(%ebp), %ecx
+    mov 0x14(%ebp), %edx
+    mov 0x18(%ebp), %esi
+    mov 0x1c(%ebp), %edi
+    mov 0x20(%ebp), %ebp
+    int $0x80
+    test %eax,%eax
+    jz clone_thread_trampoline_arm
+    pop %edi
+    pop %esi
+    pop %ebx
+    pop %ebp
+    ret
 
 .GLOBAL clone_exit_asm
 
 /* FIXME : implement i386.S */
 clone_exit_asm:
-    nop
+    mov 4(%esp), %ebx
+    mov 8(%esp), %ecx
+    mov 12(%esp), %esi
+    mov 16(%esp), %edi
+    #here destroy stack
+    mov $91, %eax
+    int $0x80
+    #here patch
+    movb $0, (%edi)
+    mov %esi, %ebx
+    mov $1, %eax
+    int $0x80
