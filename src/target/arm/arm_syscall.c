@@ -71,6 +71,9 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_open:
                 res = arm_open(context);
                 break;
+            case PR_openat:
+                res = arm_openat(context);
+                break;
             case PR_uname:
                 res = arm_uname(context);
                 break;
@@ -97,14 +100,21 @@ void arm_hlp_syscall(uint64_t regs)
                 res = arm_ptrace(context);
                 break;
             case PR_pread64:
+                /* FIXME: check this */
                 res = syscall(SYS_pread64, (int) context->regs.r[0], (void *) g_2_h(context->regs.r[1]),
                                            (size_t) context->regs.r[2],
-                                           (off_t) (((unsigned long)context->regs.r[5] << 32) + (unsigned long) context->regs.r[4]));
+                                           context->regs.r[4],
+                                           context->regs.r[5]);
                 break;
             case PR_pwrite64:
+                /* FIXME: check this */
                 res = syscall(SYS_pwrite64, (int) context->regs.r[0], (void *) g_2_h(context->regs.r[1]),
                                            (size_t) context->regs.r[2],
-                                           (off_t) (((unsigned long)context->regs.r[5] << 32) + (unsigned long) context->regs.r[4]));
+                                           context->regs.r[4],
+                                           context->regs.r[5]);
+                break;
+            case PR_mremap:
+                res = arm_mremap(context);
                 break;
             case PR_sigaltstack:
                 res = arm_sigaltstack(context);

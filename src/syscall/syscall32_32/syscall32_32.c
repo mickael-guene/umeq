@@ -359,6 +359,138 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_rt_sigsuspend:
             res = syscall(SYS_rt_sigsuspend, (const sigset_t *) g_2_h(p0), (size_t) p1);
             break;
+        case PR_mkdir:
+            res = syscall(SYS_mkdir, (const char *) g_2_h(p0), (mode_t) p1);
+            break;
+        case PR_fchmodat:
+            res = syscall(SYS_fchmodat, (int) p0, (const char *) g_2_h(p1), (mode_t) p2, (int) p3);
+            break;
+        case PR_fchmod:
+            res = syscall(SYS_fchmod, (int) p0, (mode_t) p1);
+            break;
+        case PR_times:
+            res = syscall(SYS_times, (struct tms *)g_2_h(p0));
+            break;
+        case PR_setrlimit:
+            res = syscall(SYS_setrlimit, (int) p0, (const struct rlimit *) g_2_h(p1));
+            break;
+        case PR_chown32:
+            res = syscall(SYS_chown, (const char *) g_2_h(p0), (uid_t) p1, (gid_t) p2);
+            break;
+        case PR_pause:
+            res = syscall(SYS_pause);
+            break;
+        case PR_getitimer:
+            res = syscall(SYS_getitimer, (int) p0, (struct itimerval *) g_2_h(p1));
+            break;
+        case PR_getpgid:
+            res = syscall(SYS_getpgid, (pid_t) p0);
+            break;
+        case PR_setfsuid:
+            res = syscall(SYS_setfsuid, (uid_t) (int16_t)p0);
+            break;
+        case PR_setfsgid:
+            res = syscall(SYS_setfsgid, (uid_t) (int16_t)p0);
+            break;
+        case PR_getsid:
+            res = syscall(SYS_getsid, (pid_t) p0);
+            break;
+        case PR_fdatasync:
+            res = syscall(SYS_fdatasync, (int) p0);
+            break;
+        case PR_mlock:
+            res = syscall(SYS_mlock, (const void *) g_2_h(p0), (size_t) p1);
+            break;
+        case PR_sched_setparam:
+            res = syscall(SYS_sched_setparam, (pid_t) p0, IS_NULL(p1, struct sched_param));
+            break;
+        case PR_sched_getparam:
+            res = syscall(SYS_sched_getparam, (pid_t) p0, IS_NULL(p1, struct sched_param));
+            break;
+        case PR_sched_setscheduler:
+            res = syscall(SYS_sched_setscheduler, (pid_t) p0, (int) p1, (const struct sched_param *) g_2_h(p2));
+            break;
+        case PR_sched_getscheduler:
+            res = syscall(SYS_sched_getscheduler, (pid_t) p0);
+            break;
+        case PR_sched_yield:
+            res = syscall(SYS_sched_yield);
+            break;
+        case PR_sched_get_priority_max:
+            res = syscall(SYS_sched_get_priority_max, (int) p0);
+            break;
+        case PR_sched_get_priority_min:
+            res = syscall(SYS_sched_get_priority_min, (int) p0);
+            break;
+        case PR_rt_sigpending:
+            res = syscall(SYS_rt_sigpending, (sigset_t *) g_2_h(p0), (size_t) p1);
+            break;
+        case PR_capget:
+            res = syscall(SYS_capget, (void *) g_2_h(p0), p1?(void *) g_2_h(p1):NULL);
+            break;
+        case PR_setgroups32:
+            res = syscall(SYS_setgroups, (int) p0, (gid_t *) g_2_h(p1));
+            break;
+        case PR_setuid32:
+            res = syscall(SYS_setuid, (uid_t) p0);
+            break;
+        case PR_setgid32:
+            res = syscall(SYS_setgid, (gid_t) p0);
+            break;
+        case PR_setfsuid32:
+            res = syscall(SYS_setfsuid, (uid_t) p0);
+            break;
+        case PR_setfsgid32:
+            res = syscall(SYS_setfsgid, (uid_t) p0);
+            break;
+        case PR_setuid:
+            res = syscall(SYS_setuid, (uid_t) (int16_t)p0);
+            break;
+        case PR_getuid:
+            res = syscall(SYS_getuid);
+            break;
+        case PR_epoll_create:
+            res = syscall(SYS_epoll_create, (int) p0);
+            break;
+        case PR_futimesat:
+            syscall(SYS_futimesat, (int) p0, IS_NULL(p1, const char), IS_NULL(p2, const struct timeval));
+            break;
+        case PR_timerfd_create:
+            res = syscall(SYS_timerfd_create, (int) p0, (int) p1);
+            break;
+        case PR_signalfd4:
+            res = syscall(SYS_signalfd4, (int) p0, (sigset_t *) g_2_h(p1), (size_t) p2, (int) p3);
+            break;
+        case PR_perf_event_open:
+            res = syscall(SYS_perf_event_open, (void *) g_2_h(p0), (pid_t) p1, (int) p2, (int) p3, (unsigned long) p4);
+            break;
+        case PR_sync:
+            res = syscall(SYS_sync);
+            break;
+        case PR_rmdir:
+            res = syscall(SYS_rmdir, (const char *) g_2_h(p0));
+            break;
+        case PR_setgid:
+            res = syscall(SYS_setgid, (gid_t) (int16_t)p0);
+            break;
+        case PR_getgid:
+            res = syscall(SYS_getgid);
+            break;
+        case PR_geteuid:
+            res = syscall(SYS_geteuid);
+            break;
+        case PR_getegid:
+            res = syscall(SYS_getegid);
+            break;
+        case PR_setsid:
+            res = syscall(SYS_setsid);
+            break;
+        case PR_getpriority:
+            res = syscall(SYS_getpriority, (int) p0, (id_t) p1);
+            break;
+        case PR_setpriority:
+            res = syscall(SYS_setpriority, (int) p0, (id_t) p1, (int) p2);
+            break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);
     }

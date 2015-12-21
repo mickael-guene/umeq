@@ -40,6 +40,9 @@ int fnctl64_s3232(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
     int cmd = cmd_p;
 
     switch(cmd) {
+        case F_DUPFD:
+            res = syscall(SYS_fcntl64, fd, cmd, (int) opt_p);
+            break;
         case F_GETFD:
         	/* FIXME: check SYS_fcntl or SYS_fcntl64 */
             res = syscall(SYS_fcntl64, fd, cmd);
