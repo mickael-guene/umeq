@@ -741,6 +741,12 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_sethostname:
             res = syscall(SYS_sethostname, (char *) g_2_h(p0), (size_t) p1);
             break;
+        case PR_sendfile64:
+            res = syscall(SYS_sendfile64, (int) p0, (int) p1, IS_NULL(p2, off_t), (size_t) p3);
+            break;
+        case PR_timer_create:
+            res = timer_create_s3264(p0, p1, p2);
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }

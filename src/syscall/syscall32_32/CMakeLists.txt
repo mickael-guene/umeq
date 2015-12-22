@@ -1,1 +1,1 @@
-add_library (syscall32_32 syscall32_32.c readv_writev_s3232.c futex_s3232.c fcntl_s3232.c stat_s3232.c execve_s3232.c)
+add_library (syscall32_32 syscall32_32.c readv_writev_s3232.c futex_s3232.c fcntl_s3232.c stat_s3232.c execve_s3232.c prctl_s3232.c keyctl_s3232.c select_s3232.c vmsplice_s3232.c)

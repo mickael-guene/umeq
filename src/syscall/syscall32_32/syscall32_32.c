@@ -24,7 +24,9 @@
 #include <stdint.h>
 #include <errno.h>
 #include <poll.h>
- #include <signal.h>
+#include <signal.h>
+#include <sched.h>
+#include <mqueue.h>
 
 #include "syscall32_32.h"
 #include "runtime.h"
@@ -429,7 +431,7 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_capget, (void *) g_2_h(p0), p1?(void *) g_2_h(p1):NULL);
             break;
         case PR_setgroups32:
-            res = syscall(SYS_setgroups, (int) p0, (gid_t *) g_2_h(p1));
+            res = syscall(SYS_setgroups32, (int) p0, (gid_t *) g_2_h(p1));
             break;
         case PR_setuid32:
             res = syscall(SYS_setuid, (uid_t) p0);
@@ -490,6 +492,205 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             break;
         case PR_setpriority:
             res = syscall(SYS_setpriority, (int) p0, (id_t) p1, (int) p2);
+            break;
+        case PR_epoll_ctl:
+            res = syscall(SYS_epoll_ctl, (int) p0, (int) p1, (int) p2, IS_NULL(p3, struct epoll_event));
+            break;
+        case PR_vhangup:
+            res = syscall(SYS_vhangup);
+            break;
+        case PR_bdflush:
+            /* This one is deprecated since 2.6 and p1 is no more use */
+            res = 0;
+            break;
+        case PR_msync:
+            res = syscall(SYS_msync, (void *) g_2_h(p0), (size_t) p1, (int) p2);
+            break;
+        case PR_mknod:
+            res = syscall(SYS_mknod, (const char *) g_2_h(p0), (mode_t) p1, (dev_t) p2);
+            break;
+        case PR_munlock:
+            res = syscall(SYS_munlock, (void *) g_2_h(p0), (size_t) p1);
+            break;
+        case PR_prctl:
+            res = prctl_s3232(p0, p1, p2, p3, p4);
+            break;
+        case PR_capset:
+            res = syscall(SYS_capset, (void *) g_2_h(p0), p1?(void *) g_2_h(p1):NULL);
+            break;
+        case PR_setregid32:
+            res = syscall(SYS_setregid32, (gid_t) p0, (gid_t) p1);
+            break;
+        case PR_mincore:
+            res = syscall(SYS_mincore, (void *) g_2_h(p0), (size_t) p1, (char *) g_2_h(p2));
+            break;
+        case PR_tkill:
+            res = syscall(SYS_tkill, (int) p0, (int) p1);
+            break;
+        case PR_sched_getaffinity:
+            res = syscall(SYS_sched_getaffinity, (pid_t) p0, (size_t) p1, (cpu_set_t *) g_2_h(p2));
+            break;
+        case PR_remap_file_pages:
+            res = syscall(SYS_remap_file_pages, (void *) g_2_h(p0), (size_t) p1, (int) p2, (size_t) p3, (int) p4);
+            break;
+        case PR_timer_create:
+            res = syscall(SYS_timer_create, (clockid_t) p0, IS_NULL(p1, struct sigevent),
+                                                            IS_NULL(p2, timer_t));
+            break;
+        case PR_clock_nanosleep:
+            res = syscall(SYS_clock_nanosleep, (clockid_t) p0, (int) p1, (struct timespec *) g_2_h(p2),
+                                               IS_NULL(p3, struct timespec));
+            break;
+        case PR_mq_unlink:
+            res = syscall(SYS_mq_unlink, (char *) g_2_h(p0));
+            break;
+        case PR_mq_notify:
+            res = syscall(SYS_mq_notify, (mqd_t) p0, IS_NULL(p1, struct sigevent));
+            break;
+        case PR_waitid:
+            res = syscall(SYS_waitid, (idtype_t) p0, (id_t) p1, IS_NULL(p2, siginfo_t), (int) p3,
+                                      IS_NULL(p4, struct rusage));
+            break;
+        case PR_bind:
+            {
+                unsigned long args[3];
+
+                args[0] = (int) p0;
+                args[1] = (int)(const struct sockaddr *) g_2_h(p1);
+                args[2] = (socklen_t) p2;
+                res = syscall(SYS_socketcall, 2/*sys_bind*/, args);
+            }
+            break;
+        case PR_listen:
+            {
+                unsigned long args[2];
+
+                args[0] = (int) p0;
+                args[1] = (int) p1;
+                res = syscall(SYS_socketcall, 4/*sys_listen*/, args);
+            }
+            break;
+        case PR_accept:
+            {
+                unsigned long args[3];
+
+                args[0] = (int) p0;
+                args[1] = (int) IS_NULL(p1, struct sockaddr);
+                args[2] = (int) IS_NULL(p2, socklen_t);
+                res = syscall(SYS_socketcall, 5/*sys_accept*/, args);
+            }
+            break;
+        case PR_setsockopt:
+            {
+                unsigned long args[5];
+
+                args[0] = (int) p0;
+                args[1] = (int) p1;
+                args[2] = (int) p2;
+                args[3] = (int) (void *) g_2_h(p3);
+                args[4] = (int) (socklen_t) p4;
+                res = syscall(SYS_socketcall, 14/*sys_setsockopt*/, args);
+            }
+            break;
+        case PR_getsockopt:
+            {
+                unsigned long args[5];
+
+                args[0] = (int) p0;
+                args[1] = (int) p1;
+                args[2] = (int) p2;
+                args[3] = (int) IS_NULL(p3, void);
+                args[4] = (int) IS_NULL(p4, socklen_t);
+                res = syscall(SYS_socketcall, 15/*sys_getsockopt*/, args);
+            }
+            break;
+        case PR_semget:
+            res = syscall(SYS_ipc, 2/*IPCOP_semget*/, (key_t) p0, (int) p1, (int) p2);
+            break;
+        case PR_msgget:
+            res = syscall(SYS_ipc, 13/*IPCOP_msgget*/, (key_t) p0, (int) p1);
+            break;
+        case PR_msgctl:
+            res = syscall(SYS_ipc, 14/*IPCOP_msgctl*/, (key_t) p0, (int) p1, (struct msqid_ds *) g_2_h(p2));
+            break;
+        case PR_add_key:
+            res = syscall(SYS_add_key, (char *) g_2_h(p0), IS_NULL(p1, char), IS_NULL(p2, void), (size_t) p3, p4);
+            break;
+        case PR_keyctl:
+            res = keyctl_s3232(p0, p1, p2, p3, p4);
+            break;
+        case PR_inotify_init:
+            res = syscall(SYS_inotify_init);
+            break;
+        case PR_mkdirat:
+            res = syscall(SYS_mkdirat, (int) p0, (const char *) g_2_h(p1), (mode_t) p2);
+            break;
+        case PR_mknodat:
+            res = syscall(SYS_mknodat, (int) p0, (char *) g_2_h(p1), (mode_t) p2, (dev_t) p3);
+            break;
+        case PR_fchownat:
+            res = syscall(SYS_fchownat, (int) p0, (const char *) g_2_h(p1), (uid_t) p2, (gid_t) p3, (int) p4);
+            break;
+        case PR_symlinkat:
+            res = syscall(SYS_symlinkat, (const char *) g_2_h(p0), (int) p1, (const char *) g_2_h(p2));
+            break;
+        case PR_pselect6:
+            res = pselect6_s3232(p0,p1,p2,p3,p4,p5);
+            break;
+        case PR_ppoll:
+            res = syscall(SYS_ppoll, (struct pollfd *) g_2_h(p0), p1, IS_NULL(p2, struct timespec),
+                                                                      IS_NULL(p3, sigset_t), (size_t) p4);
+            break;
+        case PR_splice:
+            res = syscall(SYS_splice, (int) p0, IS_NULL(p1, loff_t), (int) p2, IS_NULL(p3, loff_t), (size_t) p4, (unsigned int) p5);
+            break;
+        case PR_tee:
+            res = syscall(SYS_tee, (int) p0, (int) p1, (size_t) p2, (unsigned int) p3);
+            break;
+        case PR_vmsplice:
+            res = vmsplice_s3232(p0, p1, p2 , p3);
+            break;
+        case PR_eventfd:
+            res = syscall(SYS_eventfd, (int)p0, (int)(p1));
+            break;
+        case PR_fallocate:
+            res = syscall(SYS_fallocate, (int) p0, (int) p1, p3, p2, p5, p4);
+            break;
+        case PR_timerfd_settime:
+            res = syscall(SYS_timerfd_settime, (int) p0, (int) p1, (struct itimerspec *) g_2_h(p2), IS_NULL(p3, struct itimerspec));
+            break;
+        case PR_timerfd_gettime:
+            res = syscall(SYS_timerfd_gettime, (int) p0, (struct itimerspec *) g_2_h(p1));
+            break;
+        case PR_epoll_create1:
+            res = syscall(SYS_epoll_create1, (int) p0);
+            break;
+        case PR_dup3:
+            res = syscall(SYS_dup3, (int) p0, (int) p1, (int) p2);
+            break;
+        case PR_inotify_init1:
+            res = syscall(SYS_inotify_init1, (int) p0);
+            break;
+        case PR_setreuid:
+            res = syscall(SYS_setreuid, (uid_t) (int16_t)p0, (uid_t) (int16_t)p1);
+            break;
+        case PR_setregid:
+            res = syscall(SYS_setregid, (gid_t) (int16_t)p0, (gid_t) (int16_t)p1);
+            break;
+        case PR_symlink:
+            res = syscall(SYS_symlink, (const char *) g_2_h(p0), (const char *) g_2_h(p1));
+            break;
+        case PR_creat:
+            res = syscall(SYS_creat, (char *) g_2_h(p0), (mode_t) p1);
+            break;
+        case PR_truncate:
+            res = syscall(SYS_truncate, (char *) g_2_h(p0), (off_t) p1);
+            break;
+        case PR_ftruncate:
+            res = syscall(SYS_ftruncate, (int) p0, (off_t) p1);
+            break;
+        case PR_link:
+            res = syscall(SYS_link, (const char *) g_2_h(p0), (const char *) g_2_h(p1));
             break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);

@@ -35,6 +35,10 @@ extern int fstat64_s3232(uint32_t fd_p, uint32_t buf_p);
 extern int lstat64_s3232(uint32_t pathname_p, uint32_t buf_p);
 extern int execve_s3232(uint32_t filename_p,uint32_t argv_p,uint32_t envp_p);
 extern int fstatat64_s3232(uint32_t dirfd_p, uint32_t pathname_p, uint32_t buf_p, uint32_t flags_p);
+extern int prctl_s3232(uint32_t option_p, uint32_t arg2_p, uint32_t arg3_p, uint32_t arg4_p, uint32_t arg5_p);
+extern int keyctl_s3232(uint32_t cmd_p, uint32_t arg2_p, uint32_t arg3_p, uint32_t arg4_p, uint32_t arg5_p);
+extern int pselect6_s3232(uint32_t nfds_p, uint32_t readfds_p, uint32_t writefds_p, uint32_t exceptfds_p, uint32_t timeout_p, uint32_t data_p);
+extern int vmsplice_s3232(uint32_t fd_p, uint32_t iov_p, uint32_t nr_segs_p, uint32_t flags_p);
 
 #endif
 
