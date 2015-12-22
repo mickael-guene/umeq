@@ -26,12 +26,11 @@
 
 #include "syscall32_32_private.h"
 
-/*
 int readv_s3232(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p)
 {
     int res;
     int fd = (int) fd_p;
-    struct iovec_32 *iov_guest = (struct iovec_32 *) g_2_h(iov_p);
+    struct iovec *iov_guest = (struct iovec *) g_2_h(iov_p);
     int iovcnt = (int) iovcnt_p;
     struct iovec *iov;
     int i;
@@ -46,7 +45,7 @@ int readv_s3232(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p)
     res = syscall(SYS_readv, fd, iov, iovcnt);
 
     return res;
-}*/
+}
 
 int writev_s3232(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p)
 {

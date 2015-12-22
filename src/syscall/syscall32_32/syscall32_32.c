@@ -782,6 +782,23 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_getgroups:
             res = syscall(SYS_getgroups, (int) p0, (gid_t *) g_2_h(p1));
             break;
+        case PR_mq_timedsend:
+            res = syscall(SYS_mq_timedsend, (mqd_t) p0, (char *) g_2_h(p1), (size_t) p2, (unsigned int) p3,
+                                                        IS_NULL(p4, struct timespec));
+            break;
+        case PR_inotify_rm_watch:
+            res = syscall(SYS_inotify_rm_watch, (int) p0, (int) p1);
+            break;
+        case PR_mq_timedreceive:
+            res = syscall(SYS_mq_timedreceive, (mqd_t) p0, (char *) g_2_h(p1), (size_t) p2, IS_NULL(p3, unsigned int),
+                                                IS_NULL(p4, struct timespec));
+            break;
+        case PR_sendfile64:
+            res = syscall(SYS_sendfile64, (int) p0, (int) p1, IS_NULL(p2, off_t), (size_t) p3);
+            break;
+        case PR_readv:
+            res = readv_s3232(p0, p1, p2);
+            break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);
     }

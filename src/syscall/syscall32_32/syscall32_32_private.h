@@ -27,6 +27,7 @@ extern "C" {
 
 #include "target32.h"
 
+extern int readv_s3232(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p);
 extern int writev_s3232(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p);
 extern int futex_s3232(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32_t timeout_p, uint32_t uaddr2_p, uint32_t val3_p);
 extern int fnctl64_s3232(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p);

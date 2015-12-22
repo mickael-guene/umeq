@@ -36,6 +36,10 @@ int prctl_s3232(uint32_t option_p, uint32_t arg2_p, uint32_t arg3_p, uint32_t ar
         case PR_GET_PDEATHSIG:
             res = syscall(SYS_prctl, option, (int *) g_2_h(arg2_p));
             break;
+        case 999:
+        case PR_SET_PDEATHSIG:
+            res = syscall(SYS_prctl, option, (unsigned long) arg2_p, (unsigned long) arg3_p, (unsigned long) arg4_p, (unsigned long) arg5_p);
+            break;
         default:
             fatal("Unsupported prctl option %d\n", option);
     }
