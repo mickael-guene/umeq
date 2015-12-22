@@ -692,6 +692,96 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_link:
             res = syscall(SYS_link, (const char *) g_2_h(p0), (const char *) g_2_h(p1));
             break;
+        case PR_flock:
+            res = syscall(SYS_flock, (int) p0, (int) p1);
+            break;
+        case PR_sendfile:
+            res = syscall(SYS_sendfile, (int) p0, (int) p1, IS_NULL(p2, off_t), (size_t) p3);
+            break;
+        case PR_getgroups32:
+            res = syscall(SYS_getgroups32, (int) p0, (gid_t *) g_2_h(p1));
+            break;
+        case PR_timer_gettime:
+            res = syscall(SYS_timer_gettime, (timer_t) p0, (struct itimerspec *) g_2_h(p1));
+            break;
+        case PR_timer_getoverrun:
+            res = syscall(SYS_timer_getoverrun, p0);
+            break;
+        case PR_utimes:
+            res = syscall(SYS_utimes, (const char *) g_2_h(p0), IS_NULL(p1, const struct timeval));
+            break;
+        case PR_mq_open:
+            res = syscall(SYS_mq_open, (char *) g_2_h(p0), (int) p1, (mode_t) p2, IS_NULL(p3, struct mq_attr));
+            break;
+        case PR_send:
+            {
+                unsigned long args[4];
+
+                args[0] = (int) p0;
+                args[1] = (int) (const void *) g_2_h(p1);
+                args[2] = (int) (size_t) p2;
+                args[3] = (int) p3;
+                res = syscall(SYS_socketcall, 9/*sys_send*/, args);
+            }
+            break;
+        case PR_sendto:
+            {
+                unsigned long args[6];
+
+                args[0] = (int) p0;
+                args[1] = (int) (const void *) g_2_h(p1);
+                args[2] = (int) (size_t) p2;
+                args[3] = (int) p3;
+                args[4] = (int) (const struct sockaddr *) g_2_h(p4);
+                args[5] = (int) (socklen_t) p5;
+                res = syscall(SYS_socketcall, 11/*sys_sendto*/, args);
+            }
+            break;
+        case PR_recvfrom:
+            {
+                unsigned long args[6];
+
+                args[0] = (int) p0;
+                args[1] = (int) (void *) g_2_h(p1);
+                args[2] = (int) (size_t) p2;
+                args[3] = (int) p3;
+                args[4] = (int) IS_NULL(p4, struct sockaddr);
+                args[5] = (int) IS_NULL(p5, socklen_t);
+                res = syscall(SYS_socketcall, 12/*sys_recvfrom*/, args);
+            }
+            break;
+        case PR_msgsnd:
+            res = syscall(SYS_ipc, 11/*IPCOP_msgsnd*/, (int) p0, (void *) g_2_h(p1), (size_t) p2, (int) p3);
+            break;
+        case PR_msgrcv:
+            res = syscall(SYS_ipc, 12/*IPCOP_msgrcv*/, (int) p0, (void *) g_2_h(p1), (size_t) p2, (long) p3, (int) p4);
+            break;
+        case PR_inotify_add_watch:
+            res = syscall(SYS_inotify_add_watch, (int) p0, (const char *) g_2_h(p1), (uint32_t) p2);
+            break;
+        case PR_linkat:
+            res = syscall(SYS_linkat, (int) p0, (const char *) g_2_h(p1), (int) p2, (const char *) g_2_h(p3), (int) p4);
+            break;
+        case PR_readlinkat:
+            res = syscall(SYS_readlinkat, (int) p0, (const char *) g_2_h(p1), (char *) g_2_h(p2), (size_t) p3);
+            break;
+        case PR_accept4:
+            {
+                unsigned long args[4];
+
+                args[0] = (int) p0;
+                args[1] = (int) IS_NULL(p1, struct sockaddr);
+                args[2] = (int) IS_NULL(p2, socklen_t);
+                args[3] = (int) p3;
+                res = syscall(SYS_socketcall, 18/*sys_accept4*/, args);
+            }
+            break;
+        case PR_chroot:
+            res = syscall(SYS_chroot, (char *) g_2_h(p0));
+            break;
+        case PR_getgroups:
+            res = syscall(SYS_getgroups, (int) p0, (gid_t *) g_2_h(p1));
+            break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);
     }
