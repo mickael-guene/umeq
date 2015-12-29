@@ -103,26 +103,23 @@ void arm_hlp_syscall(uint64_t regs)
                 res = arm_ptrace(context);
                 break;
             case PR_pread64:
-                /* FIXME: check this */
                 res = syscall(SYS_pread64, (int) context->regs.r[0], (void *) g_2_h(context->regs.r[1]),
                                            (size_t) context->regs.r[2],
                                            context->regs.r[4],
                                            context->regs.r[5]);
                 break;
             case PR_pwrite64:
-                /* FIXME: check this */
                 res = syscall(SYS_pwrite64, (int) context->regs.r[0], (void *) g_2_h(context->regs.r[1]),
                                            (size_t) context->regs.r[2],
                                            context->regs.r[4],
                                            context->regs.r[5]);
                 break;
             case PR_arm_sync_file_range:
-                /* FIXME: to be check */
                 res = syscall(SYS_sync_file_range, (int) context->regs.r[0],
-                                context->regs.r[3],
                                 context->regs.r[2],
-                                context->regs.r[5],
+                                context->regs.r[3],
                                 context->regs.r[4],
+                                context->regs.r[5],
                                 context->regs.r[1]);
                 break;
             case PR_mremap:
@@ -156,25 +153,22 @@ void arm_hlp_syscall(uint64_t regs)
                 res = arm_rt_sigqueueinfo(context);
                 break;
             case PR_arm_fadvise64_64:
-                /* FIXME: to be check */
-                res = syscall(SYS_fadvise64, (int) context->regs.r[0],
-                                             context->regs.r[3],
+                res = syscall(SYS_fadvise64_64, (int) context->regs.r[0],
                                              context->regs.r[2],
-                                             context->regs.r[5],
+                                             context->regs.r[3],
                                              context->regs.r[4],
+                                             context->regs.r[5],
                                              context->regs.r[1]);
                 break;
             case PR_truncate64:
-                /* FIXME: to be check */
                 res = syscall(SYS_truncate64, (char *) g_2_h(context->regs.r[0]),
-                                              context->regs.r[3],
-                                              context->regs.r[2]);
+                                              context->regs.r[2],
+                                              context->regs.r[3]);
                 break;
             case PR_ftruncate64:
-                /* FIXME: to be check */
-                res = syscall(SYS_truncate64, (int) context->regs.r[0],
-                                              context->regs.r[3],
-                                              context->regs.r[2]);
+                res = syscall(SYS_ftruncate64, (int) context->regs.r[0],
+                                              context->regs.r[2],
+                                              context->regs.r[3]);
                 break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);

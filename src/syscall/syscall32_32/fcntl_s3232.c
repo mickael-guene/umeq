@@ -67,16 +67,16 @@ int fnctl64_s3232(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
             res = syscall(SYS_fcntl64, fd, cmd, (struct flock64 *) g_2_h(opt_p));
             break;
         case F_SETOWN:
-            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
+            res = syscall(SYS_fcntl64, fd, cmd, (int) opt_p);
             break;
         case F_GETOWN:
-            res = syscall(SYS_fcntl, fd, cmd);
+            res = syscall(SYS_fcntl64, fd, cmd);
             break;
         case F_SETSIG:
-            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
+            res = syscall(SYS_fcntl64, fd, cmd, (int) opt_p);
             break;
         case F_GETSIG:
-            res = syscall(SYS_fcntl, fd, cmd);
+            res = syscall(SYS_fcntl64, fd, cmd);
             break;
         case F_GETLK64:
             res = syscall(SYS_fcntl64, fd, cmd, (struct flock64 *) g_2_h(opt_p));
@@ -88,25 +88,25 @@ int fnctl64_s3232(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
             res = syscall(SYS_fcntl64, fd, cmd, (struct flock64 *) g_2_h(opt_p));
             break;
         case F_SETOWN_EX:
-            res = syscall(SYS_fcntl, fd, cmd, (struct f_owner_ex *) g_2_h(opt_p));
+            res = syscall(SYS_fcntl64, fd, cmd, (struct f_owner_ex *) g_2_h(opt_p));
             break;
         case F_GETOWN_EX:
-            res = syscall(SYS_fcntl, fd, cmd, (struct f_owner_ex *) g_2_h(opt_p));
+            res = syscall(SYS_fcntl64, fd, cmd, (struct f_owner_ex *) g_2_h(opt_p));
             break;
         case F_SETLEASE:
-            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
+            res = syscall(SYS_fcntl64, fd, cmd, (int) opt_p);
             break;
         case F_GETLEASE:
-            res = syscall(SYS_fcntl, fd, cmd);
+            res = syscall(SYS_fcntl64, fd, cmd);
             break;
         case F_DUPFD_CLOEXEC:
-            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
+            res = syscall(SYS_fcntl64, fd, cmd, (int) opt_p);
             break;
         case F_SETPIPE_SZ:
-            res = syscall(SYS_fcntl, fd, cmd, (int) opt_p);
+            res = syscall(SYS_fcntl64, fd, cmd, (int) opt_p);
             break;
         case F_GETPIPE_SZ:
-            res = syscall(SYS_fcntl, fd, cmd);
+            res = syscall(SYS_fcntl64, fd, cmd);
             break;
         default:
             /* invalid cmd use by ltp testsuite */

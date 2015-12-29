@@ -103,8 +103,8 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_getrlimit, (unsigned int) p0, (struct rlimit *) g_2_h(p1));
             break;
         case PR_statfs64:
-            /* FIXME: to be check */
-            res = syscall(SYS_statfs64, (const char *)g_2_h(p0), (struct statfs *) g_2_h(p1));
+            /* due to padding the length of i386 is different but layout is the same */
+            res = syscall(SYS_statfs64, (const char *)g_2_h(p0), 84/*(size_t) p1*/, (struct statfs64 *) g_2_h(p2));
             break;
         case PR_ioctl:
             /* FIXME: need specific version to offset param according to ioctl */
@@ -272,8 +272,8 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_getresgid, (gid_t *) g_2_h(p0), (gid_t *) g_2_h(p1), (gid_t *) g_2_h(p2));
             break;
         case PR_fstatfs64:
-            /* FIXME: to be check */
-            res = syscall(SYS_fstatfs64, (int) p0, (struct statfs *) g_2_h(p1));
+            /* due to padding the length of i386 is different but layout is the same */
+            res = syscall(SYS_fstatfs64, (int) p0, 84/*(size_t) p1*/, (struct statfs64 *) g_2_h(p2));
             break;
         case PR_getpeername:
             {
@@ -604,8 +604,14 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
                 res = syscall(SYS_socketcall, 15/*sys_getsockopt*/, args);
             }
             break;
+        case PR_semop:
+            res = syscall(SYS_ipc, 1/*IPCOP_semop*/, (int) p0, (struct sembuf *) g_2_h(p1), (size_t) p2);
+            break;
         case PR_semget:
             res = syscall(SYS_ipc, 2/*IPCOP_semget*/, (key_t) p0, (int) p1, (int) p2);
+            break;
+        case PR_semctl:
+            res = syscall(SYS_ipc, 3/*IPCOP_semctl*/, (int) p0, (int) p1, (int) p2, g_2_h(p3));
             break;
         case PR_msgget:
             res = syscall(SYS_ipc, 13/*IPCOP_msgget*/, (key_t) p0, (int) p1);
@@ -654,7 +660,7 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_eventfd, (int)p0, (int)(p1));
             break;
         case PR_fallocate:
-            res = syscall(SYS_fallocate, (int) p0, (int) p1, p3, p2, p5, p4);
+            res = syscall(SYS_fallocate, (int) p0, (int) p1, p2, p3, p4, p5);
             break;
         case PR_timerfd_settime:
             res = syscall(SYS_timerfd_settime, (int) p0, (int) p1, (struct itimerspec *) g_2_h(p2), IS_NULL(p3, struct itimerspec));
