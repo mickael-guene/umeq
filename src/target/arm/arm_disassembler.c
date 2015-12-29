@@ -1744,7 +1744,6 @@ static int dis_bfc(struct arm_target *context, uint32_t insn, struct irInstructi
 
     assert(rd != 15);
 
-    fprintf(stderr, " mask = 0x%08x\n", mask);
     write_reg(context, ir, rd, ir->add_and_32(ir,
                                               read_reg(context, ir, rd),
                                               mk_32(ir, mask)));
