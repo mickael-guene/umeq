@@ -61,6 +61,15 @@ struct stat32_32 {
     uint64_t    st_ino;
 };
 
+struct flock64_32 {
+    uint16_t  l_type;
+    uint16_t  l_whence;
+    uint32_t padding; /* i386 to not add padding here */
+    uint64_t l_start;
+    uint64_t l_len;
+    int  l_pid;
+};
+
 #endif
 
 #ifdef __cplusplus

@@ -27,6 +27,7 @@
 #include <errno.h>
 
 #include "runtime.h"
+#include "syscall32_32_types.h"
 #include "syscall32_32_private.h"
 
 /* FIXME: Found a way to handle this */
@@ -58,13 +59,13 @@ int fnctl64_s3232(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
             res = syscall(SYS_fcntl64, fd, cmd, armToX86Flags(opt_p));
             break;
         case F_GETLK:
-            res = syscall(SYS_fcntl64, fd, cmd, (struct flock64 *) g_2_h(opt_p));
+            res = syscall(SYS_fcntl64, fd, cmd, (struct flock *) g_2_h(opt_p));
             break;
         case F_SETLK:
-            res = syscall(SYS_fcntl64, fd, cmd, (struct flock64 *) g_2_h(opt_p));
+            res = syscall(SYS_fcntl64, fd, cmd, (struct flock *) g_2_h(opt_p));
             break;
         case F_SETLKW:
-            res = syscall(SYS_fcntl64, fd, cmd, (struct flock64 *) g_2_h(opt_p));
+            res = syscall(SYS_fcntl64, fd, cmd, (struct flock *) g_2_h(opt_p));
             break;
         case F_SETOWN:
             res = syscall(SYS_fcntl64, fd, cmd, (int) opt_p);
@@ -79,13 +80,60 @@ int fnctl64_s3232(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
             res = syscall(SYS_fcntl64, fd, cmd);
             break;
         case F_GETLK64:
-            res = syscall(SYS_fcntl64, fd, cmd, (struct flock64 *) g_2_h(opt_p));
+            {
+                struct flock64_32 *lock_guest = (struct flock64_32 *) g_2_h(opt_p);
+                struct flock64 lock;
+
+                if (opt_p == 0 || opt_p == 0xffffffff)
+                    res = -EFAULT;
+                else {
+                    lock.l_type = lock_guest->l_type;
+                    lock.l_whence = lock_guest->l_whence;
+                    lock.l_start = lock_guest->l_start;
+                    lock.l_len = lock_guest->l_len;
+                    lock.l_pid = lock_guest->l_pid;
+                    res = syscall(SYS_fcntl64, fd, cmd, &lock);
+                    lock_guest->l_type = lock.l_type;
+                    lock_guest->l_whence = lock.l_whence;
+                    lock_guest->l_start = lock.l_start;
+                    lock_guest->l_len = lock.l_len;
+                    lock_guest->l_pid = lock.l_pid;
+                }
+            }
             break;
         case F_SETLK64:
-            res = syscall(SYS_fcntl64, fd, cmd, (struct flock64 *) g_2_h(opt_p));
+            {
+                struct flock64_32 *lock_guest = (struct flock64_32 *) g_2_h(opt_p);
+                struct flock64 lock;
+
+                if (opt_p == 0 || opt_p == 0xffffffff)
+                    res = -EFAULT;
+                else {
+                    lock.l_type = lock_guest->l_type;
+                    lock.l_whence = lock_guest->l_whence;
+                    lock.l_start = lock_guest->l_start;
+                    lock.l_len = lock_guest->l_len;
+                    lock.l_pid = lock_guest->l_pid;
+                    res = syscall(SYS_fcntl64, fd, cmd, &lock);
+                }
+            }
             break;
         case F_SETLKW64:
-            res = syscall(SYS_fcntl64, fd, cmd, (struct flock64 *) g_2_h(opt_p));
+            {
+                struct flock64_32 *lock_guest = (struct flock64_32 *) g_2_h(opt_p);
+                struct flock64 lock;
+
+                if (opt_p == 0 || opt_p == 0xffffffff)
+                    res = -EFAULT;
+                else {
+                    lock.l_type = lock_guest->l_type;
+                    lock.l_whence = lock_guest->l_whence;
+                    lock.l_start = lock_guest->l_start;
+                    lock.l_len = lock_guest->l_len;
+                    lock.l_pid = lock_guest->l_pid;
+                    res = syscall(SYS_fcntl64, fd, cmd, &lock);
+                }
+            }
             break;
         case F_SETOWN_EX:
             res = syscall(SYS_fcntl64, fd, cmd, (struct f_owner_ex *) g_2_h(opt_p));
