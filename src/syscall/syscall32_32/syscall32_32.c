@@ -282,7 +282,7 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
 
                 args[0] = (int) p0;
                 args[1] = (unsigned long)(const struct sockaddr *) g_2_h(p1);
-                args[2] = (socklen_t) p2;
+                args[2] = (unsigned long)((socklen_t *) g_2_h(p2));
                 res = syscall(SYS_socketcall, 7 /*sys_getpeername*/, args);
             }
             break;
@@ -546,7 +546,7 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_mq_unlink, (char *) g_2_h(p0));
             break;
         case PR_mq_notify:
-            res = syscall(SYS_mq_notify, (mqd_t) p0, IS_NULL(p1, struct sigevent));
+            res = mq_notify_s3232(p0, p1);
             break;
         case PR_waitid:
             res = syscall(SYS_waitid, (idtype_t) p0, (id_t) p1, IS_NULL(p2, siginfo_t), (int) p3,

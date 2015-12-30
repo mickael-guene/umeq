@@ -42,6 +42,7 @@ extern int pselect6_s3232(uint32_t nfds_p, uint32_t readfds_p, uint32_t writefds
 extern int vmsplice_s3232(uint32_t fd_p, uint32_t iov_p, uint32_t nr_segs_p, uint32_t flags_p);
 extern int recvmsg_s3232(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p);
 extern int sendmsg_s3232(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p);
+extern int mq_notify_s3232(uint32_t mqdes_p, uint32_t sevp_p);
 
 #endif
 
