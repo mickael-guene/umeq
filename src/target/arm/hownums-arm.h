@@ -29,7 +29,7 @@ typedef enum {
 } Syshow;
 
 static const Syshow syshow_arm[] = {
-HOW_custom_implementation, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_custom_implementation,  /*0..4*/
+HOW_custom_implementation, HOW_not_yet_supported, HOW_not_yet_supported, HOW_custom_implementation, HOW_custom_implementation,  /*0..4*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_32, HOW_32_to_32,  /*5..9*/
 HOW_not_yet_supported, HOW_32_to_32, HOW_32_to_32, HOW_32_to_32, HOW_not_yet_supported,  /*10..14*/
 HOW_32_to_32, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*15..19*/
@@ -78,7 +78,7 @@ HOW_custom_implementation, HOW_not_yet_supported, HOW_32_to_32, HOW_custom_imple
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_32, HOW_custom_implementation, HOW_not_yet_supported,  /*230..234*/
 HOW_custom_implementation, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_32,  /*235..239*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_32, HOW_32_to_32, HOW_32_to_32,  /*240..244*/
-HOW_not_yet_supported, HOW_32_to_32, HOW_32_to_32, HOW_not_yet_supported, HOW_not_yet_supported,  /*245..249*/
+HOW_not_yet_supported, HOW_32_to_32, HOW_32_to_32, HOW_not_yet_supported, HOW_32_to_32,  /*245..249*/
 HOW_32_to_32, HOW_not_yet_supported, HOW_32_to_32, HOW_not_yet_supported, HOW_not_yet_supported,  /*250..254*/
 HOW_not_yet_supported, HOW_32_to_32, HOW_custom_implementation, HOW_32_to_32, HOW_32_to_32,  /*255..259*/
 HOW_custom_implementation, HOW_custom_implementation, HOW_32_to_32, HOW_32_to_32, HOW_not_yet_supported,  /*260..264*/
@@ -86,7 +86,7 @@ HOW_32_to_32, HOW_32_to_32, HOW_32_to_32, HOW_32_to_32, HOW_32_to_32,  /*265..26
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_32, HOW_32_to_32, HOW_32_to_32,  /*270..274*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_32, HOW_32_to_32, HOW_32_to_32,  /*275..279*/
 HOW_not_yet_supported, HOW_32_to_32, HOW_32_to_32, HOW_32_to_32, HOW_not_yet_supported,  /*280..284*/
-HOW_not_yet_supported, HOW_32_to_32, HOW_not_yet_supported, HOW_32_to_32, HOW_not_yet_supported,  /*285..289*/
+HOW_32_to_32, HOW_32_to_32, HOW_not_yet_supported, HOW_32_to_32, HOW_not_yet_supported,  /*285..289*/
 HOW_32_to_32, HOW_not_yet_supported, HOW_32_to_32, HOW_32_to_32, HOW_32_to_32,  /*290..294*/
 HOW_32_to_32, HOW_32_to_32, HOW_32_to_32, HOW_not_yet_supported, HOW_32_to_32,  /*295..299*/
 HOW_not_yet_supported, HOW_32_to_32, HOW_not_yet_supported, HOW_32_to_32, HOW_32_to_32,  /*300..304*/

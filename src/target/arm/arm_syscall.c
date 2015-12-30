@@ -122,6 +122,9 @@ void arm_hlp_syscall(uint64_t regs)
                                 context->regs.r[5],
                                 context->regs.r[1]);
                 break;
+            case PR_ARM_cacheflush:
+                cleanCaches(0, ~0);
+                break;
             case PR_mremap:
                 res = arm_mremap(context);
                 break;

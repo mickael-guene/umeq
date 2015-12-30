@@ -30,7 +30,7 @@ extern "C" {
 
 typedef uint32_t guest_ptr;
 /* FIXME: adapt according to host */
-#define g_2_h(ptr)  ((void *)(uint32_t)(uint64_t)((ptr) + (mmap_offset)))
+#define g_2_h(ptr)  ((void *)(uint32_t)((uint64_t)(ptr) + (mmap_offset)))
 #define h_2_g(ptr)  ((guest_ptr) (((uint64_t)(uint32_t)(ptr)) - (mmap_offset)))
 
 extern uint64_t mmap_offset;

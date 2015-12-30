@@ -819,6 +819,12 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_readv:
             res = readv_s3232(p0, p1, p2);
             break;
+        case PR_recvmsg:
+            res = recvmsg_s3232(p0,p1,p2);
+            break;
+        case PR_sendmsg:
+            res = sendmsg_s3232(p0,p1,p2);
+            break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);
     }
