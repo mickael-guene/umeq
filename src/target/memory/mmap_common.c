@@ -709,8 +709,10 @@ static long internal_shmat(uint64_t shmid_p, uint64_t shmaddr_p, uint64_t shmflg
             void *raddr;
 
             res = syscall(SYS_ipc, 21/*IPCOP_shmat*/, shmid, shmflg | SHM_REMAP, &raddr, shmaddr);
-            if (!res)
+            if (!res) {
                 assert(raddr == shmaddr);
+                res = (long) shmaddr;
+            }
         }
 #else
         res = syscall(SYS_shmat, shmid, shmaddr, shmflg | SHM_REMAP);
@@ -731,7 +733,7 @@ static long internal_shmdt(uint64_t shmaddr_p)
     long res;
 
 #if 1
-    res = syscall(SYS_ipc, 22/*IPCOP_shmdt*/, g_2_h(shmaddr_p));
+    res = syscall(SYS_ipc, 22/*IPCOP_shmdt*/, 0, 0, 0, g_2_h(shmaddr_p));
 #else
     res = syscall(SYS_shmdt, g_2_h(shmaddr_p));
 #endif

@@ -27,6 +27,7 @@
 #include <signal.h>
 #include <sched.h>
 #include <mqueue.h>
+#include <sys/sem.h>
 
 #include "syscall32_32.h"
 #include "runtime.h"
@@ -266,10 +267,10 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_fstatfs, (int) p0, (struct statfs *) g_2_h(p1));
             break;
         case PR_getresuid32:
-            res = syscall(SYS_getresuid, (uid_t *) g_2_h(p0), (uid_t *) g_2_h(p1), (uid_t *) g_2_h(p2));
+            res = syscall(SYS_getresuid32, (uid_t *) g_2_h(p0), (uid_t *) g_2_h(p1), (uid_t *) g_2_h(p2));
             break;
         case PR_getresgid32:
-            res = syscall(SYS_getresgid, (gid_t *) g_2_h(p0), (gid_t *) g_2_h(p1), (gid_t *) g_2_h(p2));
+            res = syscall(SYS_getresgid32, (gid_t *) g_2_h(p0), (gid_t *) g_2_h(p1), (gid_t *) g_2_h(p2));
             break;
         case PR_fstatfs64:
             /* due to padding the length of i386 is different but layout is the same */
@@ -605,19 +606,23 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             }
             break;
         case PR_semop:
-            res = syscall(SYS_ipc, 1/*IPCOP_semop*/, (int) p0, (struct sembuf *) g_2_h(p1), (size_t) p2);
+            res = syscall(SYS_ipc, 1/*IPCOP_semop*/, (int) p0, (size_t) p2, 0, (struct sembuf *) g_2_h(p1));
             break;
         case PR_semget:
             res = syscall(SYS_ipc, 2/*IPCOP_semget*/, (key_t) p0, (int) p1, (int) p2);
             break;
         case PR_semctl:
-            res = syscall(SYS_ipc, 3/*IPCOP_semctl*/, (int) p0, (int) p1, (int) p2, g_2_h(p3));
+            {
+                void *arg = ((p2 & ~0x100) == SETVAL)?(void *)p3:g_2_h(p3);
+
+                res = syscall(SYS_ipc, 3/*IPCOP_semctl*/, (int) p0, (int) p1, (int) p2, &arg);
+            }
             break;
         case PR_msgget:
             res = syscall(SYS_ipc, 13/*IPCOP_msgget*/, (key_t) p0, (int) p1);
             break;
         case PR_msgctl:
-            res = syscall(SYS_ipc, 14/*IPCOP_msgctl*/, (key_t) p0, (int) p1, (struct msqid_ds *) g_2_h(p2));
+            res = syscall(SYS_ipc, 14/*IPCOP_msgctl*/, (key_t) p0, (int) p1, 0, (struct msqid_ds *) g_2_h(p2));
             break;
         case PR_add_key:
             res = syscall(SYS_add_key, (char *) g_2_h(p0), IS_NULL(p1, char), IS_NULL(p2, void), (size_t) p3, p4);
@@ -757,10 +762,19 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             }
             break;
         case PR_msgsnd:
-            res = syscall(SYS_ipc, 11/*IPCOP_msgsnd*/, (int) p0, (void *) g_2_h(p1), (size_t) p2, (int) p3);
+            res = syscall(SYS_ipc, 11/*IPCOP_msgsnd*/, (int) p0, (size_t) p2, (int) p3, (void *) g_2_h(p1));
             break;
         case PR_msgrcv:
-            res = syscall(SYS_ipc, 12/*IPCOP_msgrcv*/, (int) p0, (void *) g_2_h(p1), (size_t) p2, (long) p3, (int) p4);
+            {
+                struct ipc_kludge {
+                    void *msgp;
+                    long int msgtyp;
+                } tmp;
+
+                tmp.msgp = (void *) g_2_h(p1);
+                tmp.msgtyp = (long) p3;
+                res = syscall(SYS_ipc, 12/*IPCOP_msgrcv*/, (int) p0, (size_t) p2, (int) p4, &tmp);
+            }
             break;
         case PR_inotify_add_watch:
             res = syscall(SYS_inotify_add_watch, (int) p0, (const char *) g_2_h(p1), (uint32_t) p2);
