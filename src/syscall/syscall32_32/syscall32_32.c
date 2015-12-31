@@ -825,6 +825,10 @@ int syscall32_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_sendmsg:
             res = sendmsg_s3232(p0,p1,p2);
             break;
+        case PR_timer_settime:
+            res = syscall(SYS_timer_settime, (timer_t) p0, (int) p1, (struct itimerspec *) g_2_h(p2),
+                          IS_NULL(p3, struct itimerspec));
+            break;
         default:
             fatal("syscall_32_to_32: unsupported neutral syscall %d\n", no);
     }

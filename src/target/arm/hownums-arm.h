@@ -102,7 +102,7 @@ HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_32_to_3
 HOW_32_to_32, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*350..354*/
 HOW_not_yet_supported, HOW_32_to_32, HOW_not_yet_supported, HOW_32_to_32, HOW_32_to_32,  /*355..359*/
 HOW_not_yet_supported, HOW_32_to_32, HOW_not_yet_supported, HOW_32_to_32, HOW_32_to_32,  /*360..364*/
-HOW_not_yet_supported, HOW_32_to_32, HOW_32_to_32, HOW_32_to_32, HOW_32_to_32,  /*365..369*/
+HOW_32_to_32, HOW_32_to_32, HOW_32_to_32, HOW_32_to_32, HOW_32_to_32,  /*365..369*/
 HOW_32_to_32, HOW_32_to_32, HOW_custom_implementation, HOW_not_yet_supported, HOW_32_to_32,  /*370..374*/
 HOW_not_yet_supported, HOW_32_to_32, HOW_not_yet_supported, HOW_not_yet_supported, HOW_custom_implementation,  /*375..379*/
 HOW_32_to_32, HOW_32_to_32, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*380..384*/
