@@ -53,7 +53,23 @@ double floor(double x)
 double sqrt(double x)
 {
 #if 1
-    assert(0 && "implement me");
+    double res = x;
+    asm volatile("fldl %[res]\n\t"
+                 "subl $8, %%esp\n\t"
+                 "fstcw 4(%%esp)\n\t"
+                 "movl $0xfeff, %%edx\n\t"
+                 "andl 4(%%esp), %%edx\n\t"
+                 "movl %%edx, (%%esp)\n\t"
+                 "fldcw (%%esp)\n\t"
+                 "fsqrt\n\t"
+                 "fldcw 4(%%esp)\n\t"
+                 "addl $8, %%esp\n\t"
+                 "fstpl %[res]\n\t"
+                 : [res] "+m" (res)
+                 :
+                 :);
+
+    return res;
 #else
     double res;
 
@@ -69,7 +85,15 @@ double sqrt(double x)
 float sqrtf(float x)
 {
 #if 1
-    assert(0 && "implement me");
+    float res = x;
+    asm volatile("flds %[res]\n\t"
+                 "fsqrt\n\t"
+                 "fstp %[res]\n\t"
+                 : [res] "+m" (res)
+                 :
+                 :);
+
+    return res;
 #else
     float res;
 
