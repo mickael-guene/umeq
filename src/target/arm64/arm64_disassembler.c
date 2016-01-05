@@ -4278,6 +4278,7 @@ static int dis_advanced_simd(struct arm64_target *context, uint32_t insn, struct
                 }
             } else { //INSN(10,10) == 1
                 if (INSN(21, 21) == 0) {
+                    assert((insn & 0x9fe08400) == 0x0e000400);
                     isExit = dis_advanced_simd_copy(context, insn, ir);
                 } else {
                     isExit = dis_advanced_simd_three_same(context, insn, ir);
