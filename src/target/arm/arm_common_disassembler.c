@@ -86,12 +86,30 @@ static uint64_t advSimdExpandImm(int op, int cmode, uint32_t _imm8)
 
 static struct irRegister *read_fpscr(struct arm_target *context, struct irInstructionAllocator *ir)
 {
-    return ir->add_read_context_32(ir, offsetof(struct arm_registers, fpscr));
+    struct irRegister *params[4];
+
+    params[0] = NULL;
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    return ir->add_call_32(ir, "hlp_read_fpscr",
+                        ir->add_mov_const_64(ir, (uint64_t) hlp_read_fpscr),
+                        params);
 }
 
 static void write_fpscr(struct arm_target *context, struct irInstructionAllocator *ir, struct irRegister *value)
 {
-    ir->add_write_context_32(ir, value, offsetof(struct arm_registers, fpscr));
+    struct irRegister *params[4];
+
+    params[0] = value;
+    params[1] = NULL;
+    params[2] = NULL;
+    params[3] = NULL;
+
+    ir->add_call_void(ir, "hlp_write_fpscr",
+                        ir->add_mov_const_64(ir, (uint64_t) hlp_write_fpscr),
+                        params);
 }
 
 /* ir generation */
@@ -818,6 +836,12 @@ static int dis_common_vfp_data_processing_insn(struct arm_target *context, uint3
                         isExit = mk_common_vfp_data_processing_insn(context, insn, ir);
                         break;
                     case 8: case 12: case 13:
+                        isExit = mk_common_vfp_data_processing_insn(context, insn, ir);
+                        break;
+                    case 10: case 11:
+                        isExit = mk_common_vfp_data_processing_insn(context, insn, ir);
+                        break;
+                    case 14: case 15:
                         isExit = mk_common_vfp_data_processing_insn(context, insn, ir);
                         break;
                     default:

@@ -36,21 +36,18 @@
 #include "arm_helpers.h"
 #include "runtime.h"
 #include "softfloat.h"
-#include "arm_helpers_stolen_from_qemu.h"
+
+#define float32_two make_float32(0x40000000)
+#define float32_three make_float32(0x40400000)
+#define float32_one_point_five make_float32(0x3fc00000)
+#define float32_maxnorm make_float32(0x7f7fffff)
+#define float64_512 make_float64(0x4080000000000000LL)
+#define float64_256 make_float64(0x4070000000000000LL)
 
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
 #define INSN1(msb, lsb) INSN(msb+16, lsb+16)
 #define INSN2(msb, lsb) INSN(msb, lsb)
 //#define DUMP_STACK 1
-
-/*static double ssat64_d(double a)
-{
-    if (a > 0x7fffffffffffffffUL)
-        return 0x7fffffffffffffffUL;
-    else if (a < (int64_t)0x8000000000000000UL)
-        return (int64_t)0x8000000000000000UL;
-    return a;
-}*/
 
 #define SUB(is_sub, op)     ((is_sub)?-(op):(op))
 #define ROUND(is_round, round_value)     ((is_round)?(round_value):0)
@@ -318,60 +315,1029 @@ static uint16_t polynomial_16(uint16_t op1, uint8_t op2)
     return result;
 }
 
-static double ssat32_d(double a)
+static inline uint32_t extract32(uint32_t value, int start, int length)
 {
-    if (a > 0x7fffffff)
-        return 0x7fffffff;
-    else if (a < (int32_t)0x80000000)
-        return (int32_t)0x80000000;
-    return a;
+    assert(start >= 0 && length > 0 && length <= 32 - start);
+    return (value >> start) & (~0U >> (32 - length));
 }
 
-/*static double usat64_d(double a)
+static inline uint64_t extract64(uint64_t value, int start, int length)
 {
-    if (a > 0xffffffffffffffffUL)
-        return 0xffffffffffffffffUL;
-    else if (a < 0)
-        return 0;
-    return a;
-}*/
-
-static double usat32_d(double a)
-{
-    if (a > 0xffffffff)
-        return 0xffffffff;
-    else if (a < 0)
-        return 0;
-    return a;
+    assert(start >= 0 && length > 0 && length <= 64 - start);
+    return (value >> start) & (~0ULL >> (64 - length));
 }
 
-static double recip_estimate(double a)
+static bool round_to_inf(float_status *fpst, bool sign_bit)
 {
-    int q, s;
-    double r;
-
-    q = (int)(a * 512.0);
-    r = 1.0 / (((double)q + 0.5) / 512.0);
-    s = (int)(256.0 * r + 0.5);
-
-    return (double)s / 256.0;
-}
-
-static double recip_sqrt_estimate(double a)
-{
-    int q0, q1, s;
-    double r;
-
-    if (a < 0.5) {
-        q0 = (int)(a * 512.0);
-        r = 1.0 / sqrt(((double)q0 + 0.5) / 512.0);
-    } else {
-        q1 = (int)(a * 256.0);
-        r = 1.0 / sqrt(((double)q1 + 0.5) / 256.0);
+    switch (fpst->float_rounding_mode) {
+    case float_round_nearest_even: /* Round to Nearest */
+        return true;
+    case float_round_up: /* Round to +Inf */
+        return !sign_bit;
+    case float_round_down: /* Round to -Inf */
+        return sign_bit;
+    case float_round_to_zero: /* Round to Zero */
+        return false;
     }
-    s = (int)(256.0 * r + 0.5);
 
-    return (double)s / 256.0;
+    assert(0);
+}
+
+static float64 recip_estimate(float64 a, float_status *real_fp_status)
+{
+    /* These calculations mustn't set any fp exception flags,
+     * so we use a local copy of the fp_status.
+     */
+    float_status dummy_status = *real_fp_status;
+    float_status *s = &dummy_status;
+    /* q = (int)(a * 512.0) */
+    float64 q = float64_mul(float64_512, a, s);
+    int64_t q_int = float64_to_int64_round_to_zero(q, s);
+
+    /* r = 1.0 / (((double)q + 0.5) / 512.0) */
+    q = int64_to_float64(q_int, s);
+    q = float64_add(q, float64_half, s);
+    q = float64_div(q, float64_512, s);
+    q = float64_div(float64_one, q, s);
+
+    /* s = (int)(256.0 * r + 0.5) */
+    q = float64_mul(q, float64_256, s);
+    q = float64_add(q, float64_half, s);
+    q_int = float64_to_int64_round_to_zero(q, s);
+
+    /* return (double)s / 256.0 */
+    return float64_div(int64_to_float64(q_int, s), float64_256, s);
+}
+
+static float64 call_recip_estimate(float64 num, int off, float_status *fpst)
+{
+    uint64_t val64 = float64_val(num);
+    uint64_t frac = extract64(val64, 0, 52);
+    int64_t exp = extract64(val64, 52, 11);
+    uint64_t sbit;
+    float64 scaled, estimate;
+
+    /* Generate the scaled number for the estimate function */
+    if (exp == 0) {
+        if (extract64(frac, 51, 1) == 0) {
+            exp = -1;
+            frac = extract64(frac, 0, 50) << 2;
+        } else {
+            frac = extract64(frac, 0, 51) << 1;
+        }
+    }
+
+    /* scaled = '0' : '01111111110' : fraction<51:44> : Zeros(44); */
+    scaled = make_float64((0x3feULL << 52)
+                          | extract64(frac, 44, 8) << 44);
+
+    estimate = recip_estimate(scaled, fpst);
+
+    /* Build new result */
+    val64 = float64_val(estimate);
+    sbit = 0x8000000000000000ULL & val64;
+    exp = off - exp;
+    frac = extract64(val64, 0, 52);
+
+    if (exp == 0) {
+        frac = 1ULL << 51 | extract64(frac, 1, 51);
+    } else if (exp == -1) {
+        frac = 1ULL << 50 | extract64(frac, 2, 50);
+        exp = 0;
+    }
+
+    return make_float64(sbit | (exp << 52) | frac);
+}
+
+static float64 recip_sqrt_estimate(float64 a, float_status *real_fp_status)
+{
+    /* These calculations mustn't set any fp exception flags,
+     * so we use a local copy of the fp_status.
+     */
+    float_status dummy_status = *real_fp_status;
+    float_status *s = &dummy_status;
+    float64 q;
+    int64_t q_int;
+
+    if (float64_lt(a, float64_half, s)) {
+        /* range 0.25 <= a < 0.5 */
+
+        /* a in units of 1/512 rounded down */
+        /* q0 = (int)(a * 512.0);  */
+        q = float64_mul(float64_512, a, s);
+        q_int = float64_to_int64_round_to_zero(q, s);
+
+        /* reciprocal root r */
+        /* r = 1.0 / sqrt(((double)q0 + 0.5) / 512.0);  */
+        q = int64_to_float64(q_int, s);
+        q = float64_add(q, float64_half, s);
+        q = float64_div(q, float64_512, s);
+        q = float64_sqrt(q, s);
+        q = float64_div(float64_one, q, s);
+    } else {
+        /* range 0.5 <= a < 1.0 */
+
+        /* a in units of 1/256 rounded down */
+        /* q1 = (int)(a * 256.0); */
+        q = float64_mul(float64_256, a, s);
+        int64_t q_int = float64_to_int64_round_to_zero(q, s);
+
+        /* reciprocal root r */
+        /* r = 1.0 /sqrt(((double)q1 + 0.5) / 256); */
+        q = int64_to_float64(q_int, s);
+        q = float64_add(q, float64_half, s);
+        q = float64_div(q, float64_256, s);
+        q = float64_sqrt(q, s);
+        q = float64_div(float64_one, q, s);
+    }
+    /* r in units of 1/256 rounded to nearest */
+    /* s = (int)(256.0 * r + 0.5); */
+
+    q = float64_mul(q, float64_256,s );
+    q = float64_add(q, float64_half, s);
+    q_int = float64_to_int64_round_to_zero(q, s);
+
+    /* return (double)s / 256.0;*/
+    return float64_div(int64_to_float64(q_int, s), float64_256, s);
+}
+
+static inline uint32_t fneg32(struct arm_registers *regs, uint32_t a)
+{
+    return a ^ 0x80000000;
+}
+
+static inline uint64_t fneg64(struct arm_registers *regs, uint64_t a)
+{
+    return a ^ 0x8000000000000000UL;
+}
+
+static inline uint32_t fabs32(struct arm_registers *regs, uint32_t a)
+{
+    return a & ~0x80000000;
+}
+
+static inline uint64_t fabs64(struct arm_registers *regs, uint64_t a)
+{
+    return a & ~0x8000000000000000UL;
+}
+
+static inline uint32_t fadd32(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    return float32_val(float32_add(make_float32(a), make_float32(b), &regs->fp_status));
+}
+
+static inline uint64_t fadd64(struct arm_registers *regs, uint64_t a, uint64_t b)
+{
+    return float64_val(float64_add(make_float64(a), make_float64(b), &regs->fp_status));
+}
+
+static inline uint32_t fsub32(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    return float32_val(float32_sub(make_float32(a), make_float32(b), &regs->fp_status));
+}
+
+static inline uint64_t fsub64(struct arm_registers *regs, uint64_t a, uint64_t b)
+{
+    return float64_val(float64_sub(make_float64(a), make_float64(b), &regs->fp_status));
+}
+
+static inline uint32_t fmul32(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    return float32_val(float32_mul(make_float32(a), make_float32(b), &regs->fp_status));
+}
+
+static inline uint64_t fmul64(struct arm_registers *regs, uint64_t a, uint64_t b)
+{
+    return float64_val(float64_mul(make_float64(a), make_float64(b), &regs->fp_status));
+}
+
+static inline int fcmp32(struct arm_registers *regs, uint32_t a, uint32_t b, int is_quiet)
+{
+    int float_relation;
+
+    if (is_quiet)
+        float_relation = float32_compare_quiet(make_float32(a), make_float32(b), &regs->fp_status);
+    else
+        float_relation = float32_compare(make_float32(a), make_float32(b), &regs->fp_status);
+
+    switch(float_relation) {
+        case float_relation_less:
+            return 8;
+            break;
+        case float_relation_equal:
+            return 6;
+            break;
+        case float_relation_greater:
+            return 2;
+            break;
+        case float_relation_unordered:
+        default:
+            return 3;
+    }
+}
+
+static inline int fcmp64(struct arm_registers *regs, uint64_t a, uint64_t b, int is_quiet)
+{
+    int float_relation;
+
+    if (is_quiet)
+        float_relation = float64_compare_quiet(make_float64(a), make_float64(b), &regs->fp_status);
+    else
+        float_relation = float64_compare(make_float64(a), make_float64(b), &regs->fp_status);
+
+    switch(float_relation) {
+        case float_relation_less:
+            return 8;
+            break;
+        case float_relation_equal:
+            return 6;
+            break;
+        case float_relation_greater:
+            return 2;
+            break;
+        case float_relation_unordered:
+        default:
+            return 3;
+    }
+}
+
+static inline uint32_t fdiv32(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    return float32_val(float32_div(make_float32(a), make_float32(b), &regs->fp_status));
+}
+
+static inline uint64_t fdiv64(struct arm_registers *regs, uint64_t a, uint64_t b)
+{
+    return float64_val(float64_div(make_float64(a), make_float64(b), &regs->fp_status));
+}
+
+static inline uint32_t fmla32(struct arm_registers *regs, uint32_t a, uint32_t b, uint32_t acc)
+{
+    return fadd32(regs, acc, fmul32(regs, a, b));
+}
+
+static inline uint64_t fmla64(struct arm_registers *regs, uint64_t a, uint64_t b, uint64_t acc)
+{
+    return fadd64(regs, acc, fmul64(regs, a, b));
+}
+
+static inline uint32_t fmls32(struct arm_registers *regs, uint32_t a, uint32_t b, uint32_t acc)
+{
+    return fadd32(regs, acc, fneg32(regs, fmul32(regs, a, b)));
+}
+
+static inline uint64_t fmls64(struct arm_registers *regs, uint64_t a, uint64_t b, uint64_t acc)
+{
+    return fadd64(regs, acc, fneg64(regs, fmul64(regs, a, b)));
+}
+
+static inline uint32_t fnmla32(struct arm_registers *regs, uint32_t a, uint32_t b, uint32_t acc)
+{
+    return fadd32(regs, fneg32(regs, acc), fneg32(regs, fmul32(regs, a, b)));
+}
+
+static inline uint64_t fnmla64(struct arm_registers *regs, uint64_t a, uint64_t b, uint64_t acc)
+{
+    return fadd64(regs, fneg64(regs, acc), fneg64(regs, fmul64(regs, a, b)));
+}
+
+static inline uint32_t fnmls32(struct arm_registers *regs, uint32_t a, uint32_t b, uint32_t acc)
+{
+    return fadd32(regs, fneg32(regs, acc), fmul32(regs, a, b));
+}
+
+static inline uint64_t fnmls64(struct arm_registers *regs, uint64_t a, uint64_t b, uint64_t acc)
+{
+    return fadd64(regs, fneg64(regs, acc), fmul64(regs, a, b));
+}
+
+static inline uint32_t fsqrt32(struct arm_registers *regs, uint32_t a)
+{
+    return float32_val(float32_sqrt(make_float32(a), &regs->fp_status));
+}
+
+static inline uint64_t fsqrt64(struct arm_registers *regs, uint64_t a)
+{
+    return float64_val(float64_sqrt(make_float64(a), &regs->fp_status));
+}
+
+static inline int32_t vcvt_float32_to_int32_round_to_zero(struct arm_registers *regs, uint32_t a)
+{
+    float_status *fpst = &regs->fp_status;
+    float32 a32 = make_float32(a);
+
+    if (float32_is_any_nan(a32)) {
+        float_raise(float_flag_invalid, fpst);
+        return 0;
+    }
+
+    return float32_to_int32_round_to_zero(a32, fpst);
+}
+
+static inline uint32_t vcvt_float32_to_uint32_round_to_zero(struct arm_registers *regs, uint32_t a)
+{
+    float_status *fpst = &regs->fp_status;
+    float32 a32 = make_float32(a);
+
+    if (float32_is_any_nan(a32)) {
+        float_raise(float_flag_invalid, fpst);
+        return 0;
+    }
+
+    return float32_to_uint32_round_to_zero(a32, fpst);
+}
+
+static inline int32_t vcvt_float64_to_int32_round_to_zero(struct arm_registers *regs, uint64_t a)
+{
+    float_status *fpst = &regs->fp_status;
+    float64 a64 = make_float64(a);
+
+    if (float64_is_any_nan(a64)) {
+        float_raise(float_flag_invalid, fpst);
+        return 0;
+    }
+
+    return float64_to_int32_round_to_zero(a64, fpst);
+}
+
+static inline uint32_t vcvt_float64_to_uint32_round_to_zero(struct arm_registers *regs, uint64_t a)
+{
+    float_status *fpst = &regs->fp_status;
+    float64 a64 = make_float64(a);
+
+    if (float64_is_any_nan(a64)) {
+        float_raise(float_flag_invalid, fpst);
+        return 0;
+    }
+
+    return float64_to_uint32_round_to_zero(a64, fpst);
+}
+
+static inline int32_t vcvt_float32_to_int32(struct arm_registers *regs, uint32_t a)
+{
+    float_status *fpst = &regs->fp_status;
+    float32 a32 = make_float32(a);
+
+    if (float32_is_any_nan(a32)) {
+        float_raise(float_flag_invalid, fpst);
+        return 0;
+    }
+
+    return float32_to_int32(a32, fpst);
+}
+
+static inline uint32_t vcvt_float32_to_uint32(struct arm_registers *regs, uint32_t a)
+{
+    float_status *fpst = &regs->fp_status;
+    float32 a32 = make_float32(a);
+
+    if (float32_is_any_nan(a32)) {
+        float_raise(float_flag_invalid, fpst);
+        return 0;
+    }
+
+    return float32_to_uint32(a32, fpst);
+}
+
+static inline int32_t vcvt_float64_to_int32(struct arm_registers *regs, uint64_t a)
+{
+    float_status *fpst = &regs->fp_status;
+    float64 a64 = make_float64(a);
+
+    if (float64_is_any_nan(a64)) {
+        float_raise(float_flag_invalid, fpst);
+        return 0;
+    }
+
+    return float64_to_int32(a64, fpst);
+}
+
+static inline uint32_t vcvt_float64_to_uint32(struct arm_registers *regs, uint64_t a)
+{
+    float_status *fpst = &regs->fp_status;
+    float64 a64 = make_float64(a);
+
+    if (float64_is_any_nan(a64)) {
+        float_raise(float_flag_invalid, fpst);
+        return 0;
+    }
+
+    return float64_to_uint32(a64, fpst);
+}
+
+static inline uint64_t vcvt_int32_to_float64(struct arm_registers *regs, int32_t a)
+{
+    return float64_val(int32_to_float64(a, &regs->fp_status));
+}
+
+static inline uint64_t vcvt_uint32_to_float64(struct arm_registers *regs, uint32_t a)
+{
+    return float64_val(uint32_to_float64(a, &regs->fp_status));
+}
+
+static inline uint32_t vcvt_int32_to_float32(struct arm_registers *regs, int32_t a)
+{
+    return float32_val(int32_to_float32(a, &regs->fp_status));
+}
+
+static inline uint32_t vcvt_uint32_to_float32(struct arm_registers *regs, uint32_t a)
+{
+    return float32_val(uint32_to_float32(a, &regs->fp_status));
+}
+
+static inline uint32_t vcvt_float64_to_float32(struct arm_registers *regs, uint64_t a)
+{
+    float_status *fpst = &regs->fp_status;
+    float64 a64 = make_float64(a);
+    float32 r =  float64_to_float32(a64, fpst);
+
+    return float32_maybe_silence_nan(r);
+}
+
+static inline uint64_t vcvt_float32_to_float64(struct arm_registers *regs, uint32_t a)
+{
+    float_status *fpst = &regs->fp_status;
+    float32 a32 = make_float32(a);
+    float64 r =  float32_to_float64(a32, fpst);
+
+    return float64_maybe_silence_nan(r);
+}
+
+static inline int32_t vcvt_float64_to_int32_fixed(struct arm_registers *regs, uint64_t a, int fracbits)
+{
+    int32_t res;
+    float_status *fpst = &regs->fp_status;
+    float64 a64 = make_float64(a);
+
+    if (float64_is_any_nan(a64)) {
+        float_raise(float_flag_invalid, fpst);
+        res = 0;
+    } else {
+        int old_exc_flags = get_float_exception_flags(fpst);
+
+        /* here we do not handle overflow correctly .... */
+        a64 = float64_scalbn(a64, fracbits, fpst);
+        old_exc_flags |= get_float_exception_flags(fpst) & float_flag_input_denormal;
+        set_float_exception_flags(old_exc_flags, fpst);
+
+        res = float64_to_int32_round_to_zero(a64, fpst);
+    }
+
+    return res;
+}
+
+static inline uint32_t vcvt_float64_to_uint32_fixed(struct arm_registers *regs, uint64_t a, int fracbits)
+{
+    uint32_t res;
+    float_status *fpst = &regs->fp_status;
+    float64 a64 = make_float64(a);
+
+    if (float64_is_any_nan(a64)) {
+        float_raise(float_flag_invalid, fpst);
+        res = 0;
+    } else {
+        int old_exc_flags = get_float_exception_flags(fpst);
+
+        /* here we do not handle overflow correctly .... */
+        a64 = float64_scalbn(a64, fracbits, fpst);
+        old_exc_flags |= get_float_exception_flags(fpst) & float_flag_input_denormal;
+        set_float_exception_flags(old_exc_flags, fpst);
+
+        res = float64_to_uint32_round_to_zero(a64, fpst);
+    }
+
+    return res;
+}
+
+static inline int16_t vcvt_float64_to_int16_fixed(struct arm_registers *regs, uint64_t a, int fracbits)
+{
+    int16_t res;
+    float_status *fpst = &regs->fp_status;
+    float64 a64 = make_float64(a);
+
+    if (float64_is_any_nan(a64)) {
+        float_raise(float_flag_invalid, fpst);
+        res = 0;
+    } else {
+        int old_exc_flags = get_float_exception_flags(fpst);
+
+        /* here we do not handle overflow correctly .... */
+        a64 = float64_scalbn(a64, fracbits, fpst);
+        old_exc_flags |= get_float_exception_flags(fpst) & float_flag_input_denormal;
+        set_float_exception_flags(old_exc_flags, fpst);
+
+        res = float64_to_int16_round_to_zero(a64, fpst);
+    }
+
+    return res;
+}
+
+static inline uint16_t vcvt_float64_to_uint16_fixed(struct arm_registers *regs, uint64_t a, int fracbits)
+{
+    uint16_t res;
+    float_status *fpst = &regs->fp_status;
+    float64 a64 = make_float64(a);
+
+    if (float64_is_any_nan(a64)) {
+        float_raise(float_flag_invalid, fpst);
+        res = 0;
+    } else {
+        int old_exc_flags = get_float_exception_flags(fpst);
+
+        /* here we do not handle overflow correctly .... */
+        a64 = float64_scalbn(a64, fracbits, fpst);
+        old_exc_flags |= get_float_exception_flags(fpst) & float_flag_input_denormal;
+        set_float_exception_flags(old_exc_flags, fpst);
+
+        res = float64_to_uint16_round_to_zero(a64, fpst);
+    }
+
+    return res;
+}
+
+static inline int32_t vcvt_float32_to_int32_fixed(struct arm_registers *regs, uint32_t a, int fracbits)
+{
+    int32_t res;
+    float_status *fpst = &regs->fp_status;
+    float32 a32 = make_float32(a);
+
+    if (float32_is_any_nan(a32)) {
+        float_raise(float_flag_invalid, fpst);
+        res = 0;
+    } else {
+        int old_exc_flags = get_float_exception_flags(fpst);
+
+        /* here we do not handle overflow correctly .... */
+        a32 = float32_scalbn(a32, fracbits, fpst);
+        old_exc_flags |= get_float_exception_flags(fpst) & float_flag_input_denormal;
+        set_float_exception_flags(old_exc_flags, fpst);
+
+        res = float32_to_int32_round_to_zero(a32, fpst);
+    }
+
+    return res;
+}
+
+static inline uint32_t vcvt_float32_to_uint32_fixed(struct arm_registers *regs, uint32_t a, int fracbits)
+{
+    uint32_t res;
+    float_status *fpst = &regs->fp_status;
+    float32 a32 = make_float32(a);
+
+    if (float32_is_any_nan(a32)) {
+        float_raise(float_flag_invalid, fpst);
+        res = 0;
+    } else {
+        int old_exc_flags = get_float_exception_flags(fpst);
+
+        /* here we do not handle overflow correctly .... */
+        a32 = float32_scalbn(a32, fracbits, fpst);
+        old_exc_flags |= get_float_exception_flags(fpst) & float_flag_input_denormal;
+        set_float_exception_flags(old_exc_flags, fpst);
+
+        res = float32_to_uint32_round_to_zero(a32, fpst);
+    }
+
+    return res;
+}
+
+static inline int16_t vcvt_float32_to_int16_fixed(struct arm_registers *regs, uint32_t a, int fracbits)
+{
+    int16_t res;
+    float_status *fpst = &regs->fp_status;
+    float32 a32 = make_float32(a);
+
+    if (float32_is_any_nan(a32)) {
+        float_raise(float_flag_invalid, fpst);
+        res = 0;
+    } else {
+        int old_exc_flags = get_float_exception_flags(fpst);
+
+        /* here we do not handle overflow correctly .... */
+        a32 = float32_scalbn(a32, fracbits, fpst);
+        old_exc_flags |= get_float_exception_flags(fpst) & float_flag_input_denormal;
+        set_float_exception_flags(old_exc_flags, fpst);
+
+        res = float32_to_int16_round_to_zero(a32, fpst);
+    }
+
+    return res;
+}
+
+static inline uint16_t vcvt_float32_to_uint16_fixed(struct arm_registers *regs, uint32_t a, int fracbits)
+{
+    uint16_t res;
+    float_status *fpst = &regs->fp_status;
+    float32 a32 = make_float32(a);
+
+    if (float32_is_any_nan(a32)) {
+        float_raise(float_flag_invalid, fpst);
+        res = 0;
+    } else {
+        int old_exc_flags = get_float_exception_flags(fpst);
+
+        /* here we do not handle overflow correctly .... */
+        a32 = float32_scalbn(a32, fracbits, fpst);
+        old_exc_flags |= get_float_exception_flags(fpst) & float_flag_input_denormal;
+        set_float_exception_flags(old_exc_flags, fpst);
+
+        res = float32_to_uint16_round_to_zero(a32, fpst);
+    }
+
+    return res;
+}
+
+static inline uint64_t vcvt_int32_to_float64_fixed(struct arm_registers *regs, int32_t a, int fracbits)
+{
+    float_status *fpst = &regs->fp_status;
+    float64 a64 = int32_to_float64(a, fpst);
+
+    return float64_val(float64_scalbn(a64, -fracbits, fpst));
+}
+
+static inline uint64_t vcvt_uint32_to_float64_fixed(struct arm_registers *regs, uint32_t a, int fracbits)
+{
+    float_status *fpst = &regs->fp_status;
+    float64 a64 = uint32_to_float64(a, fpst);
+
+    return float64_val(float64_scalbn(a64, -fracbits, fpst));
+}
+
+static inline uint64_t vcvt_int16_to_float64_fixed(struct arm_registers *regs, int16_t a, int fracbits)
+{
+    float_status *fpst = &regs->fp_status;
+    float64 a64 = int16_to_float64(a, fpst);
+
+    return float64_val(float64_scalbn(a64, -fracbits, fpst));
+}
+
+static inline uint64_t vcvt_uint16_to_float64_fixed(struct arm_registers *regs, uint16_t a, int fracbits)
+{
+    float_status *fpst = &regs->fp_status;
+    float64 a64 = uint16_to_float64(a, fpst);
+
+    return float64_val(float64_scalbn(a64, -fracbits, fpst));
+}
+
+static inline uint32_t vcvt_int32_to_float32_fixed(struct arm_registers *regs, int32_t a, int fracbits)
+{
+    float_status *fpst = &regs->fp_status;
+    float32 a32 = int32_to_float32(a, fpst);
+
+    return float32_val(float32_scalbn(a32, -fracbits, fpst));
+}
+
+static inline uint32_t vcvt_uint32_to_float32_fixed(struct arm_registers *regs, uint32_t a, int fracbits)
+{
+    float_status *fpst = &regs->fp_status;
+    float32 a32 = uint32_to_float32(a, fpst);
+
+    return float32_val(float32_scalbn(a32, -fracbits, fpst));
+}
+
+static inline uint32_t vcvt_int16_to_float32_fixed(struct arm_registers *regs, int16_t a, int fracbits)
+{
+    float_status *fpst = &regs->fp_status;
+    float32 a32 = int16_to_float32(a, fpst);
+
+    return float32_val(float32_scalbn(a32, -fracbits, fpst));
+}
+
+static inline uint32_t vcvt_uint16_to_float32_fixed(struct arm_registers *regs, uint16_t a, int fracbits)
+{
+    float_status *fpst = &regs->fp_status;
+    float32 a32 = uint16_to_float32(a, fpst);
+
+    return float32_val(float32_scalbn(a32, -fracbits, fpst));
+}
+
+/* neon simd ops */
+static inline uint32_t fadd32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    return float32_val(float32_add(make_float32(a), make_float32(b), &regs->fp_status_simd));
+}
+
+static inline uint32_t fsub32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    return float32_val(float32_sub(make_float32(a), make_float32(b), &regs->fp_status_simd));
+}
+
+static inline uint32_t fmul32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    return float32_val(float32_mul(make_float32(a), make_float32(b), &regs->fp_status_simd));
+}
+
+static inline uint32_t fmax32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    return float32_val(float32_max(make_float32(a), make_float32(b), &regs->fp_status_simd));
+}
+
+static inline uint32_t fmin32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    return float32_val(float32_min(make_float32(a), make_float32(b), &regs->fp_status_simd));
+}
+
+static inline uint32_t fabd32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    return fabs32(regs, fsub32_neon(regs, a, b));
+}
+
+static inline uint32_t fmla32_neon(struct arm_registers *regs, uint32_t a, uint32_t b, uint32_t acc)
+{
+    return fadd32_neon(regs, acc, fmul32_neon(regs, a, b));
+}
+
+static inline uint32_t fmls32_neon(struct arm_registers *regs, uint32_t a, uint32_t b, uint32_t acc)
+{
+    return fadd32_neon(regs, acc, fneg32(regs, fmul32_neon(regs, a, b)));
+}
+
+/* FIXME: should return uint32_t */
+static inline uint32_t frecpe32_neon(struct arm_registers *regs, uint32_t a)
+{
+    float_status *fpst = &regs->fp_status_simd;
+    float32 f32 = float32_squash_input_denormal(a, fpst);
+    uint32_t f32_val = float32_val(f32);
+    uint32_t f32_sbit = 0x80000000ULL & f32_val;
+    int32_t f32_exp = extract32(f32_val, 23, 8);
+    uint32_t f32_frac = extract32(f32_val, 0, 23);
+    float64 f64, r64;
+    uint64_t r64_val;
+    int64_t r64_exp;
+    uint64_t r64_frac;
+
+    if (float32_is_any_nan(f32)) {
+        float32 nan = f32;
+        if (float32_is_signaling_nan(f32)) {
+            float_raise(float_flag_invalid, fpst);
+            nan = float32_maybe_silence_nan(f32);
+        }
+        if (fpst->default_nan_mode) {
+            nan =  float32_default_nan;
+        }
+        return nan;
+    } else if (float32_is_infinity(f32)) {
+        return float32_set_sign(float32_zero, float32_is_neg(f32));
+    } else if (float32_is_zero(f32)) {
+        float_raise(float_flag_divbyzero, fpst);
+        return float32_set_sign(float32_infinity, float32_is_neg(f32));
+    } else if ((f32_val & ~(1ULL << 31)) < (1ULL << 21)) {
+        /* Abs(value) < 2.0^-128 */
+        float_raise(float_flag_overflow | float_flag_inexact, fpst);
+        if (round_to_inf(fpst, f32_sbit)) {
+            return float32_set_sign(float32_infinity, float32_is_neg(f32));
+        } else {
+            return float32_set_sign(float32_maxnorm, float32_is_neg(f32));
+        }
+    } else if (f32_exp >= 253 && fpst->flush_to_zero) {
+        float_raise(float_flag_underflow, fpst);
+        return float32_set_sign(float32_zero, float32_is_neg(f32));
+    }
+
+
+    f64 = make_float64(((int64_t)(f32_exp) << 52) | (int64_t)(f32_frac) << 29);
+    r64 = call_recip_estimate(f64, 253, fpst);
+    r64_val = float64_val(r64);
+    r64_exp = extract64(r64_val, 52, 11);
+    r64_frac = extract64(r64_val, 0, 52);
+
+    /* result = sign : result_exp<7:0> : fraction<51:29>; */
+    return make_float32(f32_sbit |
+                        (r64_exp & 0xff) << 23 |
+                        extract64(r64_frac, 29, 24));
+}
+
+static inline uint32_t frecps32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    float_status *s = &regs->fp_status_simd;
+    if ((float32_is_infinity(a) && float32_is_zero_or_denormal(b)) ||
+        (float32_is_infinity(b) && float32_is_zero_or_denormal(a))) {
+        if (!(float32_is_zero(a) || float32_is_zero(b))) {
+            float_raise(float_flag_input_denormal, s);
+        }
+        return float32_val(float32_two);
+    }
+    return float32_val(float32_sub(float32_two, float32_mul(a, b, s), s));
+}
+
+static inline uint32_t frsqrte32_neon(struct arm_registers *regs, uint32_t a)
+{
+    float_status *s = &regs->fp_status_simd;
+    float32 f32 = float32_squash_input_denormal(a, s);
+    uint32_t val = float32_val(f32);
+    uint32_t f32_sbit = 0x80000000 & val;
+    int32_t f32_exp = extract32(val, 23, 8);
+    uint32_t f32_frac = extract32(val, 0, 23);
+    uint64_t f64_frac;
+    uint64_t val64;
+    int result_exp;
+    float64 f64;
+
+    if (float32_is_any_nan(f32)) {
+        float32 nan = f32;
+        if (float32_is_signaling_nan(f32)) {
+            float_raise(float_flag_invalid, s);
+            nan = float32_maybe_silence_nan(f32);
+        }
+        if (s->default_nan_mode) {
+            nan =  float32_default_nan;
+        }
+        return nan;
+    } else if (float32_is_zero(f32)) {
+        float_raise(float_flag_divbyzero, s);
+        return float32_set_sign(float32_infinity, float32_is_neg(f32));
+    } else if (float32_is_neg(f32)) {
+        float_raise(float_flag_invalid, s);
+        return float32_default_nan;
+    } else if (float32_is_infinity(f32)) {
+        return float32_zero;
+    }
+
+    /* Scale and normalize to a double-precision value between 0.25 and 1.0,
+     * preserving the parity of the exponent.  */
+
+    f64_frac = ((uint64_t) f32_frac) << 29;
+    if (f32_exp == 0) {
+        while (extract64(f64_frac, 51, 1) == 0) {
+            f64_frac = f64_frac << 1;
+            f32_exp = f32_exp-1;
+        }
+        f64_frac = extract64(f64_frac, 0, 51) << 1;
+    }
+
+    if (extract64(f32_exp, 0, 1) == 0) {
+        f64 = make_float64(((uint64_t) f32_sbit) << 32
+                           | (0x3feULL << 52)
+                           | f64_frac);
+    } else {
+        f64 = make_float64(((uint64_t) f32_sbit) << 32
+                           | (0x3fdULL << 52)
+                           | f64_frac);
+    }
+
+    result_exp = (380 - f32_exp) / 2;
+
+    f64 = recip_sqrt_estimate(f64, s);
+
+    val64 = float64_val(f64);
+
+    val = ((result_exp & 0xff) << 23)
+        | ((val64 >> 29)  & 0x7fffff);
+    return make_float32(val);
+}
+
+static inline uint32_t frsqrts32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    float_status *s = &regs->fp_status_simd;
+    float32 product;
+
+    if ((float32_is_infinity(a) && float32_is_zero_or_denormal(b)) ||
+        (float32_is_infinity(b) && float32_is_zero_or_denormal(a))) {
+        if (!(float32_is_zero(a) || float32_is_zero(b))) {
+            float_raise(float_flag_input_denormal, s);
+        }
+        return float32_val(float32_one_point_five);
+    }
+    product = float32_mul(a, b, s);
+    return float32_val(float32_div(float32_sub(float32_three, product, s), float32_two, s));
+}
+
+static inline int fcmpge32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    return float32_le(make_float32(b), make_float32(a), &regs->fp_status_simd);
+}
+
+static inline int fcmpgt32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    return float32_lt(make_float32(b), make_float32(a), &regs->fp_status_simd);
+}
+
+static inline int feq32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    float_status *fpst = &regs->fp_status_simd;
+    return float32_eq_quiet(make_float32(a), make_float32(b), fpst);
+}
+
+static inline int fge32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    float_status *fpst = &regs->fp_status_simd;
+    return float32_le(make_float32(b), make_float32(a), fpst);
+}
+
+static inline int fgt32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    float_status *fpst = &regs->fp_status_simd;
+    return float32_lt(make_float32(b), make_float32(a), fpst);
+}
+
+static inline int fle32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    float_status *fpst = &regs->fp_status_simd;
+    return float32_le(make_float32(a), make_float32(b), fpst);
+}
+
+static inline int flt32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
+{
+    float_status *fpst = &regs->fp_status_simd;
+    return float32_lt(make_float32(a), make_float32(b), fpst);
+}
+
+static inline uint32_t vcvt_float32_to_uint32_neon(struct arm_registers *regs, uint32_t a)
+{
+    float_status *fpst = &regs->fp_status_simd;
+    float32 a32 = make_float32(a);
+
+    if (float32_is_any_nan(a32)) {
+        float_raise(float_flag_invalid, fpst);
+        return 0;
+    }
+
+    return float32_to_uint32_round_to_zero(a32, fpst);
+}
+
+static inline int32_t vcvt_float32_to_int32_neon(struct arm_registers *regs, uint32_t a)
+{
+    float_status *fpst = &regs->fp_status_simd;
+    float32 a32 = make_float32(a);
+
+    if (float32_is_any_nan(a32)) {
+        float_raise(float_flag_invalid, fpst);
+        return 0;
+    }
+
+    return float32_to_int32_round_to_zero(a32, fpst);
+}
+
+static inline uint32_t vcvt_int32_to_float32_neon(struct arm_registers *regs, int32_t a)
+{
+    return float32_val(int32_to_float32(a, &regs->fp_status_simd));
+}
+
+static inline uint32_t vcvt_uint32_to_float32_neon(struct arm_registers *regs, uint32_t a)
+{
+    return float32_val(uint32_to_float32(a, &regs->fp_status_simd));
+}
+
+static inline int32_t vcvt_float32_to_int32_fixed_neon(struct arm_registers *regs, uint32_t a, int fracbits)
+{
+    int32_t res;
+    float_status *fpst = &regs->fp_status_simd;
+    float32 a32 = make_float32(a);
+
+    if (float32_is_any_nan(a32)) {
+        float_raise(float_flag_invalid, fpst);
+        res = 0;
+    } else {
+        int old_exc_flags = get_float_exception_flags(fpst);
+
+        /* here we do not handle overflow correctly .... */
+        a32 = float32_scalbn(a32, fracbits, fpst);
+        old_exc_flags |= get_float_exception_flags(fpst) & float_flag_input_denormal;
+        set_float_exception_flags(old_exc_flags, fpst);
+
+        res = float32_to_int32_round_to_zero(a32, fpst);
+    }
+
+    return res;
+}
+
+static inline uint32_t vcvt_float32_to_uint32_fixed_neon(struct arm_registers *regs, uint32_t a, int fracbits)
+{
+    uint32_t res;
+    float_status *fpst = &regs->fp_status_simd;
+    float32 a32 = make_float32(a);
+
+    if (float32_is_any_nan(a32)) {
+        float_raise(float_flag_invalid, fpst);
+        res = 0;
+    } else {
+        int old_exc_flags = get_float_exception_flags(fpst);
+
+        /* here we do not handle overflow correctly .... */
+        a32 = float32_scalbn(a32, fracbits, fpst);
+        old_exc_flags |= get_float_exception_flags(fpst) & float_flag_input_denormal;
+        set_float_exception_flags(old_exc_flags, fpst);
+
+        res = float32_to_uint32_round_to_zero(a32, fpst);
+    }
+
+    return res;
+}
+
+static inline uint32_t vcvt_int32_to_float32_fixed_neon(struct arm_registers *regs, int32_t a, int fracbits)
+{
+    float_status *fpst = &regs->fp_status_simd;
+    float32 a32 = int32_to_float32(a, fpst);
+
+    return float32_val(float32_scalbn(a32, -fracbits, fpst));
+}
+
+static inline uint32_t vcvt_uint32_to_float32_fixed_neon(struct arm_registers *regs, uint32_t a, int fracbits)
+{
+    float_status *fpst = &regs->fp_status_simd;
+    float32 a32 = uint32_to_float32(a, fpst);
+
+    return float32_val(float32_scalbn(a32, -fracbits, fpst));
 }
 
 static int tkill(int pid, int sig)
@@ -2694,11 +3660,11 @@ static void dis_common_vcmp_vcmpe_vfp(uint64_t _regs, uint32_t insn)
     int is_with_zero = INSN(16, 16);
     int vd = INSN(15, 12);
     int is_double = INSN(8, 8);
-    //int E = INSN(7, 7);
+    int E = INSN(7, 7);
     int M = INSN(5, 5);
     int vm = INSN(3, 0);
     int d, m;
-    uint32_t fpscr_nzcv = 0;
+    uint32_t nzcv = 0;
 
     if (is_double) {
         d = (D << 4) + vd;
@@ -2708,32 +3674,12 @@ static void dis_common_vcmp_vcmpe_vfp(uint64_t _regs, uint32_t insn)
         m = (vm << 1) + M;
     }
     if (is_double) {
-        double op1 = regs->e.df[d];
-        double op2 = is_with_zero?0.0:regs->e.df[m];
-
-        if (isnan(op1) || isnan(op2))
-            fpscr_nzcv = 0x30000000;
-        else if (op1 == op2)
-            fpscr_nzcv = 0x60000000;
-        else if (op1 > op2)
-            fpscr_nzcv = 0x20000000;
-        else
-            fpscr_nzcv = 0x80000000;
+        nzcv = fcmp64(regs, regs->e.d[d], is_with_zero?0:regs->e.d[m], E);
     } else {
-        float op1 = regs->e.sf[d];
-        float op2 = is_with_zero?0.0:regs->e.sf[m];
-
-        if (__isnanf(op1) || __isnanf(op2))
-            fpscr_nzcv = 0x30000000;
-        else if (op1 == op2)
-            fpscr_nzcv = 0x60000000;
-        else if (op1 > op2)
-            fpscr_nzcv = 0x20000000;
-        else
-            fpscr_nzcv = 0x80000000;
+        nzcv = fcmp32(regs, regs->e.s[d], is_with_zero?0:regs->e.s[m], E);
     }
 
-    regs->fpscr = (regs->fpscr & 0x0fffffff) + fpscr_nzcv;
+    regs->fpscr = (regs->fpscr & 0x0fffffff) + (nzcv << 28);
 }
 
 static void dis_common_vcvt_double_single_vfp(uint64_t _regs, uint32_t insn)
@@ -2750,12 +3696,12 @@ static void dis_common_vcvt_double_single_vfp(uint64_t _regs, uint32_t insn)
         d = (vd << 1) + D;
         m = (M << 4) + vm;
 
-        regs->e.sf[d] = regs->e.df[m];
+        regs->e.s[d] = vcvt_float64_to_float32(regs, regs->e.d[m]);
     } else {
         d = (D << 4) + vd;
         m = (vm << 1) + M;
 
-        regs->e.df[d] = regs->e.sf[m];
+        regs->e.d[d] = vcvt_float32_to_float64(regs, regs->e.s[m]);
     }
 }
 
@@ -2778,17 +3724,30 @@ static void dis_common_vcvt_vcvtr_floating_integer_vfp(uint64_t _regs, uint32_t 
         d = (vd << 1) + D;
         m = is_double?((M << 4) + vm):((vm << 1) + M);
 
-        assert(op == 1);
-        if (is_double) {
-            if (is_signed)
-                regs->e.s[d] = (int32_t) ssat32_d(regs->e.df[m]);
-            else
-                regs->e.s[d] = (uint32_t) usat32_d(regs->e.df[m]);
+        if (op) {
+            if (is_double) {
+                if (is_signed)
+                    regs->e.s[d] = vcvt_float64_to_int32_round_to_zero(regs, regs->e.d[m]);
+                else
+                    regs->e.s[d] = vcvt_float64_to_uint32_round_to_zero(regs, regs->e.d[m]);
+            } else {
+                if (is_signed)
+                    regs->e.s[d] = vcvt_float32_to_int32_round_to_zero(regs, regs->e.s[m]);
+                else
+                    regs->e.s[d] = vcvt_float32_to_uint32_round_to_zero(regs, regs->e.s[m]);
+            }
         } else {
-            if (is_signed)
-                regs->e.s[d] = (int32_t) ssat32_d(regs->e.sf[m]);
-            else
-                regs->e.s[d] = (uint32_t) usat32_d(regs->e.sf[m]);
+            if (is_double) {
+                if (is_signed)
+                    regs->e.s[d] = vcvt_float64_to_int32(regs, regs->e.d[m]);
+                else
+                    regs->e.s[d] = vcvt_float64_to_uint32(regs, regs->e.d[m]);
+            } else {
+                if (is_signed)
+                    regs->e.s[d] = vcvt_float32_to_int32(regs, regs->e.s[m]);
+                else
+                    regs->e.s[d] = vcvt_float32_to_uint32(regs, regs->e.s[m]);
+            }
         }
     } else {
         is_signed = op;
@@ -2797,16 +3756,129 @@ static void dis_common_vcvt_vcvtr_floating_integer_vfp(uint64_t _regs, uint32_t 
 
         if (is_double) {
             if (is_signed)
-                regs->e.df[d] = (int32_t) regs->e.s[m];
+                regs->e.d[d] = vcvt_int32_to_float64(regs, regs->e.s[m]);
             else
-                regs->e.df[d] = (uint32_t) regs->e.s[m];
+                regs->e.d[d] = vcvt_uint32_to_float64(regs, regs->e.s[m]);
         } else {
             if (is_signed)
-                regs->e.sf[d] = (int32_t) regs->e.s[m];
+                regs->e.s[d] = vcvt_int32_to_float32(regs, regs->e.s[m]);
             else
-                regs->e.sf[d] = (uint32_t) regs->e.s[m];
+                regs->e.s[d] = vcvt_uint32_to_float32(regs, regs->e.s[m]);
         }
     }
+}
+
+static void dis_common_vcvt_floating_fixed_vfp(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int is_to_fixed = INSN(18, 18);
+    int vd = INSN(15, 12);
+    int is_double = INSN(8, 8);
+    int sx = INSN(7, 7);
+    int is_signed = (INSN(16, 16) == 0);
+    int imm4 = INSN(3, 0);
+    int i = INSN(5, 5);
+    int d = is_double?((D << 4) + vd):((vd << 1) + D);
+    int fracbits = (sx?32:16) - ((imm4 << 1) + i);
+
+    if (is_to_fixed) {
+        if (is_double) {
+            if (sx) {
+                if (is_signed) {
+                    regs->e.d[d] = vcvt_float64_to_int32_fixed(regs, regs->e.d[d], fracbits);
+                } else {
+                    regs->e.d[d] = vcvt_float64_to_uint32_fixed(regs, regs->e.d[d], fracbits);
+                }
+            } else {
+                if (is_signed) {
+                    regs->e.d[d] = vcvt_float64_to_int16_fixed(regs, regs->e.d[d], fracbits);
+                } else {
+                    regs->e.d[d] = vcvt_float64_to_uint16_fixed(regs, regs->e.d[d], fracbits);
+                }
+            }
+        } else {
+            if (sx) {
+                if (is_signed) {
+                    regs->e.s[d] = vcvt_float32_to_int32_fixed(regs, regs->e.s[d], fracbits);
+                } else {
+                    regs->e.s[d] = vcvt_float32_to_uint32_fixed(regs, regs->e.s[d], fracbits);
+                }
+            } else {
+                if (is_signed) {
+                    regs->e.s[d] = vcvt_float32_to_int16_fixed(regs, regs->e.s[d], fracbits);
+                } else {
+                    regs->e.s[d] = vcvt_float32_to_uint16_fixed(regs, regs->e.s[d], fracbits);
+                }
+            }
+        }
+    } else {
+        if (is_double) {
+            if (sx) {
+                if (is_signed) {
+                    regs->e.d[d] = vcvt_int32_to_float64_fixed(regs, regs->e.d[d], fracbits);
+                } else {
+                    regs->e.d[d] = vcvt_uint32_to_float64_fixed(regs, regs->e.d[d], fracbits);
+                }
+            } else {
+                if (is_signed) {
+                    regs->e.d[d] = vcvt_int16_to_float64_fixed(regs, regs->e.d[d], fracbits);
+                } else {
+                    regs->e.d[d] = vcvt_uint16_to_float64_fixed(regs, regs->e.d[d], fracbits);
+                }
+            }
+        } else {
+            if (sx) {
+                if (is_signed) {
+                    regs->e.s[d] = vcvt_int32_to_float32_fixed(regs, regs->e.s[d], fracbits);
+                } else {
+                    regs->e.s[d] = vcvt_uint32_to_float32_fixed(regs, regs->e.s[d], fracbits);
+                }
+            } else {
+                if (is_signed) {
+                    regs->e.s[d] = vcvt_int16_to_float32_fixed(regs, regs->e.s[d], fracbits);
+                } else {
+                    regs->e.s[d] = vcvt_uint16_to_float32_fixed(regs, regs->e.s[d], fracbits);
+                }
+            }
+        }
+    }
+
+}
+
+static void dis_common_vcvt_floating_fixed_simd(uint64_t _regs, uint32_t insn, int is_unsigned)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int reg_nb = INSN(6, 6) + 1;
+    int is_to_fixed = INSN(8, 8);
+    int is_signed = (is_unsigned == 0);
+    int fracbits = 64 - INSN(21, 16);
+    int r;
+    int i;
+    union simd_d_register res[2];
+
+    for(r = 0; r < reg_nb; r++) {
+        for(i = 0; i < 2; i++) {
+            if (is_to_fixed) {
+                if (is_signed) {
+                    res[r].s32[i] = vcvt_float32_to_int32_fixed_neon(regs, regs->e.simd[m + r].u32[i], fracbits);
+                } else {
+                    res[r].u32[i] = vcvt_float32_to_uint32_fixed_neon(regs, regs->e.simd[m + r].u32[i], fracbits);
+                }
+            } else {
+                if (is_signed) {
+                    res[r].u32[i] = vcvt_int32_to_float32_fixed_neon(regs, regs->e.simd[m + r].s32[i], fracbits);
+                } else {
+                    res[r].u32[i] = vcvt_uint32_to_float32_fixed_neon(regs, regs->e.simd[m + r].u32[i], fracbits);
+                }
+            }
+        }
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
 }
 
 static void dis_common_vqadd_vqsub_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned, int is_sub)
@@ -3138,17 +4210,9 @@ static void dis_common_vrecps_simd(uint64_t _regs, uint32_t insn)
     int r;
     union simd_d_register res[2];
 
-    /* FIXME: certainly not correct on corner cases */
-    for(r = 0; r < reg_nb; r++) {
-        for(i = 0; i < 2; i++) {
-            if (isnan(regs->e.simd[n + r].sf[i]))
-                res[r].u32[i] = (regs->e.simd[n + r].u32[i]^0x80000000) | (1 << 22);
-            else if (isnan(regs->e.simd[m + r].sf[i]))
-                res[r].u32[i] = regs->e.simd[m + r].u32[i] | (1 << 22);
-            else
-                res[r].sf[i] = 2.0 - regs->e.simd[n + r].sf[i] * regs->e.simd[m + r].sf[i];
-        }
-    }
+    for(r = 0; r < reg_nb; r++)
+        for(i = 0; i < 2; i++)
+            res[r].s32[i] = frecps32_neon(regs, regs->e.simd[n + r].s32[i], regs->e.simd[m + r].s32[i]);
 
     for(r = 0; r < reg_nb; r++)
         regs->e.simd[d + r] = res[r];
@@ -3165,17 +4229,9 @@ static void dis_common_vrsqrts_simd(uint64_t _regs, uint32_t insn)
     int r;
     union simd_d_register res[2];
 
-    /* FIXME: certainly not correct on corner cases */
-    for(r = 0; r < reg_nb; r++) {
-        for(i = 0; i < 2; i++) {
-            if (isnan(regs->e.simd[n + r].sf[i]))
-                res[r].u32[i] = (regs->e.simd[n + r].u32[i]^0x80000000) | (1 << 22);
-            else if (isnan(regs->e.simd[m + r].sf[i]))
-                res[r].u32[i] = regs->e.simd[m + r].u32[i] | (1 << 22);
-            else
-                res[r].sf[i] = (3.0 - regs->e.simd[n + r].sf[i] * regs->e.simd[m + r].sf[i]) / 2.0;
-        }
-    }
+    for(r = 0; r < reg_nb; r++)
+        for(i = 0; i < 2; i++)
+            res[r].s32[i] = frsqrts32_neon(regs, regs->e.simd[n + r].s32[i], regs->e.simd[m + r].s32[i]);
 
     for(r = 0; r < reg_nb; r++)
         regs->e.simd[d + r] = res[r];
@@ -3183,8 +4239,6 @@ static void dis_common_vrsqrts_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vpmax_vpmin_fpu_simd(uint64_t _regs, uint32_t insn)
 {
-    /* FIXME: need to properly handle exception cases */
-#if 0
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
@@ -3198,26 +4252,21 @@ static void dis_common_vpmax_vpmin_fpu_simd(uint64_t _regs, uint32_t insn)
     for(r = 0; r < reg_nb; r++) {
         for(i = 0; i < 1; i++) {
             if (is_min) {
-                res[r].sf[i + 0] = minf(regs->e.simd[n + r].sf[2 * i], regs->e.simd[n + r].sf[2 * i + 1]);
-                res[r].sf[i + 1] = minf(regs->e.simd[m + r].sf[2 * i], regs->e.simd[m + r].sf[2 * i + 1]);
+                res[r].s32[i + 0] = fmin32_neon(regs, regs->e.simd[n + r].s32[2 * i], regs->e.simd[n + r].s32[2 * i + 1]);
+                res[r].s32[i + 1] = fmin32_neon(regs, regs->e.simd[m + r].s32[2 * i], regs->e.simd[m + r].s32[2 * i + 1]);
             } else {
-                res[r].sf[i + 0] = maxf(regs->e.simd[n + r].sf[2 * i], regs->e.simd[n + r].sf[2 * i + 1]);
-                res[r].sf[i + 1] = maxf(regs->e.simd[m + r].sf[2 * i], regs->e.simd[m + r].sf[2 * i + 1]);
+                res[r].s32[i + 0] = fmax32_neon(regs, regs->e.simd[n + r].s32[2 * i], regs->e.simd[n + r].s32[2 * i + 1]);
+                res[r].s32[i + 1] = fmax32_neon(regs, regs->e.simd[m + r].s32[2 * i], regs->e.simd[m + r].s32[2 * i + 1]);
             }
         }
     }
 
     for(r = 0; r < reg_nb; r++)
         regs->e.simd[d + r] = res[r];
-#else
-    assert(0);
-#endif
 }
 
 static void dis_common_vmax_vmin_fpu_simd(uint64_t _regs, uint32_t insn)
 {
-    /* FIXME: need to properly handle exception cases */
-#if 0
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
@@ -3231,17 +4280,15 @@ static void dis_common_vmax_vmin_fpu_simd(uint64_t _regs, uint32_t insn)
     for(r = 0; r < reg_nb; r++) {
         for(i = 0; i < 2; i++) {
             if (is_min)
-                res[r].sf[i] = minf(regs->e.simd[n + r].sf[i], regs->e.simd[m + r].sf[i]);
+                res[r].s32[i] = fmin32_neon(regs, regs->e.simd[n + r].s32[i], regs->e.simd[m + r].s32[i]);
             else
-                res[r].sf[i] = maxf(regs->e.simd[n + r].sf[i], regs->e.simd[m + r].sf[i]);
+                res[r].s32[i] = fmax32_neon(regs, regs->e.simd[n + r].s32[i], regs->e.simd[m + r].s32[i]);
+
         }
     }
 
     for(r = 0; r < reg_nb; r++)
         regs->e.simd[d + r] = res[r];
-#else
-    assert(0);
-#endif
 }
 
 static void dis_common_vaba_vabd_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
@@ -3342,7 +4389,7 @@ static void dis_common_tst_simd(uint64_t _regs, uint32_t insn)
 /* This macro will define 4 functions use to implement vcxx opcodes
 */
 #define VCXX_SIMD(name, op) \
-static void dis_common_ ## name ## _all_simd(uint64_t _regs, uint32_t insn, int is_zero, int is_unsigned) \
+static void dis_common_ ## vc ## name ## _all_simd(uint64_t _regs, uint32_t insn, int is_zero, int is_unsigned) \
 { \
     struct arm_registers *regs = (struct arm_registers *) _regs; \
     int d = (INSN(22, 22) << 4) | INSN(15, 12); \
@@ -3362,7 +4409,7 @@ static void dis_common_ ## name ## _all_simd(uint64_t _regs, uint32_t insn, int 
     if (f) { \
         for(r = 0; r < reg_nb; r++) \
             for(i = 0; i < 2; i++) \
-                res[r].u32[i] = regs->e.simd[n + r].sf[i] op (is_zero?0:regs->e.simd[m + r].sf[i])?~0:0; \
+                res[r].u32[i] = f ## name ## 32_neon(regs, regs->e.simd[n + r].s32[i], is_zero?0:regs->e.simd[m + r].s32[i])?~0:0; \
     } else { \
         switch(size) { \
             case 0: \
@@ -3398,28 +4445,28 @@ static void dis_common_ ## name ## _all_simd(uint64_t _regs, uint32_t insn, int 
         regs->e.simd[d + r] = res[r]; \
 } \
  \
-static void dis_common_ ## name ## _simd(uint64_t _regs, uint32_t insn, int is_unsigned) __attribute__ ((unused)); \
-static void dis_common_ ## name ## _simd(uint64_t _regs, uint32_t insn, int is_unsigned) \
+static void dis_common_ ## vc ## name ## _simd(uint64_t _regs, uint32_t insn, int is_unsigned) __attribute__ ((unused)); \
+static void dis_common_ ## vc ## name ## _simd(uint64_t _regs, uint32_t insn, int is_unsigned) \
 { \
-    dis_common_ ## name ## _all_simd(_regs, insn, 0, is_unsigned); \
+    dis_common_ ## vc ## name ## _all_simd(_regs, insn, 0, is_unsigned); \
 } \
  \
-static void dis_common_ ## name ## _immediate_simd(uint64_t _regs, uint32_t insn) \
+static void dis_common_ ## vc ## name ## _immediate_simd(uint64_t _regs, uint32_t insn) \
 { \
-    dis_common_ ## name ## _all_simd(_regs, insn, 1, 0); \
+    dis_common_ ## vc ## name ## _all_simd(_regs, insn, 1, 0); \
 } \
  \
-static void dis_common_ ## name ## _fpu_simd(uint64_t _regs, uint32_t insn) __attribute__ ((unused)); \
-static void dis_common_ ## name ## _fpu_simd(uint64_t _regs, uint32_t insn) \
+static void dis_common_ ## vc ## name ## _fpu_simd(uint64_t _regs, uint32_t insn) __attribute__ ((unused)); \
+static void dis_common_ ## vc ## name ## _fpu_simd(uint64_t _regs, uint32_t insn) \
 { \
-    dis_common_ ## name ## _all_simd(_regs, insn, 0, 0/*is_unsigned*/); \
+    dis_common_ ## vc ## name ## _all_simd(_regs, insn, 0, 0/*is_unsigned*/); \
 }
 
-VCXX_SIMD(vceq, ==)
-VCXX_SIMD(vcge, >=)
-VCXX_SIMD(vcgt, >)
-VCXX_SIMD(vcle, <=)
-VCXX_SIMD(vclt, <)
+VCXX_SIMD(eq, ==)
+VCXX_SIMD(ge, >=)
+VCXX_SIMD(gt, >)
+VCXX_SIMD(le, <=)
+VCXX_SIMD(lt, <)
 
 static void dis_common_vadd_vsub_simd(uint64_t _regs, uint32_t insn, int is_sub)
 {
@@ -3770,13 +4817,10 @@ static void dis_common_vmla_vmls_scalar_simd(uint64_t _regs, uint32_t insn, int 
             for(r = 0; r < reg_nb; r++)
                 for(i = 0; i < 2; i++) {
                     if (is_f) {
-#if 1
-                        /* code below not always correct */
-                        assert(0);
-#else
-                        float product = regs->e.simd[n + r].sf[i] * regs->e.simd[m].sf[index];
-                        res[r].sf[i] = regs->e.simd[d + r].sf[i] + (is_sub?-product:product);
-#endif
+                        if (is_sub)
+                            res[r].s32[i] = fmls32_neon(regs, regs->e.simd[n + r].s32[i], regs->e.simd[m].s32[index], regs->e.simd[d + r].s32[i]);
+                        else
+                            res[r].s32[i] = fmla32_neon(regs, regs->e.simd[n + r].s32[i], regs->e.simd[m].s32[index], regs->e.simd[d + r].s32[i]);
                     } else {
                         uint64_t product = regs->e.simd[n + r].u32[i] * regs->e.simd[m].u32[index];
                         res[r].u32[i] = regs->e.simd[d + r].u32[i] + (is_sub?-product:product);
@@ -3793,8 +4837,6 @@ static void dis_common_vmla_vmls_scalar_simd(uint64_t _regs, uint32_t insn, int 
 
 static void dis_common_vmul_f32_simd(uint64_t _regs, uint32_t insn)
 {
-    /* FIXME: result is not correct */
-#if 0
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
@@ -3805,22 +4847,16 @@ static void dis_common_vmul_f32_simd(uint64_t _regs, uint32_t insn)
     union simd_d_register res[2];
 
     for(r = 0; r < reg_nb; r++) {
-        for(i = 0; i < 2; i++) {
-            res[r].sf[i] = regs->e.simd[n + r].sf[i] * regs->e.simd[m + r].sf[i];
-        }
+        for(i = 0; i < 2; i++)
+            res[r].s32[i] = fmul32_neon(regs, regs->e.simd[n + r].s32[i], regs->e.simd[m + r].s32[i]);
     }
 
     for(r = 0; r < reg_nb; r++)
         regs->e.simd[d + r] = res[r];
-#else
-    assert(0);
-#endif
 }
 
 static void dis_common_vmla_vmls_f32_simd(uint64_t _regs, uint32_t insn)
 {
-    /* FIXME: result is not correct */
-#if 0
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
@@ -3834,25 +4870,18 @@ static void dis_common_vmla_vmls_f32_simd(uint64_t _regs, uint32_t insn)
     for(r = 0; r < reg_nb; r++) {
         for(i = 0; i < 2; i++) {
             if (is_sub)
-                res[r].sf[i] = regs->e.simd[d + r].sf[i] - regs->e.simd[n + r].sf[i] * regs->e.simd[m + r].sf[i];
+                res[r].s32[i] = fmls32_neon(regs, regs->e.simd[n + r].s32[i], regs->e.simd[m + r].s32[i],  regs->e.simd[d + r].s32[i]);
             else
-                res[r].sf[i] = regs->e.simd[d + r].sf[i] + regs->e.simd[n + r].sf[i] * regs->e.simd[m + r].sf[i];
+                res[r].s32[i] = fmla32_neon(regs, regs->e.simd[n + r].s32[i], regs->e.simd[m + r].s32[i],  regs->e.simd[d + r].s32[i]);
         }
     }
 
     for(r = 0; r < reg_nb; r++)
         regs->e.simd[d + r] = res[r];
-#else
-    assert(0);
-#endif
 }
 
 static void dis_common_vabd_fpu_simd(uint64_t _regs, uint32_t insn)
 {
-    /* FIXME: fpu operation not always correct */
-#if 1
-    assert(0);
-#else
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
@@ -3864,33 +4893,26 @@ static void dis_common_vabd_fpu_simd(uint64_t _regs, uint32_t insn)
 
     for(r = 0; r < reg_nb; r++) {
         for(i = 0; i < 2; i++) {
-            res[r].sf[i] = regs->e.simd[n + r].sf[i] - regs->e.simd[m + r].sf[i];
-            res[r].s32[i] = res[r].s32[i]&0x80000000?res[r].s32[i]^0x80000000:res[r].s32[i];
+            res[r].s32[i] = fabd32_neon(regs, regs->e.simd[n + r].s32[i], regs->e.simd[m + r].s32[i]);
         }
     }
 
     for(r = 0; r < reg_nb; r++)
         regs->e.simd[d + r] = res[r];
-#endif
 }
 
 static void dis_common_vpadd_fpu_simd(uint64_t _regs, uint32_t insn)
 {
-    /* FIXME: fpu operation not always correct */
-#if 1
-    assert(0);
-#else
     struct arm_registers *regs = (struct arm_registers *) _regs;
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     union simd_d_register res;
 
-    res.sf[0] = regs->e.simd[n].sf[0] + regs->e.simd[n].sf[1];
-    res.sf[1] = regs->e.simd[m].sf[0] + regs->e.simd[m].sf[1];
+    res.s32[0] = fadd32_neon(regs, regs->e.simd[n].s32[0], regs->e.simd[n].s32[1]);
+    res.s32[1] = fadd32_neon(regs, regs->e.simd[m].s32[0], regs->e.simd[m].s32[1]);
 
     regs->e.simd[d] = res;
-#endif
 }
 
 static void dis_common_vadd_vsub_fpu_simd(uint64_t _regs, uint32_t insn, int is_sub)
@@ -3907,9 +4929,9 @@ static void dis_common_vadd_vsub_fpu_simd(uint64_t _regs, uint32_t insn, int is_
     for(r = 0; r < reg_nb; r++)
         for(i = 0; i < 2; i++)
             if (is_sub)
-                res[r].sf[i] = regs->e.simd[n + r].sf[i] - regs->e.simd[m + r].sf[i];
+                res[r].s32[i] = fsub32_neon(regs, regs->e.simd[n + r].s32[i], regs->e.simd[m + r].s32[i]);
             else
-                res[r].sf[i] = regs->e.simd[n + r].sf[i] + regs->e.simd[m + r].sf[i];
+                res[r].s32[i] = fadd32_neon(regs, regs->e.simd[n + r].s32[i], regs->e.simd[m + r].s32[i]);
 
     for(r = 0; r < reg_nb; r++)
         regs->e.simd[d + r] = res[r];
@@ -3925,22 +4947,14 @@ static void dis_common_vacge_vacgt_simd(uint64_t _regs, uint32_t insn)
     int or_equal = (INSN(21, 21) == 0);
     int i;
     int r;
-    union simd_d_register op1[2];
-    union simd_d_register op2[2];
     union simd_d_register res[2];
 
     for(r = 0; r < reg_nb; r++) {
         for(i = 0; i < 2; i++) {
-            op1[r].s32[i] = regs->e.simd[n + r].s32[i]&0x80000000?regs->e.simd[n + r].s32[i]^0x80000000:regs->e.simd[n + r].s32[i];
-            op2[r].s32[i] = regs->e.simd[m + r].s32[i]&0x80000000?regs->e.simd[m + r].s32[i]^0x80000000:regs->e.simd[m + r].s32[i];
-        }
-    }
-    for(r = 0; r < reg_nb; r++) {
-        for(i = 0; i < 2; i++) {
             if (or_equal)
-                res[r].u32[i] = (op1[r].sf[i]>=op2[r].sf[i])?~0:0;
+                res[r].u32[i] = fcmpge32_neon(regs, fabs32(regs, regs->e.simd[n + r].s32[i]), fabs32(regs, regs->e.simd[m + r].s32[i]))?~0:0;
             else
-                res[r].u32[i] = (op1[r].sf[i]>op2[r].sf[i])?~0:0;
+                res[r].u32[i] = fcmpgt32_neon(regs, fabs32(regs, regs->e.simd[n + r].s32[i]), fabs32(regs, regs->e.simd[m + r].s32[i]))?~0:0;
         }
     }
 
@@ -4321,8 +5335,6 @@ static void dis_common_vmul_scalar_simd(uint64_t _regs, uint32_t insn, uint32_t 
     int r;
     union simd_d_register res[2];
 
-    /* FIXME: fpcu result not ok */
-    assert(f == 0);
     switch(size) {
         case 1:
             m = INSN(2, 0);
@@ -4337,7 +5349,7 @@ static void dis_common_vmul_scalar_simd(uint64_t _regs, uint32_t insn, uint32_t 
             for(r = 0; r < reg_nb; r++)
                 for(i = 0; i < 2; i++)
                     if (f)
-                        res[r].sf[i] = regs->e.simd[n + r].sf[i] * regs->e.simd[m].sf[index];
+                        res[r].s32[i] = fmul32_neon(regs, regs->e.simd[n + r].s32[i], regs->e.simd[m].s32[index]);
                     else
                         res[r].u32[i] = regs->e.simd[n + r].u32[i] * regs->e.simd[m].u32[index];
             break;
@@ -4822,7 +5834,7 @@ static void dis_common_vabs_simd(uint64_t _regs, uint32_t insn)
             for(r = 0; r < reg_nb; r++)
                 for(i = 0; i < 2; i++)
                     if (f)
-                        res[r].s32[i] = regs->e.simd[m + r].s32[i]&0x80000000?regs->e.simd[m + r].s32[i]^0x80000000:regs->e.simd[m + r].s32[i];
+                        res[r].s32[i] = fabs32(regs, regs->e.simd[m + r].s32[i]);
                     else
                         res[r].s32[i] = abs(regs->e.simd[m + r].s32[i]);
             break;
@@ -5200,22 +6212,18 @@ static void dis_common_vrecpe_simd(uint64_t _regs, uint32_t insn)
     for(r = 0; r < reg_nb; r++) {
         for(i = 0; i < 2; i++) {
             if (f) {
-                float_status dummy = {0};
-                res[r].u32[i] = float32_val(HELPER(recpe_f32)(make_float32(regs->e.simd[m + r].u32[i]), &dummy));
+                res[r].s32[i] = frecpe32_neon(regs, regs->e.simd[m + r].s32[i]);
             } else {
                 uint32_t op = regs->e.simd[m + r].u32[i];
 
                 if ((op >> 31) == 0) {
                     res[r].u32[i] = 0xffffffff;
                 } else {
-                    union {
-                        uint64_t i;
-                        double d;
-                    } dp_operand, estimate;
+                    float64 op64 = make_float64((0x3feULL << 52) | ((int64_t)(op & 0x7fffffff) << 21));
 
-                    dp_operand.i = (0x3feULL << 52) | ((int64_t)(op & 0x7fffffff) << 21);
-                    estimate.d = recip_estimate(dp_operand.d);
-                    res[r].u32[i] = 0x80000000 | ((estimate.i >> 21) & 0x7fffffff);
+                    op64 = recip_estimate(op64, &regs->fp_status_simd);
+
+                    res[r].u32[i] = 0x80000000 | ((float64_val(op64) >> 21) & 0x7fffffff);
                 }
             }
         }
@@ -5242,25 +6250,20 @@ static void dis_common_vrsqrte_simd(uint64_t _regs, uint32_t insn)
     for(r = 0; r < reg_nb; r++) {
         for(i = 0; i < 2; i++) {
             if (f) {
-                float_status dummy = {0};
-                res[r].u32[i] = float32_val(HELPER(rsqrte_f32)(make_float32(regs->e.simd[m + r].u32[i]), &dummy));
+                res[r].s32[i] = frsqrte32_neon(regs, regs->e.simd[m + r].s32[i]);
             } else {
                 uint32_t op = regs->e.simd[m + r].u32[i];
+                float64 op64;
 
                 if ((op >> 30) == 0) {
                     res[r].u32[i] = 0xffffffff;
                 } else {
-                    union {
-                        uint64_t i;
-                        double d;
-                    } dp_operand, estimate;
-
                     if (op >> 31)
-                        dp_operand.i = (0x3feULL << 52) | ((uint64_t)(op & 0x7fffffff) << 21);
+                        op64 = make_float64((0x3feULL << 52) | ((uint64_t)(op & 0x7fffffff) << 21));
                     else
-                        dp_operand.i = (0x3fdULL << 52) | ((uint64_t)(op & 0x3fffffff) << 22);
-                    estimate.d = recip_sqrt_estimate(dp_operand.d);
-                    res[r].u32[i] = 0x80000000 | ((estimate.i >> 21) & 0x7fffffff);
+                        op64 = make_float64((0x3fdULL << 52) | ((uint64_t)(op & 0x3fffffff) << 22));
+                    op64 = recip_sqrt_estimate(op64, &regs->fp_status_simd);
+                    res[r].u32[i] = 0x80000000 | ((float64_val(op64) >> 21) & 0x7fffffff);
                 }
             }
         }
@@ -5288,14 +6291,14 @@ static void dis_common_vcvt_floating_integer_simd(uint64_t _regs, uint32_t insn)
         for(i = 0; i < 2; i++) {
             if (to_integer) {
                 if (is_unsigned)
-                    res[r].u32[i] = (uint32_t) usat32_d(regs->e.simd[m + r].sf[i]);
+                    res[r].u32[i] = vcvt_float32_to_uint32_neon(regs, regs->e.simd[m + r].u32[i]);
                 else
-                    res[r].s32[i] = (int32_t) ssat32_d(regs->e.simd[m + r].sf[i]);
+                    res[r].s32[i] = vcvt_float32_to_int32_neon(regs, regs->e.simd[m + r].s32[i]);
             } else {
                 if (is_unsigned)
-                    res[r].sf[i] = regs->e.simd[m + r].u32[i];
+                    res[r].s32[i] = vcvt_uint32_to_float32_neon(regs, regs->e.simd[m + r].u32[i]);
                 else
-                    res[r].sf[i] = regs->e.simd[m + r].s32[i];
+                    res[r].s32[i] = vcvt_int32_to_float32_neon(regs, regs->e.simd[m + r].s32[i]);
             }
         }
 
@@ -5321,17 +6324,17 @@ static void dis_common_vmla_vmls_vfp(uint64_t _regs, uint32_t insn)
         n = (N << 4) + vn;
         m = (M << 4) + vm;
         if (is_sub)
-            regs->e.df[d] -= regs->e.df[n] * regs->e.df[m];
+            regs->e.d[d] = fmls64(regs, regs->e.d[n], regs->e.d[m], regs->e.d[d]);
         else
-            regs->e.df[d] += regs->e.df[n] * regs->e.df[m];
+            regs->e.d[d] = fmla64(regs, regs->e.d[n], regs->e.d[m], regs->e.d[d]);
     } else {
         d = (vd << 1) + D;
         n = (vn << 1) + N;
         m = (vm << 1) + M;
         if (is_sub)
-            regs->e.sf[d] -= regs->e.sf[n] * regs->e.sf[m];
+            regs->e.s[d] = fmls32(regs, regs->e.s[n], regs->e.s[m], regs->e.s[d]);
         else
-            regs->e.sf[d] += regs->e.sf[n] * regs->e.sf[m];
+            regs->e.s[d] = fmla32(regs, regs->e.s[n], regs->e.s[m], regs->e.s[d]);
     }
 }
 
@@ -5353,17 +6356,17 @@ static void dis_common_vnmla_vnmls_vfp(uint64_t _regs, uint32_t insn)
         n = (N << 4) + vn;
         m = (M << 4) + vm;
         if (is_sub)
-            regs->e.df[d] = -regs->e.df[d] - regs->e.df[n] * regs->e.df[m];
+            regs->e.d[d] = fnmla64(regs, regs->e.d[n], regs->e.d[m], regs->e.d[d]);
         else
-            regs->e.df[d] = -regs->e.df[d] + regs->e.df[n] * regs->e.df[m];
+            regs->e.d[d] = fnmls64(regs, regs->e.d[n], regs->e.d[m], regs->e.d[d]);
     } else {
         d = (vd << 1) + D;
         n = (vn << 1) + N;
         m = (vm << 1) + M;
         if (is_sub)
-            regs->e.sf[d] = -regs->e.sf[d] - regs->e.sf[n] * regs->e.sf[m];
+            regs->e.s[d] = fnmla32(regs, regs->e.s[n], regs->e.s[m], regs->e.s[d]);
         else
-            regs->e.sf[d] = -regs->e.sf[d] + regs->e.sf[n] * regs->e.sf[m];
+            regs->e.s[d] = fnmls32(regs, regs->e.s[n], regs->e.s[m], regs->e.s[d]);
     }
 }
 
@@ -5383,12 +6386,12 @@ static void dis_common_vnmul_vfp(uint64_t _regs, uint32_t insn)
         d = (D << 4) + vd;
         n = (N << 4) + vn;
         m = (M << 4) + vm;
-        regs->e.df[d] = -regs->e.df[n] * regs->e.df[m];
+        regs->e.d[d] = fneg64(regs, fmul64(regs, regs->e.d[n], regs->e.d[m]));
     } else {
         d = (vd << 1) + D;
         n = (vn << 1) + N;
         m = (vm << 1) + M;
-        regs->e.sf[d] = -regs->e.sf[n] * regs->e.sf[m];
+        regs->e.s[d] = fneg32(regs, fmul32(regs, regs->e.s[n], regs->e.s[m]));
     }
 }
 
@@ -5408,12 +6411,12 @@ static void dis_common_vmul_vfp(uint64_t _regs, uint32_t insn)
         d = (D << 4) + vd;
         n = (N << 4) + vn;
         m = (M << 4) + vm;
-        regs->e.df[d] = regs->e.df[n] * regs->e.df[m];
+        regs->e.d[d] = fmul64(regs, regs->e.d[n], regs->e.d[m]);
     } else {
         d = (vd << 1) + D;
         n = (vn << 1) + N;
         m = (vm << 1) + M;
-        regs->e.sf[d] = regs->e.sf[n] * regs->e.sf[m];
+        regs->e.s[d] = fmul32(regs, regs->e.s[n], regs->e.s[m]);
     }
 }
 
@@ -5435,17 +6438,17 @@ static void dis_common_vadd_vsub_vfp(uint64_t _regs, uint32_t insn)
         n = (N << 4) + vn;
         m = (M << 4) + vm;
         if (is_sub)
-            regs->e.df[d] = regs->e.df[n] - regs->e.df[m];
+            regs->e.d[d] = fsub64(regs, regs->e.d[n], regs->e.d[m]);
         else
-            regs->e.df[d] = regs->e.df[n] + regs->e.df[m];
+            regs->e.d[d] = fadd64(regs, regs->e.d[n], regs->e.d[m]);
     } else {
         d = (vd << 1) + D;
         n = (vn << 1) + N;
         m = (vm << 1) + M;
         if (is_sub)
-            regs->e.sf[d] = regs->e.sf[n] - regs->e.sf[m];
+            regs->e.s[d] = fsub32(regs, regs->e.s[n], regs->e.s[m]);
         else
-            regs->e.sf[d] = regs->e.sf[n] + regs->e.sf[m];
+            regs->e.s[d] = fadd32(regs, regs->e.s[n], regs->e.s[m]);
     }
 }
 
@@ -5465,12 +6468,12 @@ static void dis_common_vdiv_vfp(uint64_t _regs, uint32_t insn)
         d = (D << 4) + vd;
         n = (N << 4) + vn;
         m = (M << 4) + vm;
-        regs->e.df[d] = regs->e.df[n] / regs->e.df[m];
+        regs->e.d[d] = fdiv64(regs, regs->e.d[n], regs->e.d[m]);
     } else {
         d = (vd << 1) + D;
         n = (vn << 1) + N;
         m = (vm << 1) + M;
-        regs->e.sf[d] = regs->e.sf[n] / regs->e.sf[m];
+        regs->e.s[d] = fdiv32(regs, regs->e.s[n], regs->e.s[m]);
     }
 }
 
@@ -5487,12 +6490,11 @@ static void dis_common_vabs_vfp(uint64_t _regs, uint32_t insn)
     if (is_double) {
         d = (D << 4) + vd;
         m = (M << 4) + vm;
-        regs->e.d[d] = regs->e.d[m]&0x8000000000000000UL?regs->e.d[m]^0x8000000000000000UL:regs->e.d[m];
-
+        regs->e.d[d] = fabs64(regs, regs->e.d[m]);
     } else {
         d = (vd << 1) + D;
         m = (vm << 1) + M;
-        regs->e.s[d] = regs->e.s[m]&0x80000000?regs->e.s[m]^0x80000000:regs->e.s[m];
+        regs->e.s[d] = fabs32(regs, regs->e.s[m]);
     }
 }
 
@@ -5509,17 +6511,11 @@ static void dis_common_vsqrt_vfp(uint64_t _regs, uint32_t insn)
     if (is_double) {
         d = (D << 4) + vd;
         m = (M << 4) + vm;
-        if (regs->e.d[m]&0x8000000000000000UL)
-            regs->e.df[d] = NAN;
-        else
-            regs->e.df[d] = sqrt(regs->e.df[m]);
+        regs->e.d[d] = fsqrt64(regs, regs->e.d[m]);
     } else {
         d = (vd << 1) + D;
         m = (vm << 1) + M;
-        if (regs->e.s[m]&0x80000000)
-            regs->e.sf[d] = NAN;
-        else
-            regs->e.sf[d] = sqrtf(regs->e.sf[m]);
+        regs->e.s[d] = fsqrt32(regs, regs->e.s[m]);
     }
 }
 
@@ -5536,11 +6532,11 @@ static void dis_common_vneg_vfp(uint64_t _regs, uint32_t insn)
     if (is_double) {
         d = (D << 4) + vd;
         m = (M << 4) + vm;
-        regs->e.df[d] = -regs->e.df[m];
+        regs->e.d[d] = fneg64(regs, regs->e.d[m]);
     } else {
         d = (vd << 1) + D;
         m = (vm << 1) + M;
-        regs->e.sf[d] = -regs->e.sf[m];
+        regs->e.s[d] = fneg32(regs, regs->e.s[m]);
     }
 }
 
@@ -7162,6 +8158,10 @@ void hlp_common_vfp_data_processing_insn(uint64_t regs, uint32_t insn)
                 case 8: case 12: case 13:
                     dis_common_vcvt_vcvtr_floating_integer_vfp(regs, insn);
                     break;
+                case 10: case 11:
+                case 14: case 15:
+                    dis_common_vcvt_floating_fixed_vfp(regs, insn);
+                    break;
                 default:
                     fatal("opc2 = %d(0x%x)\n", opc2, opc2);
             }
@@ -7495,6 +8495,9 @@ void hlp_common_adv_simd_two_regs_and_shift(uint64_t regs, uint32_t insn, uint32
                     dis_common_vshll_simd(regs, insn, u);
             }
             break;
+        case 14: case 15:
+            dis_common_vcvt_floating_fixed_simd(regs, insn, u);
+            break;
         default:
             fatal("a = %d\n", a);
     }
@@ -7568,4 +8571,116 @@ void hlp_common_adv_simd_element_or_structure_load_store(uint64_t regs, uint32_t
                 assert(0);
         }
     }
+}
+
+/* fpscr helpers */
+static int softfloat_rm_to_arm_rm(int softfloat_rm)
+{
+    switch(softfloat_rm) {
+        case float_round_nearest_even:
+            return 0;
+            break;
+        case float_round_down:
+            return 2;
+            break;
+        case float_round_up:
+            return 1;
+            break;
+        case float_round_to_zero:
+            return 3;
+            break;
+        default:
+            assert(0);
+    }
+}
+
+static int arm_rm_to_softfloat_rm(int arm_rm)
+{
+    switch(arm_rm) {
+        case 0:
+            return float_round_nearest_even;
+            break;
+        case 1:
+            return float_round_up;
+            break;
+        case 2:
+            return float_round_down;
+            break;
+        case 3:
+            return float_round_to_zero;
+            break;
+        default:
+            assert(0);
+    }
+}
+
+/* fpscr value is build using 3 parts :
+    - regs->fpscr (N, Z, V, QC flags, IDE, IXE, UFE, OFE, DZE, IOE)
+    - regs->fp_status (DN, FZ, Rmode, exceptions flag)
+    - regs->fp_status_simd (exceptions flag)
+*/
+
+void hlp_write_fpscr(uint64_t _regs, uint32_t value)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int exceptions = 0;
+
+    /* regs->fpscr update */
+    regs->fpscr = value & 0xf8009f80;
+
+    /* regs->fp_status update */
+    set_default_nan_mode((value>>25)&1, &regs->fp_status);
+    set_flush_to_zero((value>>24)&1, &regs->fp_status);
+    set_flush_inputs_to_zero((value>>24)&1, &regs->fp_status);
+    set_float_rounding_mode(arm_rm_to_softfloat_rm((value>>22)&3), &regs->fp_status);
+    if (value & (1 << 7))
+        exceptions |= float_flag_input_denormal;
+    if (value & (1 << 4))
+        exceptions |= float_flag_inexact;
+    if (value & (1 << 3))
+        exceptions |= float_flag_underflow;
+    if (value & (1 << 2))
+        exceptions |= float_flag_overflow;
+    if (value & (1 << 1))
+        exceptions |= float_flag_divbyzero;
+    if (value & (1 << 0))
+        exceptions |= float_flag_invalid;
+    set_float_exception_flags(exceptions, &regs->fp_status);
+
+    /* regs->fp_status_simd update */
+    set_float_exception_flags(0, &regs->fp_status_simd);
+}
+
+/* FIXME: masking fp_status with exceptions flag enables ? */
+extern uint32_t hlp_read_fpscr(uint64_t _regs)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    uint32_t fpscr = regs->fpscr;
+    int exceptions = get_float_exception_flags(&regs->fp_status) |
+                     get_float_exception_flags(&regs->fp_status_simd);
+
+    /* DN */
+    if (get_default_nan_mode(&regs->fp_status))
+        fpscr |= 1 << 25;
+    /* FZ */
+    if (get_flush_to_zero(&regs->fp_status))
+        fpscr |= 1 << 24;
+    /* Rmode */
+    fpscr |= softfloat_rm_to_arm_rm(get_float_rounding_mode(&regs->fp_status)) << 22;
+
+    /* set up exceptions bits */
+    if (exceptions & float_flag_input_denormal)
+        fpscr |= 1 << 7;
+    if (exceptions & float_flag_inexact)
+        fpscr |= 1 << 4;
+    if (exceptions & (float_flag_underflow | float_flag_output_denormal))
+        fpscr |= 1 << 3;
+    if (exceptions & float_flag_overflow)
+        fpscr |= 1 << 2;
+    if (exceptions & float_flag_divbyzero)
+        fpscr |= 1 << 1;
+    if (exceptions & float_flag_invalid)
+        fpscr |= 1 << 0;
+
+    return fpscr;
 }

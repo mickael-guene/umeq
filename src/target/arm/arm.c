@@ -268,6 +268,8 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
 
             context->regs.r[9] = funcdesc->got;
         }
+        context->regs.fp_status = prev_context->regs.fp_status;
+        context->regs.fp_status_simd = prev_context->regs.fp_status_simd;
     } else if (param) {
         /* new thread */
         struct arm_target *parent_context = container_of(param, struct arm_target, target);
@@ -287,6 +289,8 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->is_in_signal = 0;
         context->trigger_exec = 0;
         context->fdpic_info = parent_context->fdpic_info;
+        context->regs.fp_status = parent_context->regs.fp_status;
+        context->regs.fp_status_simd = prev_context->regs.fp_status_simd;
     } else if (stack_ptr) {
         /* main thread */
         /* get host pointer on fdpic info save on guest stack */
@@ -314,6 +318,20 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
             }
         }
         context->trigger_exec = 1;
+        set_float_detect_tininess(float_tininess_before_rounding, &context->regs.fp_status);
+        set_float_rounding_mode(float_round_nearest_even, &context->regs.fp_status);
+        set_float_exception_flags(0, &context->regs.fp_status);
+        set_floatx80_rounding_precision(0, &context->regs.fp_status);
+        set_flush_to_zero(0, &context->regs.fp_status);
+        set_flush_inputs_to_zero(0, &context->regs.fp_status);
+        set_default_nan_mode(0, &context->regs.fp_status);
+        set_float_detect_tininess(float_tininess_before_rounding, &context->regs.fp_status_simd);
+        set_float_rounding_mode(float_round_nearest_even, &context->regs.fp_status_simd);
+        set_float_exception_flags(0, &context->regs.fp_status_simd);
+        set_floatx80_rounding_precision(0, &context->regs.fp_status_simd);
+        set_flush_to_zero(1, &context->regs.fp_status_simd);
+        set_flush_inputs_to_zero(1, &context->regs.fp_status_simd);
+        set_default_nan_mode(1, &context->regs.fp_status_simd);
     } else {
         //fork;
         //nothing to do

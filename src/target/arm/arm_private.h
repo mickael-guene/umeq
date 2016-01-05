@@ -25,6 +25,8 @@
 #include "loader32.h"
 #include "target.h"
 
+#include "softfloat.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -82,6 +84,8 @@ struct arm_registers {
         union simd_d_register simd[32];
         union simd_q_register simq[16];
     } e;
+    float_status fp_status;
+    float_status fp_status_simd;
 };
 
 struct arm_target {
