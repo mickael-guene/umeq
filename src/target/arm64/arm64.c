@@ -186,7 +186,9 @@ static void setup_sigframe(struct rt_sigframe_arm64 *frame, struct arm64_target 
     for(i = 0; i < 31; i++)
         frame->uc.uc_mcontext.regs[i] = prev_context->regs.r[i];
     frame->uc.uc_mcontext.sp = prev_context->regs.r[31];
-    frame->uc.uc_mcontext.pc = signal_info?restore_precise_pc(prev_context, signal_info->context):prev_context->regs.pc;
+    /* Update prev_context pc so we are sure to detect pc modifications on signal exit */
+    prev_context->regs.pc = signal_info?restore_precise_pc(prev_context, signal_info->context):prev_context->regs.pc;
+    frame->uc.uc_mcontext.pc = prev_context->regs.pc;
     frame->uc.uc_mcontext.pstate = prev_context->regs.nzcv;
     frame->uc.uc_mcontext.fault_address = 0;
       /* FIXME: need to save simd */
