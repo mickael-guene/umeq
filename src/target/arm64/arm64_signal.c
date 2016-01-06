@@ -52,17 +52,18 @@ static uint64_t sa_flags[NSIG];
 static stack_t_arm64 ss = {0, SS_DISABLE, 0};
 
 /* signal wrapper functions */
-void wrap_signal_handler(int signum)
+void wrap_signal_handler(int signum, siginfo_t *siginfo, void *context)
 {
     uint64_t stack_entry = (sa_flags[signum]&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
+    struct host_signal_info signal_info = {siginfo, context, 0};
 
-    loop(guest_signals_handler[signum], stack_entry, signum, NULL);
+    loop(guest_signals_handler[signum], stack_entry, signum, (void *)&signal_info);
 }
 
 void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
 {
     uint64_t stack_entry = (sa_flags[signum]&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
-    struct host_signal_info signal_info = {siginfo, context};
+    struct host_signal_info signal_info = {siginfo, context, 1};
 
     loop(guest_signals_handler[signum], stack_entry, signum, (void *)&signal_info);
 }
@@ -96,9 +97,9 @@ long arm64_rt_sigaction(struct arm64_target *context)
                 act.k_sa_handler = (__sighandler_t)(long) act_guest->_sa_handler;
                 act.sa_mask.__val[0] = act_guest->sa_mask[0];
             } else {
-                act.k_sa_handler = (act_guest->sa_flags & SA_SIGINFO)?(__sighandler_t)&wrap_signal_sigaction:&wrap_signal_handler;
+                act.k_sa_handler = (act_guest->sa_flags & SA_SIGINFO)?(__sighandler_t)&wrap_signal_sigaction:(__sighandler_t)&wrap_signal_handler;
                 act.sa_mask.__val[0] = act_guest->sa_mask[0];
-                act.sa_flags = act_guest->sa_flags | SA_RESTORER;
+                act.sa_flags = act_guest->sa_flags | SA_RESTORER | SA_SIGINFO;
                 act.sa_restorer = &wrap_signal_restorer;
             }
         }
@@ -120,7 +121,7 @@ long arm64_rt_sigaction(struct arm64_target *context)
 
         if (oldact_p) {
             //TODO : add guest restorer support
-            oldact_guest->sa_flags = oldact.sa_flags & ~SA_RESTORER;
+            oldact_guest->sa_flags = sa_flags[signum];
             oldact_guest->sa_mask[0] = oldact.sa_mask.__val[0];
             oldact_guest->sa_restorer = (long)NULL;
         }

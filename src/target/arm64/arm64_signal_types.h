@@ -129,6 +129,7 @@ struct rt_sigframe_arm64 {
 struct host_signal_info {
     siginfo_t *siginfo;
     void *context;
+    int is_sigaction_handler;
 };
 
 #endif

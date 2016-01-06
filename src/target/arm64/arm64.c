@@ -187,7 +187,7 @@ static void setup_sigframe(struct rt_sigframe_arm64 *frame, struct arm64_target 
         frame->uc.uc_mcontext.regs[i] = prev_context->regs.r[i];
     frame->uc.uc_mcontext.sp = prev_context->regs.r[31];
     /* Update prev_context pc so we are sure to detect pc modifications on signal exit */
-    prev_context->regs.pc = signal_info?restore_precise_pc(prev_context, signal_info->context):prev_context->regs.pc;
+    prev_context->regs.pc = restore_precise_pc(prev_context, signal_info->context);
     frame->uc.uc_mcontext.pc = prev_context->regs.pc;
     frame->uc.uc_mcontext.pstate = prev_context->regs.nzcv;
     frame->uc.uc_mcontext.fault_address = 0;
@@ -236,7 +236,7 @@ static uint64_t setup_rt_frame(uint64_t sp, struct arm64_target *prev_context, u
     frame->uc.uc_flags = 0;
     frame->uc.uc_link = NULL;
     setup_sigframe(frame, prev_context, signal_info);
-    if (signal_info)
+    if (signal_info->is_sigaction_handler)
         setup_siginfo(signum, (siginfo_t *) signal_info->siginfo, &frame->info);
 
     return sp;
@@ -254,6 +254,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         uint64_t return_code_addr;
         struct rt_sigframe_arm64 *frame;
         uint64_t sp;
+        struct host_signal_info *signal_info = (struct host_signal_info *) param;
 
         /* choose stack to use */
         if (stack_ptr)
@@ -264,7 +265,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         sp = setup_return_frame(sp);
         return_code_addr = sp;
         /* fill signal frame */
-        sp = setup_rt_frame(sp, prev_context, signum, param);
+        sp = setup_rt_frame(sp, prev_context, signum, signal_info);
         frame = (struct rt_sigframe_arm64 *) g_2_h(sp);
 
         /* setup new user context default value */
@@ -283,7 +284,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.r[30] = return_code_addr;
         context->regs.r[31] = sp;
         context->regs.pc = entry;
-        if (param) {
+        if (signal_info->is_sigaction_handler) {
             context->regs.r[1] = h_2_g(&frame->info);
             context->regs.r[2] = h_2_g(&frame->uc);
         }
@@ -375,7 +376,7 @@ static uint32_t getExitStatus(struct target *target)
 {
     struct arm64_target *context = container_of(target, struct arm64_target, target);
 
-    if (context->is_in_signal && context->param) {
+    if (context->is_in_signal) {
         /* we check if parent frame was modify by signal handler */
         int is_pc_change = restore_sigframe(context->frame, context->prev_context);
         if (is_pc_change) {
