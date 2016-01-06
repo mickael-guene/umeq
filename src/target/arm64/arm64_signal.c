@@ -49,23 +49,20 @@ extern void wrap_signal_restorer(void);
 /* global array to hold guest signal handlers. not translated */
 static uint64_t guest_signals_handler[NSIG];
 static uint64_t sa_flags[NSIG];
-static stack_t_arm64 ss = {0, SS_DISABLE, 0};
 
 /* signal wrapper functions */
 void wrap_signal_handler(int signum, siginfo_t *siginfo, void *context)
 {
-    uint64_t stack_entry = (sa_flags[signum]&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
     struct host_signal_info signal_info = {siginfo, context, 0};
 
-    loop(guest_signals_handler[signum], stack_entry, signum, (void *)&signal_info);
+    loop(guest_signals_handler[signum], 0, signum, (void *)&signal_info);
 }
 
 void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
 {
-    uint64_t stack_entry = (sa_flags[signum]&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
     struct host_signal_info signal_info = {siginfo, context, 1};
 
-    loop(guest_signals_handler[signum], stack_entry, signum, (void *)&signal_info);
+    loop(guest_signals_handler[signum], 0, signum, (void *)&signal_info);
 }
 
 /* signal syscall handling */
@@ -130,35 +127,65 @@ long arm64_rt_sigaction(struct arm64_target *context)
     return res;
 }
 
-long arm64_sigaltstack(struct arm64_target *context)
+static uint32_t on_sig_stack(struct arm64_target *context, uint64_t sp)
+{
+    return (sp > context->sas_ss_sp) && (sp - context->sas_ss_sp <= context->sas_ss_size);
+}
+
+static uint32_t sas_ss_flags(struct arm64_target *context, uint64_t sp)
+{
+    if (!context->sas_ss_size)
+        return SS_DISABLE;
+    return on_sig_stack(context, sp)?SS_ONSTACK:0;
+}
+
+uint64_t sigsp(struct arm64_target *prev_context, uint32_t signum)
+{
+    if ((sa_flags[signum] & SA_ONSTACK) && !sas_ss_flags(prev_context, prev_context->regs.r[31]))
+        return prev_context->sas_ss_sp + prev_context->sas_ss_size;
+
+    return prev_context->regs.r[31];
+}
+
+long arm64_sigaltstack (struct arm64_target *context)
 {
     uint64_t ss_p = context->regs.r[0];
     uint64_t oss_p = context->regs.r[1];
     stack_t_arm64 *ss_guest = (stack_t_arm64 *) g_2_h(ss_p);
     stack_t_arm64 *oss_guest = (stack_t_arm64 *) g_2_h(oss_p);
     long res = 0;
+    stack_t_arm64 oss;
 
-    if (oss_p) {
-        oss_guest->ss_sp = ss.ss_sp;
-        oss_guest->ss_flags = ss.ss_flags + (context->is_in_signal&2?SS_ONSTACK:0);
-        oss_guest->ss_size = ss.ss_size;
-    }
+    oss.ss_sp = context->sas_ss_sp;
+    oss.ss_size = context->sas_ss_size;
+    oss.ss_flags = sas_ss_flags(context, context->regs.r[31]);
+
     if (ss_p) {
-        if (ss_guest->ss_flags == 0) {
-            if (ss_guest->ss_size < MINSTKSZ) {
-                res = -ENOMEM;
-            } else if (context->is_in_signal&2) {
-                res = -EPERM;
-            } else {
-                ss.ss_sp = ss_guest->ss_sp;
-                ss.ss_flags = ss_guest->ss_flags;
-                ss.ss_size = ss_guest->ss_size;
-            }
-        } else if (ss_guest->ss_flags == SS_DISABLE) {
-            ss.ss_flags = ss_guest->ss_flags;
-        } else
-            res = -EINVAL;
-    }
+        uint64_t ss_sp = ss_guest->ss_sp;
+        uint32_t ss_flags = ss_guest->ss_flags;
+        uint64_t ss_size = ss_guest->ss_size;
 
+        res = -EPERM;
+        if (on_sig_stack(context, context->regs.r[31]))
+            goto out;
+        res = -EINVAL;
+        if (ss_flags != SS_DISABLE && ss_flags != SS_ONSTACK && ss_flags != 0)
+            goto out;
+        if (ss_flags == SS_DISABLE) {
+            ss_size = 0;
+            ss_sp = 0;
+        } else {
+            res = -ENOMEM;
+            if (ss_size < MINSIGSTKSZ)
+                goto out;
+        }
+        context->sas_ss_sp = ss_sp;
+        context->sas_ss_size = ss_size;
+    }
+    res = 0;
+    if (oss_p)
+        *oss_guest = oss;
+
+out:
     return res;
 }

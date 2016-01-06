@@ -82,6 +82,8 @@ struct arm64_target {
     struct rt_sigframe_arm64 *frame;
     void *param;
     struct arm64_target *prev_context;
+    uint64_t sas_ss_sp;
+    uint64_t sas_ss_size;
 };
 
 /* globals */

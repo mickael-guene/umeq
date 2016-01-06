@@ -132,6 +132,8 @@ struct host_signal_info {
     int is_sigaction_handler;
 };
 
+extern uint64_t sigsp(struct arm64_target *prev_context, uint32_t signum);
+
 #endif
 
 #ifdef __cplusplus

@@ -257,10 +257,9 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         struct host_signal_info *signal_info = (struct host_signal_info *) param;
 
         /* choose stack to use */
-        if (stack_ptr)
-            sp = stack_ptr & ~15UL;
-        else /* STP can be ongoing ... jump away and align on 16 bytes */
-            sp = (prev_context->regs.r[31] - 128) & ~15UL;
+        sp = sigsp(prev_context, signum);
+        /* STP can be ongoing ... jump away and align on 16 bytes */
+        sp = (sp - 128) & ~15UL;
         /* insert return code sequence */
         sp = setup_return_frame(sp);
         return_code_addr = sp;
@@ -293,10 +292,12 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->prev_context = prev_context;
 
         context->regs.is_in_syscall = 0;
-        context->is_in_signal = 1 + (stack_ptr?2:0);
+        context->is_in_signal = 1;
         context->regs.is_stepin = 0;
         /* prevent fpu usage in signal handlers to avoid potential troubles .... */
         context->regs.fast_math_is_allow = 0;
+        context->sas_ss_sp = prev_context->sas_ss_sp;
+        context->sas_ss_size = prev_context->sas_ss_size;
     } else if (param) {
         /* new thread */
         struct arm64_target *parent_context = container_of(param, struct arm64_target, target);
@@ -316,6 +317,8 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->is_in_signal = 0;
         context->regs.is_stepin = 0;
         context->regs.fast_math_is_allow = parent_context->regs.fast_math_is_allow;
+        context->sas_ss_sp = 0;
+        context->sas_ss_size = 0;
     } else if (stack_ptr) {
         /* main thread */
         for(i = 0; i < 32; i++) {
@@ -341,6 +344,8 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->is_in_signal = 0;
         context->regs.is_stepin = 0;
         context->regs.fast_math_is_allow = 1;
+        context->sas_ss_sp = 0;
+        context->sas_ss_size = 0;
     } else {
         //fork;
         //nothing to do
