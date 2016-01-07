@@ -260,6 +260,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         sp = sigsp(prev_context, signum);
         /* STP can be ongoing ... jump away and align on 16 bytes */
         sp = (sp - 128) & ~15UL;
+        context->start_on_sig_stack = on_sig_stack(prev_context, sp);
         /* insert return code sequence */
         sp = setup_return_frame(sp);
         return_code_addr = sp;
@@ -298,6 +299,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.fast_math_is_allow = 0;
         context->sas_ss_sp = prev_context->sas_ss_sp;
         context->sas_ss_size = prev_context->sas_ss_size;
+        context->exitStatus = 0;
     } else if (param) {
         /* new thread */
         struct arm64_target *parent_context = container_of(param, struct arm64_target, target);
@@ -319,6 +321,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.fast_math_is_allow = parent_context->regs.fast_math_is_allow;
         context->sas_ss_sp = 0;
         context->sas_ss_size = 0;
+        context->start_on_sig_stack = 0;
     } else if (stack_ptr) {
         /* main thread */
         for(i = 0; i < 32; i++) {
@@ -346,6 +349,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.fast_math_is_allow = 1;
         context->sas_ss_sp = 0;
         context->sas_ss_size = 0;
+        context->start_on_sig_stack = 0;
     } else {
         //fork;
         //nothing to do
@@ -361,6 +365,11 @@ static void disassemble(struct target *target, struct irInstructionAllocator *ir
 static uint32_t isLooping(struct target *target)
 {
     struct arm64_target *context = container_of(target, struct arm64_target, target);
+
+    if (context->is_in_signal && is_out_of_signal_stack(context)) {
+        context->isLooping = 0;
+        context->exitStatus = 1;
+    }
 
     return context->isLooping;
 }
@@ -382,14 +391,27 @@ static uint32_t getExitStatus(struct target *target)
     struct arm64_target *context = container_of(target, struct arm64_target, target);
 
     if (context->is_in_signal) {
-        /* we check if parent frame was modify by signal handler */
-        int is_pc_change = restore_sigframe(context->frame, context->prev_context);
-        if (is_pc_change) {
-            struct host_signal_info *signal_info = (struct host_signal_info *) context->param;
+        if (context->exitStatus) {
+              struct host_signal_info *signal_info = (struct host_signal_info *) context->param;
+              int i;
 
-            context->prev_context->backend->request_signal_alternate_exit(context->prev_context->backend,
-                                                                          signal_info->context,
-                                                                          context->prev_context->regs.pc);
+              for(i = 0; i < 32; i++)
+                  context->prev_context->regs.r[i] = context->regs.r[i];
+              context->prev_context->regs.pc = context->regs.pc;
+
+              context->prev_context->backend->request_signal_alternate_exit(context->prev_context->backend,
+                                                                            signal_info->context,
+                                                                            context->prev_context->regs.pc);
+        } else {
+            /* we check if parent frame was modify by signal handler */
+            int is_pc_change = restore_sigframe(context->frame, context->prev_context);
+            if (is_pc_change) {
+                struct host_signal_info *signal_info = (struct host_signal_info *) context->param;
+
+                context->prev_context->backend->request_signal_alternate_exit(context->prev_context->backend,
+                                                                              signal_info->context,
+                                                                              context->prev_context->regs.pc);
+            }
         }
     }
 

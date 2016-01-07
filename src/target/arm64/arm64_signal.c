@@ -127,16 +127,16 @@ long arm64_rt_sigaction(struct arm64_target *context)
     return res;
 }
 
-static uint32_t on_sig_stack(struct arm64_target *context, uint64_t sp)
-{
-    return (sp > context->sas_ss_sp) && (sp - context->sas_ss_sp <= context->sas_ss_size);
-}
-
 static uint32_t sas_ss_flags(struct arm64_target *context, uint64_t sp)
 {
     if (!context->sas_ss_size)
         return SS_DISABLE;
     return on_sig_stack(context, sp)?SS_ONSTACK:0;
+}
+
+int on_sig_stack(struct arm64_target *context, uint64_t sp)
+{
+    return (sp > context->sas_ss_sp) && (sp - context->sas_ss_sp <= context->sas_ss_size);
 }
 
 uint64_t sigsp(struct arm64_target *prev_context, uint32_t signum)
@@ -145,6 +145,34 @@ uint64_t sigsp(struct arm64_target *prev_context, uint32_t signum)
         return prev_context->sas_ss_sp + prev_context->sas_ss_size;
 
     return prev_context->regs.r[31];
+}
+
+/* Try to detect that sp has leaving the original stack. This indicates that
+   we must leave signal context. This case can occur in three different context as far as I know:
+   - from calling siglongjmp() inside signal handler
+   - from throwing exception inside signal handler
+   - during pthread cancellation (custom signal + unwinding in signal frame)
+*/
+int is_out_of_signal_stack(struct arm64_target *context)
+{
+    assert(context->prev_context);
+    if (!context->start_on_sig_stack) {
+        /* signal context didn't start on stack. just check sp with previous context */
+        return context->regs.r[31] >= context->prev_context->regs.r[31];
+    } else {
+        if (context->prev_context->start_on_sig_stack) {
+            /* prev context was already running on stack. In that case we are out of stack
+               either when current is not running on stack or when sp is above previous one */
+            return context->regs.r[31] >= context->prev_context->regs.r[31] ||
+                   !on_sig_stack(context, context->regs.r[31]);
+        } else {
+            /* prev context was not running on stack. so just check if we are currently
+               running on stack or not  */
+            return !on_sig_stack(context, context->regs.r[31]);
+        }
+    }
+
+    fatal("Should not be here\n");
 }
 
 long arm64_sigaltstack (struct arm64_target *context)

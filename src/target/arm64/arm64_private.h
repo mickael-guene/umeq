@@ -84,6 +84,7 @@ struct arm64_target {
     struct arm64_target *prev_context;
     uint64_t sas_ss_sp;
     uint64_t sas_ss_size;
+    int start_on_sig_stack;
 };
 
 /* globals */
@@ -97,6 +98,9 @@ extern void arm64_setup_brk(void);
 extern void ptrace_exec_event(struct arm64_target *context);
 extern void ptrace_syscall_enter(struct arm64_target *context);
 extern void ptrace_syscall_exit(struct arm64_target *context);
+extern int on_sig_stack(struct arm64_target *context, uint64_t sp);
+extern int is_out_of_signal_stack(struct arm64_target *context);
+extern uint64_t sigsp(struct arm64_target *prev_context, uint32_t signum);
 
 #endif
 
