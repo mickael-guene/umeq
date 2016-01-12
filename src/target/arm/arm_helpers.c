@@ -4880,33 +4880,38 @@ static void dis_common_vtrn_simd(uint64_t _regs, uint32_t insn)
     int reg_nb = INSN(6, 6) + 1;
     int i;
     int r;
-    union simd_d_register res[2];
-
-    for(r = 0; r < reg_nb; r++)
-        res[r] = regs->e.simd[d + r];
 
     switch(size) {
         case 0:
             for(r = 0; r < reg_nb; r++)
-                for(i = 0; i < 8; i+=2)
-                    res[r].u8[i + 1] = regs->e.simd[m + r].u8[i];
+                for(i = 0; i < 8; i+=2) {
+                    uint8_t tmp = regs->e.simd[d + r].u8[i + 1];
+
+                    regs->e.simd[d + r].u8[i + 1] = regs->e.simd[m + r].u8[i];
+                    regs->e.simd[m + r].u8[i] = tmp;
+                }
             break;
         case 1:
             for(r = 0; r < reg_nb; r++)
-                for(i = 0; i < 4; i+=2)
-                    res[r].u16[i + 1] = regs->e.simd[m + r].u16[i];
+                for(i = 0; i < 4; i+=2) {
+                    uint16_t tmp = regs->e.simd[d + r].u16[i + 1];
+
+                    regs->e.simd[d + r].u16[i + 1] = regs->e.simd[m + r].u16[i];
+                    regs->e.simd[m + r].u16[i] = tmp;
+                }
             break;
         case 2:
             for(r = 0; r < reg_nb; r++)
-                for(i = 0; i < 2; i+=2)
-                    res[r].u32[i + 1] = regs->e.simd[m + r].u32[i];
+                for(i = 0; i < 2; i+=2) {
+                    uint32_t tmp = regs->e.simd[d + r].u32[i + 1];
+
+                    regs->e.simd[d + r].u32[i + 1] = regs->e.simd[m + r].u32[i];
+                    regs->e.simd[m + r].u32[i] = tmp;
+                }
             break;
         default:
             fatal("size = %d\n", size);
     }
-
-    for(r = 0; r < reg_nb; r++)
-        regs->e.simd[d + r] = res[r];
 }
 
 static void dis_common_vuzp_simd(uint64_t _regs, uint32_t insn)
