@@ -99,7 +99,7 @@ uint32_t softfloat_to_arm64_cpsr(float_status *fp_status, uint32_t fpcr_others)
         fpcr |= 1 << 25;
     if (get_flush_to_zero(fp_status))
         fpcr |= 1 << 24;
-    fpcr |= (softfloat_rm_to_arm64_rm(get_float_rounding_mode(fp_status)) << 22) & 3;
+    fpcr |= (softfloat_rm_to_arm64_rm(get_float_rounding_mode(fp_status)) << 22) & (3 << 22);
 
     return fpcr | fpcr_others;
 }
