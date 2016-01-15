@@ -1324,9 +1324,11 @@ static int dis_t2_ldr_literal(struct arm_target *context, uint32_t insn, struct 
     uint32_t base = (context->pc + 4) & ~3;
     uint32_t address = u?base+imm32:base-imm32;
 
-    assert(rt != 15 && "implement me");
-
     write_reg(context, ir, rt, ir->add_load_32(ir, mk_address(ir, mk_32(ir, address))));
+    if (rt == 15) {
+        ir->add_exit(ir, ir->add_32U_to_64(ir, ir->add_read_context_32(ir, offsetof(struct arm_registers, r[15]))));
+        isExit = 1;
+    }
 
     return isExit;
 }
