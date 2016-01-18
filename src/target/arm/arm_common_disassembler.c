@@ -817,6 +817,12 @@ static int dis_common_vfp_data_processing_insn(struct arm_target *context, uint3
         case 8: case 12:
             isExit = mk_common_vfp_data_processing_insn(context, insn, ir);
             break;
+        case 9: case 13:
+            isExit = mk_common_vfp_data_processing_insn(context, insn, ir);
+            break;
+        case 10: case 14:
+            isExit = mk_common_vfp_data_processing_insn(context, insn, ir);
+            break;
         case 11: case 15:
             if (opc3_0) {
                 switch(opc2) {
@@ -827,6 +833,9 @@ static int dis_common_vfp_data_processing_insn(struct arm_target *context, uint3
                             isExit = dis_common_vmov_register(context, insn, ir);
                         break;
                     case 1:
+                        isExit = mk_common_vfp_data_processing_insn(context, insn, ir);
+                        break;
+                    case 2: case 3:
                         isExit = mk_common_vfp_data_processing_insn(context, insn, ir);
                         break;
                     case 4: case 5:
@@ -930,6 +939,7 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
         case 9:
         case 10:
         case 11:
+        case 12:
         case 13:
         case 14:
         case 15:

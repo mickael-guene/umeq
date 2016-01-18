@@ -44,6 +44,8 @@
 #define float64_512 make_float64(0x4080000000000000LL)
 #define float64_256 make_float64(0x4070000000000000LL)
 
+#define IEEE_H16 ((regs->fpscr & 0x04000000) == 0)
+
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
 #define INSN1(msb, lsb) INSN(msb+16, lsb+16)
 #define INSN2(msb, lsb) INSN(msb, lsb)
@@ -581,6 +583,16 @@ static inline uint64_t fmla64(struct arm_registers *regs, uint64_t a, uint64_t b
     return fadd64(regs, acc, fmul64(regs, a, b));
 }
 
+static inline uint32_t fmadd32(struct arm_registers *regs, uint32_t a, uint32_t b, uint32_t acc)
+{
+    return float32_val(float32_muladd(make_float32(a), make_float32(b), make_float32(acc), 0, &regs->fp_status));
+}
+
+static inline uint64_t fmadd64(struct arm_registers *regs, uint64_t a, uint64_t b, uint64_t acc)
+{
+    return float64_val(float64_muladd(make_float64(a), make_float64(b), make_float64(acc), 0, &regs->fp_status));
+}
+
 static inline uint32_t fmls32(struct arm_registers *regs, uint32_t a, uint32_t b, uint32_t acc)
 {
     return fadd32(regs, acc, fneg32(regs, fmul32(regs, a, b)));
@@ -1011,6 +1023,26 @@ static inline uint32_t vcvt_uint16_to_float32_fixed(struct arm_registers *regs, 
     return float32_val(float32_scalbn(a32, -fracbits, fpst));
 }
 
+static inline uint32_t vcvtx_float16_to_float32_fixed(struct arm_registers *regs, uint16_t a)
+{
+    float_status *fpst = &regs->fp_status;
+    float32 a32 = float16_to_float32(make_float16(a), IEEE_H16, fpst);
+    if (IEEE_H16)
+        a32 = float32_maybe_silence_nan(a32);
+
+    return float32_val(a32);
+}
+
+static inline uint16_t vcvtx_float32_to_float16_fixed(struct arm_registers *regs, uint32_t a)
+{
+    float_status *fpst = &regs->fp_status;
+    float16 a16 = float32_to_float16(make_float32(a), IEEE_H16, fpst);
+    if (IEEE_H16)
+        a16 = float16_maybe_silence_nan(a16);
+
+    return float16_val(a16);
+}
+
 /* neon simd ops */
 static inline uint32_t fadd32_neon(struct arm_registers *regs, uint32_t a, uint32_t b)
 {
@@ -1050,6 +1082,11 @@ static inline uint32_t fmla32_neon(struct arm_registers *regs, uint32_t a, uint3
 static inline uint32_t fmls32_neon(struct arm_registers *regs, uint32_t a, uint32_t b, uint32_t acc)
 {
     return fadd32_neon(regs, acc, fneg32(regs, fmul32_neon(regs, a, b)));
+}
+
+static inline uint32_t fmadd32_neon(struct arm_registers *regs, uint32_t a, uint32_t b, uint32_t acc)
+{
+    return float32_val(float32_muladd(make_float32(a), make_float32(b), make_float32(acc), 0, &regs->fp_status_simd));
 }
 
 /* FIXME: should return uint32_t */
@@ -1338,6 +1375,26 @@ static inline uint32_t vcvt_uint32_to_float32_fixed_neon(struct arm_registers *r
     float32 a32 = uint32_to_float32(a, fpst);
 
     return float32_val(float32_scalbn(a32, -fracbits, fpst));
+}
+
+static inline uint32_t vcvt_float16_to_float32_neon(struct arm_registers *regs, uint16_t a)
+{
+    float_status *fpst = &regs->fp_status_simd;
+    float32 a32 = float16_to_float32(make_float16(a), IEEE_H16, fpst);
+    if (IEEE_H16)
+        a32 = float32_maybe_silence_nan(a32);
+
+    return float32_val(a32);
+}
+
+static inline uint16_t vcvt_float32_to_float16_neon(struct arm_registers *regs, uint32_t a)
+{
+    float_status *fpst = &regs->fp_status_simd;
+    float16 a16 = float32_to_float16(make_float32(a), IEEE_H16, fpst);
+    if (IEEE_H16)
+        a16 = float16_maybe_silence_nan(a16);
+
+    return float16_val(a16);
 }
 
 static int tkill(int pid, int sig)
@@ -3653,6 +3710,22 @@ static void usad8_usada8_t32(uint64_t _regs, uint32_t insn)
     usad8_usada8(_regs, INSN2(11, 8), INSN1(3, 0), INSN2(3, 0), INSN2(15, 12));
 }
 
+static void dis_common_vcvtb_vcvtt_vfp(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(15, 12) << 1) + INSN(22, 22);
+    int m = (INSN(3, 0) << 1) + INSN(5, 5);
+    int half_to_single = (INSN(16, 16) == 0);
+    int shift = INSN(7, 7)?16:0;
+    uint32_t mask = INSN(7, 7)?0x0000ffff:0xffff0000;
+
+    if (half_to_single)
+        regs->e.s[d] = vcvtx_float16_to_float32_fixed(regs, (regs->e.s[m] >> shift) & 0xffff);
+    else
+        regs->e.s[d] = (regs->e.s[d] & mask) |
+                       (vcvtx_float32_to_float16_fixed(regs, regs->e.s[m]) << shift);
+}
+
 static void dis_common_vcmp_vcmpe_vfp(uint64_t _regs, uint32_t insn)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
@@ -3843,6 +3916,36 @@ static void dis_common_vcvt_floating_fixed_vfp(uint64_t _regs, uint32_t insn)
             }
         }
     }
+
+}
+
+static void dis_common_vcvt_half_single_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int half_to_single = INSN(8, 8);
+    union simd_d_register res[2];
+    int r;
+    int i;
+
+    if (half_to_single) {
+        for(r = 0; r < 2; r++) {
+            for(i = 0; i < 2; i++) {
+                res[r].u32[i] = vcvt_float16_to_float32_neon(regs, regs->e.simd[m].u16[2 * r + i]);
+            }
+        }
+    } else {
+        for(r = 0; r < 2; r++) {
+            for(i = 0; i < 2; i++) {
+                res[0].u16[2 * r + i] = vcvt_float32_to_float16_neon(regs, regs->e.simd[m + r].u32[i]);
+            }
+        }
+    }
+
+    regs->e.simd[d] = res[0];
+    if (half_to_single)
+        regs->e.simd[d + 1] = res[1];
 
 }
 
@@ -4829,6 +4932,34 @@ static void dis_common_vmla_vmls_scalar_simd(uint64_t _regs, uint32_t insn, int 
             break;
         default:
             assert(0);
+    }
+
+    for(r = 0; r < reg_nb; r++)
+        regs->e.simd[d + r] = res[r];
+}
+
+static void dis_common_vfma_vfms_simd(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int d = (INSN(22, 22) << 4) | INSN(15, 12);
+    int n = (INSN(7, 7) << 4) | INSN(19, 16);
+    int m = (INSN(5, 5) << 4) | INSN(3, 0);
+    int reg_nb = INSN(6, 6) + 1;
+    int is_neg = INSN(21, 21);
+    int i;
+    int r;
+    union simd_d_register res[2];
+
+    for(r = 0; r < reg_nb; r++) {
+        for(i = 0; i < 2; i++)
+            if (is_neg)
+                res[r].u32[i] = fmadd32_neon(regs, fneg32(regs, regs->e.simd[n + r].u32[i]),
+                                                   regs->e.simd[m + r].u32[i],
+                                                   regs->e.simd[d + r].u32[i]);
+            else
+                res[r].u32[i] = fmadd32_neon(regs, regs->e.simd[n + r].u32[i],
+                                                   regs->e.simd[m + r].u32[i],
+                                                   regs->e.simd[d + r].u32[i]);
     }
 
     for(r = 0; r < reg_nb; r++)
@@ -6475,6 +6606,74 @@ static void dis_common_vdiv_vfp(uint64_t _regs, uint32_t insn)
         n = (vn << 1) + N;
         m = (vm << 1) + M;
         regs->e.s[d] = fdiv32(regs, regs->e.s[n], regs->e.s[m]);
+    }
+}
+
+static void dis_common_vfnma_vfnms(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int vn = INSN(19, 16);
+    int vd = INSN(15, 12);
+    int is_double = INSN(8, 8);
+    int N = INSN(7, 7);
+    int M = INSN(5, 5);
+    int vm = INSN(3, 0);
+    int is_neg = INSN(6, 6);
+    int d, n, m;
+
+    if (is_double) {
+        d = (D << 4) + vd;
+        n = (N << 4) + vn;
+        m = (M << 4) + vm;
+
+        if (is_neg)
+            regs->e.d[d] = fmadd64(regs, fneg64(regs, regs->e.d[n]), regs->e.d[m], fneg64(regs, regs->e.d[d]));
+        else
+            regs->e.d[d] = fmadd64(regs, regs->e.d[n], regs->e.d[m], fneg64(regs, regs->e.d[d]));
+    } else {
+        d = (vd << 1) + D;
+        n = (vn << 1) + N;
+        m = (vm << 1) + M;
+
+        if (is_neg)
+            regs->e.s[d] = fmadd32(regs, fneg32(regs, regs->e.s[n]), regs->e.s[m], fneg32(regs, regs->e.s[d]));
+        else
+            regs->e.s[d] = fmadd32(regs, regs->e.s[n], regs->e.s[m], fneg32(regs, regs->e.s[d]));
+    }
+}
+
+static void dis_common_vfma_vfms(uint64_t _regs, uint32_t insn)
+{
+    struct arm_registers *regs = (struct arm_registers *) _regs;
+    int D = INSN(22, 22);
+    int vn = INSN(19, 16);
+    int vd = INSN(15, 12);
+    int is_double = INSN(8, 8);
+    int N = INSN(7, 7);
+    int M = INSN(5, 5);
+    int vm = INSN(3, 0);
+    int is_neg = INSN(6, 6);
+    int d, n, m;
+
+    if (is_double) {
+        d = (D << 4) + vd;
+        n = (N << 4) + vn;
+        m = (M << 4) + vm;
+
+        if (is_neg)
+            regs->e.d[d] = fmadd64(regs, fneg64(regs, regs->e.d[n]), regs->e.d[m], regs->e.d[d]);
+        else
+            regs->e.d[d] = fmadd64(regs, regs->e.d[n], regs->e.d[m], regs->e.d[d]);
+    } else {
+        d = (vd << 1) + D;
+        n = (vn << 1) + N;
+        m = (vm << 1) + M;
+
+        if (is_neg)
+            regs->e.s[d] = fmadd32(regs, fneg32(regs, regs->e.s[n]), regs->e.s[m], regs->e.s[d]);
+        else
+            regs->e.s[d] = fmadd32(regs, regs->e.s[n], regs->e.s[m], regs->e.s[d]);
     }
 }
 
@@ -8139,6 +8338,12 @@ void hlp_common_vfp_data_processing_insn(uint64_t regs, uint32_t insn)
         case 8: case 12:
             dis_common_vdiv_vfp(regs, insn);
             break;
+        case 9: case 13:
+            dis_common_vfnma_vfnms(regs, insn);
+            break;
+        case 10: case 14:
+            dis_common_vfma_vfms(regs, insn);
+            break;
         case 11: case 15:
             switch(opc2) {
                 case 0:
@@ -8149,6 +8354,9 @@ void hlp_common_vfp_data_processing_insn(uint64_t regs, uint32_t insn)
                         dis_common_vsqrt_vfp(regs, insn);
                     else
                         dis_common_vneg_vfp(regs, insn);
+                    break;
+                case 2: case 3:
+                    dis_common_vcvtb_vcvtt_vfp(regs, insn);
                     break;
                 case 4: case 5:
                     dis_common_vcmp_vcmpe_vfp(regs, insn);
@@ -8225,6 +8433,9 @@ void hlp_common_adv_simd_three_same_length(uint64_t regs, uint32_t insn, uint32_
                 dis_common_vpadd_simd(regs, insn);
             else
                 dis_common_vqdmulh_vqrdmulh_simd(regs, insn, u);
+            break;
+        case 12:
+            dis_common_vfma_vfms_simd(regs, insn);
             break;
         case 13:
             if (b)
@@ -8382,6 +8593,9 @@ void hlp_common_adv_simd_two_regs_misc(uint64_t regs, uint32_t insn)
                 break;
             case 12:
                 dis_common_vshll_maximum_shift_simd(regs, insn);
+                break;
+            case 24: case 28:
+                dis_common_vcvt_half_single_simd(regs, insn);
                 break;
             default:
                 fatal("a = %d b = 0x%x\n", a, b);
@@ -8616,7 +8830,7 @@ static int arm_rm_to_softfloat_rm(int arm_rm)
 }
 
 /* fpscr value is build using 3 parts :
-    - regs->fpscr (N, Z, V, QC flags, IDE, IXE, UFE, OFE, DZE, IOE)
+    - regs->fpscr (N, Z, V, QC flags, AHP, IDE, IXE, UFE, OFE, DZE, IOE)
     - regs->fp_status (DN, FZ, Rmode, exceptions flag)
     - regs->fp_status_simd (exceptions flag)
 */
@@ -8627,7 +8841,7 @@ void hlp_write_fpscr(uint64_t _regs, uint32_t value)
     int exceptions = 0;
 
     /* regs->fpscr update */
-    regs->fpscr = value & 0xf8009f80;
+    regs->fpscr = value & 0xfc009f80;
 
     /* regs->fp_status update */
     set_default_nan_mode((value>>25)&1, &regs->fp_status);
