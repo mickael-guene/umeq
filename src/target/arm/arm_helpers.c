@@ -3980,9 +3980,9 @@ static void dis_common_vhadd_vhsub_vrhadd_simd(uint64_t _regs, uint32_t insn, ui
             for(r = 0; r < reg_nb; r++) {
                 for(i = 0; i < 2; i++) {
                     if (is_unsigned)
-                        res[r].u32[i] = ((uint64_t)regs->e.simd[n + r].u32[i] + (uint64_t)SUB(is_sub, regs->e.simd[m + r].u32[i]) + is_round) >> 1;
+                        res[r].u32[i] = ((uint64_t)regs->e.simd[n + r].u32[i] + SUB(is_sub, (uint64_t)regs->e.simd[m + r].u32[i]) + is_round) >> 1;
                     else
-                        res[r].s32[i] = ((int64_t)regs->e.simd[n + r].s32[i] + (int64_t)SUB(is_sub, regs->e.simd[m + r].s32[i]) + is_round) >> 1;
+                        res[r].s32[i] = ((int64_t)regs->e.simd[n + r].s32[i] + SUB(is_sub, (int64_t)regs->e.simd[m + r].s32[i]) + is_round) >> 1;
                 }
             }
             break;
@@ -4767,14 +4767,14 @@ static void dis_common_vqdmulh_vqrdmulh_simd(uint64_t _regs, uint32_t insn, int 
         case 1:
             for(r = 0; r < reg_nb; r++)
                 for(i = 0; i < 4; i++) {
-                    int32_t product = 2 * regs->e.simd[n + r].s16[i] * regs->e.simd[m + r].s16[i] + (is_round?1 << 15:0);
+                    int64_t product = 2 * (int64_t)regs->e.simd[n + r].s16[i] * (int64_t)regs->e.simd[m + r].s16[i] + (is_round?1 << 15:0);
                     res[r].s16[i] = ssat16(regs, product >> 16);
                 }
             break;
         case 2:
             for(r = 0; r < reg_nb; r++)
                 for(i = 0; i < 2; i++) {
-                    int64_t product = 2 * (int64_t)regs->e.simd[n + r].s32[i] * (int64_t)regs->e.simd[m + r].s32[i] + (is_round?1UL << 31:0);
+                    __int128_t product = 2 * (__int128_t)regs->e.simd[n + r].s32[i] * (__int128_t)regs->e.simd[m + r].s32[i] + (is_round?1UL << 31:0);
                     res[r].s32[i] = ssat32(regs, product >> 32);
                 }
             break;
@@ -5107,14 +5107,15 @@ static void dis_common_vqdmlal_vqdmlsl_simd(uint64_t _regs, uint32_t insn)
     switch(size) {
         case 1:
             for(i = 0; i < 4; i++) {
-                int32_t product = ssat32(regs, 2 * regs->e.simd[n].s16[i] * regs->e.simd[m].s16[i]);
+                /* need to cast to 64 bits since corner case -32768 * -32768 * 2 will overflow */
+                int32_t product = ssat32(regs, 2 * (int64_t)regs->e.simd[n].s16[i] * (int64_t)regs->e.simd[m].s16[i]);
 
                 res.s32[i] = ssat32(regs, (int64_t)res.s32[i] + (is_sub?-(int64_t)product:(int64_t)product));
             }
             break;
         case 2:
             for(i = 0; i < 2; i++) {
-                int64_t product = ssat64(regs, 2 * (int64_t)regs->e.simd[n].s32[i] * (int64_t)regs->e.simd[m].s32[i]);
+                int64_t product = ssat64(regs, 2 * (__int128_t)regs->e.simd[n].s32[i] * (__int128_t)regs->e.simd[m].s32[i]);
 
                 res.s64[i] = ssat64(regs, (__int128_t)res.s64[i] + (is_sub?-(__int128_t)product:(__int128_t)product));
             }
@@ -5235,13 +5236,13 @@ static void dis_common_vqdmull_simd(uint64_t _regs, uint32_t insn)
     switch(size) {
         case 1:
             for(i = 0; i < 4; i++) {
-                int32_t product = 2 * regs->e.simd[n].s16[i] * regs->e.simd[m].s16[i];
+                int64_t product = 2 * (int64_t)regs->e.simd[n].s16[i] * (int64_t)regs->e.simd[m].s16[i];
                 res.s32[i] = ssat32(regs, product);
             }
             break;
         case 2:
             for(i = 0; i < 2; i++) {
-                int64_t product = 2 * (int64_t)regs->e.simd[n].s32[i] * (int64_t)regs->e.simd[m].s32[i];
+                __int128_t product = 2 * (__int128_t)regs->e.simd[n].s32[i] * (__int128_t)regs->e.simd[m].s32[i];
                 res.s64[i] = ssat64(regs, product);
             }
             break;
@@ -5418,7 +5419,7 @@ static void dis_common_vqdmlal_vqdmlsl_scalar_simd(uint64_t _regs, uint32_t insn
             m = INSN(2, 0);
             index = (INSN(5, 5) << 1) + INSN(3, 3);
             for(i = 0; i < 4; i++) {
-                int32_t product = ssat32(regs, 2 * regs->e.simd[n].s16[i] * regs->e.simd[m].s16[index]);
+                int32_t product = ssat32(regs, 2 * (int64_t)regs->e.simd[n].s16[i] * (int64_t)regs->e.simd[m].s16[index]);
 
                 res.s32[i] = ssat32(regs, (int64_t)res.s32[i] + (is_sub?-(int64_t)product:(int64_t)product));
             }
@@ -5427,7 +5428,7 @@ static void dis_common_vqdmlal_vqdmlsl_scalar_simd(uint64_t _regs, uint32_t insn
             m = INSN(3, 0);
             index = INSN(5, 5);
             for(i = 0; i < 2; i++) {
-                int64_t product = ssat64(regs, 2 * (int64_t)regs->e.simd[n].s32[i] * (int64_t)regs->e.simd[m].s32[index]);
+                int64_t product = ssat64(regs, 2 * (__int128_t)regs->e.simd[n].s32[i] * (__int128_t)regs->e.simd[m].s32[index]);
 
                 res.s64[i] = ssat64(regs, (__int128_t)res.s64[i] + (is_sub?-(__int128_t)product:(__int128_t)product));
             }
@@ -5455,7 +5456,7 @@ static void dis_common_vqdmull_scalar_simd(uint64_t _regs, uint32_t insn, uint32
             m = INSN(2, 0);
             index = (INSN(5, 5) << 1) + INSN(3, 3);
             for(i = 0; i < 4; i++) {
-                int32_t product = 2 * regs->e.simd[n].s16[i] * regs->e.simd[m].s16[index];
+                int64_t product = 2 * (int64_t)regs->e.simd[n].s16[i] * (int64_t)regs->e.simd[m].s16[index];
                 res.s32[i] = ssat32(regs, product);
             }
             break;
@@ -5463,7 +5464,7 @@ static void dis_common_vqdmull_scalar_simd(uint64_t _regs, uint32_t insn, uint32
             m = INSN(3, 0);
             index = INSN(5, 5);
             for(i = 0; i < 2; i++) {
-                int64_t product = 2 * (int64_t)regs->e.simd[n].s32[i] * (int64_t)regs->e.simd[m].s32[index];
+                __int128_t product = 2 * (__int128_t)regs->e.simd[n].s32[i] * (__int128_t)regs->e.simd[m].s32[index];
                 res.s64[i] = ssat64(regs, product);
             }
             break;
@@ -5493,7 +5494,7 @@ static void dis_common_vqdmulh_vqrdmulh_scalar_simd(uint64_t _regs, uint32_t ins
             index = (INSN(5, 5) << 1) + INSN(3, 3);
             for(r = 0; r < reg_nb; r++)
                 for(i = 0; i < 4; i++) {
-                    int32_t product = 2 * regs->e.simd[n + r].s16[i] * regs->e.simd[m].s16[index] + (is_round?1<<15:0);
+                    int64_t product = 2 * (int64_t)regs->e.simd[n + r].s16[i] * (int64_t)regs->e.simd[m].s16[index] + (is_round?1<<15:0);
                     res[r].s16[i] = ssat16(regs, product >> 16);
                 }
             break;
@@ -5502,7 +5503,7 @@ static void dis_common_vqdmulh_vqrdmulh_scalar_simd(uint64_t _regs, uint32_t ins
             index = INSN(5, 5);
             for(r = 0; r < reg_nb; r++)
                 for(i = 0; i < 2; i++) {
-                    int64_t product = 2 * (int64_t)regs->e.simd[n + r].s32[i] * (int64_t)regs->e.simd[m].s32[index] + (is_round?1L<<31:0);
+                    __int128_t product = 2 * (__int128_t)regs->e.simd[n + r].s32[i] * (__int128_t)regs->e.simd[m].s32[index] + (is_round?1L<<31:0);
                     res[r].s32[i] = ssat32(regs, product >> 32);
                 }
             break;
@@ -6621,7 +6622,7 @@ static void dis_common_vshr_vrshr_simd(uint64_t _regs, uint32_t insn, int is_uns
                 if (is_unsigned)
                     res[r].u64[i] = ((__int128_t)regs->e.simd[m + r].u64[i] + ROUND(is_round, 1UL << (shift_value - 1))) >> shift_value;
                 else
-                    res[r].s64[i] = ((__int128_t)regs->e.simd[m + r].s64[i] + ROUND(is_round, 1L << (shift_value - 1))) >> shift_value;
+                    res[r].s64[i] = ((__int128_t)regs->e.simd[m + r].s64[i] + ROUND(is_round, 1UL << (shift_value - 1))) >> shift_value;
     } else if (imm >> 5) {
         shift_value = 64 - imm6;
         for(r = 0; r < reg_nb; r++)
@@ -6629,23 +6630,23 @@ static void dis_common_vshr_vrshr_simd(uint64_t _regs, uint32_t insn, int is_uns
                 if (is_unsigned)
                     res[r].u32[i] = ((uint64_t)regs->e.simd[m + r].u32[i] + ROUND(is_round, 1UL << (shift_value - 1))) >> shift_value;
                 else
-                    res[r].s32[i] = ((int64_t)regs->e.simd[m + r].s32[i] + ROUND(is_round, 1L << (shift_value - 1))) >> shift_value;
+                    res[r].s32[i] = ((int64_t)regs->e.simd[m + r].s32[i] + ROUND(is_round, 1UL << (shift_value - 1))) >> shift_value;
     } else if (imm >> 4) {
         shift_value = 32 - imm6;
         for(r = 0; r < reg_nb; r++)
             for(i = 0; i < 4; i++)
                 if (is_unsigned)
-                    res[r].u16[i] = (regs->e.simd[m + r].u16[i] + ROUND(is_round, 1 << (shift_value - 1))) >> shift_value;
+                    res[r].u16[i] = (regs->e.simd[m + r].u16[i] + ROUND(is_round, 1U << (shift_value - 1))) >> shift_value;
                 else
-                    res[r].s16[i] = (regs->e.simd[m + r].s16[i] + ROUND(is_round, 1 << (shift_value - 1))) >> shift_value;
+                    res[r].s16[i] = (regs->e.simd[m + r].s16[i] + ROUND(is_round, 1U << (shift_value - 1))) >> shift_value;
     } else if (imm >> 3) {
         shift_value = 16 - imm6;
         for(r = 0; r < reg_nb; r++)
             for(i = 0; i < 8; i++)
                 if (is_unsigned)
-                    res[r].u8[i] = (regs->e.simd[m + r].u8[i] + ROUND(is_round, 1 << (shift_value - 1))) >> shift_value;
+                    res[r].u8[i] = (regs->e.simd[m + r].u8[i] + ROUND(is_round, 1U << (shift_value - 1))) >> shift_value;
                 else
-                    res[r].s8[i] = (regs->e.simd[m + r].s8[i] + ROUND(is_round, 1 << (shift_value - 1))) >> shift_value;
+                    res[r].s8[i] = (regs->e.simd[m + r].s8[i] + ROUND(is_round, 1U << (shift_value - 1))) >> shift_value;
     } else
         assert(0);
 
@@ -6675,7 +6676,7 @@ static void dis_common_vsra_vrsra_simd(uint64_t _regs, uint32_t insn, int is_uns
                 if (is_unsigned)
                     res[r].u64[i] += ((__int128_t)regs->e.simd[m + r].u64[i] + ROUND(is_round, 1UL << (shift_value - 1))) >> shift_value;
                 else
-                    res[r].s64[i] += ((__int128_t)regs->e.simd[m + r].s64[i] + ROUND(is_round, 1L << (shift_value - 1))) >> shift_value;
+                    res[r].s64[i] += ((__int128_t)regs->e.simd[m + r].s64[i] + ROUND(is_round, 1UL << (shift_value - 1))) >> shift_value;
     } else if (imm >> 5) {
         shift_value = 64 - imm6;
         for(r = 0; r < reg_nb; r++)
@@ -6725,16 +6726,16 @@ static void dis_common_vsri_simd(uint64_t _regs, uint32_t insn)
         res[r] = regs->e.simd[d + r];
     if (imm >> 6) {
         shift_value = 64 - imm6;
-        mask = ~0UL >> shift_value;
+        mask = (shift_value==64)?0:(~0UL >> shift_value);
         for(r = 0; r < reg_nb; r++)
             for(i = 0; i < 1; i++)
-                res[r].u64[i] = (res[r].u64[i] & ~mask) | (regs->e.simd[m + r].u64[i] >> shift_value);
+                res[r].u64[i] = (res[r].u64[i] & ~mask) | ((__uint128_t)regs->e.simd[m + r].u64[i] >> shift_value);
     } else if (imm >> 5) {
         shift_value = 64 - imm6;
         mask = 0xffffffffUL >> shift_value;
         for(r = 0; r < reg_nb; r++)
             for(i = 0; i < 2; i++)
-                res[r].u32[i] = (res[r].u32[i] & ~mask) | (regs->e.simd[m + r].u32[i] >> shift_value);
+                res[r].u32[i] = (res[r].u32[i] & ~mask) | ((uint64_t)regs->e.simd[m + r].u32[i] >> shift_value);
     } else if (imm >> 4) {
         shift_value = 32 - imm6;
         mask = 0xffffUL >> shift_value;
