@@ -153,7 +153,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = prlimit64_s3264(p0,p1,p2,p3);
             break;
         case PR_lseek:
-            res = syscall(SYS_lseek, (int)p0, (off_t)p1, (int)p2);
+            res = syscall(SYS_lseek, (int)p0, (off_t)(int)p1, (int)p2);
             break;
         case PR_getcwd:
             res = syscall(SYS_getcwd, (char *) g_2_h(p0), (size_t) p1);
@@ -514,7 +514,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_msgget, (key_t) p0, (int) p1);
             break;
         case PR_pwrite64:
-            res = syscall(SYS_pwrite64, (int) p0, (void *) g_2_h(p1), (size_t) p2, (off_t) p3);
+            res = syscall(SYS_pwrite64, (int) p0, (void *) g_2_h(p1), (size_t) p2, (off_t)(int) p3);
             break;
         case PR_getitimer:
             res = getitimer_s3264(p0, p1);
@@ -600,7 +600,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = setrlimit_s3264(p0, p1);
             break;
         case PR_ftruncate:
-            res = syscall(SYS_ftruncate, (int) p0, (off_t) p1);
+            res = syscall(SYS_ftruncate, (int) p0, (off_t)(int) p1);
             break;
         case PR_getsid:
             res = syscall(SYS_getsid, (pid_t) p0);
@@ -696,7 +696,7 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
             res = syscall(SYS_setregid, (gid_t) (int16_t)p0, (gid_t) (int16_t)p1);
             break;
         case PR_truncate:
-            res = syscall(SYS_truncate, (char *) g_2_h(p0), (off_t) p1);
+            res = syscall(SYS_truncate, (char *) g_2_h(p0), (off_t)(int) p1);
             break;
         case PR_bdflush:
             /* This one is deprecated since 2.6 and p1 is no more use */
