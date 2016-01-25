@@ -81,10 +81,10 @@ static int is_environment_variable_copy(char *current, void **additionnal_env, v
 
 static guest_ptr allocate_stack()
 {
-    if (mmap_guest(0x70000000, 4 * 1024 * 1024,
+    if (mmap_guest(0x70000000, mmap_size[memory_profile],
         PROT_EXEC | PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN | MAP_FIXED,
         -1, 0) == 0x70000000) {
-        return (0x70000000 + 4 * 1024 * 1024);
+        return (0x70000000 + mmap_size[memory_profile]);
     } else
         assert(0);
 }

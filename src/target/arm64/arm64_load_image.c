@@ -236,10 +236,10 @@ static guest_ptr arm64_load_program(const char *file, struct load_auxv_info_64 *
 
 static guest_ptr allocate_stack()
 {
-    if (mmap_guest(0x6fffbff000, 4 * 1024 * 1024,
+    if (mmap_guest(0x6ffffff000 - mmap_size[memory_profile], mmap_size[memory_profile],
         PROT_EXEC | PROT_WRITE | PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN | MAP_FIXED,
-        -1, 0) == 0x6fffbff000) {
-        return (0x6fffbff000 + 4 * 1024 * 1024);
+        -1, 0) == 0x6ffffff000 - mmap_size[memory_profile]) {
+        return (0x6ffffff000);
     } else
         assert(0);
 }
