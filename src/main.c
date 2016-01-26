@@ -70,7 +70,7 @@ static void setup_thread_area(struct tls_context *main_thread_tls_context)
 }
 
 static void loop_common(struct target *target, struct backend *backend, struct cache *cache, uint64_t entry,
-                        void *target_runtime, jitContext handle)
+                        void *target_runtime, jitContext handle, int max_insn)
 {
     uint64_t currentPc = entry;
     uint64_t prevCurrentPc = ~0;
@@ -91,7 +91,7 @@ static void loop_common(struct target *target, struct backend *backend, struct c
             int jitSize;
 
             resetJitter(handle);
-            target->disassemble(target, ir, currentPc, cache_memory_config[memory_profile].max_insn/*10*/);
+            target->disassemble(target, ir, currentPc, max_insn);
             //displayIr(handle);
             jitSize = jitCode(handle, jitBuffer, sizeof(jitBuffer));
             if (jitSize > 0) {
@@ -115,8 +115,8 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     jitContext handle;
     void *targetHandle;
     struct backend *backend;
-    char *beX86_64Memory = alloca(cache_memory_config[memory_profile].be_context_size);
-    char *jitterMemory = alloca(cache_memory_config[memory_profile].jitter_context_size);
+    char *beX86_64Memory = alloca(cache_memory_config[0].be_context_size);
+    char *jitterMemory = alloca(cache_memory_config[0].jitter_context_size);
     char *context_memory = alloca(current_target_arch.get_context_size());
     struct target *target;
     void *target_runtime;
@@ -129,8 +129,8 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
 
     /* allocate jitter and target context */
-    backend = createX86_64Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
-    handle = createJitter(jitterMemory, backend, cache_memory_config[memory_profile].jitter_context_size);
+    backend = createX86_64Backend(beX86_64Memory, cache_memory_config[0].be_context_size);
+    handle = createJitter(jitterMemory, backend, cache_memory_config[0].jitter_context_size);
     targetHandle = current_target_arch.create_target_context(context_memory, backend);
     target = current_target_arch.get_target_structure(targetHandle);
     target_runtime = current_target_arch.get_target_runtime(targetHandle);
@@ -143,7 +143,7 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     current_tls_context->target_runtime = target_runtime;
     current_tls_context->cache = cache;
 
-    loop_common(target, backend, cache, entry, target_runtime, handle);
+    loop_common(target, backend, cache, entry, target_runtime, handle, cache_memory_config[0].max_insn);
     /* restore parent tls context */
     *current_tls_context = parent_tls_context;
 
@@ -183,7 +183,7 @@ static int loop_cache(uint64_t entry, uint64_t stack_entry, uint32_t signum, voi
     current_tls_context->target_runtime = target_runtime;
     current_tls_context->cache = cache;
 
-    loop_common(target, backend, cache, entry, target_runtime, handle);
+    loop_common(target, backend, cache, entry, target_runtime, handle, cache_memory_config[memory_profile].max_insn);
     removeCache(cache);
     /* restore parent tls context */
     *current_tls_context = parent_tls_context;
