@@ -115,8 +115,8 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     jitContext handle;
     void *targetHandle;
     struct backend *backend;
-    char *beX86_64Memory = alloca(cache_memory_config[0].be_context_size);
-    char *jitterMemory = alloca(cache_memory_config[0].jitter_context_size);
+    char *beX86_64Memory = alloca(cache_memory_config[memory_profile].be_context_size);
+    char *jitterMemory = alloca(cache_memory_config[memory_profile].jitter_context_size);
     char *context_memory = alloca(current_target_arch.get_context_size());
     struct target *target;
     void *target_runtime;
@@ -129,8 +129,8 @@ static int loop_nocache(uint64_t entry, uint64_t stack_entry, uint32_t signum, v
     syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
 
     /* allocate jitter and target context */
-    backend = createX86_64Backend(beX86_64Memory, cache_memory_config[0].be_context_size);
-    handle = createJitter(jitterMemory, backend, cache_memory_config[0].jitter_context_size);
+    backend = createX86_64Backend(beX86_64Memory, cache_memory_config[memory_profile].be_context_size);
+    handle = createJitter(jitterMemory, backend, cache_memory_config[memory_profile].jitter_context_size);
     targetHandle = current_target_arch.create_target_context(context_memory, backend);
     target = current_target_arch.get_target_structure(targetHandle);
     target_runtime = current_target_arch.get_target_runtime(targetHandle);
