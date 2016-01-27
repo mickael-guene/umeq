@@ -4075,7 +4075,7 @@ static void dis_common_vcmp_vcmpe_vfp(uint64_t _regs, uint32_t insn)
     int is_with_zero = INSN(16, 16);
     int vd = INSN(15, 12);
     int is_double = INSN(8, 8);
-    int E = INSN(7, 7);
+    int is_quiet = (INSN(7,7) == 0);
     int M = INSN(5, 5);
     int vm = INSN(3, 0);
     int d, m;
@@ -4089,9 +4089,9 @@ static void dis_common_vcmp_vcmpe_vfp(uint64_t _regs, uint32_t insn)
         m = (vm << 1) + M;
     }
     if (is_double) {
-        nzcv = fcmp64(regs, regs->e.d[d], is_with_zero?0:regs->e.d[m], E);
+        nzcv = fcmp64(regs, regs->e.d[d], is_with_zero?0:regs->e.d[m], is_quiet);
     } else {
-        nzcv = fcmp32(regs, regs->e.s[d], is_with_zero?0:regs->e.s[m], E);
+        nzcv = fcmp32(regs, regs->e.s[d], is_with_zero?0:regs->e.s[m], is_quiet);
     }
 
     regs->fpscr = (regs->fpscr & 0x0fffffff) + (nzcv << 28);
