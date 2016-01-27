@@ -29,9 +29,11 @@
 #include <sys/uio.h>
 
 #include <stdio.h>
+#include <string.h>
 
 #include "arm_private.h"
 #include "arm_syscall.h"
+#include "arm_softfloat.h"
 
 #ifndef PTRACE_GETVFPREGS
 #define PTRACE_GETVFPREGS 27
@@ -107,7 +109,7 @@ struct iovec_32 {
     uint32_t iov_len;
 };
 
-int read_32(int pid, uint32_t *data, void *addr)
+static int read_32(int pid, uint32_t *data, void *addr)
 {
     int res;
     unsigned long data_long;
@@ -118,7 +120,7 @@ int read_32(int pid, uint32_t *data, void *addr)
     return res;
 }
 
-int write_32(int pid, uint32_t data, void *addr)
+static int write_32(int pid, uint32_t data, void *addr)
 {
     int res;
     unsigned long data_long;
@@ -128,6 +130,52 @@ int write_32(int pid, uint32_t data, void *addr)
     res = syscall(SYS_ptrace, PTRACE_POKETEXT, pid, addr, data_long);
 
     return res;
+}
+
+/* FIXME: replace this dumb implementation */
+static int read_bytes(int pid, void *dest, void *addr, int size)
+{
+    int res;
+
+    assert(size);
+    while(size >= 4) {
+        res = read_32(pid, dest, addr);
+        dest += 4;
+        addr += 4;
+        size -= 4;
+    }
+    if (size) {
+        uint32_t data;
+
+        res = read_32(pid, &data, addr);
+        while(size--) {
+            memcpy(dest, &data, 1);
+            dest++;
+            data = data >> 8;
+        }
+    }
+
+    return res;
+}
+
+static uint32_t remote_fpscr_read(int pid)
+{
+    struct user_regs_struct user_regs;
+    float_status fp_status;
+    float_status fp_status_simd;
+    uint32_t fpscr;
+    unsigned long data_long;
+
+    /* got base address */
+    syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
+    syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+
+    /* copy tracee floating point info */
+    read_bytes(pid, &fp_status, (void *)(data_long + offsetof(struct arm_registers, fp_status)), sizeof(fp_status));
+    read_bytes(pid, &fp_status_simd, (void *)(data_long + offsetof(struct arm_registers, fp_status_simd)), sizeof(fp_status_simd));
+    read_bytes(pid, &fpscr, (void *)(data_long + offsetof(struct arm_registers, fpscr)), sizeof(fpscr));
+
+    return softfloat_to_arm_fpscr(fpscr, &fp_status, &fp_status_simd);
 }
 
 int arm_ptrace(struct arm_target *context)
@@ -308,8 +356,7 @@ int arm_ptrace(struct arm_target *context)
                     res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm_registers, e.d[i]), &data_reg);
                     user_vfp_regs_arm->fpregs[i] = data_reg;
                 }
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm_registers, fpscr), &data_reg);
-                user_vfp_regs_arm->fpscr = (uint32_t) data_reg;
+                user_vfp_regs_arm->fpscr = remote_fpscr_read(pid);
 
                 res = 0;
             }

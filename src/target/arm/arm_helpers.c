@@ -36,6 +36,7 @@
 #include "arm_helpers.h"
 #include "runtime.h"
 #include "softfloat.h"
+#include "arm_softfloat.h"
 
 #define USE_GCC_128_BITS_SUPPORT    1
 
@@ -9181,46 +9182,6 @@ void hlp_common_adv_simd_element_or_structure_load_store(uint64_t regs, uint32_t
 }
 
 /* fpscr helpers */
-static int softfloat_rm_to_arm_rm(int softfloat_rm)
-{
-    switch(softfloat_rm) {
-        case float_round_nearest_even:
-            return 0;
-            break;
-        case float_round_down:
-            return 2;
-            break;
-        case float_round_up:
-            return 1;
-            break;
-        case float_round_to_zero:
-            return 3;
-            break;
-        default:
-            assert(0);
-    }
-}
-
-static int arm_rm_to_softfloat_rm(int arm_rm)
-{
-    switch(arm_rm) {
-        case 0:
-            return float_round_nearest_even;
-            break;
-        case 1:
-            return float_round_up;
-            break;
-        case 2:
-            return float_round_down;
-            break;
-        case 3:
-            return float_round_to_zero;
-            break;
-        default:
-            assert(0);
-    }
-}
-
 /* fpscr value is build using 3 parts :
     - regs->fpscr (N, Z, V, QC flags, AHP, IDE, IXE, UFE, OFE, DZE, IOE)
     - regs->fp_status (DN, FZ, Rmode, exceptions flag)
@@ -9230,64 +9191,17 @@ static int arm_rm_to_softfloat_rm(int arm_rm)
 void hlp_write_fpscr(uint64_t _regs, uint32_t value)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
-    int exceptions = 0;
 
     /* regs->fpscr update */
     regs->fpscr = value & 0xfc009f80;
 
     /* regs->fp_status update */
-    set_default_nan_mode((value>>25)&1, &regs->fp_status);
-    set_flush_to_zero((value>>24)&1, &regs->fp_status);
-    set_flush_inputs_to_zero((value>>24)&1, &regs->fp_status);
-    set_float_rounding_mode(arm_rm_to_softfloat_rm((value>>22)&3), &regs->fp_status);
-    if (value & (1 << 7))
-        exceptions |= float_flag_input_denormal;
-    if (value & (1 << 4))
-        exceptions |= float_flag_inexact;
-    if (value & (1 << 3))
-        exceptions |= float_flag_underflow;
-    if (value & (1 << 2))
-        exceptions |= float_flag_overflow;
-    if (value & (1 << 1))
-        exceptions |= float_flag_divbyzero;
-    if (value & (1 << 0))
-        exceptions |= float_flag_invalid;
-    set_float_exception_flags(exceptions, &regs->fp_status);
-
-    /* regs->fp_status_simd update */
-    set_float_exception_flags(0, &regs->fp_status_simd);
+    arm_fpscr_to_softfloat(value, &regs->fp_status, &regs->fp_status_simd);
 }
 
-/* FIXME: masking fp_status with exceptions flag enables ? */
-extern uint32_t hlp_read_fpscr(uint64_t _regs)
+uint32_t hlp_read_fpscr(uint64_t _regs)
 {
     struct arm_registers *regs = (struct arm_registers *) _regs;
-    uint32_t fpscr = regs->fpscr;
-    int exceptions = get_float_exception_flags(&regs->fp_status) |
-                     get_float_exception_flags(&regs->fp_status_simd);
 
-    /* DN */
-    if (get_default_nan_mode(&regs->fp_status))
-        fpscr |= 1 << 25;
-    /* FZ */
-    if (get_flush_to_zero(&regs->fp_status))
-        fpscr |= 1 << 24;
-    /* Rmode */
-    fpscr |= softfloat_rm_to_arm_rm(get_float_rounding_mode(&regs->fp_status)) << 22;
-
-    /* set up exceptions bits */
-    if (exceptions & float_flag_input_denormal)
-        fpscr |= 1 << 7;
-    if (exceptions & float_flag_inexact)
-        fpscr |= 1 << 4;
-    if (exceptions & (float_flag_underflow | float_flag_output_denormal))
-        fpscr |= 1 << 3;
-    if (exceptions & float_flag_overflow)
-        fpscr |= 1 << 2;
-    if (exceptions & float_flag_divbyzero)
-        fpscr |= 1 << 1;
-    if (exceptions & float_flag_invalid)
-        fpscr |= 1 << 0;
-
-    return fpscr;
+    return softfloat_to_arm_fpscr(regs->fpscr, &regs->fp_status, &regs->fp_status_simd);
 }
