@@ -62,13 +62,19 @@ static void mmap_init()
     /* init vma_list */
     desc = arm64_get_free_desc();
     desc->type = VMA_UNMAP;
-    desc->start_addr = MAPPING_START;
-    desc->end_addr = MAPPING_RESERVE_IN_SIGNAL_START;
+    desc->start_addr = MAPPING_VDSO_START;
+    desc->end_addr = MAPPING_VDSO_END;
+    LIST_INSERT_HEAD(&vma_list, desc, entries);
+    /* Add this block so that common code work for last byte of kernel choose area */
+    desc = arm64_get_free_desc();
+    desc->type = VMA_MAP;
+    desc->start_addr = MAPPING_RESERVE_IN_SIGNAL_START;
+    desc->end_addr = MAPPING_RESERVE_IN_SIGNAL_START + 4096;
     LIST_INSERT_HEAD(&vma_list, desc, entries);
     desc = arm64_get_free_desc();
     desc->type = VMA_UNMAP;
-    desc->start_addr = MAPPING_VDSO_START;
-    desc->end_addr = MAPPING_VDSO_END;
+    desc->start_addr = MAPPING_START;
+    desc->end_addr = MAPPING_RESERVE_IN_SIGNAL_START;
     LIST_INSERT_HEAD(&vma_list, desc, entries);
 
     /* map at fix address since this make ptrace emulation easier */
@@ -92,8 +98,7 @@ int arm_mmap(struct arm_target *context)
         pthread_mutex_lock(&ll_big_mutex);
         res = internal_mmap(context->regs.r[0], context->regs.r[1], context->regs.r[2],
                              context->regs.r[3], context->regs.r[4], context->regs.r[5]);
-        if (!desc_next_memory)
-            allocate_more_desc_memory();
+        allocate_more_desc_memory_if_needed();
         pthread_mutex_unlock(&ll_big_mutex);
     }
 
@@ -113,8 +118,7 @@ int arm_mmap2(struct arm_target *context)
         pthread_mutex_lock(&ll_big_mutex);
         res = internal_mmap(context->regs.r[0], context->regs.r[1], context->regs.r[2],
                              context->regs.r[3], context->regs.r[4], (uint64_t)context->regs.r[5] * 4096);
-        if (!desc_next_memory)
-            allocate_more_desc_memory();
+        allocate_more_desc_memory_if_needed();
         pthread_mutex_unlock(&ll_big_mutex);
     }
 
@@ -132,8 +136,7 @@ int arm_munmap(struct arm_target *context)
     } else {
         pthread_mutex_lock(&ll_big_mutex);
         res = internal_munmap(context->regs.r[0], context->regs.r[1]);
-        if (!desc_next_memory)
-            allocate_more_desc_memory();
+        allocate_more_desc_memory_if_needed();
         pthread_mutex_unlock(&ll_big_mutex);
     }
 
@@ -149,8 +152,7 @@ int arm_mremap(struct arm_target *context)
     pthread_mutex_lock(&ll_big_mutex);
     res = internal_mremap(context->regs.r[0], context->regs.r[1], context->regs.r[2],
                           context->regs.r[3], context->regs.r[4]);
-    if (!desc_next_memory)
-        allocate_more_desc_memory();
+    allocate_more_desc_memory_if_needed();
     pthread_mutex_unlock(&ll_big_mutex);
 
     return res;
@@ -164,8 +166,7 @@ int arm_shmat(struct arm_target *context)
     assert(context->is_in_signal == 0);
     pthread_mutex_lock(&ll_big_mutex);
     res = internal_shmat(context->regs.r[0], context->regs.r[1], context->regs.r[2]);
-    if (!desc_next_memory)
-        allocate_more_desc_memory();
+    allocate_more_desc_memory_if_needed();
     pthread_mutex_unlock(&ll_big_mutex);
 
     return res;
@@ -179,8 +180,7 @@ int arm_shmdt(struct arm_target *context)
     assert(context->is_in_signal == 0);
     pthread_mutex_lock(&ll_big_mutex);
     res = internal_shmdt(context->regs.r[0]);
-    if (!desc_next_memory)
-        allocate_more_desc_memory();
+    allocate_more_desc_memory_if_needed();
     pthread_mutex_unlock(&ll_big_mutex);
 
     return res;
@@ -193,8 +193,7 @@ guest_ptr mmap_guest(guest_ptr addr, size_t length, int prot, int flags, int fd,
 
     pthread_mutex_lock(&ll_big_mutex);
     res = internal_mmap(addr, length, prot, flags, fd, offset);
-    if (!desc_next_memory)
-        allocate_more_desc_memory();
+    allocate_more_desc_memory_if_needed();
     pthread_mutex_unlock(&ll_big_mutex);
 
     return res;
@@ -206,8 +205,7 @@ int munmap_guest(guest_ptr addr, size_t length)
 
     pthread_mutex_lock(&ll_big_mutex);
     res = internal_munmap(addr, length);
-    if (!desc_next_memory)
-        allocate_more_desc_memory();
+    allocate_more_desc_memory_if_needed();
     pthread_mutex_unlock(&ll_big_mutex);
 
     return res;
@@ -219,8 +217,7 @@ void *munmap_guest_ongoing(guest_ptr addr, size_t length)
 
     pthread_mutex_lock(&ll_big_mutex);
     res = internal_munmap_ongoing(addr, length);
-    if (!desc_next_memory)
-        allocate_more_desc_memory();
+    allocate_more_desc_memory_if_needed();
     pthread_mutex_unlock(&ll_big_mutex);
 
     return res;

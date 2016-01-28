@@ -106,9 +106,18 @@ static void collect_ongoing_unmap()
             }
         }
         if (desc_find) {
+            /* desc_find->start_addr and desc_find->start_end are page align */
+            void *addr = (void *) g_2_h(desc_find->start_addr);
+            size_t length = desc_find->end_addr - desc_find->start_addr;
+            long res;
+
             LIST_REMOVE(desc_find, entries);
             //fprintf(stderr, "GC [0x%016lx:0x%016lx[\n", desc_find->start_addr, desc_find->end_addr);
-            insert_unmap_area(desc_find->start_addr, desc_find->end_addr);
+            res = munmap(addr, length);
+            if (!is_syscall_error(res))
+                insert_unmap_area(desc_find->start_addr, desc_find->end_addr);
+            else
+                fatal("Unable to unmap\n");
             LIST_INSERT_HEAD(&free_vma_list, desc_find, entries);
         }
     } while(desc_find);
@@ -131,7 +140,13 @@ static void allocate_more_desc_memory()
 
     assert(!is_syscall_error(res));
     desc_next_memory = (void *) g_2_h(res);
+}
+
+static void allocate_more_desc_memory_if_needed()
+{
     collect_ongoing_unmap();
+    if (!desc_next_memory)
+        allocate_more_desc_memory();
 }
 
 /* return a new free vma_desc */
