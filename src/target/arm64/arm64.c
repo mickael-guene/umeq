@@ -47,6 +47,10 @@ extern char __etext;
 typedef void *arm64Context;
 const char arch_name[] = "arm64";
 
+#define SIGNAL_LOCATION_UNKNOWN     0
+#define SIGNAL_LOCATION_UMEQ_CODE   1
+#define SIGNAL_LOCATION_JITTER_EXEC 2
+
 /* FIXME: rework this. See kernel signal.c(copy_siginfo_to_user) */
 static void setup_siginfo(uint32_t signum, siginfo_t *siginfo, struct siginfo_arm64 *info)
 {
@@ -140,7 +144,7 @@ static int find_insn_nb(uint64_t guest_pc, int offset)
     return findInsn(handle, jitBuffer, sizeof(jitBuffer), offset);
 }
 
-static uint64_t restore_precise_pc(struct arm64_target *prev_context, ucontext_t *ucp)
+static uint64_t restore_precise_pc(struct arm64_target *prev_context, ucontext_t *ucp, int *in_signal_location)
 {
     uint64_t res;
     void *host_pc_signal = (void *)ucp->uc_mcontext.gregs[REG_RIP];
@@ -151,10 +155,12 @@ static uint64_t restore_precise_pc(struct arm64_target *prev_context, ucontext_t
         - in umeq code, in that case we are not currently emulating guest instruction */
     if (prev_context->regs.helper_pc) {
         /* we are inside an helper */
+        *in_signal_location = SIGNAL_LOCATION_JITTER_EXEC;
         res = prev_context->regs.helper_pc;
     } else if (host_pc_signal >= (void *)&__executable_start &&
                host_pc_signal < (void *)&__etext) {
         /* we are somewhere in umeq code */
+        *in_signal_location = SIGNAL_LOCATION_UMEQ_CODE;
         res = prev_context->regs.pc;
     } else {
         struct tls_context *current_tls_context;
@@ -163,6 +169,7 @@ static uint64_t restore_precise_pc(struct arm64_target *prev_context, ucontext_t
         uint64_t jit_guest_start_pc;
         int insn_nb;
 
+        *in_signal_location = SIGNAL_LOCATION_JITTER_EXEC;
         syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
         cache = current_tls_context->cache;
 
@@ -176,7 +183,8 @@ static uint64_t restore_precise_pc(struct arm64_target *prev_context, ucontext_t
     return res;
 }
 
-static void setup_sigframe(struct rt_sigframe_arm64 *frame, struct arm64_target *prev_context, struct host_signal_info *signal_info)
+static void setup_sigframe(struct rt_sigframe_arm64 *frame, struct arm64_target *prev_context,
+                           struct host_signal_info *signal_info, int *in_signal_location)
 {
     int i;
     struct _aarch64_ctx *end;
@@ -187,7 +195,7 @@ static void setup_sigframe(struct rt_sigframe_arm64 *frame, struct arm64_target 
         frame->uc.uc_mcontext.regs[i] = prev_context->regs.r[i];
     frame->uc.uc_mcontext.sp = prev_context->regs.r[31];
     /* Update prev_context pc so we are sure to detect pc modifications on signal exit */
-    prev_context->regs.pc = restore_precise_pc(prev_context, signal_info->context);
+    prev_context->regs.pc = restore_precise_pc(prev_context, signal_info->context, in_signal_location);
     frame->uc.uc_mcontext.pc = prev_context->regs.pc;
     frame->uc.uc_mcontext.pstate = prev_context->regs.nzcv;
     frame->uc.uc_mcontext.fault_address = 0;
@@ -227,7 +235,8 @@ static uint64_t setup_return_frame(uint64_t sp)
     return sp;
 }
 
-static uint64_t setup_rt_frame(uint64_t sp, struct arm64_target *prev_context, uint32_t signum, struct host_signal_info *signal_info)
+static uint64_t setup_rt_frame(uint64_t sp, struct arm64_target *prev_context, uint32_t signum,
+                               struct host_signal_info *signal_info, int *in_signal_location)
 {
     struct rt_sigframe_arm64 *frame;
 
@@ -235,7 +244,7 @@ static uint64_t setup_rt_frame(uint64_t sp, struct arm64_target *prev_context, u
     frame = (struct rt_sigframe_arm64 *) g_2_h(sp);
     frame->uc.uc_flags = 0;
     frame->uc.uc_link = NULL;
-    setup_sigframe(frame, prev_context, signal_info);
+    setup_sigframe(frame, prev_context, signal_info, in_signal_location);
     if (signal_info->is_sigaction_handler)
         setup_siginfo(signum, (siginfo_t *) signal_info->siginfo, &frame->info);
 
@@ -265,7 +274,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         sp = setup_return_frame(sp);
         return_code_addr = sp;
         /* fill signal frame */
-        sp = setup_rt_frame(sp, prev_context, signum, signal_info);
+        sp = setup_rt_frame(sp, prev_context, signum, signal_info, &context->in_signal_location);
         frame = (struct rt_sigframe_arm64 *) g_2_h(sp);
 
         /* setup new user context default value */
@@ -322,6 +331,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->sas_ss_sp = 0;
         context->sas_ss_size = 0;
         context->start_on_sig_stack = 0;
+        context->in_signal_location = SIGNAL_LOCATION_UNKNOWN;
     } else if (stack_ptr) {
         /* main thread */
         for(i = 0; i < 32; i++) {
@@ -350,6 +360,7 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->sas_ss_sp = 0;
         context->sas_ss_size = 0;
         context->start_on_sig_stack = 0;
+        context->in_signal_location = SIGNAL_LOCATION_UNKNOWN;
     } else {
         //fork;
         //nothing to do
@@ -366,7 +377,17 @@ static uint32_t isLooping(struct target *target)
 {
     struct arm64_target *context = container_of(target, struct arm64_target, target);
 
-    if (context->is_in_signal && is_out_of_signal_stack(context)) {
+    /* here we detect a siglongjmp (or equivalent code) call that return in a
+       previous context. But we cannot return in previous context using
+       request_signal_alternate_exit() if we were not in jitter executing code.
+       So in that case we stay in signal context. This can occur on asynchronous
+       signal that exit using siglongjmp. An example of such code is in
+       pthread_cancellation. */
+    /* FIXME: in UMEQ_CODE case can we return in previous context using custom
+       sigsetjmp / siglongjmp sequence .... */
+    if (context->is_in_signal &&
+        context->in_signal_location == SIGNAL_LOCATION_JITTER_EXEC &&
+        is_out_of_signal_stack(context)) {
         context->isLooping = 0;
         context->exitStatus = 1;
     }
@@ -399,6 +420,7 @@ static uint32_t getExitStatus(struct target *target)
                   context->prev_context->regs.r[i] = context->regs.r[i];
               context->prev_context->regs.pc = context->regs.pc;
 
+              assert(context->in_signal_location == SIGNAL_LOCATION_JITTER_EXEC);
               context->prev_context->backend->request_signal_alternate_exit(context->prev_context->backend,
                                                                             signal_info->context,
                                                                             context->prev_context->regs.pc);
@@ -408,6 +430,7 @@ static uint32_t getExitStatus(struct target *target)
             if (is_pc_change) {
                 struct host_signal_info *signal_info = (struct host_signal_info *) context->param;
 
+                assert(context->in_signal_location == SIGNAL_LOCATION_JITTER_EXEC);
                 context->prev_context->backend->request_signal_alternate_exit(context->prev_context->backend,
                                                                               signal_info->context,
                                                                               context->prev_context->regs.pc);
