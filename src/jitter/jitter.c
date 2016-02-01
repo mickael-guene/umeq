@@ -716,13 +716,14 @@ static void add_write_context_64(struct irInstructionAllocator *irAlloc, struct 
     add_write_context(irAlloc, src, offset, IR_WRITE_64);
 }
 
-static void add_insn_marker(struct irInstructionAllocator *irAlloc)
+static void add_insn_marker(struct irInstructionAllocator *irAlloc, uint32_t value)
 {
     struct jitter *jitter = container_of(irAlloc, struct jitter, irInstructionAllocator);
     struct memoryPool *pool = &jitter->instructionPoolAllocator;
     struct irInstruction *insn = (struct irInstruction *) pool->alloc(pool, sizeof(struct irInstruction));
 
     insn->type = IR_INSN_MARKER;
+    insn->u.marker.value = value;
 
     jitter->instructionIndex++;
 }
@@ -1051,5 +1052,5 @@ int findInsn(jitContext handle, char *buffer, int bufferSize, int offset)
     int insnNb = jitter->instructionPoolAllocator.index / sizeof(struct irInstruction);
     struct irInstruction *irArray = (struct irInstruction *) jitter->instructionPoolAllocator.buffer;
 
-    return jitter->backend->find_insn(jitter->backend, irArray, insnNb, buffer, bufferSize, offset);
+    return jitter->backend->get_marker(jitter->backend, irArray, insnNb, buffer, bufferSize, offset);
 }

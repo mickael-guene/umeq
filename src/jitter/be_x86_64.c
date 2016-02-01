@@ -121,6 +121,9 @@ struct x86Instruction {
             struct x86Register *src;
             int32_t offset;
         } write_context;
+        struct {
+            uint32_t value;
+        } marker;
     } u;
 };
 
@@ -345,12 +348,13 @@ static void add_write(struct inter *inter, enum x86InstructionType type, struct 
     inter->instructionIndex++;
 }
 
-static void add_insn_start_marker(struct inter *inter)
+static void add_insn_start_marker(struct inter *inter, uint32_t value)
 {
     struct memoryPool *pool = &inter->instructionPoolAllocator;
     struct x86Instruction *insn = (struct x86Instruction *) pool->alloc(pool, sizeof(struct x86Instruction));
 
     insn->type = X86_INSN_MARKER;
+    insn->u.marker.value = value;
 
     inter->instructionIndex++;
 }
@@ -487,7 +491,7 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                 add_write(inter, X86_WRITE_8 + insn->type - IR_WRITE_8, allocateRegister(inter, insn->u.write_context.src), insn->u.write_context.offset);
                 break;
             case IR_INSN_MARKER:
-                add_insn_start_marker(inter);
+                add_insn_start_marker(inter, insn->u.marker.value);
                 break;
             default:
                 assert(0);
@@ -1402,19 +1406,19 @@ static int generateCode(struct inter *inter, char *buffer)
     return pos - buffer;
 }
 
-static int findInsnInCode(struct inter *inter, char *buffer, int offset)
+static uint32_t findInsnInCode(struct inter *inter, char *buffer, int offset)
 {
     int i;
     struct x86Instruction *insn = (struct x86Instruction *) inter->instructionPoolAllocator.buffer;
     char *pos = buffer;
     uint64_t mask;
-    int insn_nb = -1;
+    uint32_t res = ~0;
 
     for (i = 0; i < inter->instructionIndex; ++i, insn++)
     {
         switch(insn->type) {
             case X86_INSN_MARKER:
-                insn_nb++;
+                res = insn->u.marker.value;
                 break;
             case X86_MOV_CONST:
                 pos = gen_mov_const(pos, insn);
@@ -1493,7 +1497,7 @@ static int findInsnInCode(struct inter *inter, char *buffer, int offset)
             break;
     }
 
-    return insn_nb;
+    return res;
 }
 
 static void request_signal_alternate_exit(struct backend *backend, void *_ucp, uint64_t result)
@@ -1543,7 +1547,7 @@ static int jit(struct backend *backend, struct irInstruction *irArray, int irIns
     return res;
 }
 
-static int find_insn(struct backend *backend, struct irInstruction *irArray, int irInsnNb, char *buffer, int bufferSize, int offset)
+static uint32_t get_marker(struct backend *backend, struct irInstruction *irArray, int irInsnNb, char *buffer, int bufferSize, int offset)
 {
     struct inter *inter = container_of(backend, struct inter, backend);
     int res;
@@ -1585,7 +1589,7 @@ struct backend *createX86_64Backend(void *memory, int size)
         inter->backend.jit = jit;
         inter->backend.execute = execute_be_x86_64;
         inter->backend.request_signal_alternate_exit = request_signal_alternate_exit;
-        inter->backend.find_insn = find_insn;
+        inter->backend.get_marker = get_marker;
         inter->backend.patch = patch;
         inter->backend.reset = reset;
         inter->registerPoolAllocator.alloc = memoryPoolAlloc;

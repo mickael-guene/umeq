@@ -137,19 +137,10 @@ struct sigaction_arm {
     uint32_t sa_mask[0];
 } __attribute__ ((packed));
 
-struct umeq_signal_handler_arm {
-    struct sigaction_arm guest;
-    uint32_t is_fdpic;
-};
-
-struct umeq_arm_signal_param {
+struct host_signal_info {
     siginfo_t *siginfo;
-    struct umeq_signal_handler_arm handler;
-};
-
-struct fdpic_funcdesc {
-    uint32_t fct;
-    uint32_t got;
+    void *context;
+    int is_sigaction_handler;
 };
 
 #endif

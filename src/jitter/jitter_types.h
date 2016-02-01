@@ -139,6 +139,9 @@ struct irInstruction {
             struct irRegister *src;
             int32_t offset;
         } write_context;
+        struct {
+            uint32_t value;
+        } marker;
     } u;
 };
 

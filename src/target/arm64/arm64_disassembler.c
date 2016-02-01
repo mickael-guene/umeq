@@ -4431,11 +4431,13 @@ void disassemble_arm64_with_marker(struct arm64_target *context, struct irInstru
     int i;
     int isExit; //unconditionnal exit
     uint32_t *pc_ptr = (uint32_t *) g_2_h(pc);
+    uint32_t pc_offset = 0;
 
     assert((pc & 3) == 0);
     for(i = 0; i < (context->regs.is_stepin?1:maxInsn); i++) {
         context->pc = h_2_g(pc_ptr);
-        ir->add_insn_marker(ir);
+        ir->add_insn_marker(ir, pc_offset);
+        pc_offset += 4;
         isExit = disassemble_insn(context, *pc_ptr, ir);
         pc_ptr++;
         if (!isExit)

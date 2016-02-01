@@ -86,6 +86,7 @@ struct arm_registers {
     } e;
     float_status fp_status;
     float_status fp_status_simd;
+    uint32_t helper_pc;
 };
 
 struct arm_target {
@@ -98,9 +99,16 @@ struct arm_target {
     uint64_t exclusive_value;
     uint32_t disa_itstate;
     uint32_t is_in_signal;
+    int32_t in_signal_location;
     uint32_t trigger_exec;
-    struct fdpic_info_32 fdpic_info;
     struct backend *backend;
+    /* stuff need to support guest context change during signal handler */
+    struct sigframe_arm *frame;
+    void *param;
+    struct arm_target *prev_context;
+    uint32_t sas_ss_sp;
+    uint32_t sas_ss_size;
+    int start_on_sig_stack;
 };
 
 /* globals */
@@ -110,6 +118,11 @@ extern void disassemble_arm(struct target *target, struct irInstructionAllocator
 extern void disassemble_thumb(struct target *target, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);
 extern void arm_setup_brk(void);
 extern void arm_load_image(int argc, char **argv, void **additionnal_env, void **unset_env, void *target_argv0, uint64_t *entry, uint64_t *stack);
+extern void disassemble_arm_with_marker(struct arm_target *context, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);
+extern void disassemble_thumb_with_marker(struct arm_target *context, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);
+extern int on_sig_stack(struct arm_target *context, uint32_t sp);
+extern int is_out_of_signal_stack(struct arm_target *context);
+extern uint32_t sigsp(struct arm_target *prev_context, uint32_t signum);
 
 #endif
 

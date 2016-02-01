@@ -364,23 +364,6 @@ int arm_ptrace(struct arm_target *context)
         case 29:/* PTRACE_GETHBPREGS */
             res = -EIO;
             break;
-        case PTRACE_GETFDPIC:
-            {
-                struct arm_target *arm_target_tracee;
-                struct user_regs_struct user_regs;
-                unsigned long data_long;
-                void *addr_tracee;
-
-                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
-                arm_target_tracee = container_of((void *)data_long, struct arm_target, regs);
-                if (addr == PTRACE_GETFDPIC_INTERP)
-                    addr_tracee = &arm_target_tracee->fdpic_info.dl_addr;
-                else
-                    addr_tracee = &arm_target_tracee->fdpic_info.executable_addr;
-                res = read_32(pid, g_2_h(data), addr_tracee);
-            }
-            break;
         case 0x4206: /* PTRACE_SEIZE */
             /* we don't support SEIZE */
             res = -EIO;

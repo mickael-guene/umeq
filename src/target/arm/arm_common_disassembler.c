@@ -93,7 +93,7 @@ static struct irRegister *read_fpscr(struct arm_target *context, struct irInstru
     params[2] = NULL;
     params[3] = NULL;
 
-    return ir->add_call_32(ir, "hlp_read_fpscr",
+    return mk_call_32(context, ir, "hlp_read_fpscr",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_read_fpscr),
                         params);
 }
@@ -107,7 +107,7 @@ static void write_fpscr(struct arm_target *context, struct irInstructionAllocato
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_write_fpscr",
+    mk_call_void(context, ir, "hlp_write_fpscr",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_write_fpscr),
                         params);
 }
@@ -122,7 +122,7 @@ static int dis_common_vldm(struct arm_target *context, uint32_t insn, struct irI
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_arm_vldm",
+    mk_call_void(context, ir, "hlp_arm_vldm",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_arm_vldm),
                         params);
 
@@ -138,7 +138,7 @@ static int dis_common_vstm(struct arm_target *context, uint32_t insn, struct irI
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_arm_vstm",
+    mk_call_void(context, ir, "hlp_arm_vstm",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_arm_vstm),
                         params);
 
@@ -618,7 +618,7 @@ static int dis_common_adv_simd_three_different_length_hlp(struct arm_target *con
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_common_adv_simd_three_different_length",
+    mk_call_void(context, ir, "hlp_common_adv_simd_three_different_length",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_three_different_length),
                         params);
 
@@ -634,7 +634,7 @@ static int dis_common_adv_simd_three_same_length_hlp(struct arm_target *context,
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_common_adv_simd_three_same_length",
+    mk_call_void(context, ir, "hlp_common_adv_simd_three_same_length",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_three_same_length),
                         params);
 
@@ -650,7 +650,7 @@ static int dis_common_adv_simd_two_regs_misc_hlp(struct arm_target *context, uin
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_common_adv_simd_two_regs_misc",
+    mk_call_void(context, ir, "hlp_common_adv_simd_two_regs_misc",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_two_regs_misc),
                         params);
 
@@ -693,7 +693,7 @@ static int dis_common_adv_simd_vdup_arm_insn(struct arm_target *context, uint32_
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_common_adv_simd_vdup_arm",
+    mk_call_void(context, ir, "hlp_common_adv_simd_vdup_arm",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_vdup_arm),
                         params);
 
@@ -709,7 +709,7 @@ static int dis_common_adv_simd_vmov_from_arm_insn(struct arm_target *context, ui
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_common_adv_simd_vmov_from_arm",
+    mk_call_void(context, ir, "hlp_common_adv_simd_vmov_from_arm",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_vmov_from_arm),
                         params);
 
@@ -786,7 +786,7 @@ static int mk_common_vfp_data_processing_insn(struct arm_target *context, uint32
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_common_vfp_data_processing_insn",
+    mk_call_void(context, ir, "hlp_common_vfp_data_processing_insn",
                            ir->add_mov_const_64(ir, (uint64_t) hlp_common_vfp_data_processing_insn),
                            params);
 
@@ -882,7 +882,7 @@ static int dis_common_adv_simd_two_regs_and_scalar_insn(struct arm_target *conte
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_common_adv_simd_two_regs_and_scalar",
+    mk_call_void(context, ir, "hlp_common_adv_simd_two_regs_and_scalar",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_two_regs_and_scalar),
                         params);
 
@@ -961,7 +961,7 @@ static int dis_common_adv_simd_vdup_scalar_insn(struct arm_target *context, uint
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_common_adv_simd_vdup_scalar",
+    mk_call_void(context, ir, "hlp_common_adv_simd_vdup_scalar",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_vdup_scalar),
                         params);
 
@@ -977,7 +977,7 @@ static int dis_common_adv_simd_vtbl_vtbx_insn(struct arm_target *context, uint32
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_common_adv_simd_vtbl_vtbx",
+    mk_call_void(context, ir, "hlp_common_adv_simd_vtbl_vtbx",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_vtbl_vtbx),
                         params);
 
@@ -1006,7 +1006,7 @@ static int dis_common_adv_simd_vext_insn(struct arm_target *context, uint32_t in
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_common_adv_simd_vext",
+    mk_call_void(context, ir, "hlp_common_adv_simd_vext",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_vext),
                         params);
 
@@ -1049,7 +1049,7 @@ static int dis_common_adv_simd_two_regs_and_shift_insn(struct arm_target *contex
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_common_adv_simd_two_regs_and_shift",
+    mk_call_void(context, ir, "hlp_common_adv_simd_two_regs_and_shift",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_two_regs_and_shift),
                         params);
 
@@ -1108,7 +1108,7 @@ static int dis_common_adv_simd_element_or_structure_load_store_insn(struct arm_t
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "hlp_common_adv_simd_element_or_structure_load_store",
+    mk_call_void(context, ir, "hlp_common_adv_simd_element_or_structure_load_store",
                         ir->add_mov_const_64(ir, (uint64_t) hlp_common_adv_simd_element_or_structure_load_store),
                         params);
 

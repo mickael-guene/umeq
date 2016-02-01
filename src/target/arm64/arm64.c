@@ -123,7 +123,7 @@ static void setup_siginfo(uint32_t signum, siginfo_t *siginfo, struct siginfo_ar
     }
 }
 
-static int find_insn_nb(uint64_t guest_pc, int offset)
+static uint32_t find_insn_offset(uint64_t guest_pc, int offset)
 {
     struct backend *backend;
     jitContext handle;
@@ -167,7 +167,7 @@ static uint64_t restore_precise_pc(struct arm64_target *prev_context, ucontext_t
         struct cache *cache;
         void *jit_host_start_pc;
         uint64_t jit_guest_start_pc;
-        int insn_nb;
+        uint32_t insn_offset;
 
         *in_signal_location = SIGNAL_LOCATION_JITTER_EXEC;
         syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
@@ -175,9 +175,10 @@ static uint64_t restore_precise_pc(struct arm64_target *prev_context, ucontext_t
 
         jit_guest_start_pc = cache->lookup_pc(cache, host_pc_signal, &jit_host_start_pc);
         assert(jit_guest_start_pc != 0);
-        insn_nb = find_insn_nb(jit_guest_start_pc, host_pc_signal - jit_host_start_pc);
+        insn_offset = find_insn_offset(jit_guest_start_pc, host_pc_signal - jit_host_start_pc);
+        assert(insn_offset != ~0);
 
-        res = prev_context->regs.pc + 4 * insn_nb;
+        res = prev_context->regs.pc + insn_offset;
     }
 
     return res;

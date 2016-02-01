@@ -127,7 +127,7 @@ struct irInstructionAllocator {
     void (*add_write_context_16)(struct irInstructionAllocator *, struct irRegister *src, int32_t offset);
     void (*add_write_context_32)(struct irInstructionAllocator *, struct irRegister *src, int32_t offset);
     void (*add_write_context_64)(struct irInstructionAllocator *, struct irRegister *src, int32_t offset);
-    void (*add_insn_marker)(struct irInstructionAllocator *);
+    void (*add_insn_marker)(struct irInstructionAllocator *, uint32_t value);
 };
 
 struct backend_execute_result {
@@ -140,7 +140,7 @@ struct backend {
     void (*reset)(struct backend *backend);
     struct backend_execute_result (*execute)(struct backend *backend, char *buffer, uint64_t context);
     void (*request_signal_alternate_exit)(struct backend *backend, void *ucp, uint64_t result);
-    int (*find_insn)(struct backend *backend, struct irInstruction *irArray, int irInsnNb, char *buffer, int bufferSize, int offset);
+    uint32_t (*get_marker)(struct backend *backend, struct irInstruction *irArray, int irInsnNb, char *buffer, int bufferSize, int offset);
     void (*patch)(struct backend *backend, void *link_patch_area, void *cache_area);
 };
 
@@ -157,7 +157,7 @@ struct irInstructionAllocator *getIrInstructionAllocator(jitContext);
 void displayIr(jitContext handle);
 /* Translate ir instruction sequence into buffer area using backend */
 int jitCode(jitContext handle, char *buffer, int bufferSize);
-/* Find guest insn number that is associated with byte located at buffer + offset */
+/* Find guest insn address offset that is associated with byte located at buffer + offset */
 int findInsn(jitContext handle, char *buffer, int bufferSize, int offset);
 
 #endif

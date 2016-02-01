@@ -87,26 +87,6 @@ static uint32_t ThumbExpandimm_C_imm32(uint32_t imm12)
 }
 
 /* sequence shortcut */
-static void dump_state(struct arm_target *context, struct irInstructionAllocator *ir)
-{
-#if DUMP_STATE
-    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
-
-    ir->add_call_void(ir, "arm_hlp_dump",
-                      ir->add_mov_const_64(ir, (uint64_t) arm_hlp_dump),
-                      param);
-#endif
-}
-
-/*static void dump_state_and_assert(struct arm_target *context, struct irInstructionAllocator *ir)
-{
-    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
-
-    ir->add_call_void(ir, "arm_hlp_dump_and_assert",
-                      ir->add_mov_const_64(ir, (uint64_t) arm_hlp_dump_and_assert),
-                      param);
-}*/
-
 static struct irRegister *mk_8(struct irInstructionAllocator *ir, uint8_t value)
 {
     return ir->add_mov_const_8(ir, value);
@@ -123,6 +103,56 @@ static struct irRegister *mk_64(struct irInstructionAllocator *ir, uint64_t valu
 {
     return ir->add_mov_const_64(ir, value);
 }
+
+static void mk_call_void(struct arm_target *context, struct irInstructionAllocator *ir, char *name, struct irRegister *address, struct irRegister **params)
+{
+    ir->add_write_context_32(ir, mk_32(ir, context->pc), offsetof(struct arm_registers, helper_pc));
+    ir->add_call_void(ir, name, address, params);
+    ir->add_write_context_32(ir, mk_32(ir, 0), offsetof(struct arm_registers, helper_pc));
+}
+
+static struct irRegister *mk_call_32(struct arm_target *context, struct irInstructionAllocator *ir, char *name, struct irRegister *address, struct irRegister **params)
+{
+    struct irRegister *res;
+
+    ir->add_write_context_32(ir, mk_32(ir, context->pc), offsetof(struct arm_registers, helper_pc));
+    res = ir->add_call_32(ir, name, address, params);
+    ir->add_write_context_32(ir, mk_32(ir, 0), offsetof(struct arm_registers, helper_pc));
+
+    return res;
+}
+
+static struct irRegister *mk_call_64(struct arm_target *context, struct irInstructionAllocator *ir, char *name, struct irRegister *address, struct irRegister **params)
+{
+    struct irRegister *res;
+
+    ir->add_write_context_32(ir, mk_32(ir, context->pc), offsetof(struct arm_registers, helper_pc));
+    res = ir->add_call_64(ir, name, address, params);
+    ir->add_write_context_32(ir, mk_32(ir, 0), offsetof(struct arm_registers, helper_pc));
+
+    return res;
+}
+
+static void dump_state(struct arm_target *context, struct irInstructionAllocator *ir)
+{
+#if DUMP_STATE
+    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+
+    mk_call_void(context, ir, "arm_hlp_dump",
+                      ir->add_mov_const_64(ir, (uint64_t) arm_hlp_dump),
+                      param);
+#endif
+}
+
+/*static void dump_state_and_assert(struct arm_target *context, struct irInstructionAllocator *ir)
+{
+    struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
+
+    mk_call_void(context, ir, "arm_hlp_dump_and_assert",
+                      ir->add_mov_const_64(ir, (uint64_t) arm_hlp_dump_and_assert),
+                      param);
+}*/
+
 
 static struct irRegister *read_reg(struct arm_target *context, struct irInstructionAllocator *ir, int index)
 {
@@ -223,7 +253,7 @@ static struct irRegister *mk_sco(struct arm_target *context, struct irInstructio
     params[2] = shift_op;
     params[3] = read_cpsr(context, ir);
 
-    return ir->add_call_32(ir, "arm_hlp_compute_sco",
+    return mk_call_32(context, ir, "arm_hlp_compute_sco",
                                ir->add_mov_const_64(ir, (uint64_t) arm_hlp_compute_sco),
                                params);
 }
@@ -238,7 +268,7 @@ static struct irRegister *mk_sco_t2(struct arm_target *context, struct irInstruc
     params[2] = shift_op;
     params[3] = read_cpsr(context, ir);
 
-    return ir->add_call_32(ir, "thumb_t2_hlp_compute_sco",
+    return mk_call_32(context, ir, "thumb_t2_hlp_compute_sco",
                                ir->add_mov_const_64(ir, (uint64_t) thumb_t2_hlp_compute_sco),
                                params);
 }
@@ -282,7 +312,7 @@ static int mk_data_processing_modified(struct arm_target *context, struct irInst
         params[2] = op2;
         params[3] = read_cpsr(context, ir);
 
-        nextCpsr = ir->add_call_32(ir, "thumb_hlp_t2_modified_compute_next_flags",
+        nextCpsr = mk_call_32(context, ir, "thumb_hlp_t2_modified_compute_next_flags",
                                    ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_t2_modified_compute_next_flags),
                                    params);
     }
@@ -455,7 +485,7 @@ static int mk_t1_add_sub_immediate(struct arm_target *context, uint32_t insn, st
         params[2] = mk_32(ir, imm32);
         params[3] = read_cpsr(context, ir);
 
-        nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags",
+        nextCpsr = mk_call_32(context, ir, "thumb_hlp_compute_next_flags",
                                    ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags),
                                    params);
     }
@@ -476,7 +506,7 @@ static struct irRegister *mk_mul_u_lsb(struct arm_target *context, struct irInst
 {
     struct irRegister *param[4] = {op1, op2, NULL, NULL};
 
-    return ir->add_call_32(ir, "arm_hlp_multiply_unsigned_lsb",
+    return mk_call_32(context, ir, "arm_hlp_multiply_unsigned_lsb",
                            ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_unsigned_lsb),
                            param);
 }
@@ -485,7 +515,7 @@ static struct irRegister *mk_mul_u_msb(struct arm_target *context, struct irInst
 {
     struct irRegister *param[4] = {op1, op2, NULL, NULL};
 
-    return ir->add_call_32(ir, "arm_hlp_multiply_unsigned_msb",
+    return mk_call_32(context, ir, "arm_hlp_multiply_unsigned_msb",
                            ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_unsigned_msb),
                            param);
 }
@@ -494,7 +524,7 @@ static struct irRegister *mk_mul_s_lsb(struct arm_target *context, struct irInst
 {
     struct irRegister *param[4] = {op1, op2, NULL, NULL};
 
-    return ir->add_call_32(ir, "arm_hlp_multiply_signed_lsb",
+    return mk_call_32(context, ir, "arm_hlp_multiply_signed_lsb",
                            ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_signed_lsb),
                            param);
 }
@@ -503,7 +533,7 @@ static struct irRegister *mk_mul_s_msb(struct arm_target *context, struct irInst
 {
     struct irRegister *param[4] = {op1, op2, NULL, NULL};
 
-    return ir->add_call_32(ir, "arm_hlp_multiply_signed_msb",
+    return mk_call_32(context, ir, "arm_hlp_multiply_signed_msb",
                            ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_signed_msb),
                            param);
 }
@@ -513,7 +543,7 @@ static struct irRegister *mk_mula_s_lsb(struct arm_target *context, struct irIns
 {
     struct irRegister *param[4] = {op1, op2, rdhi, rdlow};
 
-    return ir->add_call_32(ir, "arm_hlp_multiply_accumulate_signed_lsb",
+    return mk_call_32(context, ir, "arm_hlp_multiply_accumulate_signed_lsb",
                            ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_accumulate_signed_lsb),
                            param);
 }
@@ -523,7 +553,7 @@ static struct irRegister *mk_mula_s_msb(struct arm_target *context, struct irIns
 {
     struct irRegister *param[4] = {op1, op2, rdhi, rdlow};
 
-    return ir->add_call_32(ir, "arm_hlp_multiply_accumulate_signed_msb",
+    return mk_call_32(context, ir, "arm_hlp_multiply_accumulate_signed_msb",
                            ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_accumulate_signed_msb),
                            param);
 }
@@ -533,7 +563,7 @@ static struct irRegister *mk_mula_u_lsb(struct arm_target *context, struct irIns
 {
     struct irRegister *param[4] = {op1, op2, rdhi, rdlow};
 
-    return ir->add_call_32(ir, "arm_hlp_multiply_accumulate_unsigned_lsb",
+    return mk_call_32(context, ir, "arm_hlp_multiply_accumulate_unsigned_lsb",
                            ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_accumulate_unsigned_lsb),
                            param);
 }
@@ -543,16 +573,16 @@ static struct irRegister *mk_mula_u_msb(struct arm_target *context, struct irIns
 {
     struct irRegister *param[4] = {op1, op2, rdhi, rdlow};
 
-    return ir->add_call_32(ir, "arm_hlp_multiply_accumulate_unsigned_msb",
+    return mk_call_32(context, ir, "arm_hlp_multiply_accumulate_unsigned_msb",
                            ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_accumulate_unsigned_msb),
                            param);
 }
 
-static void mk_gdb_breakpoint_instruction(struct irInstructionAllocator *ir)
+static void mk_gdb_breakpoint_instruction(struct arm_target *context, struct irInstructionAllocator *ir)
 {
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
 
-    ir->add_call_32(ir, "arm_gdb_breakpoint_instruction",
+    mk_call_32(context, ir, "arm_gdb_breakpoint_instruction",
                         ir->add_mov_const_64(ir, (uint64_t) arm_gdb_breakpoint_instruction),
                         param);
 }
@@ -579,7 +609,7 @@ static int dis_t2_b_t3(struct arm_target *context, uint32_t insn, struct irInstr
         params[2] = NULL;
         params[3] = NULL;
 
-        pred = ir->add_call_32(ir, "arm_hlp_compute_flags_pred",
+        pred = mk_call_32(context, ir, "arm_hlp_compute_flags_pred",
                                mk_64(ir, (uint64_t) arm_hlp_compute_flags_pred),
                                params);
         write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc + 4));
@@ -752,7 +782,7 @@ static int dis_t1_mov_immediate(struct arm_target *context, uint32_t insn, struc
         params[2] = mk_32(ir, imm32);
         params[3] = read_cpsr(context, ir);
 
-        nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags",
+        nextCpsr = mk_call_32(context, ir, "thumb_hlp_compute_next_flags",
                                    ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags),
                                    params);
     }
@@ -782,7 +812,7 @@ static int dis_t1_cmp_immediate(struct arm_target *context, uint32_t insn, struc
         params[2] = mk_32(ir, imm32);
         params[3] = read_cpsr(context, ir);
 
-        nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags",
+        nextCpsr = mk_call_32(context, ir, "thumb_hlp_compute_next_flags",
                                    ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags),
                                    params);
     }
@@ -855,7 +885,7 @@ static int dis_t1_lsl_immediate(struct arm_target *context, uint32_t insn, struc
         params[2] = result;
         params[3] = read_cpsr(context, ir);
 
-        nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags",
+        nextCpsr = mk_call_32(context, ir, "thumb_hlp_compute_next_flags",
                                    ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags),
                                    params);
     }
@@ -899,7 +929,7 @@ static int dis_t1_lsr_immediate(struct arm_target *context, uint32_t insn, struc
         params[2] = result;
         params[3] = read_cpsr(context, ir);
 
-        nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags",
+        nextCpsr = mk_call_32(context, ir, "thumb_hlp_compute_next_flags",
                                    ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags),
                                    params);
     }
@@ -943,7 +973,7 @@ static int dis_t1_asr_immediate(struct arm_target *context, uint32_t insn, struc
         params[2] = result;
         params[3] = read_cpsr(context, ir);
 
-        nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags",
+        nextCpsr = mk_call_32(context, ir, "thumb_hlp_compute_next_flags",
                                    ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags),
                                    params);
     }
@@ -976,7 +1006,7 @@ static int dis_t1_add_register(struct arm_target *context, uint32_t insn, struct
         params[2] = read_reg(context, ir, rm);
         params[3] = read_cpsr(context, ir);
 
-        nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags",
+        nextCpsr = mk_call_32(context, ir, "thumb_hlp_compute_next_flags",
                                    ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags),
                                    params);
     }
@@ -1011,7 +1041,7 @@ static int dis_t1_sub_register(struct arm_target *context, uint32_t insn, struct
         params[2] = read_reg(context, ir, rm);
         params[3] = read_cpsr(context, ir);
 
-        nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags",
+        nextCpsr = mk_call_32(context, ir, "thumb_hlp_compute_next_flags",
                                    ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags),
                                    params);
     }
@@ -1093,7 +1123,7 @@ static int dis_t1_cmp_register_t2(struct arm_target *context, uint32_t insn, str
     params[2] = read_reg(context, ir, rm);
     params[3] = read_cpsr(context, ir);
 
-    nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags_data_processing",
+    nextCpsr = mk_call_32(context, ir, "thumb_hlp_compute_next_flags_data_processing",
                                ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags_data_processing),
                                params);
     write_cpsr(context, ir, nextCpsr);
@@ -1126,7 +1156,7 @@ static int dis_t1_svc(struct arm_target *context, uint32_t insn, struct irInstru
 
     /* be sure pc as the correct value so clone syscall can use pc value */
     write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc + 2));
-    ir->add_call_void(ir, "arm_hlp_syscall",
+    mk_call_void(context, ir, "arm_hlp_syscall",
                       ir->add_mov_const_64(ir, (uint64_t) arm_hlp_syscall),
                       param);
 
@@ -1177,7 +1207,7 @@ static int dis_t1_b_t1(struct arm_target *context, uint32_t insn, struct irInstr
         params[2] = NULL;
         params[3] = NULL;
 
-        pred = ir->add_call_32(ir, "arm_hlp_compute_flags_pred",
+        pred = mk_call_32(context, ir, "arm_hlp_compute_flags_pred",
                                mk_64(ir, (uint64_t) arm_hlp_compute_flags_pred),
                                params);
         write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc + 2));
@@ -1778,7 +1808,7 @@ static int dis_t2_data_processing_register_shift(struct arm_target *context, uin
         params[2] = result;
         params[3] = read_cpsr(context, ir);
 
-        nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags",
+        nextCpsr = mk_call_32(context, ir, "thumb_hlp_compute_next_flags",
                                    ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags),
                                    params);
     }
@@ -1850,7 +1880,7 @@ static int dis_t2_sel(struct arm_target *context, uint32_t insn, struct irInstru
     params[2] = read_reg(context, ir, rm);
     params[3] = NULL;
 
-    result = ir->add_call_32(ir, "arm_hlp_sel",
+    result = mk_call_32(context, ir, "arm_hlp_sel",
                              mk_64(ir, (uint64_t) arm_hlp_sel),
                              params);
 
@@ -1876,7 +1906,7 @@ static int dis_t2_clz(struct arm_target *context, uint32_t insn, struct irInstru
     params[2] = NULL;
     params[3] = NULL;
 
-    result = ir->add_call_32(ir, "arm_hlp_clz",
+    result = mk_call_32(context, ir, "arm_hlp_clz",
                              mk_64(ir, (uint64_t) arm_hlp_clz),
                              params);
 
@@ -2336,7 +2366,7 @@ static int dis_t1_data_processing(struct arm_target *context, uint32_t insn, str
         params[2] = op2;
         params[3] = read_cpsr(context, ir);
 
-        nextCpsr = ir->add_call_32(ir, "thumb_hlp_compute_next_flags_data_processing",
+        nextCpsr = mk_call_32(context, ir, "thumb_hlp_compute_next_flags_data_processing",
                                    ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_compute_next_flags_data_processing),
                                    params);
     }
@@ -2659,7 +2689,7 @@ static int dis_t32_t1_dsb(struct arm_target *context, uint32_t insn, struct irIn
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "arm_hlp_memory_barrier",
+    mk_call_void(context, ir, "arm_hlp_memory_barrier",
                            mk_64(ir, (uint64_t) arm_hlp_memory_barrier),
                            params);
 
@@ -2675,7 +2705,7 @@ static int dis_t1_dmb(struct arm_target *context, uint32_t insn, struct irInstru
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "arm_hlp_memory_barrier",
+    mk_call_void(context, ir, "arm_hlp_memory_barrier",
                            mk_64(ir, (uint64_t) arm_hlp_memory_barrier),
                            params);
 
@@ -2691,7 +2721,7 @@ static int dis_t32_t1_isb(struct arm_target *context, uint32_t insn, struct irIn
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "arm_hlp_memory_barrier",
+    mk_call_void(context, ir, "arm_hlp_memory_barrier",
                            mk_64(ir, (uint64_t) arm_hlp_memory_barrier),
                            params);
 
@@ -2716,7 +2746,7 @@ static int dis_t2_ldrexx(struct arm_target *context, uint32_t insn, struct irIns
     params[2] = NULL;
     params[3] = NULL;
 
-    result = ir->add_call_32(ir, "arm_hlp_ldrexx",
+    result = mk_call_32(context, ir, "arm_hlp_ldrexx",
                              mk_64(ir, (uint64_t) arm_hlp_ldrexx),
                              params);
 
@@ -2757,7 +2787,7 @@ static int dis_t2_ldrexd(struct arm_target *context, uint32_t insn, struct irIns
     params[2] = NULL;
     params[3] = NULL;
 
-    result = ir->add_call_64(ir, "arm_hlp_ldrexd",
+    result = mk_call_64(context, ir, "arm_hlp_ldrexd",
                              mk_64(ir, (uint64_t) arm_hlp_ldrexd),
                              params);
 
@@ -2786,7 +2816,7 @@ static int dis_t2_strexx(struct arm_target *context, uint32_t insn, struct irIns
     params[2] = read_reg(context, ir, rt);
     params[3] = NULL;
 
-    result = ir->add_call_32(ir, "arm_hlp_strexx",
+    result = mk_call_32(context, ir, "arm_hlp_strexx",
                              mk_64(ir, (uint64_t) arm_hlp_strexx),
                              params);
 
@@ -2829,7 +2859,7 @@ static int dis_t2_strexd(struct arm_target *context, uint32_t insn, struct irIns
     params[2] = read_reg(context, ir, rt2);
     params[3] = NULL;
 
-    result = ir->add_call_32(ir, "arm_hlp_strexd",
+    result = mk_call_32(context, ir, "arm_hlp_strexd",
                              mk_64(ir, (uint64_t) arm_hlp_strexd),
                              params);
 
@@ -3204,7 +3234,7 @@ static int dis_gdb_breakpoint(struct arm_target *context, uint32_t insn, struct 
     //set pc to correct location before sending sigill signal
     write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc));
     //will send a SIGILL signal
-    mk_gdb_breakpoint_instruction(ir);
+    mk_gdb_breakpoint_instruction(context, ir);
 
     //clean caches since code has been modify to remove/insert breakpoints
     cleanCaches(0,~0);
@@ -3223,7 +3253,7 @@ static int dis_t32_hlp_saturation(struct arm_target *context, uint32_t insn, str
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_32(ir, "t32_hlp_saturation",
+    mk_call_32(context, ir, "t32_hlp_saturation",
                         ir->add_mov_const_64(ir, (uint64_t) t32_hlp_saturation),
                         params);
 
@@ -3461,7 +3491,7 @@ static int disassemble_thumb1_insn(struct arm_target *context, uint32_t insn, st
         params[2] = NULL;
         params[3] = NULL;
 
-        pred = ir->add_call_32(ir, "arm_hlp_compute_flags_pred",
+        pred = mk_call_32(context, ir, "arm_hlp_compute_flags_pred",
                                mk_64(ir, (uint64_t) arm_hlp_compute_flags_pred),
                                params);
         write_itstate(context, ir, mk_32(ir, nextItState(context)));
@@ -3891,7 +3921,7 @@ static int dis_t2_signed_parallel(struct arm_target *context, uint32_t insn, str
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "thumb_hlp_t2_signed_parallel",
+    mk_call_void(context, ir, "thumb_hlp_t2_signed_parallel",
                            ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_t2_signed_parallel),
                            params);
 
@@ -3907,7 +3937,7 @@ static int dis_t2_unsigned_parallel(struct arm_target *context, uint32_t insn, s
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "thumb_hlp_t2_unsigned_parallel",
+    mk_call_void(context, ir, "thumb_hlp_t2_unsigned_parallel",
                            ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_t2_unsigned_parallel),
                            params);
 
@@ -3923,7 +3953,7 @@ static int dis_t2_misc_saturating(struct arm_target *context, uint32_t insn, str
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "thumb_hlp_t2_misc_saturating",
+    mk_call_void(context, ir, "thumb_hlp_t2_misc_saturating",
                            ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_t2_misc_saturating),
                            params);
 
@@ -4097,7 +4127,7 @@ static int dis_t2_mult_A_mult_acc_A_abs_diff(struct arm_target *context, uint32_
                 params[2] = NULL;
                 params[3] = NULL;
 
-                ir->add_call_void(ir, "thumb_hlp_t2_mult_A_mult_acc_A_abs_diff",
+                mk_call_void(context, ir, "thumb_hlp_t2_mult_A_mult_acc_A_abs_diff",
                                        ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_t2_mult_A_mult_acc_A_abs_diff),
                                        params);
 
@@ -4117,7 +4147,7 @@ static int mk_dis_t2_long_mult_A_long_mult_acc_A_div(struct arm_target *context,
     params[2] = NULL;
     params[3] = NULL;
 
-    ir->add_call_void(ir, "thumb_hlp_t2_long_mult_A_long_mult_acc_A_div",
+    mk_call_void(context, ir, "thumb_hlp_t2_long_mult_A_long_mult_acc_A_div",
                            ir->add_mov_const_64(ir, (uint64_t) thumb_hlp_t2_long_mult_A_long_mult_acc_A_div),
                            params);
 
@@ -4245,7 +4275,7 @@ static int disassemble_thumb2_insn(struct arm_target *context, uint32_t insn, st
         params[2] = NULL;
         params[3] = NULL;
 
-        pred = ir->add_call_32(ir, "arm_hlp_compute_flags_pred",
+        pred = mk_call_32(context, ir, "arm_hlp_compute_flags_pred",
                                mk_64(ir, (uint64_t) arm_hlp_compute_flags_pred),
                                params);
         write_itstate(context, ir, mk_32(ir, nextItState(context)));
@@ -4326,7 +4356,6 @@ void disassemble_thumb(struct target *target, struct irInstructionAllocator *ir,
         int inIt = inItBlock(context);
 
         context->pc = h_2_g(pc_ptr) + 1;
-        write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc));
         if ((*pc_ptr >> 11) == 0x1d || (*pc_ptr >> 11) == 0x1e || (*pc_ptr >> 11) == 0x1f) {
             //fprintf(stderr, "0x%lx => insn = 0x%04x%04x\n", pc, *pc_ptr, *(pc_ptr+1));
             isExit = disassemble_thumb2_insn(context, (*pc_ptr << 16) | (*(pc_ptr+1)), ir);
@@ -4334,6 +4363,43 @@ void disassemble_thumb(struct target *target, struct irInstructionAllocator *ir,
         } else {
             //fprintf(stderr, "0x%lx => insn = 0x%04x\n", pc, *pc_ptr);
             isExit = disassemble_thumb1_insn(context, *pc_ptr++, ir);
+        }
+        dump_state(context, ir);
+        if (inIt)
+            itAdvance(context);
+        if (isExit)
+            break;
+    }
+    if (!isExit) {
+        context->pc = h_2_g(pc_ptr) + 1;
+        write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc));
+        ir->add_exit(ir, ir->add_mov_const_64(ir, context->pc));
+    }
+}
+
+void disassemble_thumb_with_marker(struct arm_target *context, struct irInstructionAllocator *ir, uint64_t pc, int maxInsn)
+{
+    int i;
+    int isExit = 0; //unconditionnal exit
+    uint16_t *pc_ptr = (uint16_t *) g_2_h(pc & ~1);
+    uint32_t pc_offset = 0;
+
+    assert((pc & 1) == 1);
+    context->disa_itstate = context->regs.reg_itstate;
+    for(i = 0; i < maxInsn; i++) {
+        int inIt = inItBlock(context);
+
+        context->pc = h_2_g(pc_ptr) + 1;
+        ir->add_insn_marker(ir, pc_offset);
+        if ((*pc_ptr >> 11) == 0x1d || (*pc_ptr >> 11) == 0x1e || (*pc_ptr >> 11) == 0x1f) {
+            //fprintf(stderr, "0x%lx => insn = 0x%04x%04x\n", pc, *pc_ptr, *(pc_ptr+1));
+            isExit = disassemble_thumb2_insn(context, (*pc_ptr << 16) | (*(pc_ptr+1)), ir);
+            pc_ptr += 2;
+            pc_offset += 4;
+        } else {
+            //fprintf(stderr, "0x%lx => insn = 0x%04x\n", pc, *pc_ptr);
+            isExit = disassemble_thumb1_insn(context, *pc_ptr++, ir);
+            pc_offset += 2;
         }
         dump_state(context, ir);
         if (inIt)

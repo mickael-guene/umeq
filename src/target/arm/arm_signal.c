@@ -35,10 +35,6 @@
 #define SA_RESTORER 0x04000000
 #define MINSTKSZ    2048
 
-extern int loop(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target);
-
-extern void wrap_signal_restorer(void);
-/* This is the sigaction structure from the Linux 2.1.68 kernel.  */
 struct kernel_sigaction {
     __sighandler_t k_sa_handler;
     unsigned long sa_flags;
@@ -46,41 +42,27 @@ struct kernel_sigaction {
     sigset_t sa_mask;
 };
 
+/* FIXME: this need to be in an include file */
+extern int loop(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target);
+extern void wrap_signal_restorer(void);
+
 /* global array to hold guest signal handlers. not translated */
-static struct umeq_signal_handler_arm handlers[NSIG];
-static stack_t_arm ss = {0, SS_DISABLE, 0};
+static uint32_t guest_signals_handler[NSIG];
+static uint32_t sa_flags[NSIG];
 
 /* signal wrapper functions */
-void wrap_signal_handler(int signum)
+void wrap_signal_handler(int signum, siginfo_t *siginfo, void *context)
 {
-    uint32_t sa_flags = handlers[signum].guest.sa_flags;
-    uint64_t stack_entry = (sa_flags&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
-    struct umeq_arm_signal_param param;
+    struct host_signal_info signal_info = {siginfo, context, 0};
 
-    param.siginfo = NULL;
-    param.handler = handlers[signum];
-    if (handlers[signum].is_fdpic) {
-        struct fdpic_funcdesc *funcdesc = (struct fdpic_funcdesc *) g_2_h(handlers[signum].guest._sa_handler);
-
-        loop(funcdesc->fct, stack_entry, signum, &param);
-    } else
-        loop(handlers[signum].guest._sa_handler, stack_entry, signum, &param);
+    loop(guest_signals_handler[signum], 0, signum, (void *)&signal_info);
 }
 
 void wrap_signal_sigaction(int signum, siginfo_t *siginfo, void *context)
 {
-    uint32_t sa_flags = handlers[signum].guest.sa_flags;
-    uint64_t stack_entry = (sa_flags&SA_ONSTACK)?(ss.ss_flags?0:ss.ss_sp + ss.ss_size):0;
-    struct umeq_arm_signal_param param;
+    struct host_signal_info signal_info = {siginfo, context, 1};
 
-    param.siginfo = siginfo;
-    param.handler = handlers[signum];
-    if (handlers[signum].is_fdpic) {
-        struct fdpic_funcdesc *funcdesc = (struct fdpic_funcdesc *) g_2_h(handlers[signum].guest._sa_handler);
-
-        loop(funcdesc->fct, stack_entry, signum, &param);
-    } else
-        loop(handlers[signum].guest._sa_handler, stack_entry, signum, &param);
+    loop(guest_signals_handler[signum], 0, signum, (void *)&signal_info);
 }
 
 /* signal syscall handling */
@@ -94,7 +76,7 @@ int arm_rt_sigaction(struct arm_target *context)
     int signum = (int) signum_p;
     struct sigaction_arm *act_guest = (struct sigaction_arm *) g_2_h(act_p);
     struct sigaction_arm *oldact_guest = (struct sigaction_arm *) g_2_h(oldact_p);
-    size_t sigsetsize = (size_t) sigsetsize_p;
+    size_t sigset_size = (size_t) sigsetsize_p;
     struct kernel_sigaction act;
     struct kernel_sigaction oldact;
 
@@ -106,66 +88,134 @@ int arm_rt_sigaction(struct arm_target *context)
         memset(&act, 0, sizeof(act));
         memset(&oldact, 0, sizeof(oldact));
         //translate structure
-        if (oldact_p) {
-            *oldact_guest = handlers[signum].guest;
-        }
         if (act_p) {
-            handlers[signum].guest = *act_guest;
-            handlers[signum].is_fdpic = context->fdpic_info.is_fdpic;
-            /* now handle host handler to setup */
             if (act_guest->_sa_handler == (uint32_t)(uint64_t)SIG_ERR ||
                 act_guest->_sa_handler == (uint32_t)(uint64_t)SIG_DFL ||
                 act_guest->_sa_handler == (uint32_t)(uint64_t)SIG_IGN) {
                 act.k_sa_handler = (__sighandler_t)(long) act_guest->_sa_handler;
                 act.sa_mask.__val[0] = act_guest->sa_mask[0];
             } else {
-                act.k_sa_handler = (act_guest->sa_flags & SA_SIGINFO)?(__sighandler_t)&wrap_signal_sigaction:&wrap_signal_handler;
+                act.k_sa_handler = (act_guest->sa_flags & SA_SIGINFO)?(__sighandler_t)&wrap_signal_sigaction:(__sighandler_t)&wrap_signal_handler;
                 act.sa_mask.__val[0] = act_guest->sa_mask[0];
-                act.sa_flags = act_guest->sa_flags | SA_RESTORER;
+                act.sa_flags = act_guest->sa_flags | SA_RESTORER | SA_SIGINFO;
                 act.sa_restorer = &wrap_signal_restorer;
             }
         }
 
-        /* now register handler */
-        res = syscall(SYS_rt_sigaction, signum, act_p?&act:NULL, oldact_p?&oldact:NULL, sigsetsize);
         if (oldact_p) {
+            oldact_guest->_sa_handler = guest_signals_handler[signum];
+        }
+
+        //QUESTION : since setting guest handler and host handler is not atomic here is a problem ?
+        //           if yes then this syscall must be redirecting towards proot (but is all threads stopped
+        //            when we are ptracing a process ?)
+        //setup guest syscall handler
+        if (act_p) {
+            sa_flags[signum] = act_guest->sa_flags;
+            guest_signals_handler[signum] = act_guest->_sa_handler;
+        }
+
+        res = syscall(SYS_rt_sigaction, signum, act_p?&act:NULL, oldact_p?&oldact:NULL, sigset_size);
+
+        if (oldact_p) {
+            //TODO : add guest restorer support
+            oldact_guest->sa_flags = sa_flags[signum];
             oldact_guest->sa_mask[0] = oldact.sa_mask.__val[0];
+            oldact_guest->sa_restorer = (long)NULL;
         }
     }
 
     return res;
 }
 
+static uint32_t sas_ss_flags(struct arm_target *context, uint32_t sp)
+{
+    if (!context->sas_ss_size)
+        return SS_DISABLE;
+    return on_sig_stack(context, sp)?SS_ONSTACK:0;
+}
+
+int on_sig_stack(struct arm_target *context, uint32_t sp)
+{
+    return (sp > context->sas_ss_sp) && (sp - context->sas_ss_sp <= context->sas_ss_size);
+}
+
+uint32_t sigsp(struct arm_target *prev_context, uint32_t signum)
+{
+    if ((sa_flags[signum] & SA_ONSTACK) && !sas_ss_flags(prev_context, prev_context->regs.r[13]))
+        return prev_context->sas_ss_sp + prev_context->sas_ss_size;
+
+    return prev_context->regs.r[13];
+}
+
+/* Try to detect that sp has leaving the original stack. This indicates that
+   we must leave signal context. This case can occur in three different context as far as I know:
+   - from calling siglongjmp() inside signal handler
+   - from throwing exception inside signal handler
+   - during pthread cancellation (custom signal + unwinding in signal frame)
+*/
+int is_out_of_signal_stack(struct arm_target *context)
+{
+    assert(context->prev_context);
+    if (!context->start_on_sig_stack) {
+        /* signal context didn't start on stack. just check sp with previous context */
+        return context->regs.r[13] >= context->prev_context->regs.r[13];
+    } else {
+        if (context->prev_context->start_on_sig_stack) {
+            /* prev context was already running on stack. In that case we are out of stack
+               either when current is not running on stack or when sp is above previous one */
+            return context->regs.r[13] >= context->prev_context->regs.r[13] ||
+                   !on_sig_stack(context, context->regs.r[13]);
+        } else {
+            /* prev context was not running on stack. so just check if we are currently
+               running on stack or not  */
+            return !on_sig_stack(context, context->regs.r[13]);
+        }
+    }
+
+    fatal("Should not be here\n");
+}
+
 int arm_sigaltstack(struct arm_target *context)
 {
     uint32_t ss_p = context->regs.r[0];
     uint32_t oss_p = context->regs.r[1];
-    stack_t_arm *ss_arm = (stack_t_arm *) g_2_h(ss_p);
-    stack_t_arm *oss_arm = (stack_t_arm *) g_2_h(oss_p);
+    stack_t_arm *ss_guest = (stack_t_arm *) g_2_h(ss_p);
+    stack_t_arm *oss_guest = (stack_t_arm *) g_2_h(oss_p);
     int res = 0;
+    stack_t_arm oss;
 
-    if (oss_p) {
-        oss_arm->ss_sp = ss.ss_sp;
-        oss_arm->ss_flags = ss.ss_flags + (context->is_in_signal&2?SS_ONSTACK:0);
-        oss_arm->ss_size = ss.ss_size;
-    }
+    oss.ss_sp = context->sas_ss_sp;
+    oss.ss_size = context->sas_ss_size;
+    oss.ss_flags = sas_ss_flags(context, context->regs.r[13]);
+
     if (ss_p) {
-        if (ss_arm->ss_flags == 0) {
-            if (ss_arm->ss_size < MINSTKSZ) {
-                res = -ENOMEM;
-            } else if (context->is_in_signal&2) {
-                res = -EPERM;
-            } else {
-                ss.ss_sp = ss_arm->ss_sp;
-                ss.ss_flags = ss_arm->ss_flags;
-                ss.ss_size = ss_arm->ss_size;
-            }
-        } else if (ss_arm->ss_flags == SS_DISABLE) {
-            ss.ss_flags = ss_arm->ss_flags;
-        } else
-            res = -EINVAL;
-    }
+        uint32_t ss_sp = ss_guest->ss_sp;
+        uint32_t ss_flags = ss_guest->ss_flags;
+        uint32_t ss_size = ss_guest->ss_size;
 
+        res = -EPERM;
+        if (on_sig_stack(context, context->regs.r[13]))
+            goto out;
+        res = -EINVAL;
+        if (ss_flags != SS_DISABLE && ss_flags != SS_ONSTACK && ss_flags != 0)
+            goto out;
+        if (ss_flags == SS_DISABLE) {
+            ss_size = 0;
+            ss_sp = 0;
+        } else {
+            res = -ENOMEM;
+            if (ss_size < MINSIGSTKSZ)
+                goto out;
+        }
+        context->sas_ss_sp = ss_sp;
+        context->sas_ss_size = ss_size;
+    }
+    res = 0;
+    if (oss_p)
+        *oss_guest = oss;
+
+out:
     return res;
 }
 
