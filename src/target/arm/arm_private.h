@@ -75,6 +75,7 @@ struct arm_registers {
         2 : inside syscall exit sequence
     */
     uint32_t is_in_syscall;
+    unsigned long is_syscall_entry_show;
     uint32_t fpscr;
     union {
         uint64_t d[32];
@@ -100,7 +101,6 @@ struct arm_target {
     uint32_t disa_itstate;
     uint32_t is_in_signal;
     int32_t in_signal_location;
-    uint32_t trigger_exec;
     struct backend *backend;
     /* stuff need to support guest context change during signal handler */
     struct sigframe_arm *frame;
@@ -117,12 +117,16 @@ extern guest_ptr *arm_env_startup_pointer;
 extern void disassemble_arm(struct target *target, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);
 extern void disassemble_thumb(struct target *target, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);
 extern void arm_setup_brk(void);
+extern void ptrace_exec_event(struct arm_target *context);
+extern void ptrace_syscall_enter(struct arm_target *context);
+extern void ptrace_syscall_exit(struct arm_target *context);
 extern void arm_load_image(int argc, char **argv, void **additionnal_env, void **unset_env, void *target_argv0, uint64_t *entry, uint64_t *stack);
 extern void disassemble_arm_with_marker(struct arm_target *context, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);
 extern void disassemble_thumb_with_marker(struct arm_target *context, struct irInstructionAllocator *irAlloc, uint64_t pc, int maxInsn);
 extern int on_sig_stack(struct arm_target *context, uint32_t sp);
 extern int is_out_of_signal_stack(struct arm_target *context);
 extern uint32_t sigsp(struct arm_target *prev_context, uint32_t signum);
+
 
 #endif
 

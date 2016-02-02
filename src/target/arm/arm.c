@@ -353,7 +353,6 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->prev_context = prev_context;
         context->regs.is_in_syscall = 0;
         context->is_in_signal = 1;
-        context->trigger_exec = 0;
         context->regs.fp_status = prev_context->regs.fp_status;
         context->regs.fp_status_simd = prev_context->regs.fp_status_simd;
         context->sas_ss_sp = prev_context->sas_ss_sp;
@@ -376,7 +375,6 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->regs.is_in_syscall = 0;
         context->regs.fpscr = 0;
         context->is_in_signal = 0;
-        context->trigger_exec = 0;
         context->regs.fp_status = parent_context->regs.fp_status;
         context->regs.fp_status_simd = prev_context->regs.fp_status_simd;
         context->sas_ss_sp = 0;
@@ -395,7 +393,6 @@ static void init(struct target *target, struct target *prev_target, uint64_t ent
         context->disa_itstate = 0;
         context->is_in_signal = 0;
         context->regs.fpscr = 0;
-        context->trigger_exec = 1;
         set_float_detect_tininess(float_tininess_before_rounding, &context->regs.fp_status);
         set_float_rounding_mode(float_round_nearest_even, &context->regs.fp_status);
         set_float_exception_flags(0, &context->regs.fp_status);
@@ -454,16 +451,9 @@ static uint32_t isLooping_firstcall(struct target *target)
 {
     struct arm_target *context = container_of(target, struct arm_target, target);
 
-    if (context->trigger_exec) {
-        /* syscall execve exit sequence */
-         /* this will be translated into sysexec exit */
-        context->regs.is_in_syscall = 2;
-        syscall((long) 313, 1);
-         /* this will be translated into SIGTRAP */
-        context->regs.is_in_syscall = 0;
-        syscall((long) 313, 2);
-        context->trigger_exec = 0;
-    }
+    ptrace_exec_event(context);
+    /* avoid calling ptrace_exec_event for following isLooping call. */
+    /* this will save cycles in main loop */
     context->target.isLooping = isLooping;
 
     return context->isLooping;

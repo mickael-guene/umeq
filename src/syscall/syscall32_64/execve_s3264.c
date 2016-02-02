@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <assert.h>
 
+#include "umeq.h"
 #include "syscall32_64_types.h"
 #include "syscall32_64_private.h"
 
@@ -52,6 +53,9 @@ int execve_s3264(uint32_t filename_p,uint32_t argv_p,uint32_t envp_p)
     }
     ptr[index++] = NULL;
     envp = &ptr[index];
+    /* add internal umeq environment variable if process may be ptraced */
+    if (maybe_ptraced)
+        ptr[index++] = "__UMEQ_INTERNAL_MAYBE_PTRACED__=1";
     while(*envp_guest != 0) {
         ptr[index++] = (char *) g_2_h(*envp_guest);
         envp_guest = (uint32_t *) ((long)envp_guest + 4);

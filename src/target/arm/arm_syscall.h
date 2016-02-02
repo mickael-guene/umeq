@@ -45,6 +45,7 @@ extern int arm_shmat(struct arm_target *context);
 extern int arm_shmdt(struct arm_target *context);
 extern int arm_process_vm_readv(struct arm_target *context);
 extern int arm_rt_sigqueueinfo(struct arm_target *context);
+extern int arm_wait4(struct arm_target *context);
 
 #endif
 

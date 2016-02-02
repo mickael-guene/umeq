@@ -44,8 +44,7 @@ void arm_hlp_syscall(uint64_t regs)
     int res = -ENOSYS;
 
     /* syscall entry sequence */
-    context->regs.is_in_syscall = 1;
-    syscall((long) 313, 0);
+    ptrace_syscall_enter(context);
     /* translate syscall nb into neutral no */
     if (no == 0xf0005)
         no_neutral = PR_ARM_set_tls;
@@ -168,6 +167,9 @@ void arm_hlp_syscall(uint64_t regs)
                 res = syscall(SYS_truncate, (char *) g_2_h(context->regs.r[0]),
                                             (((uint64_t)context->regs.r[3] << 32) + (uint64_t)context->regs.r[2]));
                 break;
+            case PR_wait4:
+                res = arm_wait4(context);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }
@@ -181,8 +183,5 @@ void arm_hlp_syscall(uint64_t regs)
 
     context->regs.r[0] = res;
     /* syscall exit sequence */
-    context->regs.is_in_syscall = 2;
-    syscall((long) 313, 1);
-    /* no more in syscall */
-    context->regs.is_in_syscall = 0;
+    ptrace_syscall_exit(context);
 }
