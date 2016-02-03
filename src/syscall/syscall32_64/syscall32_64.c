@@ -744,6 +744,9 @@ int syscall32_64(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, 
         case PR_setxattr:
             res = syscall(SYS_setxattr, (char *) g_2_h(p0), (char *) g_2_h(p1), (void *) g_2_h(p2), (size_t) p3, (int) p4);
             break;
+        case PR_quotactl:
+            res = syscall(SYS_quotactl, (int) p0, IS_NULL(p1, char), (int) p2, (void *) g_2_h(p3));
+            break;
         default:
             fatal("syscall_32_to_64: unsupported neutral syscall %d\n", no);
     }

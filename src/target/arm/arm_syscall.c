@@ -170,6 +170,11 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_wait4:
                 res = arm_wait4(context);
                 break;
+            case PR_readahead:
+                res = syscall(SYS_readahead, (int) context->regs.r[0],
+                                             (((uint64_t)context->regs.r[3] << 32) + (uint64_t)context->regs.r[2]),
+                                             (size_t) context->regs.r[4]);
+                break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);
         }
