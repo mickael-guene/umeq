@@ -1,6 +1,6 @@
 /* This file is part of Umeq, an equivalent of qemu user mode emulation with improved robustness.
  *
- * Copyright (C) 2015 STMicroelectronics
+ * Copyright (C) 2016 STMicroelectronics
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -18,30 +18,20 @@
  * 02110-1301 USA.
  */
 
-#include <stdlib.h>
-#include <stdint.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifndef __TARGET32__
-#define __TARGET32__ 1
+#ifndef __SYSCALLS_NEUTRAL__
+#define __SYSCALLS_NEUTRAL__ 1
 
-typedef uint32_t guest_ptr;
+#include "sysnum.h"
 
-#ifdef __i386__
-#define g_2_h(ptr)  ((void *)(uint32_t)((ptr) + (mmap_offset)))
-#define h_2_g(ptr)  ((guest_ptr) (((uint32_t)(ptr)) - (mmap_offset)))
-#else
-#define g_2_h(ptr)  ((void *)(uint64_t)((ptr) + (mmap_offset)))
-#define h_2_g(ptr)  ((guest_ptr) (((uint64_t)(ptr)) - (mmap_offset)))
-#endif
+extern int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5);
+extern long syscall_adapter_guest64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, uint64_t p5);
 
-extern uint64_t mmap_offset;
-extern guest_ptr mmap_guest(guest_ptr addr, size_t length, int prot, int flags, int fd, off_t offset);
-extern int munmap_guest(guest_ptr addr, size_t length);
-extern void *munmap_guest_ongoing(guest_ptr addr, size_t length);
+extern int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5);
+extern long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, uint64_t p5);
 
 #endif
 

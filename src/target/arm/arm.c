@@ -135,7 +135,12 @@ static uint32_t find_insn_offset(uint32_t guest_pc, int offset)
 
     memset(&context, 0, sizeof(context));
 
+#ifdef __i386__
+    fatal("implement me\n");
+#else
     backend = createX86_64Backend(beX86_64Memory, 256 * KB);
+#endif
+
     handle = createJitter(jitterMemory, backend, 256 * KB);
     ir = getIrInstructionAllocator(handle);
 
@@ -152,7 +157,11 @@ static uint32_t restore_precise_pc(struct arm_target *prev_context, ucontext_t *
     uint32_t res = prev_context->regs.r[15];
 
     if (ucp) {
+#ifdef __i386__
+        void *host_pc_signal = (void *)ucp->uc_mcontext.gregs[REG_EIP];
+#else
         void *host_pc_signal = (void *)ucp->uc_mcontext.gregs[REG_RIP];
+#endif
         /* we can be in three distinct area :
         - in jitting area
         - in umeq helper function
@@ -173,9 +182,13 @@ static uint32_t restore_precise_pc(struct arm_target *prev_context, ucontext_t *
             uint32_t jit_guest_start_pc;
             uint32_t insn_offset;
 
+#ifdef __i386__
+            fatal("implement me\n");
+#else
             *in_signal_location = SIGNAL_LOCATION_JITTER_EXEC;
             syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
             cache = current_tls_context->cache;
+#endif
 
             jit_guest_start_pc = cache->lookup_pc(cache, host_pc_signal, &jit_host_start_pc);
             assert(jit_guest_start_pc != 0);

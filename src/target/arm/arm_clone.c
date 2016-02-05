@@ -30,6 +30,7 @@
 
 #include "arm_private.h"
 #include "arm_syscall.h"
+#include "runtime.h"
 #include "cache.h"
 #include "umeq.h"
 
@@ -54,7 +55,11 @@ void clone_thread_trampoline_arm()
     void *patch_address;
     int res;
 
+#ifdef __i386__
+    fatal("implement me\n");
+#else
     syscall(SYS_arch_prctl, ARCH_GET_FS, &new_thread_tls_context);
+#endif
     assert(new_thread_tls_context != NULL);
     stack = (void *) new_thread_tls_context - mmap_size[memory_profile] + sizeof(struct tls_context);
     parent_context = (void *) new_thread_tls_context - sizeof(struct arm_target);

@@ -40,6 +40,12 @@ void *auxv_end = NULL;
  #define HWCAP_VFPv3 (1 << 13)
 #endif
 
+#ifdef __i386__
+#define Elfhost_auxv_t  Elf32_auxv_t
+#else
+#define Elfhost_auxv_t  Elf64_auxv_t
+#endif
+
 static void map_vdso_version()
 {
     guest_ptr res;
@@ -97,7 +103,7 @@ static void compute_emulated_stack_space(int argc, char **argv, struct elf_loade
                                          void **unset_env, void *target_argv0, int *string_area_size, int *pointer_area_size)
 {
     void **pos = (void **) &argv[0];
-    Elf64_auxv_t *auxv;
+    Elfhost_auxv_t *auxv;
 
     *pointer_area_size = 0;
     *string_area_size = 0;
@@ -133,7 +139,7 @@ static void compute_emulated_stack_space(int argc, char **argv, struct elf_loade
     *pointer_area_size += sizeof(void *);
     pos++;
     /* auxv stuff */
-    auxv = (Elf64_auxv_t *) pos;
+    auxv = (Elfhost_auxv_t *) pos;
     while(auxv->a_type != AT_NULL) {
         switch(auxv->a_type) {
             case AT_RANDOM:
@@ -175,7 +181,7 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
     guest_ptr str_area;
     Elf32_auxv_t *auxv_target;
     void **pos = (void **) &argv[0];
-    Elf64_auxv_t *auxv;
+    Elfhost_auxv_t *auxv;
     int string_area_size;
     int pointer_area_size;
 
@@ -225,7 +231,7 @@ static guest_ptr populate_emulated_stack(guest_ptr stack, int argc, char **argv,
     *ptr_area++ = 0;
     pos++;
     /* auxv stuff */
-    auxv = (Elf64_auxv_t *) pos;
+    auxv = (Elfhost_auxv_t *) pos;
     auxv_target = (Elf32_auxv_t *) ptr_area;
     auxv_start = (void *) auxv_target;
     while(auxv->a_type != AT_NULL) {

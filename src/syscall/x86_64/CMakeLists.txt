@@ -1,0 +1,1 @@
+set(SRCS ${SRCS} x86_64/syscall_neutral_64.c x86_64/syscall_x86_64_stat.c PARENT_SCOPE)

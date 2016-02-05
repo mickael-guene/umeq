@@ -82,6 +82,19 @@ size_t strlen(const char *s)
 	return res;
 }
 
+#ifdef __i386__
+void *memcpy(void *dest, const void *src, size_t n)
+{
+	char *pDest = (char *) dest;
+	char *pSrc = (char *) src;
+
+	while(n--)
+		*pDest++ = *pSrc++;
+
+	return dest;
+}
+#endif
+
 void *memset(void *s, int c, size_t n)
 {
 	char *dst = (char *) s;

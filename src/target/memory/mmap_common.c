@@ -80,8 +80,13 @@ static long mremap_syscall(void *old_address, size_t old_size, size_t new_size, 
 
 static long mmap_syscall(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
+#if __i386__
+    assert(flags & MAP_FIXED);
+    return syscall(SYS_mmap2, addr, length, prot, flags, fd, offset >> 12);
+#else
     assert(flags & MAP_FIXED);
     return syscall(SYS_mmap, addr, length, prot, flags, fd, offset);
+#endif
 }
 
 static int is_syscall_error(long res)
@@ -136,7 +141,7 @@ static void allocate_more_desc()
 
 static void allocate_more_desc_memory()
 {
-    long res = internal_mmap((uint64_t) NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    long res = internal_mmap(ptr_2_int(NULL), PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
     assert(!is_syscall_error(res));
     desc_next_memory = (void *) g_2_h(res);
@@ -444,7 +449,7 @@ static uint64_t find_vma_with_hint(uint64_t length, uint64_t hint_addr)
 static void allocate_more_shmat_desc()
 {
     int i;
-    long descs_guest = internal_mmap((uint64_t) NULL, PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    long descs_guest = internal_mmap(ptr_2_int(NULL), PAGE_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     struct shmat_desc *descs;
 
     assert(is_syscall_error(descs_guest) == 0);
@@ -691,7 +696,11 @@ static long internal_shmat(uint64_t shmid_p, uint64_t shmaddr_p, uint64_t shmflg
     uint64_t length;
 
     /* first find segment size */
+#if __i386__
+    res = syscall(SYS_ipc, 24/*IPCOP_shmctl*/, shmid, IPC_STAT | 0x100/*IPC_64*/, 0, &shm_info);
+#else
     res = syscall(SYS_shmctl, shmid, IPC_STAT, &shm_info);
+#endif
     if (is_syscall_error(res))
         return res;
     length = PAGE_ALIGN_UP(shm_info.shm_segsz);
@@ -710,7 +719,19 @@ static long internal_shmat(uint64_t shmid_p, uint64_t shmaddr_p, uint64_t shmflg
     if (start_addr != ENOMEM_64) {
         shmaddr = g_2_h(start_addr);
         /* SHM_REMAP is need since area is map by us at start-up */
+#if __i386__
+        {
+            void *raddr;
+
+            res = syscall(SYS_ipc, 21/*IPCOP_shmat*/, shmid, shmflg | SHM_REMAP, &raddr, shmaddr);
+            if (!res) {
+                assert(raddr == shmaddr);
+                res = (long) shmaddr;
+            }
+        }
+#else
         res = syscall(SYS_shmat, shmid, shmaddr, shmflg | SHM_REMAP);
+#endif
         if (is_syscall_error(res))
             insert_unmap_area(start_addr, end_addr);
         else
@@ -726,7 +747,11 @@ static long internal_shmdt(uint64_t shmaddr_p)
 {
     long res;
 
+#if __i386__
+    res = syscall(SYS_ipc, 22/*IPCOP_shmdt*/, 0, 0, 0, g_2_h(shmaddr_p));
+#else
     res = syscall(SYS_shmdt, g_2_h(shmaddr_p));
+#endif
     if (!is_syscall_error(res))
         shm_remove(shmaddr_p);
 
@@ -749,7 +774,7 @@ static long internal_mmap_signal(uint64_t addr_p, uint64_t length_p, uint64_t pr
     } else {
         length = PAGE_ALIGN_UP(length);
         /* this could be done atomically to improve multiple signal mmap case .... */
-        addr = (void *) signal_cursor;
+        addr = (void *) int_2_ptr(signal_cursor);
         signal_cursor += length;
         assert((uint64_t) signal_cursor < MAPPING_RESERVE_IN_SIGNAL_END);
         res = mmap_syscall(g_2_h(addr), length, prot, flags | MAP_FIXED, fd, offset);

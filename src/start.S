@@ -20,7 +20,14 @@
 
 .GLOBAL _start
 
+#if __i386__
+_start:
+    xor %ebp, %ebp
+    push %esp
+    call main_wrapper
+#else
 _start:
     xorl %ebp, %ebp
     mov  %rsp, %rdi
     call main_wrapper
+#endif

@@ -26,5 +26,9 @@
 
 int shmctl(int shmid, int cmd, struct shmid_ds *buf)
 {
+#ifdef __i386__
+    return syscall(SYS_ipc, 24/*IPCOP_shmctl*/, shmid, cmd, 0, buf);
+#else
     return syscall(SYS_shmctl, shmid, cmd, buf);
+#endif
 }

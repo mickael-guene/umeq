@@ -66,6 +66,14 @@ struct tls_context {
     struct cache *cache;
 };
 
+#ifdef __i386__
+    #define ptr_2_int(ptr)  ((uint32_t)(ptr))
+    #define int_2_ptr(integer)  ((void *)((uint32_t)(integer)))
+#else
+    #define ptr_2_int(ptr)  ((uint64_t)(ptr))
+    #define int_2_ptr(integer)  ((void *)((uint64_t)(integer)))
+#endif
+
 extern enum memory_profile memory_profile;
 extern struct target_arch current_target_arch;
 extern const char arch_name[];
@@ -73,6 +81,9 @@ extern int is_under_proot;
 extern int maybe_ptraced;
 
 static const int mmap_size[MEM_PROFILE_NB] = {2 * MB, 4 * MB, 8 * MB, 16 * MB};
+
+extern void setup_thread_area(struct tls_context *main_thread_tls_context);
+extern struct tls_context *get_tls_context(void);
 
 #endif
 

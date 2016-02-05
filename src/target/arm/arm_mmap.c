@@ -35,11 +35,12 @@
 #include "arm_private.h"
 #include "runtime.h"
 #include "cache.h"
+#include "umeq.h"
 
 #define MAPPING_START                   0x8000
 #define KERNEL_CHOOSE_START_ADDR        0x40000000
-#define MAPPING_RESERVE_IN_SIGNAL_START 0xb0000000
-#define MAPPING_RESERVE_IN_SIGNAL_END   0xc0000000
+#define MAPPING_RESERVE_IN_SIGNAL_START 0x80000000
+#define MAPPING_RESERVE_IN_SIGNAL_END   0x90000000
 #define MAPPING_VDSO_START              0xffff0000
 /* it should be 0xffff1000 but in that case this fucking bad algo will fail in mmap_common.c */
 #define MAPPING_VDSO_END                0xffff1001
@@ -78,7 +79,7 @@ static void mmap_init()
     LIST_INSERT_HEAD(&vma_list, desc, entries);
 
     /* map at fix address since this make ptrace emulation easier */
-    mmap_offset = 5 * 1024 * 1024 * 1024UL;
+    mmap_offset = 1 * 1024 * 1024UL;
 
     is_init = 1;
 }

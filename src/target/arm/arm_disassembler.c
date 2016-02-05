@@ -26,6 +26,7 @@
 #include "arm_helpers.h"
 #include "runtime.h"
 #include "cache.h"
+#include "umeq.h"
 
 //#define DUMP_STATE  1
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
@@ -215,7 +216,7 @@ static int mk_data_processing(struct arm_target *context, struct irInstructionAl
         params[3] = read_cpsr(context, ir);
 
         nextCpsr = mk_call_32(context, ir, "arm_hlp_compute_next_flags",
-                                   ir->add_mov_const_64(ir, (uint64_t) arm_hlp_compute_next_flags),
+                                   ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_compute_next_flags)),
                                    params);
     }
     switch(opcode) {
@@ -309,7 +310,7 @@ static struct irRegister *mk_sco(struct arm_target *context, struct irInstructio
     params[3] = read_cpsr(context, ir);
 
     return mk_call_32(context, ir, "arm_hlp_compute_sco",
-                               ir->add_mov_const_64(ir, (uint64_t) arm_hlp_compute_sco),
+                               ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_compute_sco)),
                                params);
 }
 
@@ -342,7 +343,7 @@ static struct irRegister *mk_mul_u_lsb(struct arm_target *context, struct irInst
     struct irRegister *param[4] = {op1, op2, NULL, NULL};
 
     return mk_call_32(context, ir, "arm_hlp_multiply_unsigned_lsb",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_unsigned_lsb),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_multiply_unsigned_lsb)),
                            param);
 }
 
@@ -351,7 +352,7 @@ static struct irRegister *mk_mul_flag_update(struct arm_target *context, struct 
     struct irRegister *param[4] = {res, old_cpsr, NULL, NULL};
 
     return mk_call_32(context, ir, "arm_hlp_multiply_flag_update",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_flag_update),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_multiply_flag_update)),
                            param);
 }
 
@@ -360,7 +361,7 @@ static struct irRegister *mk_mul_u_msb(struct arm_target *context, struct irInst
     struct irRegister *param[4] = {op1, op2, NULL, NULL};
 
     return mk_call_32(context, ir, "arm_hlp_multiply_unsigned_msb",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_unsigned_msb),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_multiply_unsigned_msb)),
                            param);
 }
 
@@ -369,7 +370,7 @@ static struct irRegister *mk_mul_s_lsb(struct arm_target *context, struct irInst
     struct irRegister *param[4] = {op1, op2, NULL, NULL};
 
     return mk_call_32(context, ir, "arm_hlp_multiply_signed_lsb",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_signed_lsb),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_multiply_signed_lsb)),
                            param);
 }
 
@@ -378,7 +379,7 @@ static struct irRegister *mk_mul_s_msb(struct arm_target *context, struct irInst
     struct irRegister *param[4] = {op1, op2, NULL, NULL};
 
     return mk_call_32(context, ir, "arm_hlp_multiply_signed_msb",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_signed_msb),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_multiply_signed_msb)),
                            param);
 }
 
@@ -388,7 +389,7 @@ static struct irRegister *mk_mula_u_lsb(struct arm_target *context, struct irIns
     struct irRegister *param[4] = {op1, op2, rdhi, rdlow};
 
     return mk_call_32(context, ir, "arm_hlp_multiply_accumulate_unsigned_lsb",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_accumulate_unsigned_lsb),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_multiply_accumulate_unsigned_lsb)),
                            param);
 }
 
@@ -398,7 +399,7 @@ static struct irRegister *mk_mula_u_msb(struct arm_target *context, struct irIns
     struct irRegister *param[4] = {op1, op2, rdhi, rdlow};
 
     return mk_call_32(context, ir, "arm_hlp_multiply_accumulate_unsigned_msb",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_accumulate_unsigned_msb),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_multiply_accumulate_unsigned_msb)),
                            param);
 }
 
@@ -408,7 +409,7 @@ static struct irRegister *mk_mula_s_lsb(struct arm_target *context, struct irIns
     struct irRegister *param[4] = {op1, op2, rdhi, rdlow};
 
     return mk_call_32(context, ir, "arm_hlp_multiply_accumulate_signed_lsb",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_accumulate_signed_lsb),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_multiply_accumulate_signed_lsb)),
                            param);
 }
 
@@ -418,7 +419,7 @@ static struct irRegister *mk_mula_s_msb(struct arm_target *context, struct irIns
     struct irRegister *param[4] = {op1, op2, rdhi, rdlow};
 
     return mk_call_32(context, ir, "arm_hlp_multiply_accumulate_signed_msb",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_multiply_accumulate_signed_msb),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_multiply_accumulate_signed_msb)),
                            param);
 }
 
@@ -427,7 +428,7 @@ static void mk_gdb_breakpoint_instruction(struct arm_target *context, struct irI
     struct irRegister *param[4] = {NULL, NULL, NULL, NULL};
 
     mk_call_32(context, ir, "arm_gdb_breakpoint_instruction",
-                        ir->add_mov_const_64(ir, (uint64_t) arm_gdb_breakpoint_instruction),
+                        ir->add_mov_const_64(ir, ptr_2_int(arm_gdb_breakpoint_instruction)),
                         param);
 }
 
@@ -808,7 +809,7 @@ static int dis_swi(struct arm_target *context, uint32_t insn, struct irInstructi
     /* be sure pc as the correct value so clone syscall can use pc value */
     write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc + 4));
     mk_call_void(context, ir, "arm_hlp_syscall",
-                 ir->add_mov_const_64(ir, (uint64_t) arm_hlp_syscall),
+                 ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_syscall)),
                  param);
 
     write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc + 4));
@@ -844,7 +845,7 @@ static int dis_clz(struct arm_target *context, uint32_t insn, struct irInstructi
     params[3] = NULL;
 
     result = mk_call_32(context, ir, "arm_hlp_clz",
-                             mk_64(ir, (uint64_t) arm_hlp_clz),
+                             mk_64(ir, ptr_2_int(arm_hlp_clz)),
                              params);
 
     write_reg(context, ir, rd, result);
@@ -1060,7 +1061,7 @@ static int dis_umaal(struct arm_target *context, uint32_t insn, struct irInstruc
     params[3] = mk_32(ir, rm);
 
     mk_call_void(context, ir, "arm_hlp_umaal",
-                           mk_64(ir, (uint64_t) arm_hlp_umaal),
+                           mk_64(ir, ptr_2_int(arm_hlp_umaal)),
                            params);
 
     return 0;
@@ -1273,7 +1274,7 @@ static int dis_ldrexx(struct arm_target *context, uint32_t insn, struct irInstru
     params[3] = NULL;
 
     result = mk_call_32(context, ir, "arm_hlp_ldrexx",
-                             mk_64(ir, (uint64_t) arm_hlp_ldrexx),
+                             mk_64(ir, ptr_2_int(arm_hlp_ldrexx)),
                              params);
 
     write_reg(context, ir, rt, result);
@@ -1298,7 +1299,7 @@ static int dis_ldrexd(struct arm_target *context, uint32_t insn, struct irInstru
     params[3] = NULL;
 
     result = mk_call_64(context, ir, "arm_hlp_ldrexd",
-                             mk_64(ir, (uint64_t) arm_hlp_ldrexd),
+                             mk_64(ir, ptr_2_int(arm_hlp_ldrexd)),
                              params);
 
     write_reg(context, ir, rt, ir->add_64_to_32(ir, result));
@@ -1325,7 +1326,7 @@ static int dis_strexx(struct arm_target *context, uint32_t insn, struct irInstru
     params[3] = NULL;
 
     result = mk_call_32(context, ir, "arm_hlp_strexx",
-                             mk_64(ir, (uint64_t) arm_hlp_strexx),
+                             mk_64(ir, ptr_2_int(arm_hlp_strexx)),
                              params);
 
     write_reg(context, ir, rd, result);
@@ -1352,7 +1353,7 @@ static int dis_strexd(struct arm_target *context, uint32_t insn, struct irInstru
     params[3] = NULL;
 
     result = mk_call_64(context, ir, "arm_hlp_strexd",
-                             mk_64(ir, (uint64_t) arm_hlp_strexd),
+                             mk_64(ir, ptr_2_int(arm_hlp_strexd)),
                              params);
 
     write_reg(context, ir, rd, result);
@@ -1370,7 +1371,7 @@ static int dis_isb(struct arm_target *context, uint32_t insn, struct irInstructi
     params[3] = NULL;
 
     mk_call_void(context, ir, "arm_hlp_memory_barrier",
-                           mk_64(ir, (uint64_t) arm_hlp_memory_barrier),
+                           mk_64(ir, ptr_2_int(arm_hlp_memory_barrier)),
                            params);
 
     return 0;
@@ -1386,7 +1387,7 @@ static int dis_dsb(struct arm_target *context, uint32_t insn, struct irInstructi
     params[3] = NULL;
 
     mk_call_void(context, ir, "arm_hlp_memory_barrier",
-                           mk_64(ir, (uint64_t) arm_hlp_memory_barrier),
+                           mk_64(ir, ptr_2_int(arm_hlp_memory_barrier)),
                            params);
 
     return 0;
@@ -1402,7 +1403,7 @@ static int dis_dmb(struct arm_target *context, uint32_t insn, struct irInstructi
     params[3] = NULL;
 
     mk_call_void(context, ir, "arm_hlp_memory_barrier",
-                           mk_64(ir, (uint64_t) arm_hlp_memory_barrier),
+                           mk_64(ir, ptr_2_int(arm_hlp_memory_barrier)),
                            params);
 
     return 0;
@@ -1966,7 +1967,7 @@ static int dis_sel(struct arm_target *context, uint32_t insn, struct irInstructi
     params[3] = NULL;
 
     result = mk_call_32(context, ir, "arm_hlp_sel",
-                             mk_64(ir, (uint64_t) arm_hlp_sel),
+                             mk_64(ir, ptr_2_int(arm_hlp_sel)),
                              params);
 
     write_reg(context, ir, rd, result);
@@ -2161,7 +2162,7 @@ static int dis_halfword_mult_and_mult_acc_insn(struct arm_target *context, uint3
     params[3] = NULL;
 
     mk_call_void(context, ir, "arm_hlp_halfword_mult_and_mult_acc",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_halfword_mult_and_mult_acc),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_halfword_mult_and_mult_acc)),
                            params);
 
     return 0;
@@ -2177,7 +2178,7 @@ static int dis_saturating_add_A_sub(struct arm_target *context, uint32_t insn, s
     params[3] = NULL;
 
     mk_call_void(context, ir, "arm_hlp_dirty_saturating",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_dirty_saturating),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_dirty_saturating)),
                            params);
 
     return 0;
@@ -2232,7 +2233,7 @@ static int dis_saturation(struct arm_target *context, uint32_t insn, struct irIn
     params[3] = NULL;
 
     mk_call_void(context, ir, "arm_hlp_saturation",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_saturation),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_saturation)),
                            params);
 
     return 0;
@@ -2334,7 +2335,7 @@ static int dis_signed_multiplies(struct arm_target *context, uint32_t insn, stru
     params[3] = NULL;
 
     mk_call_void(context, ir, "arm_hlp_signed_multiplies",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_signed_multiplies),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_signed_multiplies)),
                            params);
 
     return 0;
@@ -2350,7 +2351,7 @@ static int dis_sum_absolute_difference(struct arm_target *context, uint32_t insn
     params[3] = NULL;
 
     mk_call_void(context, ir, "arm_hlp_sum_absolute_difference",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_sum_absolute_difference),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_sum_absolute_difference)),
                            params);
 
     return 0;
@@ -2366,7 +2367,7 @@ static int dis_signed_parallel(struct arm_target *context, uint32_t insn, struct
     params[3] = NULL;
 
     mk_call_void(context, ir, "arm_hlp_signed_parallel",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_signed_parallel),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_signed_parallel)),
                            params);
 
     return 0;
@@ -2382,7 +2383,7 @@ static int dis_unsigned_parallel(struct arm_target *context, uint32_t insn, stru
     params[3] = NULL;
 
     mk_call_void(context, ir, "arm_hlp_unsigned_parallel",
-                           ir->add_mov_const_64(ir, (uint64_t) arm_hlp_unsigned_parallel),
+                           ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_unsigned_parallel)),
                            params);
 
     return 0;
@@ -2687,7 +2688,7 @@ static int disassemble_insn(struct arm_target *context, uint32_t insn, struct ir
         params[3] = NULL;
 
         pred = mk_call_32(context, ir, "arm_hlp_compute_flags_pred",
-                               mk_64(ir, (uint64_t) arm_hlp_compute_flags_pred),
+                               mk_64(ir, ptr_2_int(arm_hlp_compute_flags_pred)),
                                params);
         write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc + 4));
         ir->add_exit_cond(ir, ir->add_mov_const_64(ir, context->pc + 4), pred);
@@ -2734,7 +2735,7 @@ static int vdso_cmpxchg64(struct arm_target *context, struct irInstructionAlloca
     struct irRegister *newPc;
 
     mk_call_void(context, ir, "arm_hlp_vdso_cmpxchg64",
-                      ir->add_mov_const_64(ir, (uint64_t) arm_hlp_vdso_cmpxchg64),
+                      ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_vdso_cmpxchg64)),
                       param);
 
     newPc = read_reg(context, ir, 14);
@@ -2750,7 +2751,7 @@ static int vdso_cmpxchg(struct arm_target *context, struct irInstructionAllocato
     struct irRegister *newPc;
 
     mk_call_void(context, ir, "arm_hlp_vdso_cmpxchg",
-                      ir->add_mov_const_64(ir, (uint64_t) arm_hlp_vdso_cmpxchg),
+                      ir->add_mov_const_64(ir, ptr_2_int(arm_hlp_vdso_cmpxchg)),
                       param);
 
     newPc = read_reg(context, ir, 14);

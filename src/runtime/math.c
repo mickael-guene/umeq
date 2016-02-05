@@ -22,6 +22,8 @@
 #include <math.h>
 #include <fenv.h>
 
+#include "runtime.h"
+
 union double_unpack {
     double df;
     uint64_t d;
@@ -34,6 +36,9 @@ union float_unpack {
 
 double floor(double x)
 {
+#ifdef __i386__
+    fatal("implement me if you need me");
+#else
     double res;
 
     asm volatile("roundsd $1, %[x], %[res]"
@@ -42,10 +47,31 @@ double floor(double x)
                  :);
 
     return res;
+#endif
 }
 
 double sqrt(double x)
 {
+#ifdef __i386__
+    double res = x;
+
+    asm volatile("fldl %[res]\n\t"
+                 "subl $8, %%esp\n\t"
+                 "fstcw 4(%%esp)\n\t"
+                 "movl $0xfeff, %%edx\n\t"
+                 "andl 4(%%esp), %%edx\n\t"
+                 "movl %%edx, (%%esp)\n\t"
+                 "fldcw (%%esp)\n\t"
+                 "fsqrt\n\t"
+                 "fldcw 4(%%esp)\n\t"
+                 "addl $8, %%esp\n\t"
+                 "fstpl %[res]\n\t"
+                 : [res] "+m" (res)
+                 :
+                 :);
+
+    return res;
+#else
     double res;
 
     asm volatile("sqrtsd %[x], %[res]"
@@ -54,10 +80,22 @@ double sqrt(double x)
                  :);
 
     return res;
+#endif
 }
 
 float sqrtf(float x)
 {
+#ifdef __i386__
+    float res = x;
+    asm volatile("flds %[res]\n\t"
+                 "fsqrt\n\t"
+                 "fstp %[res]\n\t"
+                 : [res] "+m" (res)
+                 :
+                 :);
+
+    return res;
+#else
     float res;
 
     asm volatile("sqrtss %[x], %[res]"
@@ -66,6 +104,7 @@ float sqrtf(float x)
                  :);
 
     return res;
+#endif
 }
 
 int __isnan(double x)
@@ -229,4 +268,9 @@ int abs(int j)
 long labs(long j)
 {
     return j>=0?j:-j;
+}
+
+unsigned long __udivdi3 (unsigned long a, unsigned long b)
+{
+    assert(0);
 }

@@ -2,8 +2,10 @@ cmake_minimum_required (VERSION 2.8)
 enable_language(C ASM)
 project (umeq)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}-fno-stack-protector -O0 -g -fPIC")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}-fno-stack-protector -O0 -g -fPIC")
+#detect host architecture to decide som varaibles
+include(CheckSymbolExists)
+check_symbol_exists("__i386__" "" UMEQ_ARCH_X86)
+check_symbol_exists("__x86_64__" "" UMEQ_ARCH_X64)
 
 add_subdirectory(src)
 

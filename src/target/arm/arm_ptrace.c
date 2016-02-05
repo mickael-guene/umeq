@@ -128,8 +128,12 @@ static long get_regs_base(int pid, unsigned long *regs_base) {
     long res;
 
     res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
+#ifdef __i386__
+    fatal("implement me\n");
+#else
     if (!res)
         res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, user_regs.fs_base + 8, regs_base);
+#endif
 
     return res;
 }
@@ -240,12 +244,16 @@ static int is_magic_syscall(pid_t pid, int *syscall_no, int *command, int *is_en
     struct user_regs_struct regs;
     int is_magic;
 
+#ifdef __i386__
+    fatal("implement me\n");
+#else
     res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, NULL, &regs);
     assert(res == 0);
     *syscall_no = regs.orig_rax;
     *command = regs.rdx;
     *is_entry = regs.rax==-ENOSYS?1:0;
     is_magic = regs.rdi== MAGIC1 && regs.rsi == MAGIC2;
+#endif
 
     return is_magic;
 }
@@ -423,7 +431,11 @@ static uint32_t remote_fpscr_read(int pid)
 
     /* got base address */
     syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
+#ifdef __i386__
+    fatal("implement me\n");
+#else
     syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+#endif
 
     /* copy tracee floating point info */
     read_bytes(pid, &fp_status, (void *)(data_long + offsetof(struct arm_registers, fp_status)), sizeof(fp_status));
@@ -545,7 +557,11 @@ int arm_ptrace(struct arm_target *context)
                 assert(addr < 16 * 4);
                 /* FIXME: Need rework with a framework to handle tlsarea usage */
                 res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
+#ifdef __i386__
+                fatal("implement me\n");
+#else
                 res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+#endif
 
                 res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + addr, &data_host);
                 data_host = (data_host & 0xffffffff00000000UL) | data;
@@ -586,7 +602,11 @@ int arm_ptrace(struct arm_target *context)
 
                 /* FIXME: Need rework with a framework to handle tlsarea usage */
                 res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
+#ifdef __i386__
+                fatal("implement me\n");
+#else
                 res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+#endif
                 for(i=0;i<16;i++) {
                     res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + i * 4, &data_reg);
                     user_regs_arm->uregs[i] = (unsigned int) data_reg;
@@ -614,7 +634,11 @@ int arm_ptrace(struct arm_target *context)
                 int i;
 
                 res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
+#ifdef __i386__
+                fatal("implement me\n");
+#else
                 res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+#endif
                 for(i=0;i<15;i++) {
                     res = write_32(pid, user_regs_arm->uregs[i], (void *) (data_long + i * 4));
                 }
@@ -646,7 +670,11 @@ int arm_ptrace(struct arm_target *context)
                 unsigned long data_long;
 
                 res = syscall(SYS_ptrace, (long) PTRACE_GETREGS, (long) pid, (long) addr, (long) &user_regs);
+#ifdef __i386__
+                fatal("implement me\n");
+#else
                 res = syscall(SYS_ptrace, (long) PTRACE_PEEKTEXT, (long) pid, (long) user_regs.fs_base + 8, (long) &data_long);
+#endif
                 res = syscall(SYS_ptrace, (long) PTRACE_PEEKTEXT, (long) pid, (long) data_long + 17 * 4, (long) &data_tls);
                 *data_guest = data_tls;
 
@@ -662,7 +690,11 @@ int arm_ptrace(struct arm_target *context)
                 int i;
 
                 res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
+#ifdef __i386__
+                fatal("implement me\n");
+#else
                 res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
+#endif
                 for(i=0;i<32;i++) {
                     res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm_registers, e.d[i]), &data_reg);
                     user_vfp_regs_arm->fpregs[i] = data_reg;

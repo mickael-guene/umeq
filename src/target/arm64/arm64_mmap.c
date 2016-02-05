@@ -35,6 +35,7 @@
 #include "arm64_private.h"
 #include "runtime.h"
 #include "cache.h"
+#include "umeq.h"
 
 /* mozilla allocator take arm64 page size for computation => 64K pages.
  * Unfortunaly when real size pages are 4K it can lead to wrong computations

@@ -37,8 +37,11 @@
 #include "runtime.h"
 #include "softfloat.h"
 #include "arm_softfloat.h"
+#include "umeq.h"
 
+#ifndef __i386__
 #define USE_GCC_128_BITS_SUPPORT    1
+#endif
 
 #ifndef USE_GCC_128_BITS_SUPPORT
 typedef struct int128_t {
@@ -1747,7 +1750,7 @@ static int tkill(int pid, int sig)
 
 void arm_hlp_dump(uint64_t regs)
 {
-    struct arm_target *context = container_of((void *) regs, struct arm_target, regs);
+    struct arm_target *context = container_of(int_2_ptr(regs), struct arm_target, regs);
     int i;
 
     printf("==============================================================================\n\n");
@@ -1783,7 +1786,7 @@ void arm_gdb_breakpoint_instruction(uint64_t regs)
 
 void arm_hlp_vdso_cmpxchg(uint64_t _regs)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint32_t oldval = regs->r[0];
     uint32_t newval = regs->r[1];
     uint32_t *address = (uint32_t *) g_2_h(regs->r[2]);
@@ -1799,7 +1802,7 @@ void arm_hlp_vdso_cmpxchg(uint64_t _regs)
 
 void arm_hlp_vdso_cmpxchg64(uint64_t _regs)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint64_t *oldval = (uint64_t *) g_2_h(regs->r[0]);
     uint64_t *newval = (uint64_t *) g_2_h(regs->r[1]);
     uint64_t *address = (uint64_t *) g_2_h(regs->r[2]);
@@ -2338,7 +2341,7 @@ uint32_t arm_hlp_multiply_flag_update(uint64_t context, uint32_t res, uint32_t o
  */
 uint32_t arm_hlp_ldrexx(uint64_t regs, uint32_t address, uint32_t size_access)
 {
-    struct arm_target *context = container_of((void *) regs, struct arm_target, regs);
+    struct arm_target *context = container_of(int_2_ptr(regs), struct arm_target, regs);
 
     switch(size_access) {
         case 6://8 bits
@@ -2359,7 +2362,7 @@ uint32_t arm_hlp_ldrexx(uint64_t regs, uint32_t address, uint32_t size_access)
 
 uint64_t arm_hlp_ldrexd(uint64_t regs, uint32_t address)
 {
-    struct arm_target *context = container_of((void *) regs, struct arm_target, regs);
+    struct arm_target *context = container_of(int_2_ptr(regs), struct arm_target, regs);
 
     context->exclusive_value = (uint64_t) *((uint64_t *)g_2_h(address));
 
@@ -2368,7 +2371,7 @@ uint64_t arm_hlp_ldrexd(uint64_t regs, uint32_t address)
 
 uint32_t arm_hlp_strexx(uint64_t regs, uint32_t address, uint32_t size_access, uint32_t value)
 {
-    struct arm_target *context = container_of((void *) regs, struct arm_target, regs);
+    struct arm_target *context = container_of(int_2_ptr(regs), struct arm_target, regs);
     uint32_t res = 0;
 
     switch(size_access) {
@@ -2399,7 +2402,7 @@ uint32_t arm_hlp_strexx(uint64_t regs, uint32_t address, uint32_t size_access, u
 
 uint32_t arm_hlp_strexd(uint64_t regs, uint32_t address, uint32_t lsb, uint32_t msb)
 {
-    struct arm_target *context = container_of((void *) regs, struct arm_target, regs);
+    struct arm_target *context = container_of(int_2_ptr(regs), struct arm_target, regs);
     uint32_t res = 0;
     uint64_t value = ((uint64_t)msb << 32) | lsb;
 
@@ -2510,7 +2513,7 @@ static int64_t signedSatQ(int64_t i, int n, int *isSat)
 
 static void uadd16_usub16(uint64_t _regs, int is_sub, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t res[2];
     int i;
 
@@ -2540,7 +2543,7 @@ static void uadd16_usub16_t32(uint64_t _regs, uint32_t insn)
 
 static void uasx_usax(uint64_t _regs, int is_diff_first, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t op1, op2;
 
     //clear ge
@@ -2579,7 +2582,7 @@ static void uasx_usax_t32(uint64_t _regs, uint32_t insn)
 
 static void uadd8_usub8(uint64_t _regs, int rd, int rn, int rm, int is_sub)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t res[4];
     int i;
 
@@ -2609,7 +2612,7 @@ static void uadd8_usub8_t32(uint64_t _regs, uint32_t insn)
 
 static void uqadd16_uqsub16(uint64_t _regs, int is_sub, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint32_t res[2];
     int i;
 
@@ -2635,7 +2638,7 @@ static void uqadd16_uqsub16_t32(uint64_t _regs, uint32_t insn)
 
 static void uqasx_uqsax(uint64_t _regs, int is_diff_first, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint32_t res[2];
 
     if (is_diff_first) {
@@ -2661,7 +2664,7 @@ static void uqasx_uqsax_t32(uint64_t _regs, uint32_t insn)
 
 static void uqadd8(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint32_t res[4];
     int i;
 
@@ -2684,7 +2687,7 @@ static void uqadd8_t32(uint64_t _regs, uint32_t insn)
 
 static void uqsub8(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t diff[4];
     int i;
 
@@ -2706,7 +2709,7 @@ static void uqsub8_t32(uint64_t _regs, uint32_t insn)
 
 static void uhadd16_uhsub16(uint64_t _regs, int is_sub, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint32_t sum[2];
     int i;
 
@@ -2733,7 +2736,7 @@ static void uhadd16_uhsub16_t32(uint64_t _regs, uint32_t insn)
 
 static void uhasx_uhsax(uint64_t _regs, int is_diff_first, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint32_t res[2];
 
     if (is_diff_first) {
@@ -2761,7 +2764,7 @@ static void uhasx_uhsax_t32(uint64_t _regs, uint32_t insn)
 
 static void uhsub8_uhadd8(uint64_t _regs, int is_sub, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint32_t sum[4];
     int i;
 
@@ -2788,7 +2791,7 @@ static void uhsub8_uhadd8_t32(uint64_t _regs, uint32_t insn)
 
 static void sadd16_ssub16(uint64_t _regs, int is_sub, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t res[2];
     int i;
 
@@ -2818,7 +2821,7 @@ static void sadd16_ssub16_t32(uint64_t _regs, uint32_t insn)
 
 static void sasx_ssax(uint64_t _regs, int is_diff_first, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t op1, op2;
 
     //clear ge
@@ -2850,7 +2853,7 @@ static void sasx_ssax_t32(uint64_t _regs, uint32_t insn)
 
 static void sadd8_ssub8(uint64_t _regs, int is_sub, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t res[4];
     int i;
 
@@ -2880,7 +2883,7 @@ static void sadd8_ssub8_t32(uint64_t _regs, uint32_t insn)
 
 static void qadd16(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t sum[2];
     int i;
 
@@ -2902,7 +2905,7 @@ static void qadd16_t32(uint64_t _regs, uint32_t insn)
 
 static void qasx(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t res[2];
 
 
@@ -2924,7 +2927,7 @@ static void qasx_t32(uint64_t _regs, uint32_t insn)
 
 static void qsax(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t res[2];
 
 
@@ -2946,7 +2949,7 @@ static void qsax_t32(uint64_t _regs, uint32_t insn)
 
 static void qsub16(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t sum[2];
     int i;
 
@@ -2968,7 +2971,7 @@ static void qsub16_t32(uint64_t _regs, uint32_t insn)
 
 static void qadd8(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t sum[4];
     int i;
 
@@ -2990,7 +2993,7 @@ static void qadd8_t32(uint64_t _regs, uint32_t insn)
 
 static void qsub8(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t sum[4];
     int i;
 
@@ -3012,7 +3015,7 @@ static void qsub8_t32(uint64_t _regs, uint32_t insn)
 
 static void shadd16(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t sum[2];
     int i;
 
@@ -3036,7 +3039,7 @@ static void shadd16_t32(uint64_t _regs, uint32_t insn)
 
 static void shasx(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t diff, sum;
 
     diff = (int32_t)(int16_t)((regs->r[rn] >> (0 * 16)) & 0xffff) - (int32_t)(int16_t)((regs->r[rm] >> (1 * 16)) & 0xffff);
@@ -3059,7 +3062,7 @@ static void shasx_t32(uint64_t _regs, uint32_t insn)
 
 static void shsax(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t diff, sum;
 
     sum = (int32_t)(int16_t)((regs->r[rn] >> (0 * 16)) & 0xffff) + (int32_t)(int16_t)((regs->r[rm] >> (1 * 16)) & 0xffff);
@@ -3082,7 +3085,7 @@ static void shsax_t32(uint64_t _regs, uint32_t insn)
 
 static void shsub16(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t diff[2];
     int i;
 
@@ -3106,7 +3109,7 @@ static void shsub16_t32(uint64_t _regs, uint32_t insn)
 
 static void shadd8(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t sum[4];
     int i;
 
@@ -3130,7 +3133,7 @@ static void shadd8_t32(uint64_t _regs, uint32_t insn)
 
 static void shsub8(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int32_t diff[4];
     int i;
 
@@ -3423,7 +3426,7 @@ uint32_t arm_hlp_multiply_accumulate_signed_msb(uint64_t context, int32_t op1, i
 
 void vstm(uint64_t _regs, uint32_t insn, int is_thumb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     //int p = INSN(24, 24);
     int add = INSN(23, 23);
     int D = INSN(22, 22);
@@ -3471,7 +3474,7 @@ void vstm(uint64_t _regs, uint32_t insn, int is_thumb)
 
 void vldm(uint64_t _regs, uint32_t insn, int is_thumb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     //int p = INSN(24, 24);
     int add = INSN(23, 23);
     int D = INSN(22, 22);
@@ -3518,7 +3521,7 @@ void vldm(uint64_t _regs, uint32_t insn, int is_thumb)
 
 static void qadd(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int64_t unsat = (int64_t)(int32_t) regs->r[rm] + (int64_t)(int32_t) regs->r[rn];
     uint32_t res;
     int sat;
@@ -3542,7 +3545,7 @@ static void qadd_t32(uint64_t _regs, uint32_t insn)
 
 static void qsub(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int64_t unsat = (int64_t)(int32_t) regs->r[rm] - (int64_t)(int32_t) regs->r[rn];
     uint32_t res;
     int sat;
@@ -3566,7 +3569,7 @@ static void qsub_t32(uint64_t _regs, uint32_t insn)
 
 static void qdadd(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint32_t doubled;
     uint32_t res;
     int sat1, sat2;
@@ -3591,7 +3594,7 @@ static void qdadd_t32(uint64_t _regs, uint32_t insn)
 
 static void qdsub(uint64_t _regs, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint32_t doubled;
     uint32_t res;
     int sat1, sat2;
@@ -3616,7 +3619,7 @@ static void qdsub_t32(uint64_t _regs, uint32_t insn)
 
 static void smlaxy(uint64_t _regs, int n, int m, int rd, int rn, int rm, int ra)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int64_t operand1, operand2;
     int64_t res;
 
@@ -3642,7 +3645,7 @@ static void smlaxy_t32(uint64_t _regs, uint32_t insn)
 
 static void smulwy(uint64_t _regs, int m, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int64_t operand2;
     int64_t res;
 
@@ -3665,7 +3668,7 @@ static void smulwy_t32(uint64_t _regs, uint32_t insn)
 
 static void smlawy(uint64_t _regs, int m, int rd, int rn, int rm, int ra)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int64_t operand2;
     int64_t res;
 
@@ -3690,7 +3693,7 @@ static void smlawy_t32(uint64_t _regs, uint32_t insn)
 
 static void sdiv(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int rn = INSN1(3, 0);
     int rd = INSN2(11, 8);
     int rm = INSN2(3, 0);
@@ -3704,7 +3707,7 @@ static void sdiv(uint64_t _regs, uint32_t insn)
 
 static void udiv(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int rn = INSN1(3, 0);
     int rd = INSN2(11, 8);
     int rm = INSN2(3, 0);
@@ -3718,7 +3721,7 @@ static void udiv(uint64_t _regs, uint32_t insn)
 
 static void smlalxy(uint64_t _regs, int n, int m, int rdlo, int rdhi, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int64_t operand1, operand2;
     int64_t acc = ((uint64_t) regs->r[rdhi] << 32) + regs->r[rdlo];
     int64_t res;
@@ -3744,7 +3747,7 @@ static void smlalxy_t32(uint64_t _regs, uint32_t insn)
 
 static void smulxy(uint64_t _regs, int n, int m, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int64_t operand1, operand2;
     int64_t res;
 
@@ -3768,7 +3771,7 @@ static void smulxy_t32(uint64_t _regs, uint32_t insn)
 
 static void smuad_smusd(uint64_t _regs, int is_sub, int m, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint32_t operand2 = regs->r[rm];
     int64_t product1, product2;
     int64_t res;
@@ -3799,7 +3802,7 @@ static void smuad_smusd_t32(uint64_t _regs, uint32_t insn)
 
 static void smlad_smlsd(uint64_t _regs, int is_sub, int m, int rd, int rn, int rm, int ra)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint32_t operand2 = regs->r[rm];
     int64_t product1, product2;
     int64_t res;
@@ -3831,7 +3834,7 @@ static void smlad_smlsd_t32(uint64_t _regs, uint32_t insn)
 
 static void smlald_smlsld(uint64_t _regs, int is_sub, int m, int rdlo, int rdhi, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint32_t operand2 = regs->r[rm];
     int64_t product1, product2;
     int64_t acc = ((uint64_t) regs->r[rdhi] << 32) + regs->r[rdlo];
@@ -3865,7 +3868,7 @@ static void smlald_smlsld_t32(uint64_t _regs, uint32_t insn)
 
 static void smmul(uint64_t _regs, int r, int rd, int rn, int rm)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int64_t product1 = (int32_t)regs->r[rn];
     int64_t product2 = (int32_t)regs->r[rm];
     int64_t res;
@@ -3889,7 +3892,7 @@ static void smmul_t32(uint64_t _regs, uint32_t insn)
 
 static void smmla_smmls(uint64_t _regs, int is_sub, int r, int rd, int rn , int rm, int ra)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int64_t acc = (int64_t)regs->r[ra] << 32;
     int64_t product1 = (int32_t)regs->r[rn];
     int64_t product2 = (int32_t)regs->r[rm];
@@ -3917,7 +3920,7 @@ static void smmla_smmls_t32(uint64_t _regs, uint32_t insn)
 
 static void dis_ssat(uint64_t _regs, int saturate_to, int shift_mode, int shift_value, int rd, int rn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int64_t operand;
     int64_t result;
     int isSat;
@@ -3952,7 +3955,7 @@ static void dis_ssat_t32(uint64_t _regs, uint32_t insn)
 
 static void dis_usat(uint64_t _regs, int saturate_to, int shift_mode, int shift_value, int rd, int rn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int64_t operand;
     int64_t result;
     int isSat;
@@ -3987,7 +3990,7 @@ static void dis_usat_t32(uint64_t _regs, uint32_t insn)
 
 static void dis_ssat16(uint64_t _regs, int saturate_to, int rd, int rn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int64_t result1, result2;
     int isSat1, isSat2;
 
@@ -4011,7 +4014,7 @@ static void dis_ssat16_t32(uint64_t _regs, uint32_t insn)
 
 static void dis_usat16(uint64_t _regs, int saturate_to, int rd, int rn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int64_t result1, result2;
     int isSat1, isSat2;
 
@@ -4035,7 +4038,7 @@ static void dis_usat16_t32(uint64_t _regs, uint32_t insn)
 
 static void usad8_usada8(uint64_t _regs, int rd, int rn, int rm, int ra)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint32_t result = 0;
     int i;
 
@@ -4055,7 +4058,7 @@ static void usad8_usada8_t32(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vcvtb_vcvtt_vfp(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(15, 12) << 1) + INSN(22, 22);
     int m = (INSN(3, 0) << 1) + INSN(5, 5);
     int half_to_single = (INSN(16, 16) == 0);
@@ -4071,7 +4074,7 @@ static void dis_common_vcvtb_vcvtt_vfp(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vcmp_vcmpe_vfp(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int is_with_zero = INSN(16, 16);
     int vd = INSN(15, 12);
@@ -4100,7 +4103,7 @@ static void dis_common_vcmp_vcmpe_vfp(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vcvt_double_single_vfp(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int vd = INSN(15, 12);
     int is_double_to_single = INSN(8, 8);
@@ -4123,7 +4126,7 @@ static void dis_common_vcvt_double_single_vfp(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vcvt_vcvtr_floating_integer_vfp(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int is_to_integer = INSN(18, 18);
     int vd = INSN(15, 12);
@@ -4186,7 +4189,7 @@ static void dis_common_vcvt_vcvtr_floating_integer_vfp(uint64_t _regs, uint32_t 
 
 static void dis_common_vcvt_floating_fixed_vfp(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int is_to_fixed = INSN(18, 18);
     int vd = INSN(15, 12);
@@ -4264,7 +4267,7 @@ static void dis_common_vcvt_floating_fixed_vfp(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vcvt_half_single_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int half_to_single = INSN(8, 8);
@@ -4294,7 +4297,7 @@ static void dis_common_vcvt_half_single_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vcvt_floating_fixed_simd(uint64_t _regs, uint32_t insn, int is_unsigned)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int reg_nb = INSN(6, 6) + 1;
@@ -4329,7 +4332,7 @@ static void dis_common_vcvt_floating_fixed_simd(uint64_t _regs, uint32_t insn, i
 
 static void dis_common_vqadd_vqsub_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned, int is_sub)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -4400,7 +4403,7 @@ static void dis_common_vqadd_vqsub_simd(uint64_t _regs, uint32_t insn, uint32_t 
 
 static void dis_common_vhadd_vhsub_vrhadd_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned, int is_round)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -4452,7 +4455,7 @@ static void dis_common_vhadd_vhsub_vrhadd_simd(uint64_t _regs, uint32_t insn, ui
 
 static void dis_common_vqshl_vqrshl_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned, int is_rounding)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -4531,7 +4534,7 @@ static void dis_common_vqshl_vqrshl_simd(uint64_t _regs, uint32_t insn, uint32_t
 
 static void dis_common_vshl_vrshl_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned, int is_rounding)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -4596,7 +4599,7 @@ static void dis_common_vshl_vrshl_simd(uint64_t _regs, uint32_t insn, uint32_t i
 
 static void dis_common_vmax_vmin_simd(uint64_t _regs, uint32_t insn, uint32_t is_unsigned)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -4657,7 +4660,7 @@ static void dis_common_vmax_vmin_simd(uint64_t _regs, uint32_t insn, uint32_t is
 
 static void dis_common_vrecps_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -4676,7 +4679,7 @@ static void dis_common_vrecps_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vrsqrts_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -4695,7 +4698,7 @@ static void dis_common_vrsqrts_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vpmax_vpmin_fpu_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -4723,7 +4726,7 @@ static void dis_common_vpmax_vpmin_fpu_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vmax_vmin_fpu_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -4749,7 +4752,7 @@ static void dis_common_vmax_vmin_fpu_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vaba_vabd_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -4808,7 +4811,7 @@ static void dis_common_vaba_vabd_simd(uint64_t _regs, uint32_t insn, uint32_t is
 
 static void dis_common_tst_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -4847,7 +4850,7 @@ static void dis_common_tst_simd(uint64_t _regs, uint32_t insn)
 #define VCXX_SIMD(name, op) \
 static void dis_common_ ## vc ## name ## _all_simd(uint64_t _regs, uint32_t insn, int is_zero, int is_unsigned) \
 { \
-    struct arm_registers *regs = (struct arm_registers *) _regs; \
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs); \
     int d = (INSN(22, 22) << 4) | INSN(15, 12); \
     int n = (INSN(7, 7) << 4) | INSN(19, 16); \
     int m = (INSN(5, 5) << 4) | INSN(3, 0); \
@@ -4926,7 +4929,7 @@ VCXX_SIMD(lt, <)
 
 static void dis_common_vadd_vsub_simd(uint64_t _regs, uint32_t insn, int is_sub)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -4967,7 +4970,7 @@ static void dis_common_vadd_vsub_simd(uint64_t _regs, uint32_t insn, int is_sub)
 
 static void dis_common_vmul_polynomial_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -4993,7 +4996,7 @@ static void dis_common_vmul_polynomial_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vmul_integer_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5029,7 +5032,7 @@ static void dis_common_vmul_integer_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vmla_vmls_simd(uint64_t _regs, uint32_t insn, int is_sub)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5071,7 +5074,7 @@ static void dis_common_vmla_vmls_simd(uint64_t _regs, uint32_t insn, int is_sub)
 
 static void dis_common_vpmin_simd(uint64_t _regs, uint32_t insn, int is_unsigned)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5122,7 +5125,7 @@ static void dis_common_vpmin_simd(uint64_t _regs, uint32_t insn, int is_unsigned
 
 static void dis_common_vpmax_simd(uint64_t _regs, uint32_t insn, int is_unsigned)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5173,7 +5176,7 @@ static void dis_common_vpmax_simd(uint64_t _regs, uint32_t insn, int is_unsigned
 
 static void dis_common_vpadd_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5209,7 +5212,7 @@ static void dis_common_vpadd_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vqdmulh_vqrdmulh_simd(uint64_t _regs, uint32_t insn, int is_round)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5248,7 +5251,7 @@ static void dis_common_vqdmulh_vqrdmulh_simd(uint64_t _regs, uint32_t insn, int 
 
 static void dis_common_vmla_vmls_scalar_simd(uint64_t _regs, uint32_t insn, int is_thumb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int size = INSN(21, 20);
@@ -5297,7 +5300,7 @@ static void dis_common_vmla_vmls_scalar_simd(uint64_t _regs, uint32_t insn, int 
 
 static void dis_common_vfma_vfms_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5325,7 +5328,7 @@ static void dis_common_vfma_vfms_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vmul_f32_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5345,7 +5348,7 @@ static void dis_common_vmul_f32_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vmla_vmls_f32_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5370,7 +5373,7 @@ static void dis_common_vmla_vmls_f32_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vabd_fpu_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5391,7 +5394,7 @@ static void dis_common_vabd_fpu_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vpadd_fpu_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5405,7 +5408,7 @@ static void dis_common_vpadd_fpu_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vadd_vsub_fpu_simd(uint64_t _regs, uint32_t insn, int is_sub)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5427,7 +5430,7 @@ static void dis_common_vadd_vsub_fpu_simd(uint64_t _regs, uint32_t insn, int is_
 
 static void dis_common_vacge_vacgt_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5452,7 +5455,7 @@ static void dis_common_vacge_vacgt_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vaddl_vaddw_vsubl_vsubw_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb, int is_sub)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5504,7 +5507,7 @@ static void dis_common_vaddl_vaddw_vsubl_vsubw_simd(uint64_t _regs, uint32_t ins
 
 static void dis_common_vaddhn_vraddhn_vsubhn_vrsubhn_simd(uint64_t _regs, uint32_t insn, int is_round, int is_sub)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5534,7 +5537,7 @@ static void dis_common_vaddhn_vraddhn_vsubhn_vrsubhn_simd(uint64_t _regs, uint32
 
 static void dis_common_vabal_vabdl_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5583,7 +5586,7 @@ static void dis_common_vabal_vabdl_simd(uint64_t _regs, uint32_t insn, uint32_t 
 
 static void dis_common_vqdmlal_vqdmlsl_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5622,7 +5625,7 @@ static void dis_common_vqdmlal_vqdmlsl_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vmlal_vmlsl_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5675,7 +5678,7 @@ static void dis_common_vmlal_vmlsl_simd(uint64_t _regs, uint32_t insn, uint32_t 
 
 static void dis_common_vmull_integer_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5718,7 +5721,7 @@ static void dis_common_vmull_integer_simd(uint64_t _regs, uint32_t insn, uint32_
 
 static void dis_common_vqdmull_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5750,7 +5753,7 @@ static void dis_common_vqdmull_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vmull_polynomial_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -5772,7 +5775,7 @@ static void dis_common_vmull_polynomial_simd(uint64_t _regs, uint32_t insn, uint
 
 static void dis_common_vmlal_vmlsl_scalar_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int size = INSN(21, 20);
@@ -5819,7 +5822,7 @@ static void dis_common_vmlal_vmlsl_scalar_simd(uint64_t _regs, uint32_t insn, ui
 
 static void dis_common_vmul_scalar_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int size = INSN(21, 20);
@@ -5859,7 +5862,7 @@ static void dis_common_vmul_scalar_simd(uint64_t _regs, uint32_t insn, uint32_t 
 
 static void dis_common_vmull_scalar_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int size = INSN(21, 20);
@@ -5899,7 +5902,7 @@ static void dis_common_vmull_scalar_simd(uint64_t _regs, uint32_t insn, uint32_t
 
 static void dis_common_vqdmlal_vqdmlsl_scalar_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int size = INSN(21, 20);
@@ -5942,7 +5945,7 @@ static void dis_common_vqdmlal_vqdmlsl_scalar_simd(uint64_t _regs, uint32_t insn
 
 static void dis_common_vqdmull_scalar_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int size = INSN(21, 20);
@@ -5980,7 +5983,7 @@ static void dis_common_vqdmull_scalar_simd(uint64_t _regs, uint32_t insn, uint32
 
 static void dis_common_vqdmulh_vqrdmulh_scalar_simd(uint64_t _regs, uint32_t insn, uint32_t is_thumb, int is_round)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int size = INSN(21, 20);
@@ -6024,7 +6027,7 @@ static void dis_common_vqdmulh_vqrdmulh_scalar_simd(uint64_t _regs, uint32_t ins
 
 static void dis_common_vrev_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6065,7 +6068,7 @@ static void dis_common_vrev_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vpaddl_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6110,7 +6113,7 @@ static void dis_common_vpaddl_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vcls_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6145,7 +6148,7 @@ static void dis_common_vcls_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vclz_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6180,7 +6183,7 @@ static void dis_common_vclz_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vcnt_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6200,7 +6203,7 @@ static void dis_common_vcnt_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vpadal_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6247,7 +6250,7 @@ static void dis_common_vpadal_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vqabs_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6282,7 +6285,7 @@ static void dis_common_vqabs_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vqneg_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6317,7 +6320,7 @@ static void dis_common_vqneg_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vabs_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6355,7 +6358,7 @@ static void dis_common_vabs_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vneg_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6393,7 +6396,7 @@ static void dis_common_vneg_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vtrn_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6436,7 +6439,7 @@ static void dis_common_vtrn_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vuzp_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6512,7 +6515,7 @@ static void dis_common_vuzp_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vzip_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6576,7 +6579,7 @@ static void dis_common_vzip_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vmovn_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6605,7 +6608,7 @@ static void dis_common_vmovn_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vqmovun_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6634,7 +6637,7 @@ static void dis_common_vqmovun_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vqmovn_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6676,7 +6679,7 @@ static void dis_common_vqmovn_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vshll_maximum_shift_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6705,7 +6708,7 @@ static void dis_common_vshll_maximum_shift_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vrecpe_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6743,7 +6746,7 @@ static void dis_common_vrecpe_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vrsqrte_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6783,7 +6786,7 @@ static void dis_common_vrsqrte_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vcvt_floating_integer_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(19, 18);
@@ -6816,7 +6819,7 @@ static void dis_common_vcvt_floating_integer_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vmla_vmls_vfp(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int vn = INSN(19, 16);
     int vd = INSN(15, 12);
@@ -6848,7 +6851,7 @@ static void dis_common_vmla_vmls_vfp(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vnmla_vnmls_vfp(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int vn = INSN(19, 16);
     int vd = INSN(15, 12);
@@ -6880,7 +6883,7 @@ static void dis_common_vnmla_vnmls_vfp(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vnmul_vfp(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int vn = INSN(19, 16);
     int vd = INSN(15, 12);
@@ -6905,7 +6908,7 @@ static void dis_common_vnmul_vfp(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vmul_vfp(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int vn = INSN(19, 16);
     int vd = INSN(15, 12);
@@ -6930,7 +6933,7 @@ static void dis_common_vmul_vfp(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vadd_vsub_vfp(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int vn = INSN(19, 16);
     int vd = INSN(15, 12);
@@ -6962,7 +6965,7 @@ static void dis_common_vadd_vsub_vfp(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vdiv_vfp(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int vn = INSN(19, 16);
     int vd = INSN(15, 12);
@@ -6987,7 +6990,7 @@ static void dis_common_vdiv_vfp(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vfnma_vfnms(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int vn = INSN(19, 16);
     int vd = INSN(15, 12);
@@ -7021,7 +7024,7 @@ static void dis_common_vfnma_vfnms(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vfma_vfms(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int vn = INSN(19, 16);
     int vd = INSN(15, 12);
@@ -7055,7 +7058,7 @@ static void dis_common_vfma_vfms(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vabs_vfp(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int vd = INSN(15, 12);
     int is_double = INSN(8, 8);
@@ -7076,7 +7079,7 @@ static void dis_common_vabs_vfp(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vsqrt_vfp(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int vd = INSN(15, 12);
     int is_double = INSN(8, 8);
@@ -7097,7 +7100,7 @@ static void dis_common_vsqrt_vfp(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vneg_vfp(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int D = INSN(22, 22);
     int vd = INSN(15, 12);
     int is_double = INSN(8, 8);
@@ -7118,7 +7121,7 @@ static void dis_common_vneg_vfp(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vdup_arm(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(7, 7) << 4) | INSN(19, 16);
     int rt = INSN(15, 12);
     int reg_nb = INSN(21, 21) + 1;
@@ -7158,7 +7161,7 @@ static void dis_common_vdup_arm(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vmov_from_arm_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(7, 7) << 4) | INSN(19, 16);
     int rt = INSN(15, 12);
     int opc1 = INSN(22, 21);
@@ -7179,7 +7182,7 @@ static void dis_common_vmov_from_arm_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vshr_vrshr_simd(uint64_t _regs, uint32_t insn, int is_unsigned, int is_round)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int reg_nb = INSN(6, 6) + 1;
@@ -7235,7 +7238,7 @@ static void dis_common_vshr_vrshr_simd(uint64_t _regs, uint32_t insn, int is_uns
 
 static void dis_common_vsra_vrsra_simd(uint64_t _regs, uint32_t insn, int is_unsigned, int is_round)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int reg_nb = INSN(6, 6) + 1;
@@ -7293,7 +7296,7 @@ static void dis_common_vsra_vrsra_simd(uint64_t _regs, uint32_t insn, int is_uns
 
 static void dis_common_vsri_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int reg_nb = INSN(6, 6) + 1;
@@ -7341,7 +7344,7 @@ static void dis_common_vsri_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vsli_immediate_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int reg_nb = INSN(6, 6) + 1;
@@ -7388,7 +7391,7 @@ static void dis_common_vsli_immediate_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vshl_immediate_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int reg_nb = INSN(6, 6) + 1;
@@ -7428,7 +7431,7 @@ static void dis_common_vshl_immediate_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vqshlu_immediate_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int reg_nb = INSN(6, 6) + 1;
@@ -7468,7 +7471,7 @@ static void dis_common_vqshlu_immediate_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vqshl_immediate_simd(uint64_t _regs, uint32_t insn, int is_unsigned)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int reg_nb = INSN(6, 6) + 1;
@@ -7524,7 +7527,7 @@ static void dis_common_vqshl_immediate_simd(uint64_t _regs, uint32_t insn, int i
 
 static void dis_common_vqrshrun_vqshrun_simd(uint64_t _regs, uint32_t insn, int is_round)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int imm6 = INSN(21, 16);
@@ -7555,7 +7558,7 @@ static void dis_common_vqrshrun_vqshrun_simd(uint64_t _regs, uint32_t insn, int 
 
 static void dis_common_vrshrn_vshrn_simd(uint64_t _regs, uint32_t insn, int is_round)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int imm6 = INSN(21, 16);
@@ -7585,7 +7588,7 @@ static void dis_common_vrshrn_vshrn_simd(uint64_t _regs, uint32_t insn, int is_r
 
 static void dis_common_vqrshrn_vqshrn_simd(uint64_t _regs, uint32_t insn, int is_unsigned, int is_round)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int imm6 = INSN(21, 16);
@@ -7630,7 +7633,7 @@ static void dis_common_vqrshrn_vqshrn_simd(uint64_t _regs, uint32_t insn, int is
 
 static void dis_common_vshll_simd(uint64_t _regs, uint32_t insn, int is_unsigned)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int imm6 = INSN(21, 16);
@@ -7667,7 +7670,7 @@ static void dis_common_vshll_simd(uint64_t _regs, uint32_t insn, int is_unsigned
 
 static void dis_common_vmovl_simd(uint64_t _regs, uint32_t insn, int is_unsigned)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int size = INSN(21, 19);
@@ -7708,7 +7711,7 @@ static void dis_common_vmovl_simd(uint64_t _regs, uint32_t insn, int is_unsigned
 
 static void dis_common_vext_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
@@ -7734,7 +7737,7 @@ static void dis_common_vext_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vdup_scalar(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int reg_nb = INSN(6, 6) + 1;
@@ -7779,7 +7782,7 @@ static void dis_common_vdup_scalar(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vtbl_vtbx_simd(uint64_t _regs, uint32_t insn)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int m = (INSN(5, 5) << 4) | INSN(3, 0);
     int n = (INSN(7, 7) << 4) | INSN(19, 16);
@@ -7802,7 +7805,7 @@ static void dis_common_vtbl_vtbx_simd(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vldx_single_one_lane(uint64_t _regs, uint32_t insn, int nb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int rn = INSN(19, 16);
     int rm = INSN(3, 0);
@@ -7885,7 +7888,7 @@ static void dis_common_vld4_single_one_lane(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vldx_single_all_lane(uint64_t _regs, uint32_t insn, int outer_nb, int inner_nb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int rn = INSN(19, 16);
     int rm = INSN(3, 0);
@@ -7977,7 +7980,7 @@ static void dis_common_vld4_single_all_lane(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vldx_multiple(uint64_t _regs, uint32_t insn, int outer_nb, int inner_nb, int inc)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int rn = INSN(19, 16);
     int rm = INSN(3, 0);
@@ -8124,7 +8127,7 @@ static void dis_common_vld4_multiple(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vstx_single_one_lane(uint64_t _regs, uint32_t insn, int nb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int rn = INSN(19, 16);
     int rm = INSN(3, 0);
@@ -8207,7 +8210,7 @@ static void dis_common_vst4_single_one_lane(uint64_t _regs, uint32_t insn)
 
 static void dis_common_vstx_multiple(uint64_t _regs, uint32_t insn, int outer_nb, int inner_nb, int inc)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     int d = (INSN(22, 22) << 4) | INSN(15, 12);
     int rn = INSN(19, 16);
     int rm = INSN(3, 0);
@@ -8495,7 +8498,7 @@ void t32_hlp_saturation(uint64_t regs, uint32_t insn)
 
 void arm_hlp_umaal(uint64_t _regs, uint32_t rdhi_nb, uint32_t rdlo_nb, uint32_t rn_nb, uint32_t rm_nb)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
     uint64_t rdhi = regs->r[rdhi_nb];
     uint64_t rdlo = regs->r[rdlo_nb];
     uint64_t rn = regs->r[rn_nb];
@@ -9190,7 +9193,7 @@ void hlp_common_adv_simd_element_or_structure_load_store(uint64_t regs, uint32_t
 
 void hlp_write_fpscr(uint64_t _regs, uint32_t value)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
 
     /* regs->fpscr update */
     regs->fpscr = value & 0xfc009f80;
@@ -9201,7 +9204,7 @@ void hlp_write_fpscr(uint64_t _regs, uint32_t value)
 
 uint32_t hlp_read_fpscr(uint64_t _regs)
 {
-    struct arm_registers *regs = (struct arm_registers *) _regs;
+    struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
 
     return softfloat_to_arm_fpscr(regs->fpscr, &regs->fp_status, &regs->fp_status_simd);
 }

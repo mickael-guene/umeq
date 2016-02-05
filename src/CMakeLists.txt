@@ -7,8 +7,20 @@ configure_file(
 	${CMAKE_BINARY_DIR}/generated/version/version.h
 )
 
-set(CMAKE_C_FLAGS "-fno-stack-protector -O2 -g -mcmodel=large -Wall -U_FORTIFY_SOURCE -ffreestanding")
-set(CMAKE_CXX_FLAGS "-fno-stack-protector -O2 -g -mcmodel=large -Wall -U_FORTIFY_SOURCE -ffreestanding")
+set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O0 -g -Wall -U_FORTIFY_SOURCE -ffreestanding")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O0 -g -Wall -U_FORTIFY_SOURCE -ffreestanding")
+set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O0 -g -Wall -U_FORTIFY_SOURCE -ffreestanding")
+
+if (UMEQ_ARCH_X64)
+	set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -mcmodel=large")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mcmodel=large")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcmodel=large")
+	set(UMEQ_LOAD_ADDR 0x8000000000)
+	set(UMEQ_SYSCALL_32 "syscall32_64")
+else (UMEQ_ARCH_X64)
+	set(UMEQ_LOAD_ADDR 0xb0000000)
+	set(UMEQ_SYSCALL_32 "syscall32_32")
+endif (UMEQ_ARCH_X64)
 
 include_directories(${CMAKE_BINARY_DIR}/generated/version)
 include_directories(jitter)
@@ -33,8 +45,10 @@ add_subdirectory(target)
 add_subdirectory(syscall)
 add_subdirectory(fpu)
 
-add_executable(umeq-arm main.c start.S)
-target_link_libraries(umeq-arm -nostdlib -Wl,-Ttext-segment=0x8000000000 -Wl,-z,execstack -static -Wl,--start-group jitter loader32 cache runtime arm_target syscall32_64 softfloat -Wl,--end-group)
+add_executable(umeq-arm main.c umeq.c start.S)
+target_link_libraries(umeq-arm -nostdlib -Wl,-Ttext-segment=${UMEQ_LOAD_ADDR} -Wl,-z,execstack -static -Wl,--start-group jitter loader32 cache runtime arm_target ${UMEQ_SYSCALL_32} softfloat -Wl,--end-group)
 
-add_executable(umeq-arm64 main.c start.S)
-target_link_libraries(umeq-arm64 -nostdlib -Wl,-Ttext-segment=0x8000000000 -Wl,-z,execstack -static -Wl,--start-group jitter loader64 cache runtime arm64_target syscall64_64 softfloat -Wl,--end-group)
+if (UMEQ_ARCH_X64)
+	add_executable(umeq-arm64 main.c umeq.c start.S)
+	target_link_libraries(umeq-arm64 -nostdlib -Wl,-Ttext-segment=0x8000000000 -Wl,-z,execstack -static -Wl,--start-group jitter loader64 cache runtime arm64_target syscall64_64 softfloat -Wl,--end-group)
+endif (UMEQ_ARCH_X64)
