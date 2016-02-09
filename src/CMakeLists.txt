@@ -7,9 +7,9 @@ configure_file(
 	${CMAKE_BINARY_DIR}/generated/version/version.h
 )
 
-set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O0 -g -Wall -U_FORTIFY_SOURCE -ffreestanding")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O0 -g -Wall -U_FORTIFY_SOURCE -ffreestanding")
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O0 -g -Wall -U_FORTIFY_SOURCE -ffreestanding")
+set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O2 -g -Wall -U_FORTIFY_SOURCE -ffreestanding")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O2 -g -Wall -U_FORTIFY_SOURCE -ffreestanding")
+set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O2 -g -Wall -U_FORTIFY_SOURCE -ffreestanding")
 
 if (UMEQ_ARCH_X64)
 	set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -mcmodel=large")

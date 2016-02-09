@@ -30,6 +30,7 @@
 #include "arm_helpers.h"
 #include "sysnums-arm.h"
 #include "hownums-arm.h"
+ #include "syscalls_neutral_types.h"
 #include "syscalls_neutral.h"
 #include "runtime.h"
 #include "arm_syscall.h"
@@ -62,8 +63,19 @@ void arm_hlp_syscall(uint64_t regs)
                                                   context->regs.r[3], context->regs.r[4], context->regs.r[5]);
     } else if (how == HOW_custom_implementation) {
         switch(no_neutral) {
+            case PR_ARM_set_tls:
+                context->regs.c13_tls2 = context->regs.r[0];
+                res = 0;
+                break;
+            case PR_arm_fadvise64_64:
+                res = syscall_adapter_guest32(PR_fadvise64_64, context->regs.r[0], context->regs.r[2], context->regs.r[3], 
+                                                               context->regs.r[4], context->regs.r[5], context->regs.r[1]);
+                break;
             case PR_brk:
                 res = arm_brk(context);
+                break;
+            case PR_clone:
+                res = arm_clone(context);
                 break;
             case PR_exit:
                 if (context->is_in_signal) {
@@ -80,15 +92,54 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_fstat64:
                 res = arm_fstat64(context);
                 break;
+            case PR_lstat64:
+                res = arm_lstat64(context);
+                break;
             case PR_mmap2:
                 res = arm_mmap2(context);
                 break;
-            case PR_ARM_set_tls:
-                context->regs.c13_tls2 = context->regs.r[0];
+            case PR_munmap:
+                res = arm_munmap(context);
+                break;
+            case PR_open:
+                res = arm_open(context);
+                break;
+            case PR_pread64:
+                res = syscall_adapter_guest32(PR_pread64, context->regs.r[0], context->regs.r[1], context->regs.r[2],
+                                                          context->regs.r[4], context->regs.r[5], 0);
+                break;
+            case PR_ptrace:
+                res = arm_ptrace(context);
+                break;
+            case PR_rt_sigaction:
+                res = arm_rt_sigaction(context);
+                break;
+            case PR_sigaltstack:
+                res = arm_sigaltstack(context);
+                break;
+            case PR_sigreturn:
+                context->isLooping = 0;
+                context->exitStatus = 0;
                 res = 0;
+                break;
+            case PR_stat64:
+                res = arm_stat64(context);
+                break;
+            case PR_statfs64:
+                /* NOTE : arm statfs64 size if 4 bytes less due to packing. We make the strong statement that
+                   code below syscall_adapter_guest32 WILL NOT write in this compiler packing byte. */
+                res = syscall_adapter_guest32(PR_statfs64, context->regs.r[0], sizeof(struct neutral_statfs64_32), context->regs.r[2], 
+                                                            context->regs.r[3], context->regs.r[4], context->regs.r[5]);
+                break;
+            case PR_ugetrlimit:
+                res = syscall_adapter_guest32(PR_getrlimit, context->regs.r[0], context->regs.r[1], context->regs.r[2], 
+                                                            context->regs.r[3], context->regs.r[4], context->regs.r[5]);
                 break;
             case PR_uname:
                 res = arm_uname(context);
+                break;
+            case PR_wait4:
+                res = arm_wait4(context);
                 break;
             default:
                 fatal("You say custom but you don't implement it %d\n", no_neutral);

@@ -39,6 +39,12 @@
 #include "umeq.h"
 #include "syscall32_64_types.h"
 
+#if __i386__
+ #define PROOT_MAGIC_NB         350
+#else
+ #define PROOT_MAGIC_NB         313
+#endif
+
 #define MAGIC1  0x7a711e06171129a2UL
 #define MAGIC2  0xc6925d1ed6dcd674UL
 
@@ -123,20 +129,36 @@ struct exec_ptrace_info {
     unsigned long exec_event_in_signal_emulation;
 } host_exec_info;
 
+#ifdef __i386__
+#include <asm/ldt.h>
+static long get_regs_base(int pid, unsigned long *regs_base) {
+    struct user_regs_struct user_regs;
+    struct user_desc desc;
+    int res;
+
+    res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
+    if (!res) {
+        desc.entry_number = user_regs.xgs >> 3;
+        res = syscall(SYS_ptrace, 25/*PTRACE_GET_THREAD_AREA*/, pid, user_regs.xgs >> 3, &desc);
+        if (!res) {
+            res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, desc.base_addr + 4, regs_base);
+        }
+    }
+
+    return res;
+}
+#else /*__i386__*/
 static long get_regs_base(int pid, unsigned long *regs_base) {
     struct user_regs_struct user_regs;
     long res;
 
     res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
-#ifdef __i386__
-    fatal("implement me\n");
-#else
     if (!res)
         res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, user_regs.fs_base + 8, regs_base);
-#endif
 
     return res;
 }
+#endif /*__i386__*/
 
 static int is_syscall_stop(pid_t pid)
 {
@@ -215,7 +237,7 @@ static void set_exec_event_in_signal_emulation(pid_t pid, int signal)
  */
 static int get_and_set_entry_show(pid_t pid, int command, int is_entry)
 {
-    uint64_t regs_base;
+    unsigned long regs_base;
     long res;
     long data;
 
@@ -238,25 +260,28 @@ static int get_and_set_entry_show(pid_t pid, int command, int is_entry)
     return data?1:0;
 }
 
+#if __i386__
+static int is_magic_syscall(pid_t pid, int *syscall_no, int *command, int *is_entry)
+{
+    fatal("implement me\n");
+}
+#else
 static int is_magic_syscall(pid_t pid, int *syscall_no, int *command, int *is_entry)
 {
     long res;
     struct user_regs_struct regs;
     int is_magic;
 
-#ifdef __i386__
-    fatal("implement me\n");
-#else
     res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, NULL, &regs);
     assert(res == 0);
     *syscall_no = regs.orig_rax;
     *command = regs.rdx;
     *is_entry = regs.rax==-ENOSYS?1:0;
     is_magic = regs.rdi== MAGIC1 && regs.rsi == MAGIC2;
-#endif
 
     return is_magic;
 }
+#endif
 
 static action_t handle_command_2(pid_t pid, int is_entry, int *status)
 {
@@ -423,19 +448,13 @@ static int read_bytes(int pid, void *dest, void *addr, int size)
 
 static uint32_t remote_fpscr_read(int pid)
 {
-    struct user_regs_struct user_regs;
     float_status fp_status;
     float_status fp_status_simd;
     uint32_t fpscr;
     unsigned long data_long;
 
     /* got base address */
-    syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
-#ifdef __i386__
-    fatal("implement me\n");
-#else
-    syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
-#endif
+    get_regs_base(pid, &data_long);
 
     /* copy tracee floating point info */
     read_bytes(pid, &fp_status, (void *)(data_long + offsetof(struct arm_registers, fp_status)), sizeof(fp_status));
@@ -456,10 +475,10 @@ void ptrace_exec_event(struct arm_target *context)
                 /* syscall execve exit sequence */
                  /* this will be translated into sysexec exit */
                 context->regs.is_in_syscall = 2;
-                syscall((long) 313, 1);
+                syscall((long) PROOT_MAGIC_NB, 1);
                  /* this will be translated into SIGTRAP */
                 context->regs.is_in_syscall = 0;
-                syscall((long) 313, 2);
+                syscall((long) PROOT_MAGIC_NB, 2);
             } else {
                 //context->regs.r[8] = 221;
                 syscall(SYS_gettid, MAGIC1, MAGIC2, 2);
@@ -475,7 +494,7 @@ void ptrace_syscall_enter(struct arm_target *context)
     if (maybe_ptraced) {
         context->regs.is_in_syscall = 1;
         if (is_under_proot)
-            syscall((long) 313, 0);
+            syscall((long) PROOT_MAGIC_NB, 0);
         else
             syscall(SYS_gettid, MAGIC1, MAGIC2, 0);
     }
@@ -486,7 +505,7 @@ void ptrace_syscall_exit(struct arm_target *context)
     if (maybe_ptraced) {
         context->regs.is_in_syscall = 2;
         if (is_under_proot)
-            syscall((long) 313, 1);
+            syscall((long) PROOT_MAGIC_NB, 1);
         else
             syscall(SYS_gettid, MAGIC1, MAGIC2, 1);
         context->regs.is_in_syscall = 0;
@@ -549,19 +568,12 @@ int arm_ptrace(struct arm_target *context)
             break;
         case PTRACE_POKEUSER:
             {
-                struct user_regs_struct user_regs;
                 unsigned long data_long;
                 unsigned long data_host;
 
                 /* avoid poking too long ... */
                 assert(addr < 16 * 4);
-                /* FIXME: Need rework with a framework to handle tlsarea usage */
-                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
-#ifdef __i386__
-                fatal("implement me\n");
-#else
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
-#endif
+                res = get_regs_base(pid, &data_long);
 
                 res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + addr, &data_host);
                 data_host = (data_host & 0xffffffff00000000UL) | data;
@@ -594,19 +606,13 @@ int arm_ptrace(struct arm_target *context)
         case PTRACE_GETREGS:
             {
                 struct user_regs_arm *user_regs_arm = (struct user_regs_arm *) g_2_h(data);
-                struct user_regs_struct user_regs;
                 unsigned long data_reg;
                 unsigned long data_long;
                 int i;
                 uint32_t is_in_syscall;
 
                 /* FIXME: Need rework with a framework to handle tlsarea usage */
-                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
-#ifdef __i386__
-                fatal("implement me\n");
-#else
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
-#endif
+                res = get_regs_base(pid, &data_long);
                 for(i=0;i<16;i++) {
                     res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + i * 4, &data_reg);
                     user_regs_arm->uregs[i] = (unsigned int) data_reg;
@@ -629,16 +635,10 @@ int arm_ptrace(struct arm_target *context)
         case PTRACE_SETREGS:
             {
                 struct user_regs_arm *user_regs_arm = (struct user_regs_arm *) g_2_h(data);
-                struct user_regs_struct user_regs;
                 unsigned long data_long;
                 int i;
 
-                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
-#ifdef __i386__
-                fatal("implement me\n");
-#else
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
-#endif
+                res = get_regs_base(pid, &data_long);
                 for(i=0;i<15;i++) {
                     res = write_32(pid, user_regs_arm->uregs[i], (void *) (data_long + i * 4));
                 }
@@ -665,16 +665,10 @@ int arm_ptrace(struct arm_target *context)
         case 22:/*PTRACE_GET_THREAD_AREA*/
             {
                 unsigned int *data_guest = (unsigned int *) g_2_h(data);
-                struct user_regs_struct user_regs;
                 unsigned long data_tls;
                 unsigned long data_long;
 
-                res = syscall(SYS_ptrace, (long) PTRACE_GETREGS, (long) pid, (long) addr, (long) &user_regs);
-#ifdef __i386__
-                fatal("implement me\n");
-#else
-                res = syscall(SYS_ptrace, (long) PTRACE_PEEKTEXT, (long) pid, (long) user_regs.fs_base + 8, (long) &data_long);
-#endif
+                res = get_regs_base(pid, &data_long);
                 res = syscall(SYS_ptrace, (long) PTRACE_PEEKTEXT, (long) pid, (long) data_long + 17 * 4, (long) &data_tls);
                 *data_guest = data_tls;
 
@@ -684,17 +678,11 @@ int arm_ptrace(struct arm_target *context)
         case PTRACE_GETVFPREGS:
             {
                 struct user_vfp_arm *user_vfp_regs_arm = (struct user_vfp_arm *) g_2_h(data);
-                struct user_regs_struct user_regs;
                 unsigned long data_reg;
                 unsigned long data_long;
                 int i;
 
-                res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, addr, &user_regs);
-#ifdef __i386__
-                fatal("implement me\n");
-#else
-                res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, user_regs.fs_base + 8, &data_long);
-#endif
+                res = get_regs_base(pid, &data_long);
                 for(i=0;i<32;i++) {
                     res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, data_long + offsetof(struct arm_registers, e.d[i]), &data_reg);
                     user_vfp_regs_arm->fpregs[i] = data_reg;

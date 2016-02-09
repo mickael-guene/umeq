@@ -40,12 +40,12 @@
 # endif
 
 
-int set_thread_area(struct user_desc *u_info)
+static int set_thread_area(struct user_desc *u_info)
 {
     return syscall(SYS_set_thread_area, u_info);
 }
 
-int get_thread_area(struct user_desc *u_info)
+static int get_thread_area(struct user_desc *u_info)
 {
     return syscall(SYS_get_thread_area, u_info);
 }

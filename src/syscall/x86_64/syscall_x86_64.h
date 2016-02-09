@@ -26,6 +26,9 @@ extern "C" {
 #define __SYSCALLS_X86_64__ 1
 
 long syscall_x86_64_fstat64(uint64_t fd_p, uint64_t buf_p);
+long syscall_x86_64_lstat64(uint64_t pathname_p, uint64_t buf_p);
+long syscall_x86_64_stat64(uint64_t pathname_p, uint64_t buf_p);
+long syscall_x86_64_fstatat64(uint64_t dirfd_p, uint64_t pathname_p, uint64_t buf_p, uint64_t flags_p);
 
 #endif
 

@@ -26,6 +26,9 @@ extern "C" {
 #define __SYSCALLS_I386__ 1
 
 int syscall_i386_fstat64(uint32_t fd_p, uint32_t buf_p);
+int syscall_i386_lstat64(uint32_t pathname_p, uint32_t buf_p);
+int syscall_i386_stat64(uint32_t pathname_p, uint32_t buf_p);
+int syscall_i386_fstatat64(uint32_t dirfd_p, uint32_t pathname_p, uint32_t buf_p, uint32_t flags_p);
 
 #endif
 

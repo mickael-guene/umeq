@@ -42,7 +42,6 @@
 struct arm_stat64 {
     uint64_t            st_dev;
     uint8_t             __pad0[4];
-    uint32_t            __align_pad_0;
     uint32_t            __st_ino;
     uint32_t            st_mode;
     uint32_t            st_nlink;
@@ -64,7 +63,7 @@ struct arm_stat64 {
     uint64_t            st_ino;
 };
 
-/* we can call syscall_adapter_guest32 since we have enought memory in buf */
+/* we can call syscall_adapter_guest32 since we have enought memory in buf for struct neutral_stat64 */
 int arm_fstat64(struct arm_target *context)
 {
     int res;
@@ -73,6 +72,76 @@ int arm_fstat64(struct arm_target *context)
         return -EFAULT;
 
     res = syscall_adapter_guest32(PR_fstat64, context->regs.r[0], context->regs.r[1], 0, 0, 0, 0);
+    if (!res) {
+        struct neutral_stat64 neutral_stat64;
+        struct arm_stat64 *arm_stat64 = (struct arm_stat64 *) g_2_h(context->regs.r[1]);
+
+        memcpy(&neutral_stat64, g_2_h(context->regs.r[1]), sizeof(neutral_stat64));
+        arm_stat64->st_dev = neutral_stat64.st_dev;
+        arm_stat64->__st_ino = neutral_stat64.st_ino;
+        arm_stat64->st_mode = neutral_stat64.st_mode;
+        arm_stat64->st_nlink = neutral_stat64.st_nlink;
+        arm_stat64->st_uid = neutral_stat64.st_uid;
+        arm_stat64->st_gid = neutral_stat64.st_gid;
+        arm_stat64->st_rdev = neutral_stat64.st_rdev;
+        arm_stat64->st_size = neutral_stat64.st_size;
+        arm_stat64->st_blksize = neutral_stat64.st_blksize;
+        arm_stat64->st_blocks = neutral_stat64.st_blocks;
+        arm_stat64->st_atime = neutral_stat64.st_atime_;
+        arm_stat64->st_atime_nsec = neutral_stat64.st_atime_nsec;
+        arm_stat64->st_mtime = neutral_stat64.st_mtime_;
+        arm_stat64->st_mtime_nsec = neutral_stat64.st_mtime_nsec;
+        arm_stat64->st_ctime = neutral_stat64.st_ctime_;
+        arm_stat64->st_ctime_nsec = neutral_stat64.st_ctime_nsec;
+        arm_stat64->st_ino = neutral_stat64.st_ino;
+    }
+
+    return res;
+}
+
+int arm_stat64(struct arm_target *context)
+{
+    int res;
+
+    if (!context->regs.r[1])
+        return -EFAULT;
+
+    res = syscall_adapter_guest32(PR_stat64, context->regs.r[0], context->regs.r[1], 0, 0, 0, 0);
+    if (!res) {
+        struct neutral_stat64 neutral_stat64;
+        struct arm_stat64 *arm_stat64 = (struct arm_stat64 *) g_2_h(context->regs.r[1]);
+
+        memcpy(&neutral_stat64, g_2_h(context->regs.r[1]), sizeof(neutral_stat64));
+        arm_stat64->st_dev = neutral_stat64.st_dev;
+        arm_stat64->__st_ino = neutral_stat64.st_ino;
+        arm_stat64->st_mode = neutral_stat64.st_mode;
+        arm_stat64->st_nlink = neutral_stat64.st_nlink;
+        arm_stat64->st_uid = neutral_stat64.st_uid;
+        arm_stat64->st_gid = neutral_stat64.st_gid;
+        arm_stat64->st_rdev = neutral_stat64.st_rdev;
+        arm_stat64->st_size = neutral_stat64.st_size;
+        arm_stat64->st_blksize = neutral_stat64.st_blksize;
+        arm_stat64->st_blocks = neutral_stat64.st_blocks;
+        arm_stat64->st_atime = neutral_stat64.st_atime_;
+        arm_stat64->st_atime_nsec = neutral_stat64.st_atime_nsec;
+        arm_stat64->st_mtime = neutral_stat64.st_mtime_;
+        arm_stat64->st_mtime_nsec = neutral_stat64.st_mtime_nsec;
+        arm_stat64->st_ctime = neutral_stat64.st_ctime_;
+        arm_stat64->st_ctime_nsec = neutral_stat64.st_ctime_nsec;
+        arm_stat64->st_ino = neutral_stat64.st_ino;
+    }
+
+    return res;
+}
+
+int arm_lstat64(struct arm_target *context)
+{
+    int res;
+
+    if (!context->regs.r[1])
+        return -EFAULT;
+
+    res = syscall_adapter_guest32(PR_lstat64, context->regs.r[0], context->regs.r[1], 0, 0, 0, 0);
     if (!res) {
         struct neutral_stat64 neutral_stat64;
         struct arm_stat64 *arm_stat64 = (struct arm_stat64 *) g_2_h(context->regs.r[1]);
