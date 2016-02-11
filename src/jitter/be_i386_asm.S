@@ -19,6 +19,7 @@
  */
 
 .GLOBAL execute_be_i386
+.GLOBAL restore_be_i386
 
 execute_be_i386:
 	push %ebp
@@ -26,11 +27,36 @@ execute_be_i386:
 	push %esi
 	push %ebx
 	mov %esp, %ebp
+	mov 24(%ebp), %edi
+	mov 20(%ebp), %esi
+	mov %ebp, -4(%edi)
+	mov %esi, -8(%edi)
 	sub $64, %esp
 	mov 32(%ebp), %edi
 	mov 20(%ebp), %esi
 	call *28(%ebp)
 	add $64, %esp
+	pop %ebx
+	pop %esi
+	pop %edi
+	pop %ebp
+	ret $0x4
+
+/*  Calling this function allow to return to execute_be_i386 caller transparently.
+ *  Typical usage of this function is to output from a signal handler with a modify
+ *  guest pc.
+ *  Call it from assembly code with following registers set :
+ *  edi : contains backend structure pointer. we will use sp that was store during
+ *        execute_be_i386 call.
+ *  esi : contain next guest pc to execute
+ */
+restore_be_i386:
+	mov -4(%edi), %esp
+	mov -8(%edi), %edi
+	mov %esi, 0(%edi)
+	xor %esi,%esi
+	mov %esi, 4(%edi)
+	mov %esi, 8(%edi)
 	pop %ebx
 	pop %esi
 	pop %edi

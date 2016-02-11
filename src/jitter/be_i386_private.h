@@ -28,7 +28,7 @@ extern "C" {
 #define __BE_I386_PRIVATE__ 1
 
 struct backend_execute_result execute_be_i386(struct backend *backend, char *buffer, uint64_t context);
-struct backend_execute_result restore_be_xi386(struct backend *backend, uint64_t result);
+struct backend_execute_result restore_be_i386(struct backend *backend, uint64_t result);
 
 #endif
 

@@ -138,6 +138,8 @@ struct memoryPool {
 };
 
 struct inter {
+    uint32_t result_addr;
+    uint32_t restore_sp;
     struct backend backend;
     struct memoryPool registerPoolAllocator;
     struct memoryPool instructionPoolAllocator;
@@ -1623,7 +1625,12 @@ static int generateCode(struct inter *inter, char *buffer)
 /* backend api */
 static void request_signal_alternate_exit(struct backend *backend, void *_ucp, uint64_t result)
 {
-    assert(0 && "Implement me\n");
+    ucontext_t *ucp = (ucontext_t *) _ucp;
+
+    /* let the kernel call restore_be_i386 for us when we will exit signal handler */
+    ucp->uc_mcontext.gregs[REG_EIP] = (uint32_t) restore_be_i386;
+    ucp->uc_mcontext.gregs[REG_EDI] = (uint32_t) backend;
+    ucp->uc_mcontext.gregs[REG_ESI] = (uint32_t) result;
 }
 
 static void patch(struct backend *backend, void *link_patch_area, void *cache_area)
@@ -1680,6 +1687,8 @@ struct backend *createI386Backend(void *memory, int size)
         int pool_mem_size;
         int struct_inter_size_aligned_16 = ((sizeof(*inter) + 15) & ~0xf);
 
+        inter->result_addr = 0;
+        inter->restore_sp = 0;
         inter->backend.jit = jit;
         inter->backend.execute = execute_be_i386;
         inter->backend.request_signal_alternate_exit = request_signal_alternate_exit;
