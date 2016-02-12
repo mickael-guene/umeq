@@ -562,7 +562,7 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             res = syscall_neutral_64(PR_gettid, p0, p1, p2, p3, p4, p5);
             break;
         case PR_gettimeofday:
-            res = gettimeofday_neutral(p1, p2);
+            res = gettimeofday_neutral(p0, p1);
             break;
         case PR_getuid32:
             res = syscall_neutral_64(PR_getuid, p0, p1, p2, p3, p4, p5);
