@@ -37,6 +37,7 @@
 #include "jitter.h"
 #include "target.h"
 #include "be_x86_64.h"
+#include "be_i386.h"
 
 #define ARM_CONTEXT_SIZE     (4096)
 
@@ -136,7 +137,7 @@ static uint32_t find_insn_offset(uint32_t guest_pc, int offset)
     memset(&context, 0, sizeof(context));
 
 #ifdef __i386__
-    fatal("implement me\n");
+    backend = createI386Backend(beX86_64Memory, 256 * KB);
 #else
     backend = createX86_64Backend(beX86_64Memory, 256 * KB);
 #endif
@@ -182,13 +183,8 @@ static uint32_t restore_precise_pc(struct arm_target *prev_context, ucontext_t *
             uint32_t jit_guest_start_pc;
             uint32_t insn_offset;
 
-#ifdef __i386__
-            fatal("implement me\n");
-#else
-            *in_signal_location = SIGNAL_LOCATION_JITTER_EXEC;
-            syscall(SYS_arch_prctl, ARCH_GET_FS, &current_tls_context);
+            current_tls_context = get_tls_context();
             cache = current_tls_context->cache;
-#endif
 
             jit_guest_start_pc = cache->lookup_pc(cache, host_pc_signal, &jit_host_start_pc);
             assert(jit_guest_start_pc != 0);

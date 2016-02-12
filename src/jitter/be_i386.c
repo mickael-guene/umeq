@@ -126,6 +126,9 @@ struct x86Instruction {
             struct x86Register *src;
             int32_t offset;
         } write_context;
+        struct {
+            uint32_t value;
+        } marker;
     } u;
 };
 
@@ -352,6 +355,17 @@ static void add_call(struct inter *inter, struct x86Register *address, struct x8
     inter->instructionIndex++;
 }
 
+static void add_insn_start_marker(struct inter *inter, uint32_t value)
+{
+    struct memoryPool *pool = &inter->instructionPoolAllocator;
+    struct x86Instruction *insn = (struct x86Instruction *) pool->alloc(pool, sizeof(struct x86Instruction));
+
+    insn->type = X86_INSN_MARKER;
+    insn->u.marker.value = value;
+
+    inter->instructionIndex++;
+}
+
 static void allocateInstructions(struct inter *inter, struct irInstruction *irArray, int irInsnNb)
 {
     int i;
@@ -488,6 +502,9 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                 break;
             case IR_WRITE_8: case IR_WRITE_16: case IR_WRITE_32: case IR_WRITE_64:
                 add_write(inter, X86_WRITE_8 + insn->type - IR_WRITE_8, allocateRegister(inter, insn->u.write_context.src), insn->u.write_context.offset);
+                break;
+            case IR_INSN_MARKER:
+                add_insn_start_marker(inter, insn->u.marker.value);
                 break;
             default:
                 fprintf(stderr, "Unknown ir type %d\n", insn->type);
@@ -702,6 +719,11 @@ static void allocateRegisters(struct inter *inter)
                     displayReg(insn->u.write_context.src);
 #endif
                 }
+                break;
+            case X86_INSN_MARKER:
+#ifdef DEBUG_REG_ALLOC
+                printf("start_of_new_instruction\n");
+#endif
                 break;
             default:
                 fprintf(stderr, "Unknown insn type %d\n", insn->type);
@@ -1622,6 +1644,103 @@ static int generateCode(struct inter *inter, char *buffer)
     return pos - buffer;
 }
 
+static uint32_t findInsnInCode(struct inter *inter, char *buffer, int offset)
+{
+    int i;
+    struct x86Instruction *insn = (struct x86Instruction *) inter->instructionPoolAllocator.buffer;
+    char *pos = buffer;
+    uint32_t mask;
+    uint32_t res = ~0;
+
+    for (i = 0; i < inter->instructionIndex; ++i, insn++)
+    {
+        switch(insn->type) {
+            case X86_INSN_MARKER:
+                res = insn->u.marker.value;
+                break;
+            case X86_MOV_CONST:
+                pos = gen_mov_const(pos, insn);
+                break;
+            case X86_LOAD_8:
+                pos = gen_load_8(pos, insn);
+                break;
+            case X86_LOAD_16:
+                pos = gen_load_16(pos, insn);
+                break;
+            case X86_LOAD_32:
+                pos = gen_load_32(pos, insn);
+                break;
+            case X86_LOAD_64:
+                pos = gen_load_64(pos, insn);
+                break;
+            case X86_STORE_8:
+                pos = gen_store_8(pos, insn);
+                break;
+            case X86_STORE_16:
+                pos = gen_store_16(pos, insn);
+                break;
+            case X86_STORE_32:
+                pos = gen_store_32(pos, insn);
+                break;
+            case X86_STORE_64:
+                pos = gen_store_64(pos, insn);
+                break;
+            case X86_BINOP_8: mask = 0xff; goto binop;
+            case X86_BINOP_16: mask = 0xffff; goto binop;
+            case X86_BINOP_32: mask = 0; goto binop;
+                binop:
+                    pos = gen_binop(pos, insn, mask);
+                break;
+            case X86_BINOP_64:
+                pos = gen_binop64(pos, insn);
+                break;
+            case X86_CAST:
+                pos = gen_cast(pos, insn);
+                break;
+            case X86_EXIT:
+                pos = gen_exit(pos, insn);
+                break;
+            case X86_ITE:
+                pos = gen_ite(pos, insn);
+                break;
+            case X86_CALL:
+                pos = gen_call(pos, insn);
+                break;
+            case X86_READ_8:
+                pos = gen_read_8(pos, insn);
+                break;
+            case X86_READ_16:
+                pos = gen_read_16(pos, insn);
+                break;
+            case X86_READ_32:
+                pos = gen_read_32(pos, insn);
+                break;
+            case X86_READ_64:
+                pos = gen_read_64(pos, insn);
+                break;
+            case X86_WRITE_8:
+                pos = gen_write_8(pos, insn);
+                break;
+            case X86_WRITE_16:
+                pos = gen_write_16(pos, insn);
+                break;
+            case X86_WRITE_32:
+                pos = gen_write_32(pos, insn);
+                break;
+            case X86_WRITE_64:
+                pos = gen_write_64(pos, insn);
+                break;
+            default:
+                fprintf(stderr, "unknown insn type for generatecode %d\n", insn->type);
+                assert(0);
+        }
+        if (pos >= buffer + offset)
+            break;
+    }
+
+    return res;
+}
+
 /* backend api */
 static void request_signal_alternate_exit(struct backend *backend, void *_ucp, uint64_t result)
 {
@@ -1658,10 +1777,17 @@ static int jit(struct backend *backend, struct irInstruction *irArray, int irIns
 
 static uint32_t get_marker(struct backend *backend, struct irInstruction *irArray, int irInsnNb, char *buffer, int bufferSize, int offset)
 {
-    //struct inter *inter = container_of(backend, struct inter, backend);
-    uint32_t res;
+    struct inter *inter = container_of(backend, struct inter, backend);
+    int res;
 
-    assert(0 && "Implement me\n");
+    // allocate x86 instructions
+    allocateInstructions(inter, irArray, irInsnNb);
+
+    // allocate registers
+    allocateRegisters(inter);
+
+    // find insn
+    res = findInsnInCode(inter, buffer, offset);
 
     return res;
 }
