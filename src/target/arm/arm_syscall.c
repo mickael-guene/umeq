@@ -63,6 +63,9 @@ void arm_hlp_syscall(uint64_t regs)
                                                   context->regs.r[3], context->regs.r[4], context->regs.r[5]);
     } else if (how == HOW_custom_implementation) {
         switch(no_neutral) {
+            case 0:
+                res = -ENOSYS;
+                break;
             case PR_ARM_set_tls:
                 context->regs.c13_tls2 = context->regs.r[0];
                 res = 0;
@@ -70,6 +73,10 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_arm_fadvise64_64:
                 res = syscall_adapter_guest32(PR_fadvise64_64, context->regs.r[0], context->regs.r[2], context->regs.r[3], 
                                                                context->regs.r[4], context->regs.r[5], context->regs.r[1]);
+                break;
+            case PR_arm_sync_file_range:
+                res = syscall_adapter_guest32(PR_sync_file_range, context->regs.r[0], context->regs.r[2], context->regs.r[3],
+                                                                  context->regs.r[4], context->regs.r[5], context->regs.r[1]);
                 break;
             case PR_brk:
                 res = arm_brk(context);
@@ -92,6 +99,13 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_fstat64:
                 res = arm_fstat64(context);
                 break;
+            case PR_fstatat64:
+                res = arm_fstatat64(context);
+                break;
+            case PR_ftruncate64:
+                res = syscall_adapter_guest32(PR_ftruncate64, context->regs.r[0], context->regs.r[2], context->regs.r[3],
+                                                              context->regs.r[3], context->regs.r[4], context->regs.r[5]);
+                break;
             case PR_lstat64:
                 res = arm_lstat64(context);
                 break;
@@ -100,6 +114,9 @@ void arm_hlp_syscall(uint64_t regs)
                 break;
             case PR_munmap:
                 res = arm_munmap(context);
+                break;
+            case PR_mremap:
+                res = arm_mremap(context);
                 break;
             case PR_open:
                 res = arm_open(context);
@@ -114,12 +131,26 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_ptrace:
                 res = arm_ptrace(context);
                 break;
+            case PR_pwrite64:
+                res = syscall_adapter_guest32(PR_pwrite64, context->regs.r[0], context->regs.r[1], context->regs.r[2],
+                                                           context->regs.r[4], context->regs.r[5], 0);
+                break;
             case PR_rt_sigaction:
                 res = arm_rt_sigaction(context);
                 break;
             case PR_sigaltstack:
                 res = arm_sigaltstack(context);
                 break;
+            case PR_shmat:
+                res = arm_shmat(context);
+                break;
+            case PR_shmdt:
+                res = arm_shmdt(context);
+                break;
+            case PR_rt_sigqueueinfo:
+                res = arm_rt_sigqueueinfo(context);
+                break;
+            case PR_rt_sigreturn:
             case PR_sigreturn:
                 context->isLooping = 0;
                 context->exitStatus = 0;
@@ -131,8 +162,18 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_statfs64:
                 /* NOTE : arm statfs64 size if 4 bytes less due to packing. We make the strong statement that
                    code below syscall_adapter_guest32 WILL NOT write in this compiler packing byte. */
-                res = syscall_adapter_guest32(PR_statfs64, context->regs.r[0], sizeof(struct neutral_statfs64_32), context->regs.r[2], 
+                res = syscall_adapter_guest32(PR_statfs64,  context->regs.r[0], sizeof(struct neutral_statfs64_32), context->regs.r[2], 
                                                             context->regs.r[3], context->regs.r[4], context->regs.r[5]);
+                break;
+            case PR_fstatfs64:
+                /* NOTE : arm statfs64 size if 4 bytes less due to packing. We make the strong statement that
+                   code below syscall_adapter_guest32 WILL NOT write in this compiler packing byte. */
+                res = syscall_adapter_guest32(PR_fstatfs64, context->regs.r[0], sizeof(struct neutral_statfs64_32), context->regs.r[2], 
+                                                            context->regs.r[3], context->regs.r[4], context->regs.r[5]);
+                break;
+            case PR_truncate64:
+                res = syscall_adapter_guest32(PR_truncate64, context->regs.r[0], context->regs.r[2], context->regs.r[3],
+                                                             context->regs.r[3], context->regs.r[4], context->regs.r[5]);
                 break;
             case PR_ugetrlimit:
                 res = syscall_adapter_guest32(PR_getrlimit, context->regs.r[0], context->regs.r[1], context->regs.r[2], 

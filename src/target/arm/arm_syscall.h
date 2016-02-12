@@ -49,6 +49,7 @@ extern int arm_wait4(struct arm_target *context);
 extern int arm_fstat64(struct arm_target *context);
 extern int arm_stat64(struct arm_target *context);
 extern int arm_lstat64(struct arm_target *context);
+extern int arm_fstatat64(struct arm_target *context);
 
 #endif
 

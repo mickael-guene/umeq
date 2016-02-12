@@ -26,6 +26,7 @@
 #include <fcntl.h>
 
 #include "syscalls_neutral.h"
+#include "syscalls_neutral_types.h"
 #include "runtime.h"
 #include "target64.h"
 #include "syscall_x86_64.h"
@@ -55,7 +56,7 @@ const static struct convertFlags neutralToX86FlagsTable[] = {
         {0400000,O_LARGEFILE},
 };
 
-long neutralToX86Flags(long neutral_flags)
+static long neutralToX86Flags(long neutral_flags)
 {
     long res = 0;
     int i;
@@ -68,7 +69,7 @@ long neutralToX86Flags(long neutral_flags)
     return res;
 }
 
-long x86ToNeutralFlags(long x86_flags)
+static long x86ToNeutralFlags(long x86_flags)
 {
     long res = 0;
     int i;
@@ -81,7 +82,7 @@ long x86ToNeutralFlags(long x86_flags)
     return res;
 }
 
-long fcntl_neutral(int fd, int cmd, uint64_t opt_p)
+static long fcntl_neutral(int fd, int cmd, uint64_t opt_p)
 {
     long res = -EINVAL;
 
@@ -97,7 +98,23 @@ long fcntl_neutral(int fd, int cmd, uint64_t opt_p)
         case F_DUPFD:/*0*/
         case F_GETFD:/*1*/
         case F_SETFD:/*2*/
+        case F_GETLK:/*5*/
+        case F_SETLK:/*6*/
         case F_SETLKW:/*7*/
+        case F_SETOWN:/*8*/
+        case F_GETOWN:/*9*/
+        case 10:/*F_SETSIG*/
+        case 11:/*F_GETSIG*/
+        case 12:/*F_GETLK64:*/
+        case 13://F_SETLK64
+        case 14://F_SETLKW64
+        case 15://F_SETOWN_EX
+        case F_GETOWN_EX:/*16*/
+        case 1024:/*F_SETLEASE*/
+        case 1025:/*F_GETLEASE:*/
+        case F_DUPFD_CLOEXEC:/*1030*/
+        case 1031:/*F_SETPIPE_SZ:*/
+        case 1032:/*F_GETPIPE_SZ:*/
             res = syscall(SYS_fcntl, fd,cmd, opt_p);
             break;
         default:
@@ -111,13 +128,50 @@ long fcntl_neutral(int fd, int cmd, uint64_t opt_p)
     return res;
 }
 
+#include <sys/epoll.h>
+static long epoll_ctl_neutral(uint64_t epfd_p, uint64_t op_p, uint64_t fd_p, uint64_t event_p)
+{
+    long res;
+    int epfd = (int) epfd_p;
+    int op = (int) op_p;
+    int fd = (int) fd_p;
+    struct neutral_epoll_event *event_guest = (struct neutral_epoll_event *) event_p;
+    struct epoll_event event;
+
+    if (event_p) {
+        event.events = event_guest->events;
+        event.data.u64 = event_guest->data;
+    }
+    res = syscall(SYS_epoll_ctl, epfd, op, fd, event_p?&event:NULL);
+
+    return res;
+}
+
 long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, uint64_t p5)
 {
     int res = -ENOSYS;
 
     switch(no) {
+        case PR_accept:
+            res = syscall(SYS_accept, p0, p1, p2);
+            break;
+        case PR_accept4:
+            res = syscall(SYS_accept4, p0, p1, p2, p3);
+            break;
         case PR_access:
             res = syscall(SYS_access, p0, p1);
+            break;
+        case PR_add_key:
+            res = syscall(SYS_add_key, p0, p1, p2, p3, p4);
+            break;
+        case PR_bind:
+            res= syscall(SYS_bind, p0, p1, p2);
+            break;
+        case PR_capget:
+            res = syscall(SYS_capget, p0, p1);
+            break;
+        case PR_capset:
+            res = syscall(SYS_capset, p0, p1);
             break;
         case PR_chdir:
             res = syscall(SYS_chdir, p0);
@@ -125,8 +179,20 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_chmod:
             res = syscall(SYS_chmod, p0, p1);
             break;
+        case PR_chown:
+            res = syscall(SYS_chown, p0, p1, p2);
+            break;
+        case PR_chroot:
+            res = syscall(SYS_chroot, p0);
+            break;
+        case PR_clock_getres:
+            res = syscall(SYS_clock_getres, p0, p1);
+            break;
         case PR_clock_gettime:
             res = syscall(SYS_clock_gettime, p0, p1);
+            break;
+        case PR_clock_nanosleep:
+            res = syscall(SYS_clock_nanosleep, p0, p1, p2, p3);
             break;
         case PR_close:
             res = syscall(SYS_close, p0);
@@ -134,11 +200,32 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_connect:
             res = syscall(SYS_connect, p0, p1, p2);
             break;
+        case PR_creat:
+            res = syscall(SYS_creat, p0, p1);
+            break;
         case PR_dup:
             res = syscall(SYS_dup, p0);
             break;
         case PR_dup2:
             res = syscall(SYS_dup2, p0, p1);
+            break;
+        case PR_dup3:
+            res = syscall(SYS_dup3, p0, p1, p2);
+            break;
+        case PR_epoll_ctl:
+            res = epoll_ctl_neutral(p0, p1, p2, p3);
+            break;
+        case PR_epoll_create:
+            res = syscall(SYS_epoll_create, p0);
+            break;
+        case PR_epoll_create1:
+            res = syscall(SYS_epoll_create1, p0);
+            break;
+        case PR_eventfd:
+            res = syscall(SYS_eventfd, p0, p1);
+            break;
+        case PR_eventfd2:
+            res = syscall(SYS_eventfd2, p0, p1);
             break;
         case PR_execve:
             res = syscall(SYS_execve, p0, p1, p2);
@@ -152,6 +239,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_fadvise64:
             res = syscall(SYS_fadvise64, p0, p1, p2, p3);
             break;
+        case PR_fallocate:
+            res = syscall(SYS_fallocate, p0, p1, p2, p3);
+            break;
         case PR_fchdir:
             res = syscall(SYS_fchdir, p0);
             break;
@@ -164,8 +254,20 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_fchown:
             res = syscall(SYS_fchown, p0, p1, p2);
             break;
+        case PR_fchownat:
+            res = syscall(SYS_fchownat, p0, p1, p2, p3, p4);
+            break;
         case PR_fcntl:
             res = fcntl_neutral(p0, p1, p2);
+            break;
+        case PR_fdatasync:
+            res = syscall(SYS_fdatasync, p0);
+            break;
+        case PR_flock:
+            res = syscall(SYS_flock, p0, p1);
+            break;
+        case PR_ftruncate:
+            res = syscall(SYS_ftruncate, p0, p1);
             break;
         case PR_futex:
             res = syscall(SYS_futex, p0, p1, p2, p3, p4, p5);
@@ -176,8 +278,14 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_fstatat64:
             res = syscall_x86_64_fstatat64(p0, p1, p2, p3);
             break;
+        case PR_fstatfs:
+            res = syscall(SYS_fstatfs, p0, p1);
+            break;
         case PR_fsync:
             res = syscall(SYS_fsync, p0);
+            break;
+        case PR_futimesat:
+            res = syscall(SYS_futimesat, p0, p1, p2);
             break;
         case PR_getcwd:
             res = syscall(SYS_getcwd, p0, p1);
@@ -197,6 +305,12 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_getgid:
             res = syscall(SYS_getgid);
             break;
+        case PR_getitimer:
+            res = syscall(SYS_getitimer, p0, p1);
+            break;
+        case PR_getgroups:
+            res = syscall(SYS_getgroups, p0, p1);
+            break;
         case PR_getpid:
             res = syscall(SYS_getpid);
             break;
@@ -206,14 +320,35 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_getppid:
             res = syscall(SYS_getppid);
             break;
+        case PR_getpriority:
+            res = syscall(SYS_getpriority, p0, p1);
+            break;
+        case PR_getresgid:
+            res = syscall(SYS_getresgid, p0, p1, p2);
+            break;
+        case PR_getresuid:
+            res = syscall(SYS_getresuid, p0, p1, p2);
+            break;
         case PR_getrlimit:
             res = syscall(SYS_getrlimit, p0, p1);
+            break;
+        case PR_getsid:
+            res = syscall(SYS_getsid, p0);
+            break;
+        case PR_getsockname:
+            res = syscall(SYS_getsockname, p0, p1, p2);
+            break;
+        case PR_getsockopt:
+            res = syscall(SYS_getsockopt, p0, p1, p2, p3, p4);
             break;
         case PR_getrusage:
             res = syscall(SYS_getrusage, p0, p1);
             break;
         case PR_getpeername:
             res = syscall(SYS_getpeername, p0, p1, p2);
+            break;
+        case PR_getpgid:
+            res = syscall(SYS_getpgid, p0);
             break;
         case PR_gettid:
             res = syscall(SYS_gettid);
@@ -227,11 +362,35 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_getxattr:
             res = syscall(SYS_getxattr, p0, p1, p2, p3);
             break;
+        case PR_inotify_init:
+            res = syscall(SYS_inotify_init);
+            break;
+        case PR_inotify_init1:
+            res = syscall(SYS_inotify_init1, p0);
+            break;
+        case PR_inotify_add_watch:
+            res = syscall(SYS_inotify_add_watch, p0, p1, p2);
+            break;
+        case PR_inotify_rm_watch:
+            res = syscall(SYS_inotify_rm_watch, p0, p1);
+            break;
         case PR_ioctl:
             res = syscall(SYS_ioctl, p0, p1, p2, p3, p4, p5);
             break;
+        case PR_keyctl:
+            res = syscall(SYS_keyctl, p0, p1, p2, p3, p4);
+            break;
         case PR_kill:
             res = syscall(SYS_kill, p0, p1);
+            break;
+        case PR_link:
+            res = syscall(SYS_link, p0, p1);
+            break;
+        case PR_linkat:
+            res = syscall(SYS_linkat, p0, p1, p2, p3, p4);
+            break;
+        case PR_listen:
+            res = syscall(SYS_listen, p0, p1);
             break;
         case PR_lgetxattr:
             res = syscall(SYS_lgetxattr, p0, p1, p2, p3);
@@ -245,14 +404,68 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_madvise:
             res = syscall(SYS_madvise, p0, p1, p2);
             break;
+        case PR_mincore:
+            res = syscall(SYS_mincore, p0, p1, p2);
+            break;
         case PR_mkdir:
             res = syscall(SYS_mkdir, p0, p1);
+            break;
+        case PR_mkdirat:
+            res = syscall(SYS_mkdirat, p0, p1, p2);
+            break;
+        case PR_mknod:
+            res = syscall(SYS_mknod, p0, p1, p2);
+            break;
+        case PR_mknodat:
+            res = syscall(SYS_mknodat, p0, p1, p2, p3);
+            break;
+        case PR_mlock:
+            res = syscall(SYS_mlock, p0, p1);
             break;
         case PR_mprotect:
             res = syscall(SYS_mprotect, p0, p1, p2);
             break;
+        case PR_mq_notify:
+            res = syscall(SYS_mq_notify, p0, p1);
+            break;
+        case PR_mq_open:
+            res = syscall(SYS_mq_open, p0, p1, p2, p3);
+            break;
+        case PR_mq_timedreceive:
+            res = syscall(SYS_mq_timedreceive, p0, p1, p2, p3, p4);
+            break;
+        case PR_mq_timedsend:
+            res = syscall(SYS_mq_timedsend, p0, p1, p2, p3, p4);
+            break;
+        case PR_mq_unlink:
+            res = syscall(SYS_mq_unlink, p0);
+            break;
+        case PR_msgctl:
+            res = syscall(SYS_msgctl, p0, p1, p2);
+            break;
+        case PR_msgget:
+            res = syscall(SYS_msgget, p0, p1);
+            break;
+        case PR_msgsnd:
+            res = syscall(SYS_msgsnd, p0, p1, p2, p3);
+            break;
+        case PR_msgrcv:
+            res = syscall(SYS_msgrcv, p0, p1, p2, p3, p4);
+            break;
+        case PR_msync:
+            res = syscall(SYS_msync, p0, p1, p2);
+            break;
+        case PR_munlock:
+            res = syscall(SYS_munlock, p0, p1);
+            break;
         case PR_nanosleep:
             res = syscall(SYS_nanosleep, p0, p1);
+            break;
+        case PR_pause:
+            res = syscall(SYS_pause);
+            break;
+        case PR_perf_event_open:
+            res = syscall(SYS_perf_event_open, p0, p1, p2, p3, p4);
             break;
         case PR_personality:
             res = syscall(SYS_personality, p0);
@@ -260,8 +473,17 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_pipe:
             res = syscall(SYS_pipe, p0);
             break;
+        case PR_pipe2:
+            res = syscall(SYS_pipe2, p0, p1);
+            break;
         case PR_poll:
             res = syscall(SYS_poll, p0, p1, p2);
+            break;
+        case PR_ppoll:
+            res = syscall(SYS_ppoll, p0, p1, p2, p3, p4);
+            break;
+        case PR_prctl:
+            res = syscall(SYS_prctl, p0, p1, p2, p3, p4);
             break;
         case PR_pread64:
             res = syscall(SYS_pread64, p0, p1, p2, p3);
@@ -269,11 +491,32 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_prlimit64:
             res = syscall(SYS_prlimit64, p0, p1, p2, p3);
             break;
+        case PR_pselect6:
+            res = syscall(SYS_pselect6, p0, p1, p2, p3, p4, p5);
+            break;
+        case PR_pwrite64:
+            res = syscall(SYS_pwrite64, p0, p1, p2, p3);
+            break;
         case PR_read:
             res = syscall(SYS_read, p0, p1, p2);
             break;
         case PR_readlink:
             res = syscall(SYS_readlink, p0, p1, p2);
+            break;
+        case PR_readlinkat:
+            res = syscall(SYS_readlinkat, p0, p1, p2, p3);
+            break;
+        case PR_readv:
+            res = syscall(SYS_readv, p0, p1, p2);
+            break;
+        case PR_recv:
+            res = syscall(SYS_recvfrom, p0, p1, p2, p3, 0, 0);
+            break;
+        case PR_recvfrom:
+            res = syscall(SYS_recvfrom, p0, p1, p2, p3, p4, p5);
+            break;
+        case PR_remap_file_pages:
+            res = syscall(SYS_remap_file_pages, p0, p1, p2, p3, p4);
             break;
         case PR_rename:
             res = syscall(SYS_rename, p0, p1);
@@ -281,14 +524,65 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_rmdir:
             res = syscall(SYS_rmdir, p0);
             break;
+        case PR_rt_sigpending:
+            res = syscall(SYS_rt_sigpending, p0, p1);
+            break;
         case PR_rt_sigprocmask:
             res = syscall(SYS_rt_sigprocmask, p0, p1, p2, p3);
             break;
         case PR_rt_sigsuspend:
             res = syscall(SYS_rt_sigsuspend, p0, p1);
             break;
+        case PR_rt_sigtimedwait:
+            res = syscall(SYS_rt_sigtimedwait, p0, p1, p2, p3);
+            break;
         case PR_tgkill:
             res = syscall(SYS_tgkill, p0, p1, p2);
+            break;
+        case PR_sched_getaffinity:
+            res = syscall(SYS_sched_getaffinity, p0, p1, p2);
+            break;
+        case PR_sched_getparam:
+            res = syscall(SYS_sched_getparam, p0, p1);
+            break;
+        case PR_sched_getscheduler:
+            res = syscall(SYS_sched_getscheduler, p0);
+            break;
+        case PR_sched_get_priority_max:
+            res = syscall(SYS_sched_get_priority_max, p0);
+            break;
+        case PR_sched_get_priority_min:
+            res = syscall(SYS_sched_get_priority_min, p0);
+            break;
+        case PR_sched_setparam:
+            res = syscall(SYS_sched_setparam, p0, p1);
+            break;
+        case PR_sched_setscheduler:
+            res = syscall(SYS_sched_setscheduler, p0, p1, p2);
+            break;
+        case PR_sched_yield:
+            res = syscall(SYS_sched_yield);
+            break;
+        case PR_semctl:
+            res = syscall(SYS_semctl, p0, p1, p2, p3);
+            break;
+        case PR_semget:
+            res = syscall(SYS_semget, p0, p1, p2);
+            break;
+        case PR_semop:
+            res = syscall(SYS_semop, p0, p1, p2);
+            break;
+        case PR_send:
+            res = syscall(SYS_sendto, p0, p1, p2, p3, 0, 0);
+            break;
+        case PR_sendto:
+            res = syscall(SYS_sendto, p0, p1, p2, p3, p4, p5);
+            break;
+        case PR_sendfile:
+            res = syscall(SYS_sendfile, p0, p1, p2, p3);
+            break;
+        case PR_sendmsg:
+            res = syscall(SYS_sendmsg, p0, p1, p2);
             break;
         case PR_select:
             res = syscall(SYS_select, p0, p1, p2, p3, p4);
@@ -296,17 +590,59 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_set_tid_address:
             res = syscall(SYS_set_tid_address, p0);
             break;
+        case PR_setfsgid:
+            res = syscall(SYS_setfsgid, p0);
+            break;
+        case PR_setfsuid:
+            res = syscall(SYS_setfsuid, p0);
+            break;
+        case PR_setgroups:
+            res = syscall(SYS_setgroups, p0, p1);
+            break;
+        case PR_setgid:
+            res = syscall(SYS_setgid, p0);
+            break;
         case PR_setitimer:
             res = syscall(SYS_setitimer, p0, p1, p2);
             break;
         case PR_setpgid:
             res = syscall(SYS_setpgid, p0, p1);
             break;
+        case PR_setpriority:
+            res = syscall(SYS_setpriority, p0, p1, p2);
+            break;
         case PR_setreuid:
             res = syscall(SYS_setreuid, p0, p1);
             break;
+        case PR_setregid:
+            res = syscall(SYS_setregid, p0, p1);
+            break;
+        case PR_setrlimit:
+            res = syscall(SYS_setrlimit, p0, p1);
+            break;
+        case PR_setsid:
+            res = syscall(SYS_setsid);
+            break;
+        case PR_setsockopt:
+            res = syscall(SYS_setsockopt, p0, p1, p2, p3, p4);
+            break;
+        case PR_setuid:
+            res = syscall(SYS_setuid, p0);
+            break;
         case PR_setxattr:
             res = syscall(SYS_setxattr, p0, p1, p2, p3, p4);
+            break;
+        case PR_shmctl:
+            res = syscall(SYS_shmctl, p0, p1, p2);
+            break;
+        case PR_shmget:
+            res = syscall(SYS_shmget, p0, p1, p2);
+            break;
+        case PR_shutdown:
+            res = syscall(SYS_shutdown, p0, p1);
+            break;
+        case PR_signalfd4:
+            res = syscall(SYS_signalfd4, p0, p1, p2, p3);
             break;
         case PR_socket:
             res = syscall(SYS_socket, p0, p1, p2);
@@ -314,17 +650,59 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_socketpair:
             res = syscall(SYS_socketpair, p0, p1, p2, p3);
             break;
+        case PR_splice:
+            res = syscall(SYS_splice, p0, p1, p2, p3, p4, p5);
+            break;
         case PR_stat64:
             res = syscall_x86_64_stat64(p0, p1);
             break;
         case PR_statfs:
             res = syscall(SYS_statfs, p0, p1);
             break;
+        case PR_symlink:
+            res = syscall(SYS_symlink, p0, p1);
+            break;
+        case PR_symlinkat:
+            res = syscall(SYS_symlinkat, p0, p1, p2);
+            break;
+        case PR_sync:
+            res = syscall(SYS_sync);
+            break;
+        case PR_sync_file_range:
+            res = syscall(SYS_sync_file_range, p0, p1, p2, p3);
+            break;
         case PR_sysinfo:
             res = syscall(SYS_sysinfo, p0);
             break;
+        case PR_tee:
+            res = syscall(SYS_tee, p0, p1, p2, p3);
+            break;
+        case PR_timer_create:
+            res = syscall(SYS_timer_create, p0, p1, p2);
+            break;
+        case PR_timer_getoverrun:
+            res = syscall(SYS_timer_getoverrun, p0);
+            break;
+        case PR_timer_gettime:
+            res = syscall(SYS_timer_gettime, p0, p1);
+            break;
+        case PR_timerfd_create:
+            res = syscall(SYS_timerfd_create, p0, p1);
+            break;
+        case PR_timerfd_gettime:
+            res = syscall(SYS_timerfd_gettime, p0, p1);
+            break;
+        case PR_timerfd_settime:
+            res = syscall(SYS_timerfd_settime, p0, p1, p2, p3);
+            break;
         case PR_times:
             res = syscall(SYS_times, p0);
+            break;
+        case PR_tkill:
+            res = syscall(SYS_tkill, p0, p1);
+            break;
+        case PR_truncate:
+            res = syscall(SYS_truncate, p0, p1);
             break;
         case PR_umask:
             res = syscall(SYS_umask, p0);
@@ -338,12 +716,27 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_utimensat:
             res = syscall(SYS_utimensat, p0, p1, p2, p3);
             break;
+        case PR_utimes:
+            res = syscall(SYS_utimes, p0, p1);
+            break;
         case PR_vfork:
             /* implement with fork to avoid sync problem but semantic is not fully preserved ... */
             res = syscall(SYS_fork);
             break;
+        case PR_vhangup:
+            res = syscall(SYS_vhangup);
+            break;
+        case PR_vmsplice:
+            res = syscall(SYS_vmsplice, p0, p1, p2, p3);
+            break;
+        case PR_waitid:
+            res = syscall(SYS_waitid, p0, p1, p2, p3, p4);
+            break;
         case PR_write:
             res = syscall(SYS_write, p0, p1, p2);
+            break;
+        case PR_writev:
+            res = syscall(SYS_writev, p0, p1, p2);
             break;
         default:
             fatal("syscall_neutral_64: unsupported neutral syscall %d\n", no);
