@@ -104,6 +104,9 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_open:
                 res = arm_open(context);
                 break;
+            case PR_openat:
+                res = arm_openat(context);
+                break;
             case PR_pread64:
                 res = syscall_adapter_guest32(PR_pread64, context->regs.r[0], context->regs.r[1], context->regs.r[2],
                                                           context->regs.r[4], context->regs.r[5], 0);

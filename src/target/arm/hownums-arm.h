@@ -42,7 +42,7 @@ HOW_not_yet_supported, HOW_neutral_32, HOW_neutral_32, HOW_not_yet_supported, HO
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*50..54*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32, HOW_custom_implementation,  /*55..59*/
 HOW_neutral_32, HOW_neutral_32, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*60..64*/
-HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32, HOW_not_yet_supported, HOW_not_yet_supported,  /*65..69*/
+HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32, HOW_neutral_32, HOW_neutral_32,  /*65..69*/
 HOW_not_yet_supported, HOW_neutral_32, HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32,  /*70..74*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*75..79*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_custom_implementation, HOW_neutral_32,  /*80..84*/
@@ -63,7 +63,7 @@ HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32, HOW_not_yet_suppor
 HOW_neutral_32, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*155..159*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32,  /*160..164*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_custom_implementation, HOW_neutral_32, HOW_not_yet_supported,  /*165..169*/
-HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*170..174*/
+HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32, HOW_not_yet_supported, HOW_not_yet_supported,  /*170..174*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_custom_implementation,  /*175..179*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32, HOW_not_yet_supported,  /*180..184*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*185..189*/
@@ -71,7 +71,7 @@ HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_custom_implementation,  /*195..199*/
 HOW_not_yet_supported, HOW_neutral_32, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*200..204*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*205..209*/
-HOW_custom_implementation, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*210..214*/
+HOW_custom_implementation, HOW_not_yet_supported, HOW_custom_implementation, HOW_not_yet_supported, HOW_not_yet_supported,  /*210..214*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32, HOW_neutral_32,  /*215..219*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32, HOW_not_yet_supported, HOW_not_yet_supported,  /*220..224*/
 HOW_custom_implementation, HOW_not_yet_supported, HOW_neutral_32, HOW_not_yet_supported, HOW_not_yet_supported,  /*225..229*/
@@ -80,7 +80,7 @@ HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32, HOW_not_yet_supported, HOW_not_yet_supported,  /*240..244*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*245..249*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32, HOW_not_yet_supported, HOW_not_yet_supported,  /*250..254*/
-HOW_not_yet_supported, HOW_not_yet_supported, HOW_custom_implementation, HOW_not_yet_supported, HOW_neutral_32,  /*255..259*/
+HOW_not_yet_supported, HOW_neutral_32, HOW_custom_implementation, HOW_not_yet_supported, HOW_neutral_32,  /*255..259*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32, HOW_not_yet_supported, HOW_not_yet_supported,  /*260..264*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*265..269*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*270..274*/
@@ -102,7 +102,7 @@ HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*350..354*/
 HOW_not_yet_supported, HOW_neutral_32, HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32,  /*355..359*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*360..364*/
-HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*365..369*/
+HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_32,  /*365..369*/
 HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_custom_implementation,  /*370..374*/
 HOW_not_yet_supported, HOW_neutral_32, HOW_not_yet_supported, HOW_not_yet_supported, HOW_custom_implementation,  /*375..379*/
 HOW_neutral_32, HOW_neutral_32, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*380..384*/

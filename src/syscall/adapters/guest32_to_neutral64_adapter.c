@@ -459,6 +459,24 @@ static int setitimer_neutral(uint32_t which_p, uint32_t new_value_p, uint32_t ol
     return res;
 }
 
+#include <sys/times.h>
+static int times_neutral(uint32_t buf_p)
+{
+    int res;
+    struct neutral_tms_32 *buf_guest = (struct neutral_tms_32 *) g_2_h(buf_p);
+    struct tms buf;
+
+    res = syscall_neutral_64(PR_times, (uint64_t)&buf, 0, 0, 0, 0, 0);
+    if (buf_p) {
+        buf_guest->tms_utime = buf.tms_utime;
+        buf_guest->tms_stime = buf.tms_stime;
+        buf_guest->tms_cutime = buf.tms_cutime;
+        buf_guest->tms_cstime = buf.tms_cstime;
+    }
+
+    return res;
+}
+
 int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5)
 {
     int res = -ENOSYS;
@@ -509,6 +527,12 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             break;
         case PR_fchdir:
             res = syscall_neutral_64(PR_fchdir, (int)p0, p1, p2, p3, p4, p5);
+            break;
+        case PR_fchmod:
+            res = syscall_neutral_64(PR_fchmod, (unsigned int)p0, p1, p2, p3, p4, p5);
+            break;
+        case PR_fchmodat:
+            res = syscall_neutral_64(PR_fchmodat, (int)p0, (uint64_t)g_2_h(p1), (mode_t)p2, p3, p4, p5);
             break;
         case PR_fchown32:
             res = syscall_neutral_64(PR_fchown, (unsigned int)p0, (uid_t)p1, (gid_t)p2, p3, p4, p5);
@@ -595,6 +619,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
         case PR_madvise:
             res = syscall_neutral_64(PR_madvise, (uint64_t) g_2_h(p0), (size_t) p1, (int) p2, p3, p4, p5);
             break;
+        case PR_mkdir:
+            res = syscall_neutral_64(PR_mkdir, (uint64_t) g_2_h(p0), (mode_t) p1, p2, p3, p4, p5);
+            break;
         case PR_mprotect:
             res = syscall_neutral_64(PR_mprotect, (uint64_t) g_2_h(p0), (size_t) p1, (int) p2, p3, p4, p5);
             break;
@@ -625,6 +652,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             break;
         case PR_rename:
             res = syscall_neutral_64(PR_rename, (uint64_t)g_2_h(p0), (uint64_t)g_2_h(p1), p2, p3, p4, p5);
+            break;
+        case PR_rmdir:
+            res = syscall_neutral_64(PR_rmdir, (uint64_t) g_2_h(p0), p1, p2, p3, p4, p5);
             break;
         case PR_rt_sigprocmask:
             res = syscall_neutral_64(PR_rt_sigprocmask, (int)p0, IS_NULL(p1), IS_NULL(p2), (size_t) p3, p4, p5);
@@ -668,6 +698,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             break;
         case PR_sysinfo:
             res = sysinfo_neutral(p0);
+            break;
+        case PR_times:
+            res = times_neutral(p0);
             break;
         case PR_umask:
             res = syscall_neutral_64(PR_umask, (mode_t) p0, p1, p2, p3 ,p4, p5);

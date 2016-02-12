@@ -161,6 +161,12 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
         case PR_fchdir:
             res = syscall(SYS_fchdir, p0);
             break;
+        case PR_fchmod:
+            res = syscall(SYS_fchmod, p0, p1);
+            break;
+        case PR_fchmodat:
+            res = syscall(SYS_fchmodat, p0, p1, p2);
+            break;
         case PR_fchown32:
             res = syscall(SYS_fchown32, p0, p1, p2);
             break;
@@ -245,6 +251,9 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
         case PR_madvise:
             res = syscall(SYS_madvise, p0, p1, p2);
             break;
+        case PR_mkdir:
+            res = syscall(SYS_mkdir, p0, p1);
+            break;
         case PR_mprotect:
             res = syscall(SYS_mprotect, p0, p1, p2);
             break;
@@ -274,6 +283,9 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
             break;
         case PR_rename:
             res = syscall(SYS_rename, p0, p1);
+            break;
+        case PR_rmdir:
+            res = syscall(SYS_rmdir, p0);
             break;
         case PR_rt_sigprocmask:
             res = syscall(SYS_rt_sigprocmask, p0, p1, p2, p3);
@@ -313,6 +325,9 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
             break;
         case PR_sysinfo:
             res = syscall(SYS_sysinfo, p0);
+            break;
+        case PR_times:
+            res = syscall(SYS_times, p0);
             break;
         case PR_umask:
             res = syscall(SYS_umask, p0);

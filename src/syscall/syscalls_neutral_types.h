@@ -146,6 +146,13 @@ struct neutral_flock_32 {
     int32_t     l_pid;
 };
 
+struct neutral_tms_32 {
+    int32_t tms_utime;
+    int32_t tms_stime;
+    int32_t tms_cutime;
+    int32_t tms_cstime;
+};
+
 #endif
 
 #ifdef __cplusplus

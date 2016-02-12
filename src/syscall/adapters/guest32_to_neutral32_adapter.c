@@ -192,6 +192,12 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
         case PR_fchdir:
             res = syscall_neutral_32(PR_fchdir, p0, p1, p2, p3, p4, p5);
             break;
+        case PR_fchmod:
+            res = syscall_neutral_32(PR_fchmod, p0, p1, p2, p3, p4, p5);
+            break;
+        case PR_fchmodat:
+            res = syscall_neutral_32(PR_fchmodat, p0, (uint32_t)g_2_h(p1), p2, p3, p4, p5);
+            break;
         case PR_fchown32:
             res = syscall_neutral_32(PR_fchown32, p0, p1, p2, p3, p4, p5);
             break;
@@ -277,6 +283,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
         case PR_madvise:
             res = syscall_neutral_32(PR_madvise, (uint32_t) g_2_h(p0), p1, p2, p3, p4, p5);
             break;
+        case PR_mkdir:
+            res = syscall_neutral_32(PR_mkdir, (uint32_t) g_2_h(p0), p1, p2, p3, p4, p5);
+            break;
         case PR_mprotect:
             res = syscall_neutral_32(PR_mprotect, (uint32_t) g_2_h(p0), p1, p2, p3, p4, p5);
             break;
@@ -306,6 +315,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             break;
         case PR_rename:
             res = syscall_neutral_32(PR_rename, (uint32_t)g_2_h(p0), (uint32_t)g_2_h(p1), p2, p3, p4, p5);
+            break;
+        case PR_rmdir:
+            res = syscall_neutral_32(PR_rmdir, (uint32_t) g_2_h(p0), p1, p2, p3, p4, p5);
             break;
         case PR_rt_sigprocmask:
             res = syscall_neutral_32(PR_rt_sigprocmask, p0, IS_NULL(p1), IS_NULL(p2), p3, p4, p5);
@@ -349,6 +361,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             break;
         case PR_sysinfo:
             res = syscall_neutral_32(PR_sysinfo, (uint32_t) g_2_h(p0), p1, p2, p3 ,p4, p5);
+            break;
+        case PR_times:
+            res = syscall_neutral_32(PR_times, (uint32_t) g_2_h(p0), p1, p2, p3 ,p4, p5);
             break;
         case PR_umask:
             res = syscall_neutral_32(PR_umask, p0, p1, p2, p3 ,p4, p5);
