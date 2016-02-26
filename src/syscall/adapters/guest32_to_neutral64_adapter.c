@@ -1745,6 +1745,125 @@ static int sendmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
     return res;
 }
 
+static int clock_settime_neutral(uint32_t clk_id_p, uint32_t tp_p)
+{
+    long res;
+    clockid_t clk_id = (clockid_t) clk_id_p;
+    struct neutral_timespec_32 *tp_guest = (struct neutral_timespec_32 *) g_2_h(tp_p);
+    struct timespec tp;
+
+    tp.tv_sec = tp_guest->tv_sec;
+    tp.tv_nsec = tp_guest->tv_nsec;
+
+    res = syscall_neutral_64(PR_clock_settime, clk_id, (uint64_t) &tp, 0, 0, 0, 0);
+
+    return res;
+}
+
+static int mq_getsetattr_neutral(uint32_t mqdes_p, uint32_t newattr_p, uint32_t oldattr_p)
+{
+    long res;
+    mqd_t mqdes = (mqd_t) mqdes_p;
+    struct neutral_mq_attr_32 *newattr_guest = (struct neutral_mq_attr_32 *) g_2_h(newattr_p);
+    struct neutral_mq_attr_32 *oldattr_guest = (struct neutral_mq_attr_32 *) g_2_h(oldattr_p);
+    struct mq_attr newattr;
+    struct mq_attr oldattr;
+
+    if (newattr_p) {
+        newattr.mq_flags = newattr_guest->mq_flags;
+        newattr.mq_maxmsg = newattr_guest->mq_maxmsg;
+        newattr.mq_msgsize = newattr_guest->mq_msgsize;
+        newattr.mq_curmsgs = newattr_guest->mq_curmsgs;
+    }
+    res = syscall_neutral_64(PR_mq_getsetattr, mqdes, (uint64_t) (newattr_p?&newattr:NULL), (uint64_t) (oldattr_p?&oldattr:NULL), 0, 0, 0);
+    if (oldattr_p) {
+        oldattr_guest->mq_flags = oldattr.mq_flags;
+        oldattr_guest->mq_maxmsg = oldattr.mq_maxmsg;
+        oldattr_guest->mq_msgsize = oldattr.mq_msgsize;
+        oldattr_guest->mq_curmsgs = oldattr.mq_curmsgs;
+    }
+
+    return res;
+}
+
+static int recvmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
+{
+    long res;
+    int sockfd = (int) sockfd_p;
+    struct neutral_msghdr_32 *msg_guest = (struct neutral_msghdr_32 *) g_2_h(msg_p);
+    int flags = (int) flags_p;
+    struct iovec iovec[16]; //max 16 iovect. If more is need then use mmap or alloca
+    struct msghdr msg;
+    int i;
+
+    assert(msg_guest->msg_iovlen <= 16);
+
+    msg.msg_name = msg_guest->msg_name?(void *) g_2_h(msg_guest->msg_name):NULL;
+    msg.msg_namelen = msg_guest->msg_namelen;
+    for(i = 0; i < msg_guest->msg_iovlen; i++) {
+        struct neutral_iovec_32 *iovec_guest = (struct neutral_iovec_32 *) g_2_h(msg_guest->msg_iov + sizeof(struct neutral_iovec_32) * i);
+
+        iovec[i].iov_base = (void *) g_2_h(iovec_guest->iov_base);
+        iovec[i].iov_len = iovec_guest->iov_len;
+    }
+    msg.msg_iov = iovec;
+    msg.msg_iovlen = msg_guest->msg_iovlen;
+    msg.msg_control = (void *) g_2_h(msg_guest->msg_control);
+    msg.msg_controllen = msg_guest->msg_controllen;
+    msg.msg_flags = msg_guest->msg_flags;
+
+    res = syscall_neutral_64(PR_recvmsg, sockfd, (uint64_t) &msg, flags, 0, 0, 0);
+    if (res >= 0) {
+        msg_guest->msg_namelen = msg.msg_namelen;
+        msg_guest->msg_controllen = msg.msg_controllen;
+    }
+
+    return res;
+}
+
+static int sched_rr_get_interval_neutral(uint32_t pid_p, uint32_t tp_p)
+{
+    long result;
+    pid_t pid = (pid_t) pid_p;
+    struct neutral_timespec_32 *tp_guest = (struct neutral_timespec_32 *) g_2_h(tp_p);
+    struct timespec tp;
+
+    result = syscall_neutral_64(PR_sched_rr_get_interval, pid, (uint64_t) &tp, 0, 0, 0, 0);
+    if (tp_p) {
+        tp_guest->tv_sec = tp.tv_sec;
+        tp_guest->tv_nsec = tp.tv_nsec;
+    }
+
+    return result;
+}
+
+static int timer_settime_neutral(uint32_t timerid_p, uint32_t flags_p, uint32_t new_value_p, uint32_t old_value_p)
+{
+    long res;
+    timer_t timerid = (timer_t)(long) timerid_p;
+    int flags = (int) flags_p;
+    struct neutral_itimerspec_32 *new_value_guest = (struct neutral_itimerspec_32 *) g_2_h(new_value_p);
+    struct neutral_itimerspec_32 *old_value_guest = (struct neutral_itimerspec_32 *) g_2_h(old_value_p);
+    struct itimerspec new_value;
+    struct itimerspec old_value;
+
+    new_value.it_interval.tv_sec = new_value_guest->it_interval.tv_sec;
+    new_value.it_interval.tv_nsec = new_value_guest->it_interval.tv_nsec;
+    new_value.it_value.tv_sec = new_value_guest->it_value.tv_sec;
+    new_value.it_value.tv_nsec = new_value_guest->it_value.tv_nsec;
+
+    res = syscall_neutral_64(PR_timer_settime, (uint64_t) timerid, flags, (uint64_t) &new_value, (uint64_t) (old_value_p?&old_value:NULL), 0, 0);
+
+    if (old_value_p) {
+        old_value_guest->it_interval.tv_sec = old_value.it_interval.tv_sec;
+        old_value_guest->it_interval.tv_nsec = old_value.it_interval.tv_nsec;
+        old_value_guest->it_value.tv_sec = old_value.it_value.tv_sec;
+        old_value_guest->it_value.tv_nsec = old_value.it_value.tv_nsec;
+    }
+
+    return res;
+}
+
 int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5)
 {
     int res = -ENOSYS;
@@ -1802,6 +1921,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
         case PR_clock_nanosleep:
             res = clock_nanosleep_neutral(p0,p1,p2,p3);
             break;
+        case PR_clock_settime:
+            res = clock_settime_neutral(p0, p1);
+            break;
         case PR_close:
             res = syscall_neutral_64(PR_close, (int)p0, p1, p2, p3, p4, p5);
             break;
@@ -1828,6 +1950,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             break;
         case PR_epoll_create1:
             res = syscall_neutral_64(PR_epoll_create1, (int) p0, p1, p2, p3, p4, p5);
+            break;
+        case PR_epoll_wait:
+            res = syscall_neutral_64(PR_epoll_wait, (int) p0, (uint64_t)g_2_h(p1), (int) p2, (int) p3, p4, p5);
             break;
         case PR_eventfd:
             res = syscall_neutral_64(PR_eventfd, (int)p0, (int)(p1), p2, p3, p4, p5);
@@ -1873,8 +1998,17 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
         case PR_fdatasync:
             res = syscall_neutral_64(PR_fdatasync, (unsigned int)p0, p1, p2, p3, p4, p5);
             break;
+        case PR_fgetxattr:
+            res = syscall_neutral_64(PR_fgetxattr, (int) p0, (uint64_t) g_2_h(p1), (uint64_t) g_2_h(p2), (size_t) p3, p4, p5);
+            break;
+        case PR_flistxattr:
+            res = syscall_neutral_64(PR_flistxattr, (int) p0, (uint64_t) g_2_h(p1), (size_t) p2, p3, p4, p5);
+            break;
         case PR_flock:
             res = syscall_neutral_64(PR_flock, (int) p0, (int) p1, p2, p3, p4, p5);
+            break;
+        case PR_fsetxattr:
+            res = syscall_neutral_64(PR_fsetxattr, (int) p0, (uint64_t) g_2_h(p1), (uint64_t) g_2_h(p2), (size_t) p3, (int) p4, p5);
             break;
         case PR_ftruncate:
             res = syscall_neutral_64(PR_ftruncate, (int) p0, (off_t)(int) p1, p2, p3, p4, p5);
@@ -2018,6 +2152,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
         case PR_kill:
             res = syscall_neutral_64(PR_kill, (pid_t)p0, (int)p1, p2, p3, p4, p5);
             break;
+        case PR_lchown32:
+            res = syscall_neutral_64(PR_lchown32, (uint64_t) g_2_h(p0), (uid_t) p1, (gid_t) p2, p3, p4, p5);
+            break;
         case PR_link:
             res = syscall_neutral_64(PR_link, (uint64_t) g_2_h(p0), (uint64_t) g_2_h(p1), p2, p3, p4, p5);
             break;
@@ -2059,6 +2196,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             break;
         case PR_mprotect:
             res = syscall_neutral_64(PR_mprotect, (uint64_t) g_2_h(p0), (size_t) p1, (int) p2, p3, p4, p5);
+            break;
+        case PR_mq_getsetattr:
+            res = mq_getsetattr_neutral(p0, p1, p2);
             break;
         case PR_mq_notify:
             res = mq_notify_neutral(p0, p1);
@@ -2134,6 +2274,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             res = syscall_neutral_64(PR_pwrite64, (unsigned int)p0, (uint64_t)g_2_h(p1), (size_t)p2, 
                                                  ((uint64_t)p4 << 32) + (uint64_t)p3, 0, 0);
             break;
+        case PR_quotactl:
+            res = syscall_neutral_64(PR_quotactl, (int) p0, IS_NULL(p1), (int) p2, (uint64_t) g_2_h(p3), p4, p5);
+            break;
         case PR_read:
             res = syscall_neutral_64(PR_read, (int)p0, (uint64_t) g_2_h(p1), (size_t) p2, p3, p4, p5);
             break;
@@ -2151,6 +2294,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             break;
         case PR_recvfrom:
             res = syscall_neutral_64(PR_recvfrom, (int) p0, (uint64_t) g_2_h(p1), (size_t) p2, (int) p3, IS_NULL(p4), IS_NULL(p5));
+            break;
+        case PR_recvmsg:
+            res = recvmsg_neutral(p0,p1,p2);
             break;
         case PR_remap_file_pages:
             res = syscall_neutral_64(PR_remap_file_pages, (uint64_t) g_2_h(p0), (size_t) p1, (int) p2, (size_t) p3, (int) p4, p5);
@@ -2190,6 +2336,12 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             break;
         case PR_sched_get_priority_min:
             res = syscall_neutral_64(PR_sched_get_priority_min, (int) p0, p1, p2, p3, p4, p5);
+            break;
+        case PR_sched_rr_get_interval:
+            res = sched_rr_get_interval_neutral(p0, p1);
+            break;
+        case PR_sched_setaffinity:
+            res = syscall_neutral_64(PR_sched_setaffinity, (pid_t) p0, (size_t) p1, (uint64_t) g_2_h(p2), p3, p4, p5);
             break;
         case PR_sched_setparam:
             res = syscall_neutral_64(PR_sched_setparam, (pid_t) p0, IS_NULL(p1), p2, p3, p4, p5);
@@ -2252,6 +2404,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
         case PR_setgid32:
             res = syscall_neutral_64(PR_setgid, (gid_t) p0, p1, p2, p3, p4, p5);
             break;
+        case PR_sethostname:
+            res = syscall_neutral_64(PR_sethostname, (uint64_t) g_2_h(p0), (size_t) p1, p2, p3, p4, p5);
+            break;
         case PR_setitimer:
             res = setitimer_neutral(p0, p1, p2);
             break;
@@ -2260,6 +2415,12 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             break;
         case PR_setpriority:
             res = syscall_neutral_64(PR_setpriority, (int) p0, (id_t) p1, (int) p2, p3, p4, p5);
+            break;
+        case PR_setresgid32:
+            res = syscall_neutral_64(PR_setresgid32, (gid_t) p0, (gid_t) p1, (gid_t) p2, p3, p4, p5);
+            break;
+        case PR_setresuid32:
+            res = syscall_neutral_64(PR_setresuid32, (uid_t) p0, (uid_t) p1, (uid_t) p2, p3, p4, p5);
             break;
         case PR_setreuid:
             res = syscall_neutral_64(PR_setreuid, (uid_t) (int16_t)p0, (uid_t) (int16_t)p1, p2, p3, p4, p5);
@@ -2340,11 +2501,17 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
         case PR_timer_create:
             res = timer_create_neutral(p0, p1, p2);
             break;
+        case PR_timer_delete:
+            res = syscall_neutral_64(PR_timer_delete, p0, p1, p2, p3 ,p4, p5);
+            break;
         case PR_timer_getoverrun:
             res = syscall_neutral_64(PR_timer_getoverrun, p0, p1, p2, p3 ,p4, p5);
             break;
         case PR_timer_gettime:
             res = timer_gettime_neutral(p0, p1);
+            break;
+        case PR_timer_settime:
+            res = timer_settime_neutral(p0,p1,p2,p3);
             break;
         case PR_timerfd_create:
             res = syscall_neutral_64(PR_timerfd_create, (int) p0, (int) p1, p2, p3 ,p4, p5);

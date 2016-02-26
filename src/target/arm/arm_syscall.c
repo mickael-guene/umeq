@@ -66,6 +66,9 @@ void arm_hlp_syscall(uint64_t regs)
             case 0:
                 res = -ENOSYS;
                 break;
+            case PR_ARM_cacheflush:
+                cleanCaches(0, ~0);
+                break;
             case PR_ARM_set_tls:
                 context->regs.c13_tls2 = context->regs.r[0];
                 res = 0;

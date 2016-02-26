@@ -375,6 +375,12 @@ struct neutral_msghdr_32 {
     uint32_t msg_flags;
 };
 
+struct neutral_epoll_event_32 {
+    uint32_t events;
+    uint32_t __pad0;
+    uint64_t data;
+};
+
 #endif
 
 #ifdef __cplusplus
