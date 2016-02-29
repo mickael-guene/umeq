@@ -11,17 +11,25 @@ set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O2 -g -Wall -U_FORTI
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O2 -g -Wall -U_FORTIFY_SOURCE -ffreestanding")
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O2 -g -Wall -U_FORTIFY_SOURCE -ffreestanding")
 
+# define or modify some variables according to host size
+if (UMEQ_ARCH_HOST_SIZE EQUAL 64)
+	set(UMEQ_SYSCALL_32 "syscall32_64")
+	set(UMEQ_LOAD_ADDR 0x8000000000)
+elseif (UMEQ_ARCH_HOST_SIZE EQUAL 32)
+	set(UMEQ_SYSCALL_32 "syscall32_32")
+	set(UMEQ_LOAD_ADDR 0xb0000000)
+else (UMEQ_ARCH_HOST_SIZE EQUAL 64)
+	message(FATAL_ERROR "UMEQ_ARCH_HOST_SIZE must be either 32 or 64")
+endif (UMEQ_ARCH_HOST_SIZE EQUAL 64)
+
+# define or modify some variables according to host architecture
 if (UMEQ_ARCH_x64_64)
 	set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -mcmodel=large")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mcmodel=large")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcmodel=large")
-	set(UMEQ_LOAD_ADDR 0x8000000000)
-	set(UMEQ_SYSCALL_32 "syscall32_64")
-else (UMEQ_ARCH_x64_64)
-	set(UMEQ_LOAD_ADDR 0xb0000000)
-	set(UMEQ_SYSCALL_32 "syscall32_32")
 endif (UMEQ_ARCH_x64_64)
 
+# directories to include
 include_directories(${CMAKE_BINARY_DIR}/generated/version)
 include_directories(jitter)
 include_directories(cache)
@@ -37,6 +45,7 @@ include_directories(syscall/syscall64_64)
 include_directories(fpu)
 include_directories(.)
 
+# sub directories to parse
 add_subdirectory(jitter)
 add_subdirectory(cache)
 add_subdirectory(loader)
@@ -45,10 +54,12 @@ add_subdirectory(target)
 add_subdirectory(syscall)
 add_subdirectory(fpu)
 
+# umeq-arm
 add_executable(umeq-arm main.c umeq.c start.S)
 target_link_libraries(umeq-arm -nostdlib -Wl,-Ttext-segment=${UMEQ_LOAD_ADDR} -Wl,-z,execstack -static -Wl,--start-group jitter loader32 cache runtime arm_target ${UMEQ_SYSCALL_32} softfloat -Wl,--end-group)
 
-if (UMEQ_ARCH_x64_64)
+# umeq-arm64 is only build for 64 bits hosts
+if (UMEQ_ARCH_HOST_SIZE EQUAL 64)
 	add_executable(umeq-arm64 main.c umeq.c start.S)
 	target_link_libraries(umeq-arm64 -nostdlib -Wl,-Ttext-segment=0x8000000000 -Wl,-z,execstack -static -Wl,--start-group jitter loader64 cache runtime arm64_target syscall64_64 softfloat -Wl,--end-group)
-endif (UMEQ_ARCH_x64_64)
+endif (UMEQ_ARCH_HOST_SIZE EQUAL 64)
