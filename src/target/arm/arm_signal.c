@@ -28,6 +28,7 @@
 #include <sys/syscall.h>
 #include <assert.h>
 
+#include "umeq.h"
 #include "arm_syscall.h"
 #include "runtime.h"
 #include "arm_signal_types.h"
@@ -89,9 +90,9 @@ int arm_rt_sigaction(struct arm_target *context)
         memset(&oldact, 0, sizeof(oldact));
         //translate structure
         if (act_p) {
-            if (act_guest->_sa_handler == (uint32_t)(uint64_t)SIG_ERR ||
-                act_guest->_sa_handler == (uint32_t)(uint64_t)SIG_DFL ||
-                act_guest->_sa_handler == (uint32_t)(uint64_t)SIG_IGN) {
+            if (act_guest->_sa_handler == (uint32_t)ptr_2_int(SIG_ERR) ||
+                act_guest->_sa_handler == (uint32_t)ptr_2_int(SIG_DFL) ||
+                act_guest->_sa_handler == (uint32_t)ptr_2_int(SIG_IGN)) {
                 act.k_sa_handler = (__sighandler_t)(long) act_guest->_sa_handler;
                 act.sa_mask.__val[0] = act_guest->sa_mask[0];
             } else {

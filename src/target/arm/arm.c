@@ -82,19 +82,19 @@ static void setup_siginfo(uint32_t signum, siginfo_t *siginfo, struct siginfo_ar
             info->_sifields._rt._si_pid = siginfo->si_pid;
             info->_sifields._rt._si_uid = siginfo->si_uid;
             info->_sifields._rt._si_sigval.sival_int = siginfo->si_int;
-            info->_sifields._rt._si_sigval.sival_ptr = (uint64_t) siginfo->si_ptr;
+            info->_sifields._rt._si_sigval.sival_ptr = (uint64_t) ptr_2_int(siginfo->si_ptr);
             break;
         case SI_TIMER:
             info->_sifields._timer._si_tid = siginfo->si_timerid;
             info->_sifields._timer._si_overrun = siginfo->si_overrun;
             info->_sifields._timer._si_sigval.sival_int = siginfo->si_int;
-            info->_sifields._timer._si_sigval.sival_ptr = (uint64_t) siginfo->si_ptr;
+            info->_sifields._timer._si_sigval.sival_ptr = (uint64_t) ptr_2_int(siginfo->si_ptr);
             break;
         case SI_MESGQ:
             info->_sifields._rt._si_pid = siginfo->si_pid;
             info->_sifields._rt._si_uid = siginfo->si_uid;
             info->_sifields._rt._si_sigval.sival_int = siginfo->si_int;
-            info->_sifields._rt._si_sigval.sival_ptr = (uint64_t) siginfo->si_ptr;
+            info->_sifields._rt._si_sigval.sival_ptr = (uint64_t) ptr_2_int(siginfo->si_ptr);
             break;
         case SI_SIGIO:
         case SI_ASYNCIO:

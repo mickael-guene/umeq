@@ -2480,10 +2480,10 @@ static uint32_t signedSat32Q(int64_t i, int *isSat)
     uint32_t res;
     *isSat = 0;
 
-    if (i > 2147483647L) {
+    if (i > 2147483647LL) {
         res = 0x7fffffff;
         *isSat = 1;
-    } else if (i < -2147483648L) {
+    } else if (i < -2147483648LL) {
         res = 0x80000000;
         *isSat = 1;
     } else
