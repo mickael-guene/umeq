@@ -384,7 +384,7 @@ static int sendmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
 {
     int res;
     int sockfd = (int) sockfd_p;
-    struct msghdr *msg_guest = (struct msghdr *) g_2_h(msg_p);
+    struct neutral_msghdr_32 *msg_guest = (struct neutral_msghdr_32 *) g_2_h(msg_p);
     int flags = (int) flags_p;
     struct iovec iovec[16]; //max 16 iovect. If more is need then use mmap or alloca
     struct msghdr msg;
@@ -395,7 +395,7 @@ static int sendmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
     msg.msg_name = msg_guest->msg_name?(void *) g_2_h(msg_guest->msg_name):NULL;
     msg.msg_namelen = msg_guest->msg_namelen;
     for(i = 0; i < msg_guest->msg_iovlen; i++) {
-        struct iovec *iovec_guest = (struct iovec *) g_2_h(&msg_guest->msg_iov[i]);
+        struct neutral_iovec_32 *iovec_guest = (struct neutral_iovec_32 *) g_2_h(msg_guest->msg_iov + sizeof(struct neutral_iovec_32) * i);
 
         iovec[i].iov_base = (void *) g_2_h(iovec_guest->iov_base);
         iovec[i].iov_len = iovec_guest->iov_len;

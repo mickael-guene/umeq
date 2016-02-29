@@ -31,10 +31,10 @@ extern "C" {
 typedef uint32_t guest_ptr;
 
 #ifdef __i386__
-#define g_2_h(ptr)  ((void *)(uint32_t)((ptr) + (mmap_offset)))
+#define g_2_h(ptr)  ((void *)(uint32_t)(((uint32_t)(ptr)) + (mmap_offset)))
 #define h_2_g(ptr)  ((guest_ptr) (((uint32_t)(ptr)) - (mmap_offset)))
 #else
-#define g_2_h(ptr)  ((void *)(uint64_t)((ptr) + (mmap_offset)))
+#define g_2_h(ptr)  ((void *)(uint64_t)(((uint64_t)(ptr)) + (mmap_offset)))
 #define h_2_g(ptr)  ((guest_ptr) (((uint64_t)(ptr)) - (mmap_offset)))
 #endif
 
