@@ -37,7 +37,7 @@
 #include "arm_syscall.h"
 #include "arm_softfloat.h"
 #include "umeq.h"
-#include "syscall32_64_types.h"
+#include "syscalls_neutral_types.h"
 
 #if __i386__
  #define PROOT_MAGIC_NB         350
@@ -716,9 +716,9 @@ int arm_process_vm_readv(struct arm_target *context)
 {
     int res;
     pid_t pid = (pid_t) context->regs.r[0];
-    struct iovec_32 *local_iov_guest = (struct iovec_32 *) g_2_h(context->regs.r[1]);
+    struct neutral_iovec_32 *local_iov_guest = (struct neutral_iovec_32 *) g_2_h(context->regs.r[1]);
     unsigned long liovcnt = (unsigned long) context->regs.r[2];
-    struct iovec_32 *remote_iov_guest = (struct iovec_32 *) g_2_h(context->regs.r[3]);
+    struct neutral_iovec_32 *remote_iov_guest = (struct neutral_iovec_32 *) g_2_h(context->regs.r[3]);
     unsigned long riovcnt = (unsigned long) context->regs.r[4];
     unsigned long flags = (unsigned long) context->regs.r[5];
     struct iovec *local_iov = (struct iovec *) alloca(liovcnt * sizeof(struct iovec));
@@ -745,7 +745,7 @@ int arm_wait4(struct arm_target *context)
     int *status = (int *) (context->regs.r[1]?g_2_h(context->regs.r[1]):NULL);
     int options = (int) context->regs.r[2];
     uint32_t rusage_p = context->regs.r[3];
-    struct rusage_32 *rusage_guest = (struct rusage_32 *) g_2_h(rusage_p);
+    struct neutral_rusage_32 *rusage_guest = (struct neutral_rusage_32 *) g_2_h(rusage_p);
     struct rusage rusage;
     //struct rusage *rusage = (struct rusage *) (context->regs.r[3]?g_2_h(context->regs.r[3]):NULL);
     action_t action;
