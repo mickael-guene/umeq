@@ -1,0 +1,1 @@
+set(SRCS ${SRCS} i386/be_i386.c i386/be_i386_asm.S PARENT_SCOPE)

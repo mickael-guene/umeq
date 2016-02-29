@@ -36,7 +36,7 @@
 #include "arm64_signal_types.h"
 #include "jitter.h"
 #include "target.h"
-#include "be_x86_64.h"
+#include "be.h"
 
 #define ARM64_CONTEXT_SIZE     (4096)
 
@@ -130,12 +130,12 @@ static uint32_t find_insn_offset(uint64_t guest_pc, int offset)
     struct irInstructionAllocator *ir;
     struct arm64_target context;
     char jitBuffer[16 * KB];
-    char *beX86_64Memory = alloca(256 * KB);
+    char *beMemory = alloca(256 * KB);
     char *jitterMemory = alloca(256 * KB);
 
     memset(&context, 0, sizeof(context));
 
-    backend = createX86_64Backend(beX86_64Memory, 256 * KB);
+    backend = createBackend(beMemory, 256 * KB);
     handle = createJitter(jitterMemory, backend, 256 * KB);
     ir = getIrInstructionAllocator(handle);
 

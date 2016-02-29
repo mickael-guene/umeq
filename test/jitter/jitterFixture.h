@@ -21,8 +21,7 @@
 #ifndef __JITTER_FIXTURE__
 #define __JITTER_FIXTURE__ 1
 
-#include "be_x86_64.h"
-#include "be_i386.h"
+#include "be.h"
 
 class jitterFixture : public ::testing::Test {
     protected:
@@ -30,19 +29,11 @@ class jitterFixture : public ::testing::Test {
     struct irInstructionAllocator *ir;
     struct backend *backend;
     char contextBuffer[4096];
-#ifdef __i386__
-    char *beI386Memory[BE_I386_MIN_CONTEXT_SIZE];
-#else
-    char *beX86_64Memory[BE_X86_64_MIN_CONTEXT_SIZE];
-#endif
+    char *beMemory[BE_MIN_CONTEXT_SIZE];
     char *jitterMemory[JITTER_MIN_CONTEXT_SIZE];
 
     virtual void SetUp() {
-#ifdef __i386__
-        backend = createI386Backend(beI386Memory, BE_I386_MIN_CONTEXT_SIZE);
-#else
-        backend = createX86_64Backend(beX86_64Memory, BE_X86_64_MIN_CONTEXT_SIZE);
-#endif
+        backend = createBackend(beMemory, BE_MIN_CONTEXT_SIZE);
         handle = createJitter(jitterMemory, backend, JITTER_MIN_CONTEXT_SIZE);
         ir = getIrInstructionAllocator(handle);
     }
@@ -62,11 +53,7 @@ class jitterFixture : public ::testing::Test {
     }
 
     virtual void TearDown() {
-#ifdef __i386__
-        deleteI386Backend(backend);
-#else
-        deleteX86_64Backend(backend);
-#endif
+        deleteBackend(backend);
         deleteJitter(handle);
     }
 };

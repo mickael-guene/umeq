@@ -1,0 +1,1 @@
+set(SRCS ${SRCS} x86_64/be_x86_64.c x86_64/be_x86_64_asm.S PARENT_SCOPE)

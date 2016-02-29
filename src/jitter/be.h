@@ -1,6 +1,6 @@
 /* This file is part of Umeq, an equivalent of qemu user mode emulation with improved robustness.
  *
- * Copyright (C) 2015 STMicroelectronics
+ * Copyright (C) 2016 STMicroelectronics
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -24,13 +24,13 @@
 extern "C" {
 #endif
 
-#ifndef __BE_X86_64__
-#define __BE_X86_64__ 1
+#ifndef __BE__
+#define __BE__ 1
 
-#define BE_X86_64_MIN_CONTEXT_SIZE     (32 * 1024)
+#define BE_MIN_CONTEXT_SIZE         (32 * 1024)
 
-struct backend *createX86_64Backend(void *memory, int size);
-void deleteX86_64Backend(struct backend *backend);
+struct backend *createBackend(void *memory, int size);
+void deleteBackend(struct backend *backend);
 
 #endif
 

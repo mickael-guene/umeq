@@ -25,20 +25,25 @@
 #include <assert.h>
 #include <string.h>
 #include <ucontext.h>
-#include "be_x86_64.h"
-#include "be_x86_64_private.h"
+#include "be.h"
+#include "be_i386_private.h"
 
-//#define DEBUG_REG_ALLOC 1
+//#define DEBUG_REG_ALLOC     1
 
 #define container_of(ptr, type, member) ({          \
     const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
     (type *)( (char *)__mptr - offsetof(type,member) );})
 
-#define REG_NUMBER  8
+#define REG_NUMBER  16
 
+/* can be a 32 or 64 bits register. If it's a 64 bits register
+  then it will use two i386 registers to hold this 64 bit value.
+  In that case index2 will hold register index else it will hold
+  -1 if not use */
 struct x86Register {
     int isConstant;
     int index;
+    int index2;
     int firstWriteIndex;
     int lastReadIndex;
 };
@@ -136,7 +141,8 @@ struct memoryPool {
 };
 
 struct inter {
-    uint64_t restore_sp;
+    uint32_t result_addr;
+    uint32_t restore_sp;
     struct backend backend;
     struct memoryPool registerPoolAllocator;
     struct memoryPool instructionPoolAllocator;
@@ -183,6 +189,7 @@ static struct x86Register *allocateRegister(struct inter *inter, struct irRegist
         res = (struct x86Register *) pool->alloc(pool, sizeof(struct x86Register));
         res->isConstant = 0;
         res->index = inter->regIndex++;
+        res->index2 = (irReg && irReg->type == IR_REG_64)?inter->regIndex++:-1;
         res->firstWriteIndex = inter->instructionIndex;
         res->lastReadIndex = -1;
         if (irReg)
@@ -302,27 +309,6 @@ static void add_cast(struct inter *inter, enum irCastType type, struct x86Regist
     inter->instructionIndex++;
 }
 
-static void add_call(struct inter *inter, struct x86Register *address, struct x86Register *params[4], struct x86Register *result)
-{
-    struct memoryPool *pool = &inter->instructionPoolAllocator;
-    struct x86Instruction *insn = (struct x86Instruction *) pool->alloc(pool, sizeof(struct x86Instruction));
-    int i;
-
-    address->lastReadIndex = inter->instructionIndex;
-    for(i = 0; i < 4; i++) {
-        if (params[i])
-            params[i]->lastReadIndex = inter->instructionIndex;
-    }
-
-    insn->type = X86_CALL;
-    insn->u.call.address = address;
-    for(i = 0; i < 4; i++)
-        insn->u.call.param[i] = params[i];
-    insn->u.call.result = result;
-
-    inter->instructionIndex++;
-}
-
 static void add_read(struct inter *inter, enum x86InstructionType type, struct x86Register *dst, int32_t offset)
 {
     struct memoryPool *pool = &inter->instructionPoolAllocator;
@@ -344,6 +330,27 @@ static void add_write(struct inter *inter, enum x86InstructionType type, struct 
     insn->type = type;
     insn->u.write_context.src = src;
     insn->u.write_context.offset = offset;
+
+    inter->instructionIndex++;
+}
+
+static void add_call(struct inter *inter, struct x86Register *address, struct x86Register *params[4], struct x86Register *result)
+{
+    struct memoryPool *pool = &inter->instructionPoolAllocator;
+    struct x86Instruction *insn = (struct x86Instruction *) pool->alloc(pool, sizeof(struct x86Instruction));
+    int i;
+
+    address->lastReadIndex = inter->instructionIndex;
+    for(i = 0; i < 4; i++) {
+        if (params[i])
+            params[i]->lastReadIndex = inter->instructionIndex;
+    }
+
+    insn->type = X86_CALL;
+    insn->u.call.address = address;
+    for(i = 0; i < 4; i++)
+        insn->u.call.param[i] = params[i];
+    insn->u.call.result = result;
 
     inter->instructionIndex++;
 }
@@ -385,7 +392,13 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
             case IR_STORE_16:
             case IR_STORE_32:
             case IR_STORE_64:
-                add_store(inter, X86_STORE_8 + insn->type - IR_STORE_8, allocateRegister(inter, insn->u.store.src), allocateRegister(inter, insn->u.store.address));
+                {
+                    struct x86Register *address32 = allocateRegister(inter, (insn->u.store.address->type == IR_REG_64)?NULL:insn->u.store.address);
+
+                    if (insn->u.store.address->type == IR_REG_64)
+                        add_cast(inter, IR_CAST_64_TO_32, address32, allocateRegister(inter, insn->u.store.address));
+                    add_store(inter, X86_STORE_8 + insn->type - IR_STORE_8, allocateRegister(inter, insn->u.store.src), address32);
+                }
                 break;
             case IR_BINOP:
                 {
@@ -411,9 +424,9 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                         case IR_BINOP_SHR_8: case IR_BINOP_SHR_16: case IR_BINOP_SHR_32: case IR_BINOP_SHR_64:
                             add_binop(inter, X86_BINOP_8 + insn->u.binop.type - IR_BINOP_SHR_8, X86_BINOP_SHR, allocateRegister(inter, insn->u.binop.dst), allocateRegister(inter, insn->u.binop.op1), allocateRegister(inter, insn->u.binop.op2));
                             break;
-                        case IR_BINOP_ASR_8: goto_p0 = 56; goto binop_asr;
-                        case IR_BINOP_ASR_16: goto_p0 = 48; goto binop_asr;
-                        case IR_BINOP_ASR_32: goto_p0 = 32; goto binop_asr;
+                        case IR_BINOP_ASR_8: goto_p0 = 24; goto binop_asr;
+                        case IR_BINOP_ASR_16: goto_p0 = 16; goto binop_asr;
+                        case IR_BINOP_ASR_32: goto_p0 = 0; goto binop_asr;
                         case IR_BINOP_ASR_64: goto_p0 = 0; goto binop_asr;
                             binop_asr: {
                                 struct x86Register *dst = allocateRegister(inter, insn->u.binop.dst);
@@ -427,9 +440,9 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                                     shiftValue = allocateRegister(inter, NULL);
                                     add_mov_const(inter, shiftValue, goto_p0);
                                     shiftLeftResult = allocateRegister(inter, NULL);
-                                    add_binop(inter, X86_BINOP_64, X86_BINOP_SHL, shiftLeftResult, op1, shiftValue);
+                                    add_binop(inter, X86_BINOP_32, X86_BINOP_SHL, shiftLeftResult, op1, shiftValue);
                                     shiftRightResult = allocateRegister(inter, NULL);
-                                    add_binop(inter, X86_BINOP_64, X86_BINOP_ASR, shiftRightResult, shiftLeftResult, shiftValue);
+                                    add_binop(inter, X86_BINOP_32, X86_BINOP_ASR, shiftRightResult, shiftLeftResult, shiftValue);
                                 } else {
                                     shiftRightResult = allocateRegister(inter, insn->u.binop.op1);
                                 }
@@ -494,6 +507,7 @@ static void allocateInstructions(struct inter *inter, struct irInstruction *irAr
                 add_insn_start_marker(inter, insn->u.marker.value);
                 break;
             default:
+                fprintf(stderr, "Unknown ir type %d\n", insn->type);
                 assert(0);
         }
     }
@@ -518,13 +532,35 @@ static void getFreeReg(int *freeRegList, struct x86Register *reg)
     reg->index = getFreeRegRaw(freeRegList);
     if (reg->lastReadIndex == -1)
         freeRegList[reg->index] = 1;
+    if (reg->index2 != -1) {
+        reg->index2 = getFreeRegRaw(freeRegList);
+        if (reg->lastReadIndex == -1)
+            freeRegList[reg->index2] = 1;
+    }
+}
+
+static void setRegFree(int *freeRegList, struct x86Register *reg)
+{
+    freeRegList[reg->index] = 1;
+    if (reg->index2 != -1)
+        freeRegList[reg->index2] = 1;
+}
+
+static void setRegFreeIfNoMoreUse(int *freeRegList, struct x86Register *reg, int index)
+{
+    if (reg && reg->lastReadIndex == index)
+        setRegFree(freeRegList, reg);
 }
 
 #ifdef DEBUG_REG_ALLOC
 static void displayReg(struct x86Register *reg)
 {
-    if (reg)
-        printf("R%d[%d->%d[", reg->index + 8, reg->firstWriteIndex, reg->lastReadIndex);
+    if (reg) {
+        if (reg->index2 != -1)
+            printf("R%d:%d[%d->%d[", reg->index, reg->index2, reg->firstWriteIndex, reg->lastReadIndex);
+        else
+            printf("R%d[%d->%d[", reg->index, reg->firstWriteIndex, reg->lastReadIndex);
+    }
     else
         printf("NULL");
 }
@@ -534,7 +570,8 @@ static void allocateRegisters(struct inter *inter)
 {
     int i;
     struct x86Instruction *insn = (struct x86Instruction *) inter->instructionPoolAllocator.buffer;
-    int freeRegList[REG_NUMBER] = {1, 1, 1, 1, 1, 1, 1, 1};
+    int freeRegList[REG_NUMBER] = {1, 1, 1, 1, 1, 1, 1, 1,
+                                   1, 1, 1, 1, 1, 1, 1, 1};
 
     for (i = 0; i < inter->instructionIndex; ++i, insn++)
     {
@@ -547,7 +584,7 @@ static void allocateRegisters(struct inter *inter)
 #ifdef DEBUG_REG_ALLOC
                 printf("mov_const ");
                 displayReg(insn->u.mov.dst);
-                printf(", 0x%08lx", insn->u.mov.value);
+                printf(", 0x%016lx", insn->u.mov.value);
 #endif
                 break;
             case X86_LOAD_8:
@@ -555,8 +592,7 @@ static void allocateRegisters(struct inter *inter)
             case X86_LOAD_32:
             case X86_LOAD_64:
                 getFreeReg(freeRegList, insn->u.load.dst);
-                if (insn->u.load.address->lastReadIndex == i)
-                    freeRegList[insn->u.load.address->index] = 1;
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.load.address, i);
 #ifdef DEBUG_REG_ALLOC
                 printf("load ");
                 displayReg(insn->u.load.dst);
@@ -569,10 +605,8 @@ static void allocateRegisters(struct inter *inter)
             case X86_STORE_16:
             case X86_STORE_32:
             case X86_STORE_64:
-                if (insn->u.store.address->lastReadIndex == i)
-                    freeRegList[insn->u.store.address->index] = 1;
-                if (insn->u.store.src->lastReadIndex == i)
-                    freeRegList[insn->u.store.src->index] = 1;
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.store.address, i);
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.store.src, i);
 #ifdef DEBUG_REG_ALLOC
                 printf("store_%d ", 1 << (insn->type - IR_STORE_8 + 3));
                 printf("[");
@@ -581,58 +615,9 @@ static void allocateRegisters(struct inter *inter)
                 displayReg(insn->u.store.src);
 #endif
                 break;
-            case X86_BINOP_8:
-            case X86_BINOP_16:
-            case X86_BINOP_32:
-            case X86_BINOP_64:
-                getFreeReg(freeRegList, insn->u.binop.dst);
-                if (insn->u.binop.op1->lastReadIndex == i)
-                    freeRegList[insn->u.binop.op1->index] = 1;
-                if (insn->u.binop.op2->lastReadIndex == i)
-                    freeRegList[insn->u.binop.op2->index] = 1;
-#ifdef DEBUG_REG_ALLOC
-                printf("binop ");
-                displayReg(insn->u.binop.dst);
-                printf(", ");
-                displayReg(insn->u.binop.op1);
-                printf(", ");
-                displayReg(insn->u.binop.op2);
-#endif
-                break;
-            case X86_EXIT:
-                if (insn->u.exit.value->lastReadIndex == i)
-                    freeRegList[insn->u.exit.value->index] = 1;
-                if (insn->u.exit.pred && insn->u.exit.pred->lastReadIndex == i)
-                    freeRegList[insn->u.exit.pred->index] = 1;
-#ifdef DEBUG_REG_ALLOC
-                printf("exit ");
-                displayReg(insn->u.exit.value);
-                printf(" if ");
-                displayReg(insn->u.exit.pred);
-#endif
-                break;
-            case X86_ITE:
-                getFreeReg(freeRegList, insn->u.ite.dst);
-                if (insn->u.ite.pred->lastReadIndex == i)
-                    freeRegList[insn->u.ite.pred->index] = 1;
-                if (insn->u.ite.trueOp->lastReadIndex == i)
-                    freeRegList[insn->u.ite.trueOp->index] = 1;
-                if (insn->u.ite.falseOp->lastReadIndex == i)
-                    freeRegList[insn->u.ite.falseOp->index] = 1;
-#ifdef DEBUG_REG_ALLOC
-                displayReg(insn->u.ite.dst);
-                printf(" = ");
-                displayReg(insn->u.ite.pred);
-                printf("?");
-                displayReg(insn->u.ite.trueOp);
-                printf(":");
-                displayReg(insn->u.ite.falseOp);
-#endif
-                break;
             case X86_CAST:
                 getFreeReg(freeRegList, insn->u.cast.dst);
-                if (insn->u.cast.op->lastReadIndex == i)
-                    freeRegList[insn->u.cast.op->index] = 1;
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.cast.op, i);
 #ifdef DEBUG_REG_ALLOC
                 {
                 const char *typeToString[] = {"(8u_to_16)", "(8u_to_32)", "(8u_to_64)",
@@ -648,17 +633,57 @@ static void allocateRegisters(struct inter *inter)
                 }
 #endif
                 break;
+            case X86_BINOP_8:
+            case X86_BINOP_16:
+            case X86_BINOP_32:
+            case X86_BINOP_64:
+                getFreeReg(freeRegList, insn->u.binop.dst);
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.binop.op1, i);
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.binop.op2, i);
+#ifdef DEBUG_REG_ALLOC
+                printf("binop ");
+                displayReg(insn->u.binop.dst);
+                printf(", ");
+                displayReg(insn->u.binop.op1);
+                printf(", ");
+                displayReg(insn->u.binop.op2);
+#endif
+                break;
+            case X86_EXIT:
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.exit.value, i);
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.exit.pred, i);
+#ifdef DEBUG_REG_ALLOC
+                printf("exit ");
+                displayReg(insn->u.exit.value);
+                printf(" if ");
+                displayReg(insn->u.exit.pred);
+#endif
+                break;
+            case X86_ITE:
+                getFreeReg(freeRegList, insn->u.ite.dst);
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.ite.pred, i);
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.ite.trueOp, i);
+                setRegFreeIfNoMoreUse(freeRegList, insn->u.ite.falseOp, i);
+#ifdef DEBUG_REG_ALLOC
+                displayReg(insn->u.ite.dst);
+                printf(" = ");
+                displayReg(insn->u.ite.pred);
+                printf("?");
+                displayReg(insn->u.ite.trueOp);
+                printf(":");
+                displayReg(insn->u.ite.falseOp);
+#endif
+                break;
             case X86_CALL:
                 {
                     int j;
 
                     if (insn->u.call.result)
                         getFreeReg(freeRegList, insn->u.call.result);
-                    if (insn->u.call.address->lastReadIndex == i)
-                        freeRegList[insn->u.call.address->index] = 1;
+                    setRegFreeIfNoMoreUse(freeRegList, insn->u.call.address, i);
                     for(j = 0; j < 4; j++)
-                        if (insn->u.call.param[j] && insn->u.call.param[j]->lastReadIndex == i)
-                            freeRegList[insn->u.call.param[j]->index] = 1;
+                        if (insn->u.call.param[j])
+                            setRegFreeIfNoMoreUse(freeRegList, insn->u.call.param[j], i);
 #ifdef DEBUG_REG_ALLOC
                     printf("call (");
                     displayReg(insn->u.call.address);
@@ -687,8 +712,7 @@ static void allocateRegisters(struct inter *inter)
                 break;
             case X86_WRITE_8: case X86_WRITE_16: case X86_WRITE_32: case X86_WRITE_64:
                 {
-                    if (insn->u.write_context.src->lastReadIndex == i)
-                        freeRegList[insn->u.write_context.src->index] = 1;
+                    setRegFreeIfNoMoreUse(freeRegList, insn->u.write_context.src, i);
 #ifdef DEBUG_REG_ALLOC
                     printf("write_context ");
                     printf("context[%d], ",insn->u.write_context.offset);
@@ -702,6 +726,7 @@ static void allocateRegisters(struct inter *inter)
 #endif
                 break;
             default:
+                fprintf(stderr, "Unknown insn type %d\n", insn->type);
                 assert(0);
         }
 #ifdef DEBUG_REG_ALLOC
@@ -709,7 +734,7 @@ static void allocateRegisters(struct inter *inter)
     {
         int j;
         printf("    ");
-        for(j=0;j<8;j++)
+        for(j=0;j<REG_NUMBER;j++)
             printf("%d", freeRegList[j]);
         printf("\n");
     }
@@ -718,15 +743,7 @@ static void allocateRegisters(struct inter *inter)
 }
 
 /* code generation */
-#define REX_OPCODE  0x40
-//64 bit operand size
-#define REX_W       0x08
-// modrm reg field extension
-#define REX_R       0x04
-// sib index extension
-#define REX_X       0x02
-// modrm r/m field extension
-#define REX_B       0x01
+#define VREG_OFFSET(idx)    (-(idx) * 4 - 4)
 
 #define MODRM_MODE_0        0x00
 #define MODRM_MODE_1        0x40
@@ -735,370 +752,273 @@ static void allocateRegisters(struct inter *inter)
 #define MODRM_REG_SHIFT     3
 #define MODRM_RM_SHIFT      0
 
-#define SIB_SCALE_SHIFT     6
-#define SIB_INDEX_SHIFT     3
-#define SIB_BASE_SHIFT      0
+#define EAX                 0
+#define ECX                 1
+#define EDX                 2
+#define EBX                 3
+#define ESP                 4
+#define EBP                 5
+#define ESI                 6
+#define EDI                 7
 
-static char *gen_mov_const_hlp(char *pos, struct x86Register *dst, uint64_t value)
+static char *gen_and_between_physicals(char *pos, int dst, int op)
 {
-    if (value) {
-        *pos++ = REX_OPCODE | REX_W | REX_B;
-        *pos++ = 0xb8 + dst->index;
-        *pos++ = (value >> 0) & 0xff;
-        *pos++ = (value >> 8) & 0xff;
-        *pos++ = (value >> 16) & 0xff;
-        *pos++ = (value >> 24) & 0xff;
-        *pos++ = (value >> 32) & 0xff;
-        *pos++ = (value >> 40) & 0xff;
-        *pos++ = (value >> 48) & 0xff;
-        *pos++ = (value >> 56) & 0xff;
-    } else {
-        *pos++ = REX_OPCODE | REX_R | REX_B;
-        *pos++ = 0x31;
-        *pos++ = 0xc0 | (dst->index << 3) | dst->index;
-    }
+    *pos++ = 0x21;
+    *pos++ = MODRM_MODE_3 | (dst << MODRM_RM_SHIFT) | (op << MODRM_REG_SHIFT);
+
+    return pos;
+}
+
+static char *gen_xor_between_physicals(char *pos, int dst, int op)
+{
+    *pos++ = 0x31;
+    *pos++ = MODRM_MODE_3 | (dst << MODRM_RM_SHIFT) | (op << MODRM_REG_SHIFT);
+
+    return pos;
+}
+
+static char *gen_or_between_physicals(char *pos, int dst, int op)
+{
+    *pos++ = 0x09;
+    *pos++ = MODRM_MODE_3 | (dst << MODRM_RM_SHIFT) | (op << MODRM_REG_SHIFT);
+
+    return pos;
+}
+
+/*static char *gen_add_between_physicals(char *pos, int dst, int op)
+{
+    *pos++ = 0x01;
+    *pos++ = MODRM_MODE_3 | (dst << MODRM_RM_SHIFT) | (op << MODRM_REG_SHIFT);
+
+    return pos;
+}*/
+
+/*static char *gen_sub_between_physicals(char *pos, int dst, int op)
+{
+    *pos++ = 0x29;
+    *pos++ = MODRM_MODE_3 | (dst << MODRM_RM_SHIFT) | (op << MODRM_REG_SHIFT);
+
+    return pos;
+}*/
+
+static char *gen_mov_const_in_physical_reg(char *pos, int index, uint32_t value)
+{
+    *pos++ = 0xb8 + index;
+    *pos++ = (value >> 0) & 0xff;
+    *pos++ = (value >> 8) & 0xff;
+    *pos++ = (value >> 16) & 0xff;
+    *pos++ = (value >> 24) & 0xff;
+
+    return pos;
+}
+
+static char *gen_mov_const_in_virtual_reg(char *pos, int index, uint32_t value)
+{
+    *pos++ = 0xc7;
+    *pos++ = MODRM_MODE_1 | (EBP << MODRM_RM_SHIFT);
+    *pos++ = VREG_OFFSET(index);
+    *pos++ = (value >> 0) & 0xff;
+    *pos++ = (value >> 8) & 0xff;
+    *pos++ = (value >> 16) & 0xff;
+    *pos++ = (value >> 24) & 0xff;
+
+    return pos;
+}
+
+static char *gen_mov_from_virtual_to_physical(char *pos, int from, int to)
+{
+    *pos++ = 0x8b;
+    *pos++ = MODRM_MODE_1 | (EBP << MODRM_RM_SHIFT) | (to << MODRM_REG_SHIFT);
+    *pos++ = VREG_OFFSET(from);
+
+    return pos;
+}
+
+/*static char *gen_mov_from_physical_to_physical(char *pos, int from, int to)
+{
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_3 | (to << MODRM_RM_SHIFT) | (from << MODRM_REG_SHIFT);
+
+    return pos;
+}*/
+
+static char *gen_mov_from_physical_to_virtual(char *pos, int from, int to)
+{
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_1 | (EBP << MODRM_RM_SHIFT) | (from << MODRM_REG_SHIFT);
+    *pos++ = VREG_OFFSET(to);
+
+    return pos;
+}
+
+static char *gen_mov_from_virtual_to_virtual_hlp(char *pos, int from, int to)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, from, EAX);
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, to);
 
     return pos;
 }
 
 static char *gen_mov_const(char *pos, struct x86Instruction *insn)
 {
-    return gen_mov_const_hlp(pos, insn->u.mov.dst, insn->u.mov.value);
+    pos = gen_mov_const_in_virtual_reg(pos, insn->u.mov.dst->index, insn->u.mov.value);
+    if (insn->u.mov.dst->index2 != -1)
+        pos = gen_mov_const_in_virtual_reg(pos, insn->u.mov.dst->index2, insn->u.mov.value >> 32);
+
+    return pos;
+}
+
+static char *gen_push_physical_on_stack(char *pos, int index, int *sp_offset)
+{
+    *pos++ = 0x50 + index;
+    *sp_offset += 4;
+
+    return pos;
+}
+
+static char *gen_add_sp(char *pos, int offset)
+{
+    *pos++ = 0x81;
+    *pos++ = MODRM_MODE_3 | (0/*subcode*/ << MODRM_REG_SHIFT) | ESP;
+    *pos++ = (offset >> 0) & 0xff;
+    *pos++ = (offset >> 8) & 0xff;
+    *pos++ = (offset >> 16) & 0xff;
+    *pos++ = (offset >> 24) & 0xff;
+
+    return pos;
 }
 
 static char *gen_load_8(char *pos, struct x86Instruction *insn)
 {
-    *pos++ = REX_OPCODE | REX_R | REX_B;
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.load.address->index, EAX);
     *pos++ = 0x8a;
-    *pos++ = MODRM_MODE_2 | (insn->u.load.dst->index << MODRM_REG_SHIFT) | 4; //address is sib+disp32
-    *pos++ = (0 << SIB_SCALE_SHIFT) | (4 <<  SIB_INDEX_SHIFT) | (insn->u.load.address->index);
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+    pos = gen_mov_from_physical_to_virtual(pos, ECX, insn->u.load.dst->index);
 
     return pos;
 }
 
 static char *gen_load_16(char *pos, struct x86Instruction *insn)
 {
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.load.address->index, EAX);
     *pos++ = 0x66;
-    *pos++ = REX_OPCODE | REX_R | REX_B;
     *pos++ = 0x8b;
-    *pos++ = MODRM_MODE_2 | (insn->u.load.dst->index << MODRM_REG_SHIFT) | 4; //address is sib+disp32
-    *pos++ = (0 << SIB_SCALE_SHIFT) | (4 <<  SIB_INDEX_SHIFT) | (insn->u.load.address->index);
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+    pos = gen_mov_from_physical_to_virtual(pos, ECX, insn->u.load.dst->index);
 
     return pos;
 }
 
 static char *gen_load_32(char *pos, struct x86Instruction *insn)
 {
-    *pos++ = REX_OPCODE | REX_R | REX_B;
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.load.address->index, EAX);
     *pos++ = 0x8b;
-    *pos++ = MODRM_MODE_2 | (insn->u.load.dst->index << MODRM_REG_SHIFT) | 4; //address is sib+disp32
-    *pos++ = (0 << SIB_SCALE_SHIFT) | (4 <<  SIB_INDEX_SHIFT) | (insn->u.load.address->index);
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+    pos = gen_mov_from_physical_to_virtual(pos, ECX, insn->u.load.dst->index);
 
     return pos;
 }
 
 static char *gen_load_64(char *pos, struct x86Instruction *insn)
 {
-    *pos++ = REX_OPCODE | REX_R | REX_B | REX_W;
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.load.address->index, EAX);
     *pos++ = 0x8b;
-    *pos++ = MODRM_MODE_2 | (insn->u.load.dst->index << MODRM_REG_SHIFT) | 4; //address is sib+disp32
-    *pos++ = (0 << SIB_SCALE_SHIFT) | (4 <<  SIB_INDEX_SHIFT) | (insn->u.load.address->index);
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+    pos = gen_mov_from_physical_to_virtual(pos, ECX, insn->u.load.dst->index);
+    /* add four to eax */
+    *pos++ = 0x05;
+    *pos++ = 4;
     *pos++ = 0;
     *pos++ = 0;
     *pos++ = 0;
-    *pos++ = 0;
+    /* read second word */
+    *pos++ = 0x8b;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+    pos = gen_mov_from_physical_to_virtual(pos, ECX, insn->u.load.dst->index2);
 
     return pos;
 }
 
 static char *gen_store_8(char *pos, struct x86Instruction *insn)
 {
-    *pos++ = REX_OPCODE | REX_R | REX_B;
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.address->index, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.src->index, ECX);
     *pos++ = 0x88;
-    *pos++ = MODRM_MODE_2 | (insn->u.load.dst->index << MODRM_REG_SHIFT) | 4; //address is sib+disp32
-    *pos++ = (0 << SIB_SCALE_SHIFT) | (4 <<  SIB_INDEX_SHIFT) | (insn->u.load.address->index);
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
 
     return pos;
 }
 
 static char *gen_store_16(char *pos, struct x86Instruction *insn)
 {
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.address->index, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.src->index, ECX);
     *pos++ = 0x66;
-    *pos++ = REX_OPCODE | REX_R | REX_B;
     *pos++ = 0x89;
-    *pos++ = MODRM_MODE_2 | (insn->u.load.dst->index << MODRM_REG_SHIFT) | 4; //address is sib+disp32
-    *pos++ = (0 << SIB_SCALE_SHIFT) | (4 <<  SIB_INDEX_SHIFT) | (insn->u.load.address->index);
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
 
     return pos;
 }
 
 static char *gen_store_32(char *pos, struct x86Instruction *insn)
 {
-    *pos++ = REX_OPCODE | REX_R | REX_B;
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.address->index, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.src->index, ECX);
     *pos++ = 0x89;
-    *pos++ = MODRM_MODE_2 | (insn->u.load.dst->index << MODRM_REG_SHIFT) | 4; //address is sib+disp32
-    *pos++ = (0 << SIB_SCALE_SHIFT) | (4 <<  SIB_INDEX_SHIFT) | (insn->u.load.address->index);
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
 
     return pos;
 }
 
 static char *gen_store_64(char *pos, struct x86Instruction *insn)
 {
-    *pos++ = REX_OPCODE | REX_R | REX_B | REX_W;
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.address->index, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.src->index, ECX);
     *pos++ = 0x89;
-    *pos++ = MODRM_MODE_2 | (insn->u.load.dst->index << MODRM_REG_SHIFT) | 4; //address is sib+disp32
-    *pos++ = (0 << SIB_SCALE_SHIFT) | (4 <<  SIB_INDEX_SHIFT) | (insn->u.load.address->index);
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.address->index, EAX);
+    /* add four to eax */
+    *pos++ = 0x05;
+    *pos++ = 4;
     *pos++ = 0;
     *pos++ = 0;
     *pos++ = 0;
-    *pos++ = 0;
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.store.src->index2, ECX);
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_0 | (EAX << MODRM_RM_SHIFT) | (ECX << MODRM_REG_SHIFT);
 
     return pos;
 }
 
-static char *gen_move_reg_low(char *pos, int low_index, struct x86Register *src)
+static char *gen_upper_unsigned_cast_hlp(char *pos, struct x86Register *dst, struct x86Register *op, uint32_t mask)
 {
-    /* mov low_index, src */
-    *pos++ = REX_OPCODE | REX_B | REX_W;
-    *pos++ = 0x8b;
-    *pos++ = MODRM_MODE_3 | (low_index << MODRM_REG_SHIFT) | src->index;
+    pos = gen_mov_from_virtual_to_physical(pos, op->index, EAX);
+    pos = gen_mov_const_in_physical_reg(pos, ECX, mask);
+    pos = gen_and_between_physicals(pos, EAX, ECX);
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index);
+    if (dst->index2 != -1)
+        pos = gen_mov_const_in_virtual_reg(pos, dst->index2, 0);
 
     return pos;
 }
 
-static char *gen_move_reg_from_low(char *pos, int low_index, struct x86Register *dst)
+static char *gen_upper_signed_cast_hlp(char *pos, struct x86Register *dst, struct x86Register *op, int shift_value)
 {
-    /* mov dst, low_index */
-    *pos++ = REX_OPCODE | REX_R | REX_W;
-    *pos++ = 0x8b;
-    *pos++ = MODRM_MODE_3 | (dst->index << MODRM_REG_SHIFT) | low_index;
-
-    return pos;
-}
-
-static char *gen_exit(char *pos, struct x86Instruction *insn)
-{
-    char *pos_start_offset = 0;
-    char *pos_patch = NULL;
-
-    if (insn->u.exit.pred) {
-        //cmp pred with zero
-        *pos++ = REX_OPCODE | REX_B | REX_W;
-        *pos++ = 0x81;
-        *pos++ = MODRM_MODE_3 | (7/*subcode*/ << MODRM_REG_SHIFT) | insn->u.exit.pred->index;
-        *pos++ = 0;
-        *pos++ = 0;
-        *pos++ = 0;
-        *pos++ = 0;
-        //je after exit sequence
-        *pos++ = 0x74;
-        pos_patch = pos;
-        *pos++ = 0;
-        pos_start_offset = pos;
+    pos = gen_mov_from_virtual_to_physical(pos, op->index, EAX);
+    if (shift_value) {
+        pos = gen_mov_const_in_physical_reg(pos, ECX, shift_value);
+        *pos++ = 0xd3;
+        *pos++ = MODRM_MODE_3 | (4/*shl*/ << MODRM_REG_SHIFT) | EAX;
+        *pos++ = 0xd3;
+        *pos++ = MODRM_MODE_3 | (7/*asr*/ << MODRM_REG_SHIFT) | EAX;
     }
-    /* mov rax, value */
-    pos = gen_move_reg_low(pos, 0/*rax*/, insn->u.exit.value);
-    /* generate rdx */
-    if (insn->u.exit.is_patchable) {
-        /* return rip, lea rdx, [rip] */
-        *pos++ = 0x48;
-        *pos++ = 0x8d;
-        *pos++ = 0x15;
-        *pos++ = 0;
-        *pos++ = 0;
-        *pos++ = 0;
-        *pos++ = 0;
-    } else {
-        *pos++ = REX_OPCODE;
-        *pos++ = 0x31;
-        *pos++ = 0xc0 | (2 << 3) | 2;
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index);
+    if (dst->index2 != -1) {
+        pos = gen_mov_const_in_physical_reg(pos, ECX, 31 - shift_value);
+        *pos++ = 0xd3;
+        *pos++ = MODRM_MODE_3 | (7/*asr*/ << MODRM_REG_SHIFT) | EAX;
+        pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index2);
     }
-    /*retq */
-    *pos++ = 0xc3;
-    /* setup patch area */
-    if (insn->u.exit.is_patchable) {
-        /* mov rax, imm64 */
-        *pos++ = 0x48;
-        *pos++ = 0xb8;
-        pos+=8;
-        /* jmp rax */
-        *pos++ = 0xff;
-        *pos++ = 0xe0;
-        /* return rip, lea rdx, [rip] */
-        *pos++ = 0x48;
-        *pos++ = 0x8d;
-        *pos++ = 0x15;
-        *pos++ = 0;
-        *pos++ = 0;
-        *pos++ = 0;
-        *pos++ = 0;
-    }
-    /* fixup jump target to go after retq */
-    if (insn->u.exit.pred) {
-        *pos_patch = (pos - pos_start_offset);
-    }
-
-    return pos;
-}
-
-static char *gen_move_reg(char *pos, struct x86Register *dst, struct x86Register *src)
-{
-    *pos++ = REX_OPCODE | REX_R | REX_B | REX_W;
-    *pos++ = 0x8b;
-    *pos++ = MODRM_MODE_3 | (dst->index << MODRM_REG_SHIFT) | src->index;
-
-    return pos;
-}
-
-static char *gen_cmp(char *pos, int isEq, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2)
-{
-    char *pos_patch;
-    char *pos_ori;
-
-    pos = gen_mov_const_hlp(pos, dst, ~0);
-    //cmp op1 op2
-    *pos++ = REX_OPCODE | REX_R | REX_B | REX_W;
-    *pos++ = 0x3b;
-    *pos++ = MODRM_MODE_3 | (op2->index << MODRM_REG_SHIFT) | op1->index;
-    //je after next move
-    *pos++ = (isEq)?0x74:0x75;
-    pos_patch = pos;
-    *pos++ = 0;
-    // set false value
-    pos_ori = pos;
-    pos = gen_mov_const_hlp(pos, dst, 0);
-    *pos_patch = pos - pos_ori;
-
-    return pos;
-}
-
-static char *gen_binop(char *pos, struct x86Instruction *insn, uint64_t mask)
-{
-    static const char binopToOpcode[] = {0x01/*add*/, 0x29/*sub*/, 0x31/*xor*/, 0x21/*and*/,
-                                         0x09/*or*/, 0xd3/*shl*/, 0xd3/*shr*/, 0xd3/*sar*/, 0xd3/*ror*/,
-                                         0xff/*cmpeq*/, 0xff/*cmpne*/};
-    char subtype = 0;
-
-    switch(insn->u.binop.type) {
-        case X86_BINOP_CMPEQ:
-            pos = gen_cmp(pos, 1, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
-            break;
-        case X86_BINOP_CMPNE:
-            pos = gen_cmp(pos, 0, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
-            break;
-        case X86_BINOP_SHL: subtype = 4; goto unop;
-        case X86_BINOP_SHR: subtype = 5; goto unop;
-        case X86_BINOP_ASR: subtype = 7; goto unop;
-            unop: {
-                pos = gen_move_reg_low(pos, 1/*cl*/, insn->u.binop.op2);
-                pos = gen_move_reg(pos, insn->u.binop.dst, insn->u.binop.op1);
-                *pos++ = REX_OPCODE | REX_B | REX_W;
-                *pos++ = 0xd3;
-                *pos++ = MODRM_MODE_3 | (subtype/*subcode*/ << MODRM_REG_SHIFT) | insn->u.binop.dst->index;
-            }
-            break;
-        case X86_BINOP_ROR:
-            pos = gen_move_reg_low(pos, 1/*cl*/, insn->u.binop.op2);
-            pos = gen_move_reg(pos, insn->u.binop.dst, insn->u.binop.op1);
-            if (insn->type == X86_BINOP_16)
-                *pos++ = 0x66;
-            *pos++ = REX_OPCODE | REX_B | (insn->type == X86_BINOP_64?REX_W:0);
-            *pos++ = insn->type == X86_BINOP_8?0xd2:0xd3;
-            *pos++ = MODRM_MODE_3 | (1/*subcode*/ << MODRM_REG_SHIFT) | insn->u.binop.dst->index;
-            break;
-        default:
-            pos = gen_move_reg(pos, insn->u.binop.dst, insn->u.binop.op1);
-            *pos++ = REX_OPCODE | REX_R | REX_B | REX_W;
-            *pos++ = binopToOpcode[insn->u.binop.type];
-            *pos++ = MODRM_MODE_3 | (insn->u.binop.op2->index << MODRM_REG_SHIFT) | insn->u.binop.dst->index;
-    }
-    //mask result
-    if (mask) {
-        /* moc cl, mask */
-        *pos++ = REX_OPCODE | REX_W;
-        *pos++ = 0xb8 + 1/*cl*/;
-        *pos++ = (mask >> 0) & 0xff;
-        *pos++ = (mask >> 8) & 0xff;
-        *pos++ = (mask >> 16) & 0xff;
-        *pos++ = (mask >> 24) & 0xff;
-        *pos++ = (mask >> 32) & 0xff;
-        *pos++ = (mask >> 40) & 0xff;
-        *pos++ = (mask >> 48) & 0xff;
-        *pos++ = (mask >> 56) & 0xff;
-        /* and dst, dst, cl */
-        *pos++ = REX_OPCODE | REX_B | REX_W;
-        *pos++ = 0x21;
-        *pos++ = MODRM_MODE_3 | (1/*cl*/ << MODRM_REG_SHIFT) | insn->u.binop.dst->index;
-    }
-
-    return pos;
-}
-
-static char *gen_ite(char *pos, struct x86Instruction *insn)
-{
-    pos = gen_move_reg(pos, insn->u.ite.dst, insn->u.ite.falseOp);
-    //cmp pred with zero
-    *pos++ = REX_OPCODE | REX_B | REX_W;
-    *pos++ = 0x81;
-    *pos++ = MODRM_MODE_3 | (7/*subcode*/ << MODRM_REG_SHIFT) | insn->u.ite.pred->index;
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
-    *pos++ = 0;
-    //cmovnz dst <= trueOp
-    *pos++ = REX_OPCODE | REX_R | REX_B | REX_W;
-    *pos++ = 0x0f;
-    *pos++ = 0x45;
-    *pos++ = MODRM_MODE_3 | (insn->u.ite.dst->index << MODRM_REG_SHIFT) | insn->u.ite.trueOp->index;
-
-    return pos;
-}
-
-static char *gen_upper_unsigned_cast_hlp(char *pos, struct x86Register *dst, struct x86Register *op, uint64_t mask)
-{
-    pos = gen_mov_const_hlp(pos, dst, mask);
-    *pos++ = REX_OPCODE | REX_R | REX_B | REX_W;
-    *pos++ = 0x21; /* and */
-    *pos++ = MODRM_MODE_3 | (op->index << MODRM_REG_SHIFT) | dst->index;
-
-    return pos;
-}
-
-static char *gen_upper_signed_cast_hlp(char *pos, struct x86Register *dst, struct x86Register *op, char shift_value)
-{
-    pos = gen_move_reg(pos, dst, op);
-    *pos++ = REX_OPCODE | REX_B | REX_W;
-    *pos++ = 0xc1;
-    *pos++ = MODRM_MODE_3 | (4/*subcode*/ << MODRM_REG_SHIFT) | dst->index; //shl dst, imm8
-    *pos++ = shift_value;
-    *pos++ = REX_OPCODE | REX_B | REX_W;
-    *pos++ = 0xc1;
-    *pos++ = MODRM_MODE_3 | (7/*subcode*/ << MODRM_REG_SHIFT) | dst->index; //sar dst, imm8
-    *pos++ = shift_value;
 
     return pos;
 }
@@ -1116,13 +1036,13 @@ static char *gen_cast(char *pos, struct x86Instruction *insn)
             pos = gen_upper_unsigned_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 0xffffffff);
             break;
         case IR_CAST_8S_TO_16: case IR_CAST_8S_TO_32: case IR_CAST_8S_TO_64:
-            pos = gen_upper_signed_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 56);
+            pos = gen_upper_signed_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 24);
             break;
         case IR_CAST_16S_TO_32: case IR_CAST_16S_TO_64:
-            pos = gen_upper_signed_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 48);
+            pos = gen_upper_signed_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 16);
             break;
         case IR_CAST_32S_TO_64:
-            pos = gen_upper_signed_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 32);
+            pos = gen_upper_signed_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 0);
             break;
         case IR_CAST_64_TO_8: case IR_CAST_32_TO_8: case IR_CAST_16_TO_8:
             pos = gen_upper_unsigned_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 0xff);
@@ -1131,82 +1051,340 @@ static char *gen_cast(char *pos, struct x86Instruction *insn)
             pos = gen_upper_unsigned_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 0xffff);
             break;
         case IR_CAST_64_TO_32:
-            pos = gen_upper_unsigned_cast_hlp(pos, insn->u.cast.dst, insn->u.cast.op, 0xffffffff);
+            pos = gen_mov_from_virtual_to_virtual_hlp(pos, insn->u.cast.op->index, insn->u.cast.dst->index);
             break;
         default:
+            fprintf(stderr, "Implement cast type %d\n", insn->u.cast.type);
             assert(0);
     }
 
     return pos;
 }
 
-static char *gen_push_hlp(char *pos, int index)
+static char *gen_exit(char *pos, struct x86Instruction *insn)
 {
-    if (index >= 8)
-        *pos++ = REX_OPCODE | REX_B | REX_W;
-    else
-        *pos++ = REX_OPCODE | REX_W;
-    *pos++ = 0x50 + (index & 7);
+    char *patch = NULL;
+
+    /* predicate code */
+    if (insn->u.exit.pred) {
+        /* compute predicate */
+        pos = gen_mov_from_virtual_to_physical(pos, insn->u.exit.pred->index, EAX);
+        if (insn->u.exit.pred->index2 != -1) {
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.exit.pred->index2, ECX);
+            pos = gen_or_between_physicals(pos, EAX, ECX);
+        }
+        /* compare eax with 0 */
+        *pos++ = 0x3d;
+        *pos++ = 0;
+        *pos++ = 0;
+        *pos++ = 0;
+        *pos++ = 0;
+        /* jump below exit */
+        *pos++ = 0x74;
+        patch = pos++;
+    }
+
+    /* return value in address given by ESI */
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.exit.value->index, EAX);
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_0 | (ESI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.exit.value->index2, EAX);
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_1 | (ESI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = 4;
+    pos = gen_mov_const_in_physical_reg(pos, EAX, 0);
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_1 | (ESI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = 8;
+
+    /* ret */
+    *pos++ = 0xc3;
+
+    /* patch jump distance if needed */
+    if (insn->u.exit.pred)
+        *patch = pos - patch - 1;
 
     return pos;
 }
 
-static char *gen_pop_hlp(char *pos, int index)
+static char *gen_ite(char *pos, struct x86Instruction *insn)
 {
-    if (index >= 8)
-        *pos++ = REX_OPCODE | REX_B | REX_W;
-    else
-        *pos++ = REX_OPCODE | REX_W;
-    *pos++ = 0x58 + (index & 7);
+    char *patch;
+
+    /* mov dst with false predicate */
+    pos = gen_mov_from_virtual_to_virtual_hlp(pos, insn->u.ite.falseOp->index, insn->u.ite.dst->index);
+    if (insn->u.mov.dst->index2 != -1)
+        pos = gen_mov_from_virtual_to_virtual_hlp(pos, insn->u.ite.falseOp->index2, insn->u.ite.dst->index2);
+
+    /* move predicate in eax */
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.ite.pred->index, EAX);
+    if (insn->u.mov.dst->index2 != -1) {
+        pos = gen_mov_from_virtual_to_physical(pos, insn->u.ite.pred->index, ECX);
+        pos = gen_or_between_physicals(pos, EAX, ECX);
+    }
+
+    /* compare eax with zero */
+    *pos++ = 0x3d;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+
+    /* branch to end if eax is zero */
+    *pos++ = 0x74;
+    patch = pos++;
+
+    /* mov dst with true predicate */
+    pos = gen_mov_from_virtual_to_virtual_hlp(pos, insn->u.ite.trueOp->index, insn->u.ite.dst->index);
+    if (insn->u.mov.dst->index2 != -1)
+        pos = gen_mov_from_virtual_to_virtual_hlp(pos, insn->u.ite.trueOp->index2, insn->u.ite.dst->index2);
+
+    /* patch jump distance */
+    *patch = pos - patch - 1;
 
     return pos;
 }
 
-static char *gen_call(char *pos, struct x86Instruction *insn)
+static char *gen_cmp32(char *pos, int isEq, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2)
 {
-    /* save caller regs we use */
-    pos = gen_push_hlp(pos, 7/*rdi*/);
-    pos = gen_push_hlp(pos, 8/*r8*/);
-    pos = gen_push_hlp(pos, 9/*r9*/);
-    pos = gen_push_hlp(pos, 10/*r10*/);
-    pos = gen_push_hlp(pos, 11/*r11*/);
-    pos = gen_push_hlp(pos, 12/*r12*/);/* only use to keep sp align on 16 bytes */
+    char *patch;
 
-    /* mov address into rax */
-    pos = gen_move_reg_low(pos, 0/*rax*/, insn->u.call.address);
+    /* set true value */
+    pos = gen_mov_const_in_virtual_reg(pos, dst->index, ~0);
 
-    /* rdi already has context value */
-    if (insn->u.call.param[2]) {
-        pos = gen_move_reg_low(pos, 1/*rcx*/, insn->u.call.param[2]);
-    }
-    if (insn->u.call.param[1]) {
-        pos = gen_move_reg_low(pos, 2/*rdx*/, insn->u.call.param[1]);
-    }
-    if (insn->u.call.param[0]) {
-        pos = gen_move_reg_low(pos, 6/*rsi*/, insn->u.call.param[0]);
-    }
-    /* do r8 last in case it's use into others param */
-    if (insn->u.call.param[3]) {
-        struct x86Register dst;
-        dst.index = 0;
-        pos = gen_move_reg(pos, &dst/*r8*/, insn->u.call.param[3]);
-    }
+    /* compute op1 ^ op2 and put result in eax */
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, op2->index, ECX);
+    pos = gen_xor_between_physicals(pos, EAX, ECX);
 
-    /* call function by address */
-    *pos++ = REX_OPCODE | REX_W;
+    /* compare eax with zero */
+    *pos++ = 0x3d;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+
+    /* branch to end if eax is zero */
+    *pos++ = (isEq)?0x74:0x75;
+    patch = pos++;
+
+    /* set false value */
+    pos = gen_mov_const_in_virtual_reg(pos, dst->index, 0);
+
+    /* patch jump distance */
+    *patch = pos - patch - 1;
+
+    pos = gen_mov_from_virtual_to_physical(pos, dst->index, EAX);
+
+    return pos;
+}
+
+static char *gen_cmp64(char *pos, int isEq, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2)
+{
+    char *patch;
+
+    /* set true value */
+    pos = gen_mov_const_in_virtual_reg(pos, dst->index, ~0);
+    pos = gen_mov_const_in_virtual_reg(pos, dst->index2, ~0);
+
+    /* compute op1 ^ op2 and put result in eax */
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, op2->index, ECX);
+    pos = gen_xor_between_physicals(pos, EAX, ECX);
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index2, EDX);
+    pos = gen_mov_from_virtual_to_physical(pos, op2->index2, ECX);
+    pos = gen_xor_between_physicals(pos, ECX, EDX);
+    pos = gen_or_between_physicals(pos, EAX, ECX);
+
+    /* compare eax with zero */
+    *pos++ = 0x3d;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+    *pos++ = 0;
+
+    /* branch to end if eax is zero */
+    *pos++ = (isEq)?0x74:0x75;
+    patch = pos++;
+
+    /* set false value */
+    pos = gen_mov_const_in_virtual_reg(pos, dst->index, 0);
+    pos = gen_mov_const_in_virtual_reg(pos, dst->index2, 0);
+
+    /* patch jump distance */
+    *patch = pos - patch - 1;
+
+    return pos;
+}
+
+static char *gen_ror32(char *pos, enum x86InstructionType type, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
+    pos = gen_mov_from_virtual_to_physical(pos, op2->index, ECX);
+    if (type == X86_BINOP_16)
+        *pos++ = 0x66;
+    *pos++ = (type == X86_BINOP_8)?0xd2:0xd3;
+    *pos++ = MODRM_MODE_3 | (1 << MODRM_REG_SHIFT) | EAX;
+
+    return pos;
+}
+
+static uint64_t shl64_helper(uint64_t op, uint32_t shift_value)
+{
+    return op << shift_value;
+}
+
+static uint64_t shr64_helper(uint64_t op, uint32_t shift_value)
+{
+    return op >> shift_value;
+}
+
+static int64_t asr64_helper(int64_t op, uint32_t shift_value)
+{
+    return op >> shift_value;
+}
+
+static int64_t ror64_helper(uint64_t op, uint32_t shift_value)
+{
+    if (shift_value == 0)
+        return op;
+
+    return (op >> shift_value) | (op << (64 - shift_value));
+}
+
+static char *gen_shift64(char *pos, struct x86Register *dst, struct x86Register *op1, struct x86Register *op2, uint32_t helper_addr)
+{
+    int sp_offset = 0;
+
+    /* push params on task */
+    pos = gen_mov_from_virtual_to_physical(pos, op2->index, EAX);
+    pos = gen_push_physical_on_stack(pos, EAX, &sp_offset);
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index2, EAX);
+    pos = gen_push_physical_on_stack(pos, EAX, &sp_offset);
+    pos = gen_mov_from_virtual_to_physical(pos, op1->index, EAX);
+    pos = gen_push_physical_on_stack(pos, EAX, &sp_offset);
+
+    /* call helper */
+    pos = gen_mov_const_in_physical_reg(pos, EAX, helper_addr);
     *pos++ = 0xff;
-    *pos++ = MODRM_MODE_3 | (2/*subcode*/ << MODRM_REG_SHIFT) | 0/*rax*/;
-    /* restore caller save regs */
-    pos = gen_pop_hlp(pos, 12/*r12*/);/* only use to keep sp align on 16 bytes */
-    pos = gen_pop_hlp(pos, 11/*r11*/);
-    pos = gen_pop_hlp(pos, 10/*r10*/);
-    pos = gen_pop_hlp(pos, 9/*r9*/);
-    pos = gen_pop_hlp(pos, 8/*r8*/);
-    pos = gen_pop_hlp(pos, 7/*rdi*/);
+    *pos++ = MODRM_MODE_3 | (2/*subcode*/ << MODRM_REG_SHIFT) | EAX;
 
-    /* move result if need */
-    if (insn->u.call.result) {
-        pos = gen_move_reg_from_low(pos, 0/*rax*/, insn->u.call.result);
+    /* restore sp */
+    pos = gen_add_sp(pos, sp_offset);
+
+    /* save result */
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, dst->index);
+    pos = gen_mov_from_physical_to_virtual(pos, EDX, dst->index2);
+
+    return pos;
+}
+
+static char *gen_binop(char *pos, struct x86Instruction *insn, uint32_t mask)
+{
+    static const char binopToOpcode[] = {0x01/*add*/, 0x29/*sub*/, 0x31/*xor*/, 0x21/*and*/,
+                                         0x09/*or*/, 0xd3/*shl*/, 0xd3/*shr*/, 0xd3/*sar*/, 0xd3/*ror*/,
+                                         0xff/*cmpeq*/, 0xff/*cmpne*/};
+    int subtype;
+
+    /* do ops with result in eax */
+    switch(insn->u.binop.type) {
+        case X86_BINOP_ADD:
+        case X86_BINOP_SUB:
+        case X86_BINOP_XOR:
+        case X86_BINOP_AND:
+        case X86_BINOP_OR:
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
+            *pos++ = binopToOpcode[insn->u.binop.type];
+            *pos++ = MODRM_MODE_3 | (ECX << MODRM_REG_SHIFT) | EAX;
+            break;
+        case X86_BINOP_SHL: subtype = 4; goto unop;
+        case X86_BINOP_SHR: subtype = 5; goto unop;
+        case X86_BINOP_ASR: subtype = 7; goto unop;
+            unop: {
+                pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
+                pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
+                *pos++ = binopToOpcode[insn->u.binop.type];
+                *pos++ = MODRM_MODE_3 | (subtype << MODRM_REG_SHIFT) | EAX;
+            }
+            break;
+        case X86_BINOP_ROR:
+            pos = gen_ror32(pos, insn->type, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
+            break;
+        case X86_BINOP_CMPEQ:
+            pos = gen_cmp32(pos, 1, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
+            break;
+        case X86_BINOP_CMPNE:
+            pos = gen_cmp32(pos, 0, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
+            break;
+        default:
+            fprintf(stderr, "Implement binop type %d\n", insn->u.binop.type);
+            assert(0);
+    }
+    /* mask if needed */
+    if (mask) {
+        *pos++ = 0x25;
+        *pos++ = (mask >> 0) & 0xff;
+        *pos++ = (mask >> 8) & 0xff;
+        *pos++ = (mask >> 16) & 0xff;
+        *pos++ = (mask >> 24) & 0xff;
+    }
+    /* store result */
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index);
+
+    return pos;
+}
+
+static char *gen_binop64(char *pos, struct x86Instruction *insn)
+{
+    static const char binopToOpcode1[] = {0x01/*add*/, 0x29/*sub*/, 0x31/*xor*/, 0x21/*and*/,
+                                         0x09/*or*/, 0xd3/*shl*/, 0xd3/*shr*/, 0xd3/*sar*/, 0xd3/*ror*/,
+                                         0xff/*cmpeq*/, 0xff/*cmpne*/};
+    static const char binopToOpcode2[] = {0x11/*adc*/, 0x19/*sbb*/, 0x31/*xor*/, 0x21/*and*/,
+                                         0x09/*or*/, 0xd3/*shl*/, 0xd3/*shr*/, 0xd3/*sar*/, 0xd3/*ror*/,
+                                         0xff/*cmpeq*/, 0xff/*cmpne*/};
+
+    /* do ops with result in eax */
+    switch(insn->u.binop.type) {
+        case X86_BINOP_ADD:
+        case X86_BINOP_SUB:
+        case X86_BINOP_XOR:
+        case X86_BINOP_AND:
+        case X86_BINOP_OR:
+            /* lower part */
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index, EAX);
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index, ECX);
+            *pos++ = binopToOpcode1[insn->u.binop.type];
+            *pos++ = MODRM_MODE_3 | (ECX << MODRM_REG_SHIFT) | EAX;
+            pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index);
+            /* upper part */
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op1->index2, EAX);
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.binop.op2->index2, ECX);
+            *pos++ = binopToOpcode2[insn->u.binop.type];
+            *pos++ = MODRM_MODE_3 | (ECX << MODRM_REG_SHIFT) | EAX;
+            pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.binop.dst->index2);
+            break;
+        case X86_BINOP_SHL:
+            pos = gen_shift64(pos, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2, (uint32_t)&shl64_helper);
+            break;
+        case X86_BINOP_SHR:
+            pos = gen_shift64(pos, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2, (uint32_t)&shr64_helper);
+            break;
+        case X86_BINOP_ASR:
+            pos = gen_shift64(pos, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2, (uint32_t)&asr64_helper);
+            break;
+        case X86_BINOP_ROR:
+            pos = gen_shift64(pos, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2, (uint32_t)&ror64_helper);
+            break;
+        case X86_BINOP_CMPEQ:
+            pos = gen_cmp64(pos, 1, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
+            break;
+        case X86_BINOP_CMPNE:
+            pos = gen_cmp64(pos, 0, insn->u.binop.dst, insn->u.binop.op1, insn->u.binop.op2);
+            break;
+        default:
+            fprintf(stderr, "Implement binop type %d\n", insn->u.binop.type);
+            assert(0);
     }
 
     return pos;
@@ -1214,13 +1392,13 @@ static char *gen_call(char *pos, struct x86Instruction *insn)
 
 static char *gen_read_8(char *pos, struct x86Instruction *insn)
 {
-    *pos++ = REX_OPCODE | REX_R;
     *pos++ = 0x8a;
-    *pos++ = MODRM_MODE_2 | (insn->u.read_context.dst->index << MODRM_REG_SHIFT) | 7; //address is rdi+disp32
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
     *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
     *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
     *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
     *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.read_context.dst->index);
 
     return pos;
 }
@@ -1228,35 +1406,55 @@ static char *gen_read_8(char *pos, struct x86Instruction *insn)
 static char *gen_read_16(char *pos, struct x86Instruction *insn)
 {
     *pos++ = 0x66;
-    *pos++ = REX_OPCODE | REX_R;
     *pos++ = 0x8b;
-    *pos++ = MODRM_MODE_2 | (insn->u.read_context.dst->index << MODRM_REG_SHIFT) | 7; //address is rdi+disp32
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
     *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
     *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
     *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
     *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.read_context.dst->index);
 
     return pos;
 }
 
 static char *gen_read_32(char *pos, struct x86Instruction *insn)
 {
-    *pos++ = REX_OPCODE | REX_R;
     *pos++ = 0x8b;
-    *pos++ = MODRM_MODE_2 | (insn->u.read_context.dst->index << MODRM_REG_SHIFT) | 7; //address is rdi+disp32
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
     *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
     *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
     *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
     *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.read_context.dst->index);
 
     return pos;
 }
 
 static char *gen_read_64(char *pos, struct x86Instruction *insn)
 {
-    *pos++ = REX_OPCODE | REX_R | REX_W;
     *pos++ = 0x8b;
-    *pos++ = MODRM_MODE_2 | (insn->u.read_context.dst->index << MODRM_REG_SHIFT) | 7; //address is rdi+disp32
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.read_context.dst->index);
+    *pos++ = 0x8b;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = ((insn->u.read_context.offset + 4) >> 0) & 0xff;
+    *pos++ = ((insn->u.read_context.offset + 4) >> 8) & 0xff;
+    *pos++ = ((insn->u.read_context.offset + 4) >> 16) & 0xff;
+    *pos++ = ((insn->u.read_context.offset + 4) >> 24) & 0xff;
+    pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.read_context.dst->index2);
+
+    return pos;
+}
+
+static char *gen_write_8(char *pos, struct x86Instruction *insn)
+{
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.write_context.src->index, EAX);
+    *pos++ = 0x88;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
     *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
     *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
     *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
@@ -1265,55 +1463,92 @@ static char *gen_read_64(char *pos, struct x86Instruction *insn)
     return pos;
 }
 
-static char *gen_write_8(char *pos, struct x86Instruction *insn)
-{
-    *pos++ = REX_OPCODE | REX_R;
-    *pos++ = 0x88;
-    *pos++ = MODRM_MODE_2 | (insn->u.write_context.src->index << MODRM_REG_SHIFT) | 7; //address is rdi+disp32
-    *pos++ = (insn->u.write_context.offset >> 0) & 0xff;
-    *pos++ = (insn->u.write_context.offset >> 8) & 0xff;
-    *pos++ = (insn->u.write_context.offset >> 16) & 0xff;
-    *pos++ = (insn->u.write_context.offset >> 24) & 0xff;
-
-    return pos;
-}
-
 static char *gen_write_16(char *pos, struct x86Instruction *insn)
 {
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.write_context.src->index, EAX);
     *pos++ = 0x66;
-    *pos++ = REX_OPCODE | REX_R;
     *pos++ = 0x89;
-    *pos++ = MODRM_MODE_2 | (insn->u.write_context.src->index << MODRM_REG_SHIFT) | 7; //address is rdi+disp32
-    *pos++ = (insn->u.write_context.offset >> 0) & 0xff;
-    *pos++ = (insn->u.write_context.offset >> 8) & 0xff;
-    *pos++ = (insn->u.write_context.offset >> 16) & 0xff;
-    *pos++ = (insn->u.write_context.offset >> 24) & 0xff;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
 
     return pos;
 }
 
 static char *gen_write_32(char *pos, struct x86Instruction *insn)
 {
-    *pos++ = REX_OPCODE | REX_R;
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.write_context.src->index, EAX);
     *pos++ = 0x89;
-    *pos++ = MODRM_MODE_2 | (insn->u.write_context.src->index << MODRM_REG_SHIFT) | 7; //address is rdi+disp32
-    *pos++ = (insn->u.write_context.offset >> 0) & 0xff;
-    *pos++ = (insn->u.write_context.offset >> 8) & 0xff;
-    *pos++ = (insn->u.write_context.offset >> 16) & 0xff;
-    *pos++ = (insn->u.write_context.offset >> 24) & 0xff;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
 
     return pos;
 }
 
 static char *gen_write_64(char *pos, struct x86Instruction *insn)
 {
-    *pos++ = REX_OPCODE | REX_R | REX_W;;
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.write_context.src->index, EAX);
     *pos++ = 0x89;
-    *pos++ = MODRM_MODE_2 | (insn->u.write_context.src->index << MODRM_REG_SHIFT) | 7; //address is rdi+disp32
-    *pos++ = (insn->u.write_context.offset >> 0) & 0xff;
-    *pos++ = (insn->u.write_context.offset >> 8) & 0xff;
-    *pos++ = (insn->u.write_context.offset >> 16) & 0xff;
-    *pos++ = (insn->u.write_context.offset >> 24) & 0xff;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = (insn->u.read_context.offset >> 0) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 8) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 16) & 0xff;
+    *pos++ = (insn->u.read_context.offset >> 24) & 0xff;
+
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.write_context.src->index2, EAX);
+    *pos++ = 0x89;
+    *pos++ = MODRM_MODE_2 | (EDI << MODRM_RM_SHIFT) | (EAX << MODRM_REG_SHIFT);
+    *pos++ = ((insn->u.read_context.offset + 4) >> 0) & 0xff;
+    *pos++ = ((insn->u.read_context.offset + 4) >> 8) & 0xff;
+    *pos++ = ((insn->u.read_context.offset + 4) >> 16) & 0xff;
+    *pos++ = ((insn->u.read_context.offset + 4) >> 24) & 0xff;
+
+    return pos;
+}
+
+static char *gen_call(char *pos, struct x86Instruction *insn)
+{
+    int sp_offset = 0;
+    int i;
+
+    /* push parameters onto stack */
+    for(i = 3; i >= 0; i--) {
+        if (insn->u.call.param[i]) {
+            if (insn->u.call.param[i]->index2 != -1) {
+                pos = gen_mov_from_virtual_to_physical(pos, insn->u.call.param[i]->index2, EAX);
+                pos = gen_push_physical_on_stack(pos, EAX, &sp_offset);
+            }
+            pos = gen_mov_from_virtual_to_physical(pos, insn->u.call.param[i]->index, EAX);
+            pos = gen_push_physical_on_stack(pos, EAX, &sp_offset);
+        }
+    }
+
+    /* push 64 bit context on stack */
+    pos = gen_mov_const_in_physical_reg(pos, EAX, 0);
+    pos = gen_push_physical_on_stack(pos, EAX, &sp_offset);
+    pos = gen_push_physical_on_stack(pos, EDI, &sp_offset);
+
+    /* mov address into eax */
+    pos = gen_mov_from_virtual_to_physical(pos, insn->u.call.address->index, EAX);
+
+    /* jump to helper */
+    *pos++ = 0xff;
+    *pos++ = MODRM_MODE_3 | (2/*subcode*/ << MODRM_REG_SHIFT) | EAX;
+
+    /* restore sp */
+    pos = gen_add_sp(pos, sp_offset);
+
+    /* save result */
+    if (insn->u.call.result) {
+        pos = gen_mov_from_physical_to_virtual(pos, EAX, insn->u.call.result->index);
+        if (insn->u.call.result->index2 != -1)
+            pos = gen_mov_from_physical_to_virtual(pos, EDX, insn->u.call.result->index2);
+    }
 
     return pos;
 }
@@ -1323,7 +1558,7 @@ static int generateCode(struct inter *inter, char *buffer)
     int i;
     struct x86Instruction *insn = (struct x86Instruction *) inter->instructionPoolAllocator.buffer;
     char *pos = buffer;
-    uint64_t mask;
+    uint32_t mask;
 
     for (i = 0; i < inter->instructionIndex; ++i, insn++)
     {
@@ -1357,19 +1592,21 @@ static int generateCode(struct inter *inter, char *buffer)
                 break;
             case X86_BINOP_8: mask = 0xff; goto binop;
             case X86_BINOP_16: mask = 0xffff; goto binop;
-            case X86_BINOP_32: mask = 0xffffffff; goto binop;
-            case X86_BINOP_64: mask = 0; goto binop;
+            case X86_BINOP_32: mask = 0; goto binop;
                 binop:
                     pos = gen_binop(pos, insn, mask);
+                break;
+            case X86_BINOP_64:
+                pos = gen_binop64(pos, insn);
+                break;
+            case X86_CAST:
+                pos = gen_cast(pos, insn);
                 break;
             case X86_EXIT:
                 pos = gen_exit(pos, insn);
                 break;
             case X86_ITE:
                 pos = gen_ite(pos, insn);
-                break;
-            case X86_CAST:
-                pos = gen_cast(pos, insn);
                 break;
             case X86_CALL:
                 pos = gen_call(pos, insn);
@@ -1399,6 +1636,7 @@ static int generateCode(struct inter *inter, char *buffer)
                 pos = gen_write_64(pos, insn);
                 break;
             default:
+                fprintf(stderr, "unknown insn type for generatecode %d\n", insn->type);
                 assert(0);
         }
     }
@@ -1411,7 +1649,7 @@ static uint32_t findInsnInCode(struct inter *inter, char *buffer, int offset)
     int i;
     struct x86Instruction *insn = (struct x86Instruction *) inter->instructionPoolAllocator.buffer;
     char *pos = buffer;
-    uint64_t mask;
+    uint32_t mask;
     uint32_t res = ~0;
 
     for (i = 0; i < inter->instructionIndex; ++i, insn++)
@@ -1449,19 +1687,21 @@ static uint32_t findInsnInCode(struct inter *inter, char *buffer, int offset)
                 break;
             case X86_BINOP_8: mask = 0xff; goto binop;
             case X86_BINOP_16: mask = 0xffff; goto binop;
-            case X86_BINOP_32: mask = 0xffffffff; goto binop;
-            case X86_BINOP_64: mask = 0; goto binop;
+            case X86_BINOP_32: mask = 0; goto binop;
                 binop:
                     pos = gen_binop(pos, insn, mask);
+                break;
+            case X86_BINOP_64:
+                pos = gen_binop64(pos, insn);
+                break;
+            case X86_CAST:
+                pos = gen_cast(pos, insn);
                 break;
             case X86_EXIT:
                 pos = gen_exit(pos, insn);
                 break;
             case X86_ITE:
                 pos = gen_ite(pos, insn);
-                break;
-            case X86_CAST:
-                pos = gen_cast(pos, insn);
                 break;
             case X86_CALL:
                 pos = gen_call(pos, insn);
@@ -1491,6 +1731,7 @@ static uint32_t findInsnInCode(struct inter *inter, char *buffer, int offset)
                 pos = gen_write_64(pos, insn);
                 break;
             default:
+                fprintf(stderr, "unknown insn type for generatecode %d\n", insn->type);
                 assert(0);
         }
         if (pos >= buffer + offset)
@@ -1500,35 +1741,22 @@ static uint32_t findInsnInCode(struct inter *inter, char *buffer, int offset)
     return res;
 }
 
+/* backend api */
 static void request_signal_alternate_exit(struct backend *backend, void *_ucp, uint64_t result)
 {
     ucontext_t *ucp = (ucontext_t *) _ucp;
 
-    /* let the kernel call restore_be_x86_64 for us when we will exit signal handler */
-    ucp->uc_mcontext.gregs[REG_RIP] = (uint64_t) restore_be_x86_64;
-    ucp->uc_mcontext.gregs[REG_RDI] = (uint64_t) backend;
-    ucp->uc_mcontext.gregs[REG_RSI] = result;
+    /* let the kernel call restore_be_i386 for us when we will exit signal handler */
+    ucp->uc_mcontext.gregs[REG_EIP] = (uint32_t) restore_be_i386;
+    ucp->uc_mcontext.gregs[REG_EDI] = (uint32_t) backend;
+    ucp->uc_mcontext.gregs[REG_ESI] = (uint32_t) result;
 }
 
 static void patch(struct backend *backend, void *link_patch_area, void *cache_area)
 {
-    unsigned char *pos = link_patch_area;
-    uint64_t target = (uint64_t) cache_area;
-
-    assert(*pos == 0xc3);
-    *pos++=0x90;
-    pos+=2;
-    *pos++ = (target >> 0) & 0xff;
-    *pos++ = (target >> 8) & 0xff;
-    *pos++ = (target >> 16) & 0xff;
-    *pos++ = (target >> 24) & 0xff;
-    *pos++ = (target >> 32) & 0xff;
-    *pos++ = (target >> 40) & 0xff;
-    *pos++ = (target >> 48) & 0xff;
-    *pos++ = (target >> 56) & 0xff;
+    assert(0 && "Implement me\n");
 }
 
-/* backend api */
 static int jit(struct backend *backend, struct irInstruction *irArray, int irInsnNb, char *buffer, int bufferSize)
 {
     struct inter *inter = container_of(backend, struct inter, backend);
@@ -1575,19 +1803,20 @@ static void reset(struct backend *backend)
 }
 
 /* api */
-struct backend *createX86_64Backend(void *memory, int size)
+struct backend *createBackend(void *memory, int size)
 {
     struct inter *inter;
 
-    assert(BE_X86_64_MIN_CONTEXT_SIZE >= sizeof(*inter));
+    assert(BE_MIN_CONTEXT_SIZE >= sizeof(*inter));
     inter = (struct inter *) memory;
     if (inter) {
         int pool_mem_size;
         int struct_inter_size_aligned_16 = ((sizeof(*inter) + 15) & ~0xf);
 
+        inter->result_addr = 0;
         inter->restore_sp = 0;
         inter->backend.jit = jit;
-        inter->backend.execute = execute_be_x86_64;
+        inter->backend.execute = execute_be_i386;
         inter->backend.request_signal_alternate_exit = request_signal_alternate_exit;
         inter->backend.get_marker = get_marker;
         inter->backend.patch = patch;
@@ -1602,14 +1831,14 @@ struct backend *createX86_64Backend(void *memory, int size)
         memoryPoolInit(&inter->registerPoolAllocator, memory + struct_inter_size_aligned_16, pool_mem_size);
         memoryPoolInit(&inter->instructionPoolAllocator, memory + struct_inter_size_aligned_16 + pool_mem_size, pool_mem_size);
 
+
         reset(&inter->backend);
     }
 
     return &inter->backend;
 }
 
-void deleteX86_64Backend(struct backend *backend)
+void deleteBackend(struct backend *backend)
 {
     ;
 }
-
