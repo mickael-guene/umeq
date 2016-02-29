@@ -220,16 +220,24 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
             break;
         case PR_accept:
             {
-                unsigned long args[3];
+                uint32_t args[3];
 
-                args[0] = (int) p0;
-                args[1] = (int) p1;
-                args[2] = (int) p2;
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
                 res = syscall(SYS_socketcall, 5/*sys_accept*/, args);
             }
             break;
         case PR_accept4:
-            res = syscall(SYS_accept4, p0, p1, p2, p3);
+            {
+                uint32_t args[4];
+
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
+                args[3] = p3;
+                res = syscall(SYS_socketcall, 18/*sys_accept4*/, args);
+            }
             break;
         case PR_access:
             res = syscall(SYS_access, p0, p1);
@@ -238,7 +246,14 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
             res = syscall(SYS_add_key, p0, p1, p2, p3, p4);
             break;
         case PR_bind:
-            res= syscall(SYS_bind, p0, p1, p2);
+            {
+                uint32_t args[3];
+
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
+                res = syscall(SYS_socketcall, 2/*sys_bind*/, args);
+            }
             break;
         case PR_capget:
             res = syscall(SYS_capget, p0, p1);
@@ -274,7 +289,14 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
             res = syscall(SYS_close, p0);
             break;
         case PR_connect:
-            res = syscall(SYS_connect, p0, p1, p2);
+            {
+                uint32_t args[3];
+
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
+                res = syscall(SYS_socketcall, 3 /*SYS_connect*/, args);
+            }
             break;
         case PR_creat:
             res = syscall(SYS_creat, p0, p1);
@@ -443,16 +465,39 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
             res = syscall(SYS_getsid, p0);
             break;
         case PR_getsockname:
-            res = syscall(SYS_getsockname, p0, p1, p2);
+            {
+                uint32_t args[3];
+
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
+                res = syscall(SYS_socketcall, 6 /*sys_getsockname*/, args);
+            }
             break;
         case PR_getsockopt:
-            res = syscall(SYS_getsockopt, p0, p1, p2, p3, p4);
+            {
+                uint32_t args[5];
+
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
+                args[3] = p3;
+                args[4] = p4;
+                res = syscall(SYS_socketcall, 15/*sys_getsockopt*/, args);
+            }
             break;
         case PR_getrusage:
             res = syscall(SYS_getrusage, p0, p1);
             break;
         case PR_getpeername:
-            res = syscall(SYS_getpeername, p0, p1, p2);
+            {
+                uint32_t args[3];
+
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
+                res = syscall(SYS_socketcall, 7 /*sys_getpeername*/, args);
+            }
             break;
         case PR_getpgid:
             res = syscall(SYS_getpgid, p0);
@@ -503,7 +548,13 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
             res = syscall(SYS_linkat, p0, p1, p2, p3, p4);
             break;
         case PR_listen:
-            res = syscall(SYS_listen, p0, p1);
+            {
+                uint32_t args[2];
+
+                args[0] = p0;
+                args[1] = p1;
+                res = syscall(SYS_socketcall, 4/*sys_listen*/, args);
+            }
             break;
         case PR_lgetxattr:
             res = syscall(SYS_lgetxattr, p0, p1, p2, p3);
@@ -642,20 +693,37 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
             break;
         case PR_recv:
             {
-                unsigned long args[4];
+                uint32_t args[4];
 
-                args[0] = (int) p0;
-                args[1] = (unsigned long)p1;
-                args[2] = (size_t) p2;
-                args[3] = (int) p3;
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
+                args[3] = p3;
                 res = syscall(SYS_socketcall, 10 /*sys_recv*/, args);
             }
             break;
         case PR_recvfrom:
-            res = syscall(SYS_recvfrom, p0, p1, p2, p3, p4, p5);
+            {
+                uint32_t args[6];
+
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
+                args[3] = p3;
+                args[4] = p4;
+                args[5] = p5;
+                res = syscall(SYS_socketcall, 12/*sys_recvfrom*/, args);
+            }
             break;
         case PR_recvmsg:
-            res = syscall(SYS_recvmsg, p0, p1, p2);
+            {
+                uint32_t args[3];
+
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
+                res = syscall(SYS_socketcall, 17 /*sys_recvmsg*/, args);
+            }
             break;
         case PR_remap_file_pages:
             res = syscall(SYS_remap_file_pages, p0, p1, p2, p3, p4);
@@ -722,7 +790,7 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
             break;
         case PR_send:
             {
-                unsigned long args[4];
+                uint32_t args[4];
 
                 args[0] = (int) p0;
                 args[1] = (int) p1;
@@ -738,10 +806,27 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
             res = syscall(SYS_sendmmsg, p0, p1, p2, p3);
             break;
         case PR_sendmsg:
-            res = syscall(SYS_sendmsg, p0, p1, p2);
+            {
+                uint32_t args[3];
+
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
+                res = syscall(SYS_socketcall, 16 /*sys_sendmsg*/, args);
+            }
             break;
         case PR_sendto:
-            res = syscall(SYS_sendto, p0, p1, p2, p3, p4, p5);
+            {
+                uint32_t args[6];
+
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
+                args[3] = p3;
+                args[4] = p4;
+                args[5] = p5;
+                res = syscall(SYS_socketcall, 11/*sys_sendto*/, args);
+            }
             break;
         case PR_sendfile64:
             res = syscall(SYS_sendfile64, p0, p1, p2, p3);
@@ -807,7 +892,16 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
             res = syscall(SYS_setsid);
             break;
         case PR_setsockopt:
-            res = syscall(SYS_setsockopt, p0, p1, p2, p3, p4);
+            {
+                uint32_t args[5];
+
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
+                args[3] = p3;
+                args[4] = p4;
+                res = syscall(SYS_socketcall, 14/*sys_setsockopt*/, args);
+            }
             break;
         case PR_setuid:
             res = syscall(SYS_setuid, p0);
@@ -825,16 +919,37 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
             res = syscall(SYS_ipc, 23/*IPCOP_shmget*/, p0, p1, p2);
             break;
         case PR_shutdown:
-            res = syscall(SYS_shutdown, p0, p1);
+            {
+                uint32_t args[2];
+
+                args[0] = p0;
+                args[1] = p1;
+                res = syscall(SYS_socketcall, 13 /*sys_shutdown*/, args);
+            }
             break;
         case PR_signalfd4:
             res = syscall(SYS_signalfd4, p0, p1, p2, p3);
             break;
         case PR_socket:
-            res = syscall(SYS_socket, p0, p1, p2);
+            {
+                uint32_t args[3];
+
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
+                res = syscall(SYS_socketcall, 1 /*SYS_socket*/, args);
+            }
             break;
         case PR_socketpair:
-            res = syscall(SYS_socketpair, p0, p1, p2, p3);
+            {
+                uint32_t args[4];
+
+                args[0] = p0;
+                args[1] = p1;
+                args[2] = p2;
+                args[3] = p3;
+                res = syscall(SYS_socketcall, 8/*sys_socketpair*/, args);
+            }
             break;
         case PR_splice:
             res = syscall(SYS_splice, p0, p1, p2, p3, p4, p5);
