@@ -543,6 +543,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_read:
             res = syscall(SYS_read, p0, p1, p2);
             break;
+        case PR_readahead:
+            res = syscall(SYS_readahead, p0, p1, p2);
+            break;
         case PR_readlink:
             res = syscall(SYS_readlink, p0, p1, p2);
             break;
@@ -632,6 +635,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
             break;
         case PR_sendfile:
             res = syscall(SYS_sendfile, p0, p1, p2, p3);
+            break;
+        case PR_sendmmsg:
+            res = syscall(SYS_sendmmsg, p0, p1, p2, p3);
             break;
         case PR_sendmsg:
             res = syscall(SYS_sendmsg, p0, p1, p2);

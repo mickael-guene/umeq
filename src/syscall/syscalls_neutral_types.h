@@ -381,6 +381,11 @@ struct neutral_epoll_event_32 {
     uint64_t data;
 };
 
+struct neutral_mmsghdr_32 {
+    struct neutral_msghdr_32 msg_hdr;
+    uint32_t msg_len;
+};
+
 #endif
 
 #ifdef __cplusplus

@@ -99,6 +99,9 @@ void arm_hlp_syscall(uint64_t regs)
                     return ;
                 }
                 break;
+            case PR_fstat:
+                res = arm_fstat(context);
+                break;
             case PR_fstat64:
                 res = arm_fstat64(context);
                 break;
@@ -131,12 +134,19 @@ void arm_hlp_syscall(uint64_t regs)
                 res = syscall_adapter_guest32(PR_pread64, context->regs.r[0], context->regs.r[1], context->regs.r[2],
                                                           context->regs.r[4], context->regs.r[5], 0);
                 break;
+            case PR_process_vm_readv:
+                res = arm_process_vm_readv(context);
+                break;
             case PR_ptrace:
                 res = arm_ptrace(context);
                 break;
             case PR_pwrite64:
                 res = syscall_adapter_guest32(PR_pwrite64, context->regs.r[0], context->regs.r[1], context->regs.r[2],
                                                            context->regs.r[4], context->regs.r[5], 0);
+                break;
+            case PR_readahead:
+                res = syscall_adapter_guest32(PR_readahead, context->regs.r[0], context->regs.r[2], context->regs.r[3],
+                                                            context->regs.r[4], context->regs.r[4], context->regs.r[5]);
                 break;
             case PR_rt_sigaction:
                 res = arm_rt_sigaction(context);
@@ -158,6 +168,9 @@ void arm_hlp_syscall(uint64_t regs)
                 context->isLooping = 0;
                 context->exitStatus = 0;
                 res = 0;
+                break;
+            case PR_stat:
+                res = arm_stat(context);
                 break;
             case PR_stat64:
                 res = arm_stat64(context);

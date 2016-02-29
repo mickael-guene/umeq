@@ -628,6 +628,9 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
         case PR_read:
             res = syscall(SYS_read, p0, p1, p2);
             break;
+        case PR_readahead:
+            res = syscall(SYS_readahead, p0, p1, p2, p3);
+            break;
         case PR_readlink:
             res = syscall(SYS_readlink, p0, p1, p2);
             break;
@@ -730,6 +733,9 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
             break;
         case PR_sendfile:
             res = syscall(SYS_sendfile, p0, p1, p2, p3);
+            break;
+        case PR_sendmmsg:
+            res = syscall(SYS_sendmmsg, p0, p1, p2, p3);
             break;
         case PR_sendmsg:
             res = syscall(SYS_sendmsg, p0, p1, p2);

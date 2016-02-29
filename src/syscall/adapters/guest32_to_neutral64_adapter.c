@@ -1864,6 +1864,39 @@ static int timer_settime_neutral(uint32_t timerid_p, uint32_t flags_p, uint32_t 
     return res;
 }
 
+static int sendmmsg_neutral(uint32_t sockfd_p, uint32_t msgvec_p, uint32_t vlen_p, uint32_t flags_p)
+{
+    long res;
+    int sockfd = (int) sockfd_p;
+    struct neutral_mmsghdr_32 *msgvec_guest = (struct neutral_mmsghdr_32 *) g_2_h(msgvec_p);
+    unsigned int vlen = (unsigned int) vlen_p;
+    unsigned int flags = (unsigned int) flags_p;
+    struct mmsghdr *msgvec = (struct mmsghdr *) alloca(vlen * sizeof(struct mmsghdr));
+    int i, j;
+
+    for(i = 0; i < vlen; i++) {
+        msgvec[i].msg_hdr.msg_name = msgvec_guest[i].msg_hdr.msg_name?(void *) g_2_h(msgvec_guest[i].msg_hdr.msg_name):NULL;
+        msgvec[i].msg_hdr.msg_namelen = msgvec_guest[i].msg_hdr.msg_namelen;
+        msgvec[i].msg_hdr.msg_iov = (struct iovec *) alloca(msgvec_guest[i].msg_hdr.msg_iovlen * sizeof(struct iovec));
+        for(j = 0; j < msgvec_guest[i].msg_hdr.msg_iovlen; j++) {
+            struct neutral_iovec_32 *iovec_guest = (struct neutral_iovec_32 *) g_2_h(msgvec_guest[i].msg_hdr.msg_iov + sizeof(struct neutral_iovec_32) * j);
+
+            msgvec[i].msg_hdr.msg_iov[j].iov_base = (void *) g_2_h(iovec_guest->iov_base);
+            msgvec[i].msg_hdr.msg_iov[j].iov_len = iovec_guest->iov_len;
+        }
+        msgvec[i].msg_hdr.msg_iovlen = msgvec_guest[i].msg_hdr.msg_iovlen;
+        msgvec[i].msg_hdr.msg_control = (void *) g_2_h(msgvec_guest[i].msg_hdr.msg_control);
+        msgvec[i].msg_hdr.msg_controllen = msgvec_guest[i].msg_hdr.msg_controllen;
+        msgvec[i].msg_hdr.msg_flags = msgvec_guest[i].msg_hdr.msg_flags;
+        msgvec[i].msg_len = msgvec_guest[i].msg_len;
+    }
+    res = syscall_neutral_64(PR_sendmmsg, sockfd, (uint64_t) msgvec, vlen, flags, 0, 0);
+    for(i = 0; i < vlen; i++)
+        msgvec_guest[i].msg_len = msgvec[i].msg_len;
+
+    return res;
+}
+
 int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5)
 {
     int res = -ENOSYS;
@@ -2280,6 +2313,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
         case PR_read:
             res = syscall_neutral_64(PR_read, (int)p0, (uint64_t) g_2_h(p1), (size_t) p2, p3, p4, p5);
             break;
+        case PR_readahead:
+            res = syscall_neutral_64(PR_readahead, p0, ((uint64_t)p2 << 32) | (uint64_t)p1, p3, p4, p5, 0);
+            break;
         case PR_readlink:
             res = syscall_neutral_64(PR_readlink, (uint64_t)g_2_h(p0), (uint64_t)g_2_h(p1), (size_t)p2, p3, p4, p5);
             break;
@@ -2372,6 +2408,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             break;
         case PR_sendfile64:
             res = syscall_neutral_64(PR_sendfile, (int) p0, (int) p1, IS_NULL(p2), (size_t) p3, p4, p5);
+            break;
+        case PR_sendmmsg:
+            res = sendmmsg_neutral(p0, p1, p2, p3);
             break;
         case PR_sendmsg:
             res = sendmsg_neutral(p0,p1,p2);

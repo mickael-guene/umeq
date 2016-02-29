@@ -26,6 +26,7 @@
 #include <stddef.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "arm_private.h"
 #include "arm_helpers.h"
@@ -54,14 +55,57 @@ struct arm_stat64 {
     uint32_t            st_blksize;
     uint32_t            __align_pad_2;
     uint64_t            st_blocks;   /* Number 512-byte blocks allocated. */
-    uint32_t            st_atime;
+    uint32_t            st_atime_;
     uint32_t            st_atime_nsec;
-    uint32_t            st_mtime;
+    uint32_t            st_mtime_;
     uint32_t            st_mtime_nsec;
-    uint32_t            st_ctime;
+    uint32_t            st_ctime_;
     uint32_t            st_ctime_nsec;
     uint64_t            st_ino;
 };
+
+struct arm_stat {
+    uint32_t st_dev;
+    uint32_t st_ino;
+    uint16_t st_mode;
+    uint16_t st_nlink;
+    uint16_t st_uid;
+    uint16_t st_gid;
+    uint32_t st_rdev;
+    uint32_t st_size;
+    uint32_t st_blksize;
+    uint32_t st_blocks;
+    uint32_t st_atime_;
+    uint32_t st_atime_nsec;
+    uint32_t st_mtime_;
+    uint32_t st_mtime_nsec;
+    uint32_t st_ctime_;
+    uint32_t st_ctime_nsec;
+    uint32_t __unused4;
+    uint32_t __unused5;
+};
+
+static void host_2_guest_stat(struct stat *statbuf, uint32_t statbuf_p)
+{
+    struct arm_stat *statbuf_guest = (struct arm_stat *) g_2_h(statbuf_p);
+
+    statbuf_guest->st_dev = statbuf->st_dev;
+    statbuf_guest->st_ino = statbuf->st_ino;
+    statbuf_guest->st_mode = statbuf->st_mode;
+    statbuf_guest->st_nlink = statbuf->st_nlink;
+    statbuf_guest->st_uid = statbuf->st_uid;
+    statbuf_guest->st_gid = statbuf->st_gid;
+    statbuf_guest->st_rdev = statbuf->st_rdev;
+    statbuf_guest->st_size = statbuf->st_size;
+    statbuf_guest->st_blksize = statbuf->st_blksize;
+    statbuf_guest->st_blocks = statbuf->st_blocks;
+    statbuf_guest->st_atime_ = statbuf->st_atim.tv_sec;
+    statbuf_guest->st_atime_nsec = statbuf->st_atim.tv_nsec;
+    statbuf_guest->st_mtime_ = statbuf->st_mtim.tv_sec;
+    statbuf_guest->st_mtime_nsec = statbuf->st_mtim.tv_nsec;
+    statbuf_guest->st_ctime_ = statbuf->st_ctim.tv_sec;
+    statbuf_guest->st_ctime_nsec = statbuf->st_ctim.tv_nsec;
+}
 
 /* we can call syscall_adapter_guest32 since we have enought memory in buf for struct neutral_stat64 */
 int arm_fstat64(struct arm_target *context)
@@ -87,11 +131,11 @@ int arm_fstat64(struct arm_target *context)
         arm_stat64->st_size = neutral_stat64.st_size;
         arm_stat64->st_blksize = neutral_stat64.st_blksize;
         arm_stat64->st_blocks = neutral_stat64.st_blocks;
-        arm_stat64->st_atime = neutral_stat64.st_atime_;
+        arm_stat64->st_atime_ = neutral_stat64.st_atime_;
         arm_stat64->st_atime_nsec = neutral_stat64.st_atime_nsec;
-        arm_stat64->st_mtime = neutral_stat64.st_mtime_;
+        arm_stat64->st_mtime_ = neutral_stat64.st_mtime_;
         arm_stat64->st_mtime_nsec = neutral_stat64.st_mtime_nsec;
-        arm_stat64->st_ctime = neutral_stat64.st_ctime_;
+        arm_stat64->st_ctime_ = neutral_stat64.st_ctime_;
         arm_stat64->st_ctime_nsec = neutral_stat64.st_ctime_nsec;
         arm_stat64->st_ino = neutral_stat64.st_ino;
     }
@@ -122,11 +166,11 @@ int arm_fstatat64(struct arm_target *context)
         arm_stat64->st_size = neutral_stat64.st_size;
         arm_stat64->st_blksize = neutral_stat64.st_blksize;
         arm_stat64->st_blocks = neutral_stat64.st_blocks;
-        arm_stat64->st_atime = neutral_stat64.st_atime_;
+        arm_stat64->st_atime_ = neutral_stat64.st_atime_;
         arm_stat64->st_atime_nsec = neutral_stat64.st_atime_nsec;
-        arm_stat64->st_mtime = neutral_stat64.st_mtime_;
+        arm_stat64->st_mtime_ = neutral_stat64.st_mtime_;
         arm_stat64->st_mtime_nsec = neutral_stat64.st_mtime_nsec;
-        arm_stat64->st_ctime = neutral_stat64.st_ctime_;
+        arm_stat64->st_ctime_ = neutral_stat64.st_ctime_;
         arm_stat64->st_ctime_nsec = neutral_stat64.st_ctime_nsec;
         arm_stat64->st_ino = neutral_stat64.st_ino;
     }
@@ -157,11 +201,11 @@ int arm_stat64(struct arm_target *context)
         arm_stat64->st_size = neutral_stat64.st_size;
         arm_stat64->st_blksize = neutral_stat64.st_blksize;
         arm_stat64->st_blocks = neutral_stat64.st_blocks;
-        arm_stat64->st_atime = neutral_stat64.st_atime_;
+        arm_stat64->st_atime_ = neutral_stat64.st_atime_;
         arm_stat64->st_atime_nsec = neutral_stat64.st_atime_nsec;
-        arm_stat64->st_mtime = neutral_stat64.st_mtime_;
+        arm_stat64->st_mtime_ = neutral_stat64.st_mtime_;
         arm_stat64->st_mtime_nsec = neutral_stat64.st_mtime_nsec;
-        arm_stat64->st_ctime = neutral_stat64.st_ctime_;
+        arm_stat64->st_ctime_ = neutral_stat64.st_ctime_;
         arm_stat64->st_ctime_nsec = neutral_stat64.st_ctime_nsec;
         arm_stat64->st_ino = neutral_stat64.st_ino;
     }
@@ -192,13 +236,54 @@ int arm_lstat64(struct arm_target *context)
         arm_stat64->st_size = neutral_stat64.st_size;
         arm_stat64->st_blksize = neutral_stat64.st_blksize;
         arm_stat64->st_blocks = neutral_stat64.st_blocks;
-        arm_stat64->st_atime = neutral_stat64.st_atime_;
+        arm_stat64->st_atime_ = neutral_stat64.st_atime_;
         arm_stat64->st_atime_nsec = neutral_stat64.st_atime_nsec;
-        arm_stat64->st_mtime = neutral_stat64.st_mtime_;
+        arm_stat64->st_mtime_ = neutral_stat64.st_mtime_;
         arm_stat64->st_mtime_nsec = neutral_stat64.st_mtime_nsec;
-        arm_stat64->st_ctime = neutral_stat64.st_ctime_;
+        arm_stat64->st_ctime_ = neutral_stat64.st_ctime_;
         arm_stat64->st_ctime_nsec = neutral_stat64.st_ctime_nsec;
         arm_stat64->st_ino = neutral_stat64.st_ino;
+    }
+
+    return res;
+}
+
+/* we don't use neutral syscall because guest statbuf is smaller that neutral one.
+   So we can't use guest buffer to hold neutral content one. So only portable solutions
+   are :
+   - use mmmap_guest to allocate neutral statbuf and so we can pass a guest pointer to
+   neutral syscall.
+   - use per context mmmap_guest allocated area to handle such sycall case.
+   I choose direct host syscall call since it's easy in this case and should be quite
+   portable.
+ */
+int arm_fstat(struct arm_target *context)
+{
+    long res;
+    struct stat statbuf;
+
+    if (!context->regs.r[1])
+        return -EFAULT;
+
+    res = syscall(SYS_fstat, context->regs.r[0], &statbuf);
+    if (!res) {
+        host_2_guest_stat(&statbuf, context->regs.r[1]);
+    }
+
+    return res;
+}
+
+int arm_stat(struct arm_target *context)
+{
+    long res;
+    struct stat statbuf;
+
+    if (!context->regs.r[1])
+        return -EFAULT;
+
+    res = syscall(SYS_fstat, g_2_h(context->regs.r[0]), &statbuf);
+    if (!res) {
+        host_2_guest_stat(&statbuf, context->regs.r[1]);
     }
 
     return res;

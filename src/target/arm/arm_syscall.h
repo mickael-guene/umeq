@@ -50,6 +50,8 @@ extern int arm_fstat64(struct arm_target *context);
 extern int arm_stat64(struct arm_target *context);
 extern int arm_lstat64(struct arm_target *context);
 extern int arm_fstatat64(struct arm_target *context);
+extern int arm_fstat(struct arm_target *context);
+extern int arm_stat(struct arm_target *context);
 
 #endif
 
