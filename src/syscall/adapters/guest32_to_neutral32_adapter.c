@@ -330,9 +330,9 @@ static int pselect6_neutral(uint32_t nfds_p, uint32_t readfds_p, uint32_t writef
 {
     int res;
     int nfds = (int) nfds_p;
-    fd_set *readfds = (fd_set *) g_2_h(readfds_p);
-    fd_set *writefds = (fd_set *) g_2_h(writefds_p);
-    fd_set *exceptfds = (fd_set *) g_2_h(exceptfds_p);
+    neutral_fd_set *readfds = (neutral_fd_set *) g_2_h(readfds_p);
+    neutral_fd_set *writefds = (neutral_fd_set *) g_2_h(writefds_p);
+    neutral_fd_set *exceptfds = (neutral_fd_set *) g_2_h(exceptfds_p);
     struct neutral_timespec_32 *timeout_guest = (struct neutral_timespec_32 *) g_2_h(timeout_p);
     struct data_32_internal *data_guest = (struct data_32_internal *) g_2_h(data_p);
     struct neutral_timespec_32 timeout;

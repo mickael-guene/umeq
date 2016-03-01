@@ -204,6 +204,66 @@ struct neutral_shmid_ds_64 {
     uint64_t shm_unused3;
 };
 
+typedef struct neutral_siginfo_64 {
+    int32_t si_signo;
+    int32_t si_errno;
+    int32_t si_code;
+    union {
+        int32_t _pad[29];
+        /* kill */
+        struct {
+            int32_t _si_pid;
+            uint32_t _si_uid;
+        } _kill;
+        /* POSIX.1b timers */
+        struct {
+            int32_t _si_tid;
+            int32_t _si_overrun;
+            union neutral_sigval_64 _si_sigval;
+        } _timer;
+        /* POSIX.1b signals */
+        struct {
+            int32_t _si_pid;
+            uint32_t _si_uid;
+            union neutral_sigval_64 _si_sigval;
+        } _rt;
+        /* SIGCHLD */
+        struct {
+            int32_t _si_pid;
+            uint32_t _si_uid;
+            int32_t _si_status;
+            int64_t _si_utime;
+            int64_t _si_stime;
+        } _sigchld;
+        /* SIGILL, SIGFPE, SIGSEGV, SIGBUS */
+        struct {
+            uint64_t _si_addr;
+        } _sigfault;
+        /* SIGPOLL */
+        struct {
+            int64_t _si_band;
+            int32_t _si_fd;
+        } _sigpoll;
+    } _sifields;
+} neutral_siginfo_t_64;
+
+struct neutral_msghdr_64 {
+    uint64_t msg_name;
+    int32_t msg_namelen;
+    uint32_t __pad0;
+    uint64_t msg_iov;
+    uint64_t msg_iovlen;
+    uint64_t msg_control;
+    uint64_t msg_controllen;
+    uint32_t msg_flags;
+    uint32_t __pad1;
+};
+
+struct neutral_mmsghdr_64 {
+    struct neutral_msghdr_64 msg_hdr;
+    uint32_t msg_len;
+};
+
 #endif
 
 #ifdef __cplusplus

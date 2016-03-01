@@ -69,6 +69,10 @@ struct neutral_pollfd {
     int16_t revents;
 };
 
+typedef struct {
+    uint64_t fds_bits[1024 / 64];
+} neutral_fd_set;
+
 #endif
 
 #ifdef __cplusplus

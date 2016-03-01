@@ -160,35 +160,35 @@ struct neutral_sigevent_32 {
 };
 
 typedef struct neutral_siginfo_32 {
-    uint32_t si_signo;
-    uint32_t si_errno;
-    uint32_t si_code;
+    int32_t si_signo;
+    int32_t si_errno;
+    int32_t si_code;
     union {
-        uint32_t _pad[29];
+        int32_t _pad[29];
         /* kill */
         struct {
-            uint32_t _si_pid;
+            int32_t _si_pid;
             uint32_t _si_uid;
         } _kill;
         /* POSIX.1b timers */
         struct {
-            uint32_t _si_tid;
-            uint32_t _si_overrun;
+            int32_t _si_tid;
+            int32_t _si_overrun;
             union neutral_sigval_32 _si_sigval;
         } _timer;
         /* POSIX.1b signals */
         struct {
-            uint32_t _si_pid;
+            int32_t _si_pid;
             uint32_t _si_uid;
             union neutral_sigval_32 _si_sigval;
         } _rt;
         /* SIGCHLD */
         struct {
-            uint32_t _si_pid;
+            int32_t _si_pid;
             uint32_t _si_uid;
-            uint32_t _si_status;
-            uint32_t _si_utime;
-            uint32_t _si_stime;
+            int32_t _si_status;
+            int32_t _si_utime;
+            int32_t _si_stime;
         } _sigchld;
         /* SIGILL, SIGFPE, SIGSEGV, SIGBUS */
         struct {
@@ -196,8 +196,8 @@ typedef struct neutral_siginfo_32 {
         } _sigfault;
         /* SIGPOLL */
         struct {
-            uint32_t _si_band;
-            uint32_t _si_fd;
+            int32_t _si_band;
+            int32_t _si_fd;
         } _sigpoll;
     } _sifields;
 } neutral_siginfo_t_32;
@@ -327,7 +327,7 @@ struct neutral_sembuf_32 {
 
 struct neutral_msghdr_32 {
     uint32_t msg_name;
-    uint32_t msg_namelen;
+    int32_t msg_namelen;
     uint32_t msg_iov;
     uint32_t msg_iovlen;
     uint32_t msg_control;

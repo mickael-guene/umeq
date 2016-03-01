@@ -426,9 +426,9 @@ static int newselect_neutral(uint32_t nfds_p, uint32_t readfds_p, uint32_t write
 {
     long res;
     int nfds = (int) nfds_p;
-    fd_set *readfds = (fd_set *) g_2_h(readfds_p);
-    fd_set *writefds = (fd_set *) g_2_h(writefds_p);
-    fd_set *exceptfds = (fd_set *) g_2_h(exceptfds_p);
+    neutral_fd_set *readfds = (neutral_fd_set *) g_2_h(readfds_p);
+    neutral_fd_set *writefds = (neutral_fd_set *) g_2_h(writefds_p);
+    neutral_fd_set *exceptfds = (neutral_fd_set *) g_2_h(exceptfds_p);
     struct neutral_timeval_32 *timeout_guest = (struct neutral_timeval_32 *) g_2_h(timeout_p);
     struct neutral_timeval_64 timeout;
 
@@ -858,7 +858,7 @@ static int waitid_neutral(uint32_t which_p, uint32_t upid_p, uint32_t infop_p, u
     struct neutral_siginfo_32 *infop_guest = (struct neutral_siginfo_32 *) g_2_h(infop_p);
     int options = (int) options_p;
     struct neutral_rusage_32 *rusage_guest = (struct neutral_rusage_32 *) g_2_h(rusage_p);
-    siginfo_t infop;
+    struct neutral_siginfo_64 infop;
     struct neutral_rusage_64 rusage;
 
     res = syscall_neutral_64(PR_waitid, which, upid, (uint64_t) &infop, options, (uint64_t) (rusage_p?&rusage:NULL), 0);
@@ -866,9 +866,9 @@ static int waitid_neutral(uint32_t which_p, uint32_t upid_p, uint32_t infop_p, u
         infop_guest->si_signo = infop.si_signo;
         infop_guest->si_errno = infop.si_errno;
         infop_guest->si_code = infop.si_code;
-        infop_guest->_sifields._sigchld._si_pid = infop.si_pid;
-        infop_guest->_sifields._sigchld._si_uid = infop.si_uid;
-        infop_guest->_sifields._sigchld._si_status = infop.si_status;
+        infop_guest->_sifields._sigchld._si_pid = infop._sifields._sigchld._si_pid;
+        infop_guest->_sifields._sigchld._si_uid = infop._sifields._sigchld._si_uid;
+        infop_guest->_sifields._sigchld._si_status = infop._sifields._sigchld._si_status;
     }
     if (rusage_p) {
         rusage_guest->ru_utime.tv_sec = rusage.ru_utime.tv_sec;
@@ -1439,9 +1439,9 @@ static int pselect6_neutral(uint32_t nfds_p, uint32_t readfds_p, uint32_t writef
 {
     long res;
     int nfds = (int) nfds_p;
-    fd_set *readfds = (fd_set *) g_2_h(readfds_p);
-    fd_set *writefds = (fd_set *) g_2_h(writefds_p);
-    fd_set *exceptfds = (fd_set *) g_2_h(exceptfds_p);
+    neutral_fd_set *readfds = (neutral_fd_set *) g_2_h(readfds_p);
+    neutral_fd_set *writefds = (neutral_fd_set *) g_2_h(writefds_p);
+    neutral_fd_set *exceptfds = (neutral_fd_set *) g_2_h(exceptfds_p);
     struct neutral_timespec_32 *timeout_guest = (struct neutral_timespec_32 *) g_2_h(timeout_p);
     struct data_32_internal *data_guest = (struct data_32_internal *) g_2_h(data_p);
     struct neutral_timespec_64 timeout;
@@ -1648,7 +1648,7 @@ static int rt_sigtimedwait_neutral(uint32_t set_p, uint32_t info_p, uint32_t tim
     sigset_t *set = (sigset_t *) g_2_h(set_p);
     neutral_siginfo_t_32 *info_guest = (neutral_siginfo_t_32 *) g_2_h(info_p);
     struct neutral_timespec_32 *timeout_guest = (struct neutral_timespec_32 *) g_2_h(timeout_p);
-    siginfo_t info;
+    neutral_siginfo_t_64 info;
     struct neutral_timespec_64 timeout;
 
     if (timeout_p) {
@@ -1659,9 +1659,9 @@ static int rt_sigtimedwait_neutral(uint32_t set_p, uint32_t info_p, uint32_t tim
     if (info_p) {
         info_guest->si_signo = info.si_signo;
         info_guest->si_code = info.si_code;
-        info_guest->_sifields._sigchld._si_pid = info.si_pid;
-        info_guest->_sifields._sigchld._si_uid = info.si_uid;
-        info_guest->_sifields._sigchld._si_status = info.si_status;
+        info_guest->_sifields._sigchld._si_pid = info._sifields._sigchld._si_pid;
+        info_guest->_sifields._sigchld._si_uid = info._sifields._sigchld._si_uid;
+        info_guest->_sifields._sigchld._si_status = info._sifields._sigchld._si_status;
     }
 
     return res;
@@ -1721,23 +1721,23 @@ static int sendmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
     int sockfd = (int) sockfd_p;
     struct neutral_msghdr_32 *msg_guest = (struct neutral_msghdr_32 *) g_2_h(msg_p);
     int flags = (int) flags_p;
-    struct iovec iovec[16]; //max 16 iovect. If more is need then use mmap or alloca
-    struct msghdr msg;
+    struct neutral_iovec_64 iovec[16]; //max 16 iovect. If more is need then use mmap or alloca
+    struct neutral_msghdr_64 msg;
     int i;
 
     assert(msg_guest->msg_iovlen <= 16);
 
-    msg.msg_name = msg_guest->msg_name?(void *) g_2_h(msg_guest->msg_name):NULL;
+    msg.msg_name = ptr_2_int(msg_guest->msg_name?(void *) g_2_h(msg_guest->msg_name):NULL);
     msg.msg_namelen = msg_guest->msg_namelen;
     for(i = 0; i < msg_guest->msg_iovlen; i++) {
         struct neutral_iovec_32 *iovec_guest = (struct neutral_iovec_32 *) g_2_h(msg_guest->msg_iov + sizeof(struct neutral_iovec_32) * i);
 
-        iovec[i].iov_base = (void *) g_2_h(iovec_guest->iov_base);
+        iovec[i].iov_base = ptr_2_int(g_2_h(iovec_guest->iov_base));
         iovec[i].iov_len = iovec_guest->iov_len;
     }
-    msg.msg_iov = iovec;
+    msg.msg_iov = ptr_2_int(iovec);
     msg.msg_iovlen = msg_guest->msg_iovlen;
-    msg.msg_control = (void *) g_2_h(msg_guest->msg_control);
+    msg.msg_control = ptr_2_int(g_2_h(msg_guest->msg_control));
     msg.msg_controllen = msg_guest->msg_controllen;
     msg.msg_flags = msg_guest->msg_flags;
 
@@ -1793,23 +1793,23 @@ static int recvmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
     int sockfd = (int) sockfd_p;
     struct neutral_msghdr_32 *msg_guest = (struct neutral_msghdr_32 *) g_2_h(msg_p);
     int flags = (int) flags_p;
-    struct iovec iovec[16]; //max 16 iovect. If more is need then use mmap or alloca
-    struct msghdr msg;
+    struct neutral_iovec_64 iovec[16]; //max 16 iovect. If more is need then use mmap or alloca
+    struct neutral_msghdr_64 msg;
     int i;
 
     assert(msg_guest->msg_iovlen <= 16);
 
-    msg.msg_name = msg_guest->msg_name?(void *) g_2_h(msg_guest->msg_name):NULL;
+    msg.msg_name = ptr_2_int(msg_guest->msg_name?(void *) g_2_h(msg_guest->msg_name):NULL);
     msg.msg_namelen = msg_guest->msg_namelen;
     for(i = 0; i < msg_guest->msg_iovlen; i++) {
         struct neutral_iovec_32 *iovec_guest = (struct neutral_iovec_32 *) g_2_h(msg_guest->msg_iov + sizeof(struct neutral_iovec_32) * i);
 
-        iovec[i].iov_base = (void *) g_2_h(iovec_guest->iov_base);
+        iovec[i].iov_base = ptr_2_int(g_2_h(iovec_guest->iov_base));
         iovec[i].iov_len = iovec_guest->iov_len;
     }
-    msg.msg_iov = iovec;
+    msg.msg_iov = ptr_2_int(iovec);
     msg.msg_iovlen = msg_guest->msg_iovlen;
-    msg.msg_control = (void *) g_2_h(msg_guest->msg_control);
+    msg.msg_control = ptr_2_int(g_2_h(msg_guest->msg_control));
     msg.msg_controllen = msg_guest->msg_controllen;
     msg.msg_flags = msg_guest->msg_flags;
 
@@ -1872,21 +1872,22 @@ static int sendmmsg_neutral(uint32_t sockfd_p, uint32_t msgvec_p, uint32_t vlen_
     struct neutral_mmsghdr_32 *msgvec_guest = (struct neutral_mmsghdr_32 *) g_2_h(msgvec_p);
     unsigned int vlen = (unsigned int) vlen_p;
     unsigned int flags = (unsigned int) flags_p;
-    struct mmsghdr *msgvec = (struct mmsghdr *) alloca(vlen * sizeof(struct mmsghdr));
+    struct neutral_mmsghdr_64 *msgvec = (struct neutral_mmsghdr_64 *) alloca(vlen * sizeof(struct neutral_mmsghdr_64));
     int i, j;
 
     for(i = 0; i < vlen; i++) {
-        msgvec[i].msg_hdr.msg_name = msgvec_guest[i].msg_hdr.msg_name?(void *) g_2_h(msgvec_guest[i].msg_hdr.msg_name):NULL;
+        msgvec[i].msg_hdr.msg_name = ptr_2_int(msgvec_guest[i].msg_hdr.msg_name?(void *) g_2_h(msgvec_guest[i].msg_hdr.msg_name):NULL);
         msgvec[i].msg_hdr.msg_namelen = msgvec_guest[i].msg_hdr.msg_namelen;
-        msgvec[i].msg_hdr.msg_iov = (struct iovec *) alloca(msgvec_guest[i].msg_hdr.msg_iovlen * sizeof(struct iovec));
+        msgvec[i].msg_hdr.msg_iov = ptr_2_int(alloca(msgvec_guest[i].msg_hdr.msg_iovlen * sizeof(struct neutral_iovec_64)));
         for(j = 0; j < msgvec_guest[i].msg_hdr.msg_iovlen; j++) {
             struct neutral_iovec_32 *iovec_guest = (struct neutral_iovec_32 *) g_2_h(msgvec_guest[i].msg_hdr.msg_iov + sizeof(struct neutral_iovec_32) * j);
+            struct neutral_iovec_64 *iovec = (struct neutral_iovec_64 *) (msgvec[i].msg_hdr.msg_iov + sizeof(struct neutral_iovec_64) * j);
 
-            msgvec[i].msg_hdr.msg_iov[j].iov_base = (void *) g_2_h(iovec_guest->iov_base);
-            msgvec[i].msg_hdr.msg_iov[j].iov_len = iovec_guest->iov_len;
+            iovec->iov_base = ptr_2_int(g_2_h(iovec_guest->iov_base));
+            iovec->iov_len = iovec_guest->iov_len;
         }
         msgvec[i].msg_hdr.msg_iovlen = msgvec_guest[i].msg_hdr.msg_iovlen;
-        msgvec[i].msg_hdr.msg_control = (void *) g_2_h(msgvec_guest[i].msg_hdr.msg_control);
+        msgvec[i].msg_hdr.msg_control = ptr_2_int(g_2_h(msgvec_guest[i].msg_hdr.msg_control));
         msgvec[i].msg_hdr.msg_controllen = msgvec_guest[i].msg_hdr.msg_controllen;
         msgvec[i].msg_hdr.msg_flags = msgvec_guest[i].msg_hdr.msg_flags;
         msgvec[i].msg_len = msgvec_guest[i].msg_len;
