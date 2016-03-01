@@ -14,8 +14,6 @@
 //
 // Stephen Canon, December 2008
 
-#ifdef __i386__
-
 .GLOBAL __udivdi3
 
 .text
@@ -111,4 +109,3 @@ __udivdi3:
 	popl		%ebx					//
 	retl								// and return qhi:qlo
 	
-#endif // __i386__

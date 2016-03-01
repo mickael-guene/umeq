@@ -1,0 +1,1 @@
+set(SRCS ${SRCS} x86_64/math.c x86_64/memcpy.S x86_64/syscall_wrapper/syscall.S PARENT_SCOPE)

@@ -20,27 +20,6 @@
 
 .GLOBAL syscall
 
-#ifdef __i386__
-syscall:
-    push %ebp
-    mov %esp, %ebp
-    push %ebx
-    push %esi
-    push %edi
-    mov 0x08(%ebp), %eax
-    mov 0x0c(%ebp), %ebx
-    mov 0x10(%ebp), %ecx
-    mov 0x14(%ebp), %edx
-    mov 0x18(%ebp), %esi
-    mov 0x1c(%ebp), %edi
-    mov 0x20(%ebp), %ebp
-    int $0x80
-    pop %edi
-    pop %esi
-    pop %ebx
-    pop %ebp
-    ret
-#else
 syscall:
     mov    %rdi,%rax
     mov    %rsi,%rdi
@@ -51,4 +30,3 @@ syscall:
     mov    0x8(%rsp),%r9
     syscall
     retq
-#endif

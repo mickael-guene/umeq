@@ -1,0 +1,1 @@
+set(SRCS ${SRCS} i386/math.c i386/udivdi3.S i386/memcpy.c i386/syscall_wrapper/syscall.S PARENT_SCOPE)
