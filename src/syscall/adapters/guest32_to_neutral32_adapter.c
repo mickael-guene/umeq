@@ -40,10 +40,10 @@ static int futex_neutral(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32
     int *uaddr = (int *) g_2_h(uaddr_p);
     int op = (int) op_p;
     int val = (int) val_p;
-    const struct timespec *timeout_guest = (struct timespec *) g_2_h(timeout_p);
+    const struct neutral_timespec_32 *timeout_guest = (struct neutral_timespec_32 *) g_2_h(timeout_p);
     int *uaddr2 = (int *) g_2_h(uaddr2_p);
     int val3 = (int) val3_p;
-    struct timespec timeout;
+    struct neutral_timespec_32 timeout;
     int cmd = op & FUTEX_CMD_MASK;
     long syscall_timeout = (long) (timeout_p?&timeout:NULL);
 
@@ -207,14 +207,14 @@ static int readv_neutral(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p)
     int fd = (int) fd_p;
     struct neutral_iovec_32 *iov_guest = (struct neutral_iovec_32 *) g_2_h(iov_p);
     int iovcnt = (int) iovcnt_p;
-    struct iovec *iov;
+    struct neutral_iovec_32 *iov;
     int i;
 
     if (iovcnt < 0)
         return -EINVAL;
-    iov = (struct iovec *) alloca(sizeof(struct iovec) * iovcnt);
+    iov = (struct neutral_iovec_32 *) alloca(sizeof(struct neutral_iovec_32) * iovcnt);
     for(i = 0; i < iovcnt; i++) {
-        iov[i].iov_base = g_2_h(iov_guest[i].iov_base);
+        iov[i].iov_base = ptr_2_int(g_2_h(iov_guest[i].iov_base));
         iov[i].iov_len = iov_guest[i].iov_len;
     }
     res = syscall_neutral_32(PR_readv, fd, (uint32_t) iov, iovcnt, 0, 0, 0);
@@ -228,14 +228,14 @@ static int writev_neutral(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p)
     int fd = (int) fd_p;
     struct neutral_iovec_32 *iov_guest = (struct neutral_iovec_32 *) g_2_h(iov_p);
     int iovcnt = (int) iovcnt_p;
-    struct iovec *iov;
+    struct neutral_iovec_32 *iov;
     int i;
 
     if (iovcnt < 0)
         return -EINVAL;
-    iov = (struct iovec *) alloca(sizeof(struct iovec) * iovcnt);
+    iov = (struct neutral_iovec_32 *) alloca(sizeof(struct neutral_iovec_32) * iovcnt);
     for(i = 0; i < iovcnt; i++) {
-        iov[i].iov_base = g_2_h(iov_guest[i].iov_base);
+        iov[i].iov_base = ptr_2_int(g_2_h(iov_guest[i].iov_base));
         iov[i].iov_len = iov_guest[i].iov_len;
     }
     res = syscall_neutral_32(PR_writev, fd, (uint32_t) iov, iovcnt, 0, 0, 0);
@@ -266,13 +266,13 @@ static int mq_notify_neutral(uint32_t mqdes_p, uint32_t sevp_p)
 {
     int res;
     mqd_t mqdes = (mqd_t) mqdes_p;
-    struct sigevent *sevp_guest = (struct sigevent *) g_2_h(sevp_p);
-    struct sigevent evp;
+    struct neutral_sigevent_32 *sevp_guest = (struct neutral_sigevent_32 *) g_2_h(sevp_p);
+    struct neutral_sigevent_32 evp;
 
     if (sevp_p) {
         evp = *sevp_guest;
         if (evp.sigev_notify == SIGEV_THREAD)
-            evp.sigev_value.sival_ptr = g_2_h(evp.sigev_value.sival_ptr);
+            evp.sigev_value.sival_ptr = ptr_2_int(g_2_h(evp.sigev_value.sival_ptr));
     }
     res = syscall_neutral_32(PR_mq_notify, mqdes, (uint32_t) (sevp_p?&evp:NULL), 0, 0, 0, 0);
 
@@ -333,9 +333,9 @@ static int pselect6_neutral(uint32_t nfds_p, uint32_t readfds_p, uint32_t writef
     fd_set *readfds = (fd_set *) g_2_h(readfds_p);
     fd_set *writefds = (fd_set *) g_2_h(writefds_p);
     fd_set *exceptfds = (fd_set *) g_2_h(exceptfds_p);
-    struct timespec *timeout_guest = (struct timespec *) g_2_h(timeout_p);
+    struct neutral_timespec_32 *timeout_guest = (struct neutral_timespec_32 *) g_2_h(timeout_p);
     struct data_32_internal *data_guest = (struct data_32_internal *) g_2_h(data_p);
-    struct timespec timeout;
+    struct neutral_timespec_32 timeout;
     struct data_32_internal data;
 
 
@@ -362,15 +362,15 @@ static int vmsplice_neutral(uint32_t fd_p, uint32_t iov_p, uint32_t nr_segs_p, u
 {
     int res;
     int fd = (int) fd_p;
-    struct iovec *iov_guest = (struct iovec *) g_2_h(iov_p);
+    struct neutral_iovec_32 *iov_guest = (struct neutral_iovec_32 *) g_2_h(iov_p);
     unsigned long nr_segs = (unsigned long) nr_segs_p;
     unsigned int flags = (unsigned int) flags_p;
-    struct iovec *iov;
+    struct neutral_iovec_32 *iov;
     int i;
 
-    iov = (struct iovec *) alloca(sizeof(struct iovec) * nr_segs);
+    iov = (struct neutral_iovec_32 *) alloca(sizeof(struct neutral_iovec_32) * nr_segs);
     for(i = 0; i < nr_segs; i++) {
-        iov[i].iov_base = g_2_h(iov_guest->iov_base);
+        iov[i].iov_base = ptr_2_int(g_2_h(iov_guest->iov_base));
         iov[i].iov_len = iov_guest->iov_len;
     }
     res = syscall_neutral_32(PR_vmsplice, fd, (uint32_t) iov, nr_segs, flags, 0, 0);
@@ -386,23 +386,23 @@ static int sendmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
     int sockfd = (int) sockfd_p;
     struct neutral_msghdr_32 *msg_guest = (struct neutral_msghdr_32 *) g_2_h(msg_p);
     int flags = (int) flags_p;
-    struct iovec iovec[16]; //max 16 iovect. If more is need then use mmap or alloca
-    struct msghdr msg;
+    struct neutral_iovec_32 iovec[16]; //max 16 iovect. If more is need then use mmap or alloca
+    struct neutral_msghdr_32 msg;
     int i;
 
     assert(msg_guest->msg_iovlen <= 16);
 
-    msg.msg_name = msg_guest->msg_name?(void *) g_2_h(msg_guest->msg_name):NULL;
+    msg.msg_name = ptr_2_int(msg_guest->msg_name?(void *) g_2_h(msg_guest->msg_name):NULL);
     msg.msg_namelen = msg_guest->msg_namelen;
     for(i = 0; i < msg_guest->msg_iovlen; i++) {
         struct neutral_iovec_32 *iovec_guest = (struct neutral_iovec_32 *) g_2_h(msg_guest->msg_iov + sizeof(struct neutral_iovec_32) * i);
 
-        iovec[i].iov_base = (void *) g_2_h(iovec_guest->iov_base);
+        iovec[i].iov_base = ptr_2_int(g_2_h(iovec_guest->iov_base));
         iovec[i].iov_len = iovec_guest->iov_len;
     }
-    msg.msg_iov = iovec;
+    msg.msg_iov = ptr_2_int(iovec);
     msg.msg_iovlen = msg_guest->msg_iovlen;
-    msg.msg_control = (void *) g_2_h(msg_guest->msg_control);
+    msg.msg_control = ptr_2_int(g_2_h(msg_guest->msg_control));
     msg.msg_controllen = msg_guest->msg_controllen;
     msg.msg_flags = msg_guest->msg_flags;
 
@@ -417,23 +417,23 @@ static int recvmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
     int sockfd = (int) sockfd_p;
     struct neutral_msghdr_32 *msg_guest = (struct neutral_msghdr_32 *) g_2_h(msg_p);
     int flags = (int) flags_p;
-    struct iovec iovec[16]; //max 16 iovect. If more is need then use mmap or alloca
-    struct msghdr msg;
+    struct neutral_iovec_32 iovec[16]; //max 16 iovect. If more is need then use mmap or alloca
+    struct neutral_msghdr_32 msg;
     int i;
 
     assert(msg_guest->msg_iovlen <= 16);
 
-    msg.msg_name = msg_guest->msg_name?(void *) g_2_h(msg_guest->msg_name):NULL;
+    msg.msg_name = ptr_2_int(msg_guest->msg_name?(void *) g_2_h(msg_guest->msg_name):NULL);
     msg.msg_namelen = msg_guest->msg_namelen;
     for(i = 0; i < msg_guest->msg_iovlen; i++) {
         struct neutral_iovec_32 *iovec_guest = (struct neutral_iovec_32 *) g_2_h(msg_guest->msg_iov + sizeof(struct neutral_iovec_32) * i);
 
-        iovec[i].iov_base = (void *) g_2_h(iovec_guest->iov_base);
+        iovec[i].iov_base = ptr_2_int(g_2_h(iovec_guest->iov_base));
         iovec[i].iov_len = iovec_guest->iov_len;
     }
-    msg.msg_iov = iovec;
+    msg.msg_iov = ptr_2_int(iovec);
     msg.msg_iovlen = msg_guest->msg_iovlen;
-    msg.msg_control = (void *) g_2_h(msg_guest->msg_control);
+    msg.msg_control = ptr_2_int(g_2_h(msg_guest->msg_control));
     msg.msg_controllen = msg_guest->msg_controllen;
     msg.msg_flags = msg_guest->msg_flags;
 
@@ -453,21 +453,22 @@ static int sendmmsg_neutral(uint32_t sockfd_p, uint32_t msgvec_p, uint32_t vlen_
     struct neutral_mmsghdr_32 *msgvec_guest = (struct neutral_mmsghdr_32 *) g_2_h(msgvec_p);
     unsigned int vlen = (unsigned int) vlen_p;
     unsigned int flags = (unsigned int) flags_p;
-    struct mmsghdr *msgvec = (struct mmsghdr *) alloca(vlen * sizeof(struct mmsghdr));
+    struct neutral_mmsghdr_32 *msgvec = (struct neutral_mmsghdr_32 *) alloca(vlen * sizeof(struct neutral_mmsghdr_32));
     int i, j;
 
     for(i = 0; i < vlen; i++) {
-        msgvec[i].msg_hdr.msg_name = msgvec_guest[i].msg_hdr.msg_name?(void *) g_2_h(msgvec_guest[i].msg_hdr.msg_name):NULL;
+        msgvec[i].msg_hdr.msg_name = ptr_2_int(msgvec_guest[i].msg_hdr.msg_name?(void *) g_2_h(msgvec_guest[i].msg_hdr.msg_name):NULL);
         msgvec[i].msg_hdr.msg_namelen = msgvec_guest[i].msg_hdr.msg_namelen;
-        msgvec[i].msg_hdr.msg_iov = (struct iovec *) alloca(msgvec_guest[i].msg_hdr.msg_iovlen * sizeof(struct iovec));
+        msgvec[i].msg_hdr.msg_iov = ptr_2_int(alloca(msgvec_guest[i].msg_hdr.msg_iovlen * sizeof(struct iovec)));
         for(j = 0; j < msgvec_guest[i].msg_hdr.msg_iovlen; j++) {
             struct neutral_iovec_32 *iovec_guest = (struct neutral_iovec_32 *) g_2_h(msgvec_guest[i].msg_hdr.msg_iov + sizeof(struct neutral_iovec_32) * j);
+            struct neutral_iovec_32 *iovec = (struct neutral_iovec_32 *) (msgvec[i].msg_hdr.msg_iov + sizeof(struct neutral_iovec_32) * j);
 
-            msgvec[i].msg_hdr.msg_iov[j].iov_base = (void *) g_2_h(iovec_guest->iov_base);
-            msgvec[i].msg_hdr.msg_iov[j].iov_len = iovec_guest->iov_len;
+            iovec->iov_base = ptr_2_int(g_2_h(iovec_guest->iov_base));
+            iovec->iov_len = iovec_guest->iov_len;
         }
         msgvec[i].msg_hdr.msg_iovlen = msgvec_guest[i].msg_hdr.msg_iovlen;
-        msgvec[i].msg_hdr.msg_control = (void *) g_2_h(msgvec_guest[i].msg_hdr.msg_control);
+        msgvec[i].msg_hdr.msg_control = ptr_2_int(g_2_h(msgvec_guest[i].msg_hdr.msg_control));
         msgvec[i].msg_hdr.msg_controllen = msgvec_guest[i].msg_hdr.msg_controllen;
         msgvec[i].msg_hdr.msg_flags = msgvec_guest[i].msg_hdr.msg_flags;
         msgvec[i].msg_len = msgvec_guest[i].msg_len;
