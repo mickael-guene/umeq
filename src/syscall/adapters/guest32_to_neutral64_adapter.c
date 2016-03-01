@@ -1692,27 +1692,6 @@ static int msgrcv_neutral(uint32_t msqid_p, uint32_t msgp_p, uint32_t msgsz_p, u
     return res;
 }
 
-/* FIXME: neutral_sembuf_32 == neutral_sembuf_64 ? => do we need this ? */
-static int semop_neutral(uint32_t semid_p, uint32_t sops_p, uint32_t nsops_p)
-{
-    long res;
-    int semid = (int) semid_p;
-    struct neutral_sembuf_32 *sops_guest = (struct neutral_sembuf_32 *) g_2_h(sops_p);
-    size_t nsops = (size_t) nsops_p;
-    struct sembuf sops[16];
-    int i;
-
-    assert(nsops <= 16);
-    for(i=0; i < nsops; i++) {
-        sops[i].sem_num = sops_guest[i].sem_num;
-        sops[i].sem_op = sops_guest[i].sem_op;
-        sops[i].sem_flg = sops_guest[i].sem_flg;
-    }
-    res = syscall_neutral_64(PR_semop, semid, (uint64_t) sops, nsops, 0, 0, 0);
-
-    return res;
-}
-
 #include <sys/types.h>
 #include <sys/socket.h>
 static int sendmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
@@ -2397,7 +2376,7 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             res = syscall_neutral_64(PR_semget, (key_t) p0, (int) p1, (int) p2, p3, p4, p5);
             break;
         case PR_semop:
-            res = semop_neutral(p0,p1,p2);
+            res = syscall_neutral_64(PR_semop, (int) p0, (uint64_t) g_2_h(p1), (size_t) p2, p3, p4, p5);
             break;
         case PR_send:
             res = syscall_neutral_64(PR_send, (int) p0, (uint64_t) g_2_h(p1), (size_t) p2, (unsigned int) p3, p4, p5);

@@ -319,12 +319,6 @@ struct neutral_flock64_32 {
     int32_t l_pid;
 };
 
-struct neutral_sembuf_32 {
-    uint16_t sem_num;
-    int16_t sem_op;
-    int16_t sem_flg;
-};
-
 struct neutral_msghdr_32 {
     uint32_t msg_name;
     int32_t msg_namelen;
