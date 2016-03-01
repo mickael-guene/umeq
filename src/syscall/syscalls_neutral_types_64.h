@@ -18,5 +18,29 @@
  * 02110-1301 USA.
  */
 
-#include "syscalls_neutral_types_64.h"
-#include "syscalls_neutral_types_32.h"
+#include "syscalls_neutral_types_common.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifndef __SYSCALLS_NEUTRAL_TYPES_64__
+#define __SYSCALLS_NEUTRAL_TYPES_64__ 1
+
+struct neutral_linux_dirent_64 {
+    uint64_t    d_ino;
+    uint64_t    d_off;
+    uint16_t    d_reclen;
+    char        d_name[1];
+};
+
+struct neutral_msgbuf_64 {
+    uint64_t mtype;
+    char mtext[1];
+};
+
+#endif
+
+#ifdef __cplusplus
+}
+#endif
