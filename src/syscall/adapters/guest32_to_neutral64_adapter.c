@@ -43,7 +43,7 @@ static int futex_neutral(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32
     const struct neutral_timespec_32 *timeout_guest = (struct neutral_timespec_32 *) g_2_h(timeout_p);
     int *uaddr2 = (int *) g_2_h(uaddr2_p);
     int val3 = (int) val3_p;
-    struct timespec timeout;
+    struct neutral_timespec_64 timeout;
     int cmd = op & FUTEX_CMD_MASK;
     long syscall_timeout = (long) (timeout_p?&timeout:NULL);
 
@@ -70,7 +70,7 @@ static  int getrlimit_neutral(uint32_t resource_p, uint32_t rlim_p)
     long res;
     int ressource = (int) resource_p;
     struct neutral_rlimit_32 *rlim_guest = (struct neutral_rlimit_32 *) g_2_h(rlim_p);
-    struct rlimit rlim;
+    struct neutral_rlimit_64 rlim;
 
     if (rlim_p == 0 || rlim_p == 0xffffffff)
         res = -EFAULT;
@@ -88,7 +88,7 @@ static int statfs64_neutral(uint32_t path_p, uint32_t sz, uint32_t buf_p)
 {
     const char *path = (const char *) g_2_h(path_p);
     struct neutral_statfs64_32 *buf_guest = (struct neutral_statfs64_32 *) g_2_h(buf_p);
-    struct statfs buf;
+    struct neutral_statfs_64 buf;
     long res;
 
     if (buf_p == 0 || buf_p == 0xffffffff)
@@ -139,7 +139,7 @@ static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
         case F_GETLK:/*5*/
             {
                 struct neutral_flock_32 *lock_guest = (struct neutral_flock_32 *) g_2_h(opt_p);
-                struct flock lock;
+                struct neutral_flock_64 lock;
 
                 if (opt_p == 0 || opt_p == 0xffffffff)
                     res = -EFAULT;
@@ -163,7 +163,7 @@ static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
         case F_SETLKW:/*7*/
             {
                 struct neutral_flock_32 *lock_guest = (struct neutral_flock_32 *) g_2_h(opt_p);
-                struct flock lock;
+                struct neutral_flock_64 lock;
 
                 if (opt_p == 0 || opt_p == 0xffffffff)
                     res = -EFAULT;
@@ -192,7 +192,7 @@ static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
         case 12:/*F_GETLK64:*/
             {
                 struct neutral_flock64_32 *lock_guest = (struct neutral_flock64_32 *) g_2_h(opt_p);
-                struct flock lock;
+                struct neutral_flock_64 lock;
 
                 if (opt_p == 0 || opt_p == 0xffffffff)
                     res = -EFAULT;
@@ -214,7 +214,7 @@ static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
         case 13://F_SETLK64
             {
                 struct neutral_flock64_32 *lock_guest = (struct neutral_flock64_32 *) g_2_h(opt_p);
-                struct flock lock;
+                struct neutral_flock_64 lock;
 
                 if (opt_p == 0 || opt_p == 0xffffffff)
                     res = -EFAULT;
@@ -231,7 +231,7 @@ static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
         case 14://F_SETLKW64
             {
                 struct neutral_flock64_32 *lock_guest = (struct neutral_flock64_32 *) g_2_h(opt_p);
-                struct flock lock;
+                struct neutral_flock_64 lock;
 
                 if (opt_p == 0 || opt_p == 0xffffffff)
                     res = -EFAULT;
@@ -284,7 +284,7 @@ static int llseek_neutral(uint32_t fd_p, uint32_t offset_high_p, uint32_t offset
     uint32_t offset_low = offset_low_p;
     int64_t *result = (int64_t *) g_2_h(result_p);
     unsigned int whence = (unsigned int) whence_p;
-    off_t offset = ((long)offset_high << 32) | offset_low;
+    int64_t offset = ((int64_t)offset_high << 32) | offset_low;
     long lseek_res;
 
     lseek_res = syscall_neutral_64(PR_lseek, fd, offset, whence, 0, 0, 0);
@@ -298,7 +298,7 @@ static int clock_gettime_neutral(uint32_t clk_id_p, uint32_t tp_p)
     long res;
     clockid_t clk_id = (clockid_t) clk_id_p;
     struct neutral_timespec_32 *tp_guest = (struct neutral_timespec_32 *) g_2_h(tp_p);
-    struct timespec tp;
+    struct neutral_timespec_64 tp;
 
     res = syscall_neutral_64(PR_clock_gettime, clk_id, (uint64_t)&tp, 0, 0, 0, 0);
 
@@ -312,8 +312,8 @@ static int gettimeofday_neutral(uint32_t tv_p, uint32_t tz_p)
 {
     long res;
     struct neutral_timeval_32 *tv_guest = (struct neutral_timeval_32 *) g_2_h(tv_p);
-    struct timezone *tz = (struct timezone *) g_2_h(tz_p);
-    struct timeval tv;
+    struct neutral_timezone *tz = (struct neutral_timezone *) g_2_h(tz_p);
+    struct neutral_timeval_64 tv;
 
     if (tv_p == 0xffffffff)
         res = -EFAULT;
@@ -378,7 +378,7 @@ static int utimensat_neutral(uint32_t dirfd_p, uint32_t pathname_p, uint32_t tim
     char * pathname = (char *) g_2_h(pathname_p);
     struct neutral_timespec_32 *times_guest = (struct neutral_timespec_32 *) g_2_h(times_p);
     int flags = (int) flags_p;
-    struct timespec times[2];
+    struct neutral_timespec_64 times[2];
 
     if (times_p) {
         times[0].tv_sec = times_guest[0].tv_sec;
@@ -396,7 +396,7 @@ static int utimensat_neutral(uint32_t dirfd_p, uint32_t pathname_p, uint32_t tim
 static int sysinfo_neutral(uint32_t info_p)
 {
     struct neutral_sysinfo_32 *sysinfo_guest = (struct neutral_sysinfo_32 *) g_2_h(info_p);
-    struct sysinfo sysinfo;
+    struct neutral_sysinfo_64 sysinfo;
     long res;
 
     if (info_p == 0 || info_p == 0xffffffff)
@@ -430,7 +430,7 @@ static int newselect_neutral(uint32_t nfds_p, uint32_t readfds_p, uint32_t write
     fd_set *writefds = (fd_set *) g_2_h(writefds_p);
     fd_set *exceptfds = (fd_set *) g_2_h(exceptfds_p);
     struct neutral_timeval_32 *timeout_guest = (struct neutral_timeval_32 *) g_2_h(timeout_p);
-    struct timeval timeout;
+    struct neutral_timeval_64 timeout;
 
     if (timeout_p) {
         timeout.tv_sec = timeout_guest->tv_sec;
@@ -453,7 +453,7 @@ static int getrusage_neutral(uint32_t who_p, uint32_t usage_p)
     long res;
     int who = (int) who_p;
     struct neutral_rusage_32 *usage_guest = (struct neutral_rusage_32 *) g_2_h(usage_p);
-    struct rusage rusage;
+    struct neutral_rusage_64 rusage;
 
     if (usage_p == 0 || usage_p == 0xffffffff)
         res = -EFAULT;
@@ -524,8 +524,8 @@ static int nanosleep_neutral(uint32_t req_p, uint32_t rem_p)
 {
     struct neutral_timespec_32 *req_guest = (struct neutral_timespec_32 *) g_2_h(req_p);
     struct neutral_timespec_32 *rem_guest = (struct neutral_timespec_32 *) g_2_h(rem_p);
-    struct timespec req;
-    struct timespec rem;
+    struct neutral_timespec_64 req;
+    struct neutral_timespec_64 rem;
     long res;
 
     req.tv_sec = req_guest->tv_sec;
@@ -548,8 +548,8 @@ static int setitimer_neutral(uint32_t which_p, uint32_t new_value_p, uint32_t ol
     int which = (int) which_p;
     struct neutral_itimerval_32 *new_value_guest = (struct neutral_itimerval_32 *) g_2_h(new_value_p);
     struct neutral_itimerval_32 *old_value_guest = (struct neutral_itimerval_32 *) g_2_h(old_value_p);
-    struct itimerval new_value;
-    struct itimerval old_value;
+    struct neutral_itimerval_64 new_value;
+    struct neutral_itimerval_64 old_value;
 
     if (new_value_p == 0xffffffff || old_value_p == 0xffffffff)
         res = -EFAULT;
@@ -577,7 +577,7 @@ static int times_neutral(uint32_t buf_p)
 {
     long res;
     struct neutral_tms_32 *buf_guest = (struct neutral_tms_32 *) g_2_h(buf_p);
-    struct tms buf;
+    struct neutral_tms_64 buf;
 
     res = syscall_neutral_64(PR_times, (uint64_t)&buf, 0, 0, 0, 0, 0);
     if (buf_p) {
@@ -595,7 +595,7 @@ static int getitimer_neutral(uint32_t which_p, uint32_t curr_value_p)
     long res;
     int which = (int) which_p;
     struct neutral_itimerval_32 *curr_value_guest = (struct neutral_itimerval_32 *) g_2_h(curr_value_p);
-    struct itimerval curr_value;
+    struct neutral_itimerval_64 curr_value;
 
     if (curr_value_p == 0xffffffff || curr_value_p == 0xffffffff)
         res = -EFAULT;
@@ -615,7 +615,7 @@ static int setrlimit_neutral(uint32_t resource_p, uint32_t rlim_p)
     int res;
     int ressource = (int) resource_p;
     struct neutral_rlimit_32 *rlim_guest = (struct neutral_rlimit_32 *) g_2_h(rlim_p);
-    struct rlimit rlim;
+    struct neutral_rlimit_64 rlim;
 
     rlim.rlim_cur = rlim_guest->rlim_cur;
     rlim.rlim_max = rlim_guest->rlim_max;
@@ -628,7 +628,7 @@ static int fstatfs_neutral(uint32_t fd_p, uint32_t buf_p)
 {
     int fd = (int) fd_p;
     struct neutral_statfs_32 *buf_guest = (struct neutral_statfs_32 *) g_2_h(buf_p);
-    struct statfs buf;
+    struct neutral_statfs_64 buf;
     long res;
 
     if (buf_p == 0 || buf_p == 0xffffffff)
@@ -659,14 +659,14 @@ static int readv_neutral(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p)
     int fd = (int) fd_p;
     struct neutral_iovec_32 *iov_guest = (struct neutral_iovec_32 *) g_2_h(iov_p);
     int iovcnt = (int) iovcnt_p;
-    struct iovec *iov;
+    struct neutral_iovec_64 *iov;
     int i;
 
     if (iovcnt < 0)
         return -EINVAL;
-    iov = (struct iovec *) alloca(sizeof(struct iovec) * iovcnt);
+    iov = (struct neutral_iovec_64 *) alloca(sizeof(struct neutral_iovec_64) * iovcnt);
     for(i = 0; i < iovcnt; i++) {
-        iov[i].iov_base = g_2_h(iov_guest[i].iov_base);
+        iov[i].iov_base = ptr_2_int(g_2_h(iov_guest[i].iov_base));
         iov[i].iov_len = iov_guest[i].iov_len;
     }
     res = syscall_neutral_64(PR_readv, fd, (uint64_t) iov, iovcnt, 0, 0, 0);
@@ -680,14 +680,14 @@ static int writev_neutral(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p)
     int fd = (int) fd_p;
     struct neutral_iovec_32 *iov_guest = (struct neutral_iovec_32 *) g_2_h(iov_p);
     int iovcnt = (int) iovcnt_p;
-    struct iovec *iov;
+    struct neutral_iovec_64 *iov;
     int i;
 
     if (iovcnt < 0)
         return -EINVAL;
-    iov = (struct iovec *) alloca(sizeof(struct iovec) * iovcnt);
+    iov = (struct neutral_iovec_64 *) alloca(sizeof(struct neutral_iovec_64) * iovcnt);
     for(i = 0; i < iovcnt; i++) {
-        iov[i].iov_base = g_2_h(iov_guest[i].iov_base);
+        iov[i].iov_base = ptr_2_int(g_2_h(iov_guest[i].iov_base));
         iov[i].iov_len = iov_guest[i].iov_len;
     }
     res = syscall_neutral_64(PR_writev, fd, (uint64_t) iov, iovcnt, 0, 0, 0);
@@ -720,7 +720,7 @@ static int timer_create_neutral(uint32_t clockid_p, uint32_t sevp_p, uint32_t ti
     clockid_t clockid = (clockid_t) clockid_p;
     struct neutral_sigevent_32 *sevp_guest = (struct neutral_sigevent_32 *) g_2_h(sevp_p);
     timer_t *timerid = (timer_t *) g_2_h(timerid_p);
-    struct sigevent evp;
+    struct neutral_sigevent_64 evp;
 
     if (sevp_p) {
         switch(sevp_guest->sigev_notify) {
@@ -750,7 +750,7 @@ static int clock_getres_neutral(uint32_t clk_id_p, uint32_t res_p)
     long result;
     clockid_t clk_id = (clockid_t) clk_id_p;
     struct neutral_timespec_32 *res_guest = (struct neutral_timespec_32 *) g_2_h(res_p);
-    struct timespec res;
+    struct neutral_timespec_64 res;
 
     result = syscall_neutral_64(PR_clock_getres, clk_id, (uint64_t) (res_p?&res:NULL), 0, 0, 0, 0);
     if (res_p) {
@@ -767,8 +767,8 @@ static int clock_nanosleep_neutral(uint32_t clock_id_p, uint32_t flags_p, uint32
     int flags = (int) flags_p;
     struct neutral_timespec_32 *request_guest = (struct neutral_timespec_32 *) g_2_h(request_p);
     struct neutral_timespec_32 *remain_guest = (struct neutral_timespec_32 *) g_2_h(remain_p);
-    struct timespec request;
-    struct timespec remain;
+    struct neutral_timespec_64 request;
+    struct neutral_timespec_64 remain;
     long res;
 
     request.tv_sec = request_guest->tv_sec;
@@ -787,7 +787,7 @@ static int fstatfs64_neutral(uint32_t fd_p, uint32_t sz, uint32_t buf_p)
 {
     unsigned int fd = (unsigned int) fd_p;
     struct neutral_statfs64_32 *buf_guest = (struct neutral_statfs64_32 *) g_2_h(buf_p);
-    struct statfs buf;
+    struct neutral_statfs64_64 buf;
     long res;
 
     if (buf_p == 0 || buf_p == 0xffffffff)
@@ -818,7 +818,7 @@ static int mq_notify_neutral(uint32_t mqdes_p, uint32_t sevp_p)
     long res;
     mqd_t mqdes = (mqd_t) mqdes_p;
     struct neutral_sigevent_32 *sevp_guest = (struct neutral_sigevent_32 *) g_2_h(sevp_p);
-    struct sigevent evp;
+    struct neutral_sigevent_64 evp;
 
     if (sevp_p) {
         switch(sevp_guest->sigev_notify) {
@@ -836,7 +836,7 @@ static int mq_notify_neutral(uint32_t mqdes_p, uint32_t sevp_p)
                 /* sigev_signo is in this case a file descriptor of an AF_NETLINK socket */
                 evp.sigev_notify = SIGEV_THREAD;
                 evp.sigev_signo = sevp_guest->sigev_signo;
-                evp.sigev_value.sival_ptr = g_2_h(sevp_guest->sigev_value.sival_ptr);
+                evp.sigev_value.sival_ptr = ptr_2_int(g_2_h(sevp_guest->sigev_value.sival_ptr));
                 break;
             default:
                 /* let kernel return with EINVAL error */
@@ -859,7 +859,7 @@ static int waitid_neutral(uint32_t which_p, uint32_t upid_p, uint32_t infop_p, u
     int options = (int) options_p;
     struct neutral_rusage_32 *rusage_guest = (struct neutral_rusage_32 *) g_2_h(rusage_p);
     siginfo_t infop;
-    struct rusage rusage;
+    struct neutral_rusage_64 rusage;
 
     res = syscall_neutral_64(PR_waitid, which, upid, (uint64_t) &infop, options, (uint64_t) (rusage_p?&rusage:NULL), 0);
     if (infop_p) {
@@ -899,7 +899,7 @@ static int timer_gettime_neutral(uint32_t timerid_p, uint32_t curr_value_p)
     long res;
     timer_t timerid = (timer_t)(long) timerid_p;
     struct neutral_itimerspec_32 *curr_value_guest = (struct neutral_itimerspec_32 *) g_2_h(curr_value_p);
-    struct itimerspec curr_value;
+    struct neutral_itimerspec_64 curr_value;
 
     if (curr_value_p == 0)
         res = -EFAULT;
@@ -921,7 +921,7 @@ static int mq_open_neutral(uint32_t name_p, uint32_t oflag_p, uint32_t mode_p, u
     int oflag = (int) oflag_p;
     mode_t mode = (mode_t) mode_p;
     struct neutral_mq_attr_32 *attr_guest = (struct neutral_mq_attr_32 *) g_2_h(attr_p);
-    struct mq_attr attr;
+    struct neutral_mq_attr_64 attr;
 
     if (attr_p) {
         attr.mq_flags = attr_guest->mq_flags;
@@ -1085,7 +1085,7 @@ static int futimesat_neutral(uint32_t dirfd_p, uint32_t pathname_p, uint32_t tim
     int dirfd = (int) dirfd_p;
     char * pathname = (char *) g_2_h(pathname_p);
     struct neutral_timespec_32 *times_guest = (struct neutral_timespec_32 *) g_2_h(times_p);
-    struct timespec times[2];
+    struct neutral_timespec_64 times[2];
 
     if (times_p) {
         times[0].tv_sec = times_guest[0].tv_sec;
@@ -1106,7 +1106,7 @@ static int mq_timedsend_neutral(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t m
     size_t msg_len = (size_t) msg_len_p;
     unsigned int msg_prio = (unsigned int) msg_prio_p;
     struct neutral_timespec_32 *abs_timeout_guest = (struct neutral_timespec_32 *) g_2_h(abs_timeout_p);
-    struct timespec abs_timeout;
+    struct neutral_timespec_64 abs_timeout;
 
     if (abs_timeout_p) {
         abs_timeout.tv_sec = abs_timeout_guest->tv_sec;
@@ -1414,7 +1414,7 @@ static int mq_timedreceive_neutral(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_
     size_t msg_len = (size_t) msg_len_p;
     unsigned int *msg_prio = (unsigned int *) g_2_h(msg_prio_p);
     struct neutral_timespec_32 *abs_timeout_guest = (struct neutral_timespec_32 *) g_2_h(abs_timeout_p);
-    struct timespec abs_timeout;
+    struct neutral_timespec_64 abs_timeout;
 
     if (abs_timeout_p) {
         abs_timeout.tv_sec = abs_timeout_guest->tv_sec;
@@ -1444,7 +1444,7 @@ static int pselect6_neutral(uint32_t nfds_p, uint32_t readfds_p, uint32_t writef
     fd_set *exceptfds = (fd_set *) g_2_h(exceptfds_p);
     struct neutral_timespec_32 *timeout_guest = (struct neutral_timespec_32 *) g_2_h(timeout_p);
     struct data_32_internal *data_guest = (struct data_32_internal *) g_2_h(data_p);
-    struct timespec timeout;
+    struct neutral_timespec_64 timeout;
     struct data_64_internal data;
 
 
@@ -1471,12 +1471,12 @@ static int pselect6_neutral(uint32_t nfds_p, uint32_t readfds_p, uint32_t writef
 static int ppoll_neutral(uint32_t fds_p, uint32_t nfds_p, uint32_t timeout_ts_p, uint32_t sigmask_p, uint32_t sigsetsize_p)
 {
     int res;
-    struct pollfd *fds = (struct pollfd *) g_2_h(fds_p);
+    struct neutral_pollfd *fds = (struct neutral_pollfd *) g_2_h(fds_p);
     nfds_t nfds = (nfds_t) nfds_p;
     struct neutral_timespec_32 *timeout_ts_guest = (struct neutral_timespec_32 *) g_2_h(timeout_ts_p);
     sigset_t *sigmask = (sigset_t *) g_2_h(sigmask_p);
     size_t sigsetsize = (size_t) sigsetsize_p;
-    struct timespec timeout_ts;
+    struct neutral_timespec_64 timeout_ts;
 
     if (timeout_ts_p) {
         timeout_ts.tv_sec = timeout_ts_guest->tv_sec;
@@ -1496,8 +1496,8 @@ static int timerfd_settime_neutral(uint32_t fd_p, uint32_t flags_p, uint32_t new
     int flags = (int) flags_p;
     struct neutral_itimerspec_32 *new_value_guest = (struct neutral_itimerspec_32 *) g_2_h(new_value_p);
     struct neutral_itimerspec_32 *old_value_guest = (struct neutral_itimerspec_32 *) g_2_h(old_value_p);
-    struct itimerspec new_value;
-    struct itimerspec old_value;
+    struct neutral_itimerspec_64 new_value;
+    struct neutral_itimerspec_64 old_value;
 
     if (old_value_p == 0xffffffff || new_value_p == 0)
         res = -EFAULT;
@@ -1524,7 +1524,7 @@ static int timerfd_gettime_neutral(uint32_t fd_p, uint32_t curr_value_p)
     int res;
     int fd = (int) fd_p;
     struct neutral_itimerspec_32 *curr_value_guest = (struct neutral_itimerspec_32 *) g_2_h(curr_value_p);
-    struct itimerspec curr_value;
+    struct neutral_itimerspec_64 curr_value;
 
     if (curr_value_p == 0xffffffff)
         res = -EFAULT;
@@ -1546,7 +1546,7 @@ static int getgroups_neutral(uint32_t size_p, uint32_t list_p)
     long res;
     int size = (int) size_p;
     uint16_t *list_guest = (uint16_t *) g_2_h(list_p);
-    gid_t *list = alloca(sizeof(gid_t) * size);
+    uint32_t *list = alloca(sizeof(uint32_t) * size);
     int i;
 
     res = syscall_neutral_64(PR_getgroups, size, (uint64_t) list, 0, 0, 0, 0);
@@ -1560,7 +1560,7 @@ static int statfs_neutral(uint32_t path_p, uint32_t buf_p)
 {
     const char *path = (const char *) g_2_h(path_p);
     struct neutral_statfs_32 *buf_guest = (struct neutral_statfs_32 *) g_2_h(buf_p);
-    struct statfs buf;
+    struct neutral_statfs_64 buf;
     long res;
 
      if (buf_p == 0 || buf_p == 0xffffffff)
@@ -1608,7 +1608,7 @@ static int utimes_neutral(uint32_t filename_p, uint32_t times_p)
     long res;
     char *filename = (char *) g_2_h(filename_p);
     struct neutral_timeval_32 *times_guest = (struct neutral_timeval_32 *) g_2_h(times_p);
-    struct timeval times[2];
+    struct neutral_timeval_64 times[2];
 
     if (times_p) {
         times[0].tv_sec = times_guest[0].tv_sec;
@@ -1629,12 +1629,12 @@ static int vmsplice_neutral(uint32_t fd_p, uint32_t iov_p, uint32_t nr_segs_p, u
     struct neutral_iovec_32 *iov_guest = (struct neutral_iovec_32 *) g_2_h(iov_p);
     unsigned long nr_segs = (unsigned long) nr_segs_p;
     unsigned int flags = (unsigned int) flags_p;
-    struct iovec *iov;
+    struct neutral_iovec_64 *iov;
     int i;
 
-    iov = (struct iovec *) alloca(sizeof(struct iovec) * nr_segs);
+    iov = (struct neutral_iovec_64 *) alloca(sizeof(struct neutral_iovec_64) * nr_segs);
     for(i = 0; i < nr_segs; i++) {
-        iov[i].iov_base = g_2_h(iov_guest->iov_base);
+        iov[i].iov_base = ptr_2_int(g_2_h(iov_guest->iov_base));
         iov[i].iov_len = iov_guest->iov_len;
     }
     res = syscall_neutral_64(PR_vmsplice, fd, (uint64_t) iov, nr_segs, flags, 0, 0);
@@ -1649,7 +1649,7 @@ static int rt_sigtimedwait_neutral(uint32_t set_p, uint32_t info_p, uint32_t tim
     neutral_siginfo_t_32 *info_guest = (neutral_siginfo_t_32 *) g_2_h(info_p);
     struct neutral_timespec_32 *timeout_guest = (struct neutral_timespec_32 *) g_2_h(timeout_p);
     siginfo_t info;
-    struct timespec timeout;
+    struct neutral_timespec_64 timeout;
 
     if (timeout_p) {
         timeout.tv_sec = timeout_guest->tv_sec;
@@ -1692,6 +1692,7 @@ static int msgrcv_neutral(uint32_t msqid_p, uint32_t msgp_p, uint32_t msgsz_p, u
     return res;
 }
 
+/* FIXME: neutral_sembuf_32 == neutral_sembuf_64 ? => do we need this ? */
 static int semop_neutral(uint32_t semid_p, uint32_t sops_p, uint32_t nsops_p)
 {
     long res;
@@ -1750,7 +1751,7 @@ static int clock_settime_neutral(uint32_t clk_id_p, uint32_t tp_p)
     long res;
     clockid_t clk_id = (clockid_t) clk_id_p;
     struct neutral_timespec_32 *tp_guest = (struct neutral_timespec_32 *) g_2_h(tp_p);
-    struct timespec tp;
+    struct neutral_timespec_64 tp;
 
     tp.tv_sec = tp_guest->tv_sec;
     tp.tv_nsec = tp_guest->tv_nsec;
@@ -1766,8 +1767,8 @@ static int mq_getsetattr_neutral(uint32_t mqdes_p, uint32_t newattr_p, uint32_t 
     mqd_t mqdes = (mqd_t) mqdes_p;
     struct neutral_mq_attr_32 *newattr_guest = (struct neutral_mq_attr_32 *) g_2_h(newattr_p);
     struct neutral_mq_attr_32 *oldattr_guest = (struct neutral_mq_attr_32 *) g_2_h(oldattr_p);
-    struct mq_attr newattr;
-    struct mq_attr oldattr;
+    struct neutral_mq_attr_64 newattr;
+    struct neutral_mq_attr_64 oldattr;
 
     if (newattr_p) {
         newattr.mq_flags = newattr_guest->mq_flags;
@@ -1826,7 +1827,7 @@ static int sched_rr_get_interval_neutral(uint32_t pid_p, uint32_t tp_p)
     long result;
     pid_t pid = (pid_t) pid_p;
     struct neutral_timespec_32 *tp_guest = (struct neutral_timespec_32 *) g_2_h(tp_p);
-    struct timespec tp;
+    struct neutral_timespec_64 tp;
 
     result = syscall_neutral_64(PR_sched_rr_get_interval, pid, (uint64_t) &tp, 0, 0, 0, 0);
     if (tp_p) {
@@ -1844,8 +1845,8 @@ static int timer_settime_neutral(uint32_t timerid_p, uint32_t flags_p, uint32_t 
     int flags = (int) flags_p;
     struct neutral_itimerspec_32 *new_value_guest = (struct neutral_itimerspec_32 *) g_2_h(new_value_p);
     struct neutral_itimerspec_32 *old_value_guest = (struct neutral_itimerspec_32 *) g_2_h(old_value_p);
-    struct itimerspec new_value;
-    struct itimerspec old_value;
+    struct neutral_itimerspec_64 new_value;
+    struct neutral_itimerspec_64 old_value;
 
     new_value.it_interval.tv_sec = new_value_guest->it_interval.tv_sec;
     new_value.it_interval.tv_nsec = new_value_guest->it_interval.tv_nsec;

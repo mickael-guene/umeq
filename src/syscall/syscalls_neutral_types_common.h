@@ -58,6 +58,17 @@ struct neutral_epoll_event {
     uint64_t data;
 };
 
+struct neutral_timezone {
+    int32_t tz_minuteswest;
+    int32_t tz_dsttime;
+};
+
+struct neutral_pollfd {
+    int32_t fd;
+    int16_t events;
+    int16_t revents;
+};
+
 #endif
 
 #ifdef __cplusplus

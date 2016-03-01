@@ -137,6 +137,8 @@ struct neutral_statfs_32 {
     uint32_t f_spare[4];
 };
 
+/* NOTE : iov_len is uint32_t but internally kernel cast it to int32_t when
+   checking size limits. So we use int32_t so we extend sign. */
 struct neutral_iovec_32 {
     uint32_t iov_base;
     int32_t iov_len;
@@ -153,7 +155,7 @@ struct neutral_sigevent_32 {
     int32_t sigev_notify;
     /* FIXME : union for SIGEV_THREAD+ SIGEV_THREAD_ID */
     union {
-        int _pad[64 - 3 * 4];
+        int _pad[64 - 3];
     } _sigev_un;
 };
 
@@ -206,11 +208,11 @@ struct neutral_itimerspec_32 {
 };
 
 struct neutral_mq_attr_32 {
-    uint32_t mq_flags;
-    uint32_t mq_maxmsg;
-    uint32_t mq_msgsize;
-    uint32_t mq_curmsgs;
-    uint32_t __reserved[4];
+    int32_t mq_flags;
+    int32_t mq_maxmsg;
+    int32_t mq_msgsize;
+    int32_t mq_curmsgs;
+    int32_t __reserved[4];
 };
 
 struct neutral_ipc_perm_32 {
