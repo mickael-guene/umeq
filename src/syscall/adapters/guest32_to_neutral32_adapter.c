@@ -32,8 +32,6 @@
 
 #define IS_NULL(px) ((uint32_t)((px)?g_2_h((px)):NULL))
 
-#include <linux/futex.h>
-#include <sys/time.h>
 static int futex_neutral(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32_t timeout_p, uint32_t uaddr2_p, uint32_t val3_p)
 {
     int res;
@@ -44,14 +42,14 @@ static int futex_neutral(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32
     int *uaddr2 = (int *) g_2_h(uaddr2_p);
     int val3 = (int) val3_p;
     struct neutral_timespec_32 timeout;
-    int cmd = op & FUTEX_CMD_MASK;
+    int cmd = op & NEUTRAL_FUTEX_CMD_MASK;
     long syscall_timeout = (long) (timeout_p?&timeout:NULL);
 
     /* fixup syscall_timeout in case it's not really a timeout structure */
-    if (cmd == FUTEX_REQUEUE || cmd == FUTEX_CMP_REQUEUE ||
-        cmd == FUTEX_CMP_REQUEUE_PI || cmd == FUTEX_WAKE_OP) {
+    if (cmd == NEUTRAL_FUTEX_REQUEUE || cmd == NEUTRAL_FUTEX_CMP_REQUEUE ||
+        cmd == NEUTRAL_FUTEX_CMP_REQUEUE_PI || cmd == NEUTRAL_FUTEX_WAKE_OP) {
         syscall_timeout = timeout_p;
-    } else if (cmd == FUTEX_WAKE) {
+    } else if (cmd == NEUTRAL_FUTEX_WAKE) {
         /* in this case timeout argument is not use and can take any value */
         syscall_timeout = timeout_p;
     } else if (timeout_p) {
@@ -64,7 +62,6 @@ static int futex_neutral(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32
     return res;
 }
 
-#include <fcntl.h>
 static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
 {
     int res = -EINVAL;
@@ -72,79 +69,79 @@ static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
     int cmd = cmd_p;
 
     switch(cmd) {
-        case F_DUPFD:/*0*/
+        case NEUTRAL_F_DUPFD:/*0*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, opt_p, 0, 0, 0);
             break;
-        case F_GETFD:/*1*/
+        case NEUTRAL_F_GETFD:/*1*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, opt_p, 0, 0, 0);
             break;
-        case F_SETFD:/*2*/
+        case NEUTRAL_F_SETFD:/*2*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, opt_p, 0, 0, 0);
             break;
-        case F_GETFL:/*3*/
+        case NEUTRAL_F_GETFL:/*3*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, opt_p, 0, 0, 0);
             break;
-        case F_SETFL:/*4*/
+        case NEUTRAL_F_SETFL:/*4*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, opt_p, 0, 0, 0);
             break;
-        case F_GETLK:/*5*/
+        case NEUTRAL_F_GETLK:/*5*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, (uint32_t) g_2_h(opt_p), 0, 0, 0);
             break;
-        case F_SETLK:/*6*/
+        case NEUTRAL_F_SETLK:/*6*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, (uint32_t) g_2_h(opt_p), 0, 0, 0);
             break;
-        case F_SETLKW:/*7*/
+        case NEUTRAL_F_SETLKW:/*7*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, (uint32_t) g_2_h(opt_p), 0, 0, 0);
             break;
-        case F_SETOWN:/*8*/
+        case NEUTRAL_F_SETOWN:/*8*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, opt_p, 0, 0, 0);
             break;
-        case F_GETOWN:/*9*/
+        case NEUTRAL_F_GETOWN:/*9*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, 0, 0, 0, 0);
             break;
-        case F_SETSIG:/*10*/
+        case NEUTRAL_F_SETSIG:/*10*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, opt_p, 0, 0, 0);
             break;
-        case F_GETSIG:/*11*/
+        case NEUTRAL_F_GETSIG:/*11*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, 0, 0, 0, 0);
             break;
-        case F_GETLK64:/*12*/
+        case NEUTRAL_F_GETLK64:/*12*/
             if (opt_p == 0 || opt_p == 0xffffffff)
                 res = -EFAULT;
             else
                 res = syscall_neutral_32(PR_fcntl64, fd, cmd, (uint32_t) g_2_h(opt_p), 0, 0, 0);
             break;
-        case F_SETLK64:/*13*/
+        case NEUTRAL_F_SETLK64:/*13*/
             if (opt_p == 0 || opt_p == 0xffffffff)
                 res = -EFAULT;
             else
                 res = syscall_neutral_32(PR_fcntl64, fd, cmd, (uint32_t) g_2_h(opt_p), 0, 0, 0);
             break;
-        case F_SETLKW64:/*14*/
+        case NEUTRAL_F_SETLKW64:/*14*/
             if (opt_p == 0 || opt_p == 0xffffffff)
                 res = -EFAULT;
             else
                 res = syscall_neutral_32(PR_fcntl64, fd, cmd, (uint32_t) g_2_h(opt_p), 0, 0, 0);
             break;
-        case F_SETOWN_EX:/*15*/
+        case NEUTRAL_F_SETOWN_EX:/*15*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, (uint32_t) g_2_h(opt_p), 0, 0, 0);
             break;
-        case F_GETOWN_EX:/*16*/
+        case NEUTRAL_F_GETOWN_EX:/*16*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, (uint32_t) g_2_h(opt_p), 0, 0, 0);
             break;
-        case F_SETLEASE:/*1024*/
+        case NEUTRAL_F_SETLEASE:/*1024*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, opt_p, 0, 0, 0);
             break;
-        case F_GETLEASE:/*1025*/
+        case NEUTRAL_F_GETLEASE:/*1025*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, 0, 0, 0, 0);
             break;
-        case F_DUPFD_CLOEXEC:/*1030*/
+        case NEUTRAL_F_DUPFD_CLOEXEC:/*1030*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, opt_p, 0, 0, 0);
             break;
-        case F_SETPIPE_SZ:/*1031*/
+        case NEUTRAL_F_SETPIPE_SZ:/*1031*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, opt_p, 0, 0, 0);
             break;
-        case F_GETPIPE_SZ:/*1032*/
+        case NEUTRAL_F_GETPIPE_SZ:/*1032*/
             res = syscall_neutral_32(PR_fcntl64, fd, cmd, 0, 0, 0, 0);
             break;
 
@@ -243,14 +240,13 @@ static int writev_neutral(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p)
     return res;
 }
 
-#include <sys/prctl.h>
 static int prctl_neutral(uint32_t option_p, uint32_t arg2_p, uint32_t arg3_p, uint32_t arg4_p, uint32_t arg5_p)
 {
     int res;
     int option = (int) option_p;
 
     switch(option) {
-        case PR_GET_PDEATHSIG:/*2*/
+        case NEUTRAL_PR_GET_PDEATHSIG:/*2*/
             res = syscall_neutral_32(PR_prctl, option, (uint32_t) g_2_h(arg2_p), arg3_p, arg4_p, arg5_p, 0);
             break;
         default:
@@ -260,18 +256,17 @@ static int prctl_neutral(uint32_t option_p, uint32_t arg2_p, uint32_t arg3_p, ui
     return res;
 }
 
-#include <mqueue.h>
 /* FIXME: not well done. Should use neutral_sigevent_32 to be portable */
 static int mq_notify_neutral(uint32_t mqdes_p, uint32_t sevp_p)
 {
     int res;
-    mqd_t mqdes = (mqd_t) mqdes_p;
+    neutral_mqd_t mqdes = (neutral_mqd_t) mqdes_p;
     struct neutral_sigevent_32 *sevp_guest = (struct neutral_sigevent_32 *) g_2_h(sevp_p);
     struct neutral_sigevent_32 evp;
 
     if (sevp_p) {
         evp = *sevp_guest;
-        if (evp.sigev_notify == SIGEV_THREAD)
+        if (evp.sigev_notify == NEUTRAL_SIGEV_THREAD)
             evp.sigev_value.sival_ptr = ptr_2_int(g_2_h(evp.sigev_value.sival_ptr));
     }
     res = syscall_neutral_32(PR_mq_notify, mqdes, (uint32_t) (sevp_p?&evp:NULL), 0, 0, 0, 0);
@@ -279,30 +274,20 @@ static int mq_notify_neutral(uint32_t mqdes_p, uint32_t sevp_p)
     return res;
 }
 
-typedef int32_t key_serial_t;
-#ifndef KEYCTL_GET_KEYRING_ID
-#define KEYCTL_GET_KEYRING_ID       0   /* ask for a keyring's ID */
-#endif
-#ifndef KEYCTL_REVOKE
-#define KEYCTL_REVOKE           3   /* revoke a key */
-#endif
-#ifndef KEYCTL_READ
-#define KEYCTL_READ         11  /* read a key or keyring's contents */
-#endif
 static int keyctl_neutral(uint32_t cmd_p, uint32_t arg2_p, uint32_t arg3_p, uint32_t arg4_p, uint32_t arg5_p)
 {
     int res;
     int cmd = (int) cmd_p;
 
     switch(cmd) {
-        case KEYCTL_GET_KEYRING_ID:
-            res = syscall_neutral_32(PR_keyctl, cmd, (key_serial_t) arg2_p, (int) arg3_p, arg4_p, arg5_p, 0);
+        case NEUTRAL_KEYCTL_GET_KEYRING_ID:
+            res = syscall_neutral_32(PR_keyctl, cmd, (neutral_key_serial_t) arg2_p, (int) arg3_p, arg4_p, arg5_p, 0);
             break;
-        case KEYCTL_REVOKE:
-            res = syscall_neutral_32(PR_keyctl, cmd, (key_serial_t) arg2_p, arg3_p, arg4_p, arg5_p, 0);
+        case NEUTRAL_KEYCTL_REVOKE:
+            res = syscall_neutral_32(PR_keyctl, cmd, (neutral_key_serial_t) arg2_p, arg3_p, arg4_p, arg5_p, 0);
             break;
-        case KEYCTL_READ:
-            res = syscall_neutral_32(PR_keyctl, cmd, (key_serial_t) arg2_p, (uint32_t) g_2_h(arg3_p), (size_t) arg4_p, arg5_p, 0);
+        case NEUTRAL_KEYCTL_READ:
+            res = syscall_neutral_32(PR_keyctl, cmd, (neutral_key_serial_t) arg2_p, (uint32_t) g_2_h(arg3_p), (size_t) arg4_p, arg5_p, 0);
             break;
         default:
             fatal("keyctl cmd %d not supported\n", cmd);
@@ -311,12 +296,9 @@ static int keyctl_neutral(uint32_t cmd_p, uint32_t arg2_p, uint32_t arg3_p, uint
     return res;
 }
 
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/sem.h>
 static int semctl_neutral(uint32_t semid_p, uint32_t semnum_p, uint32_t cmd_p, uint32_t arg_p)
 {
-    void *arg = ((cmd_p & ~0x100) == SETVAL) ? (void *)arg_p : g_2_h(arg_p);
+    void *arg = ((cmd_p & ~0x100) == NEUTRAL_SETVAL) ? (void *)arg_p : g_2_h(arg_p);
 
     return syscall_neutral_32(PR_semctl, semid_p, semnum_p, cmd_p, (uint32_t) arg, 0, 0);
 }
@@ -378,8 +360,6 @@ static int vmsplice_neutral(uint32_t fd_p, uint32_t iov_p, uint32_t nr_segs_p, u
     return res;
 }
 
-#include <sys/types.h>
-#include <sys/socket.h>
 static int sendmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
 {
     int res;
@@ -459,7 +439,7 @@ static int sendmmsg_neutral(uint32_t sockfd_p, uint32_t msgvec_p, uint32_t vlen_
     for(i = 0; i < vlen; i++) {
         msgvec[i].msg_hdr.msg_name = ptr_2_int(msgvec_guest[i].msg_hdr.msg_name?(void *) g_2_h(msgvec_guest[i].msg_hdr.msg_name):NULL);
         msgvec[i].msg_hdr.msg_namelen = msgvec_guest[i].msg_hdr.msg_namelen;
-        msgvec[i].msg_hdr.msg_iov = ptr_2_int(alloca(msgvec_guest[i].msg_hdr.msg_iovlen * sizeof(struct iovec)));
+        msgvec[i].msg_hdr.msg_iov = ptr_2_int(alloca(msgvec_guest[i].msg_hdr.msg_iovlen * sizeof(struct neutral_iovec_32)));
         for(j = 0; j < msgvec_guest[i].msg_hdr.msg_iovlen; j++) {
             struct neutral_iovec_32 *iovec_guest = (struct neutral_iovec_32 *) g_2_h(msgvec_guest[i].msg_hdr.msg_iov + sizeof(struct neutral_iovec_32) * j);
             struct neutral_iovec_32 *iovec = (struct neutral_iovec_32 *) (msgvec[i].msg_hdr.msg_iov + sizeof(struct neutral_iovec_32) * j);

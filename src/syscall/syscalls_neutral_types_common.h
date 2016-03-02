@@ -25,6 +25,78 @@ extern "C" {
 #ifndef __SYSCALLS_NEUTRAL_TYPES_COMMON__
 #define __SYSCALLS_NEUTRAL_TYPES_COMMON__ 1
 
+#define NEUTRAL_FUTEX_WAKE                  1
+#define NEUTRAL_FUTEX_REQUEUE               3
+#define NEUTRAL_FUTEX_CMP_REQUEUE           4
+#define NEUTRAL_FUTEX_WAKE_OP               5
+#define NEUTRAL_FUTEX_CMP_REQUEUE_PI        12
+#define NEUTRAL_FUTEX_PRIVATE_FLAG          128
+#define NEUTRAL_FUTEX_CLOCK_REALTIME        256
+#define NEUTRAL_FUTEX_CMD_MASK              ~(NEUTRAL_FUTEX_PRIVATE_FLAG | NEUTRAL_FUTEX_CLOCK_REALTIME)
+
+#define NEUTRAL_F_DUPFD         0
+#define NEUTRAL_F_GETFD         1
+#define NEUTRAL_F_SETFD         2
+#define NEUTRAL_F_GETFL         3
+#define NEUTRAL_F_SETFL         4
+#define NEUTRAL_F_GETLK         5
+#define NEUTRAL_F_SETLK         6
+#define NEUTRAL_F_SETLKW        7
+#define NEUTRAL_F_SETOWN        8
+#define NEUTRAL_F_GETOWN        9
+#define NEUTRAL_F_SETSIG        10
+#define NEUTRAL_F_GETSIG        11
+#define NEUTRAL_F_GETLK64       12
+#define NEUTRAL_F_SETLK64       13
+#define NEUTRAL_F_SETLKW64      14
+#define NEUTRAL_F_SETOWN_EX     15
+#define NEUTRAL_F_GETOWN_EX     16
+#define NEUTRAL_F_SETLEASE      1024
+#define NEUTRAL_F_GETLEASE      1025
+#define NEUTRAL_F_DUPFD_CLOEXEC 1030
+#define NEUTRAL_F_SETPIPE_SZ    1031
+#define NEUTRAL_F_GETPIPE_SZ    1032
+
+#define NEUTRAL_PR_GET_PDEATHSIG    2
+
+#define NEUTRAL_KEYCTL_GET_KEYRING_ID       0
+#define NEUTRAL_KEYCTL_REVOKE               3
+#define NEUTRAL_KEYCTL_READ                 11
+
+#define NEUTRAL_SETVAL          16
+
+#define NEUTRAL_SIGEV_SIGNAL        0
+#define NEUTRAL_SIGEV_NONE          1
+#define NEUTRAL_SIGEV_THREAD        2
+
+#define NEUTRAL__NSIG               64
+
+#define NEUTRAL_IPC_RMID            0
+#define NEUTRAL_IPC_SET             1
+#define NEUTRAL_IPC_STAT            2
+#define NEUTRAL_IPC_INFO            3
+
+#define NEUTRAL_SHM_LOCK            11
+#define NEUTRAL_SHM_UNLOCK          12
+#define NEUTRAL_SHM_STAT            13
+#define NEUTRAL_SHM_INFO            14
+#define NEUTRAL_SEM_STAT            18
+#define NEUTRAL_SEM_INFO            19
+
+#define NEUTRAL_GETPID              11
+#define NEUTRAL_GETVAL              12
+#define NEUTRAL_GETALL              13
+#define NEUTRAL_GETNCNT             14
+#define NEUTRAL_GETZCNT             15
+#define NEUTRAL_SETALL              17
+
+#define NEUTRAL_MSG_STAT            11
+#define NEUTRAL_MSG_INFO            12
+
+typedef int32_t             neutral_mqd_t;
+
+typedef int32_t             neutral_key_serial_t;
+
 typedef struct {
     int32_t     val[2];
 } __neutral_kernel_fsid_t;

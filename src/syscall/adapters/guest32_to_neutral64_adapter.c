@@ -23,6 +23,7 @@
 #include <sys/syscall.h>   /* For SYS_xxx definitions */
 #include <errno.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "syscalls_neutral_types.h"
 #include "syscalls_neutral.h"
@@ -32,8 +33,6 @@
 
 #define IS_NULL(px) ((uint64_t)((px)?g_2_h((px)):NULL))
 
-#include <linux/futex.h>
-#include <sys/time.h>
 static int futex_neutral(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32_t timeout_p, uint32_t uaddr2_p, uint32_t val3_p)
 {
     long res;
@@ -44,14 +43,14 @@ static int futex_neutral(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32
     int *uaddr2 = (int *) g_2_h(uaddr2_p);
     int val3 = (int) val3_p;
     struct neutral_timespec_64 timeout;
-    int cmd = op & FUTEX_CMD_MASK;
+    int cmd = op & NEUTRAL_FUTEX_CMD_MASK;
     long syscall_timeout = (long) (timeout_p?&timeout:NULL);
 
     /* fixup syscall_timeout in case it's not really a timeout structure */
-    if (cmd == FUTEX_REQUEUE || cmd == FUTEX_CMP_REQUEUE ||
-        cmd == FUTEX_CMP_REQUEUE_PI || cmd == FUTEX_WAKE_OP) {
+    if (cmd == NEUTRAL_FUTEX_REQUEUE || cmd == NEUTRAL_FUTEX_CMP_REQUEUE ||
+        cmd == NEUTRAL_FUTEX_CMP_REQUEUE_PI || cmd == NEUTRAL_FUTEX_WAKE_OP) {
         syscall_timeout = timeout_p;
-    } else if (cmd == FUTEX_WAKE) {
+    } else if (cmd == NEUTRAL_FUTEX_WAKE) {
         /* in this case timeout argument is not use and can take any value */
         syscall_timeout = timeout_p;
     } else if (timeout_p) {
@@ -64,7 +63,6 @@ static int futex_neutral(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32
     return res;
 }
 
-#include <sys/resource.h>
 static  int getrlimit_neutral(uint32_t resource_p, uint32_t rlim_p)
 {
     long res;
@@ -83,7 +81,6 @@ static  int getrlimit_neutral(uint32_t resource_p, uint32_t rlim_p)
     return res;
 }
 
-#include <sys/vfs.h>
 static int statfs64_neutral(uint32_t path_p, uint32_t sz, uint32_t buf_p)
 {
     const char *path = (const char *) g_2_h(path_p);
@@ -113,7 +110,6 @@ static int statfs64_neutral(uint32_t path_p, uint32_t sz, uint32_t buf_p)
     return res;
 }
 
-#include <fcntl.h>
 static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
 {
     long res = -EINVAL;
@@ -121,22 +117,22 @@ static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
     int cmd = cmd_p;
 
     switch(cmd) {
-        case F_DUPFD:/*0*/
+        case NEUTRAL_F_DUPFD:/*0*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, (int)opt_p, 0, 0, 0);
             break;
-        case F_GETFD:/*1*/
+        case NEUTRAL_F_GETFD:/*1*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, opt_p, 0, 0, 0);
             break;
-        case F_SETFD:/*2*/
+        case NEUTRAL_F_SETFD:/*2*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, (int)opt_p, 0, 0, 0);
             break;
-        case F_GETFL:/*3*/
+        case NEUTRAL_F_GETFL:/*3*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, opt_p, 0, 0, 0);
             break;
-        case F_SETFL:/*4*/
+        case NEUTRAL_F_SETFL:/*4*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, opt_p, 0, 0, 0);
             break;
-        case F_GETLK:/*5*/
+        case NEUTRAL_F_GETLK:/*5*/
             {
                 struct neutral_flock_32 *lock_guest = (struct neutral_flock_32 *) g_2_h(opt_p);
                 struct neutral_flock_64 lock;
@@ -158,9 +154,9 @@ static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
                 }
             }
             break;
-        case F_SETLK:/*6*/
+        case NEUTRAL_F_SETLK:/*6*/
             /* Fallthrough */
-        case F_SETLKW:/*7*/
+        case NEUTRAL_F_SETLKW:/*7*/
             {
                 struct neutral_flock_32 *lock_guest = (struct neutral_flock_32 *) g_2_h(opt_p);
                 struct neutral_flock_64 lock;
@@ -177,19 +173,19 @@ static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
                 }
             }
             break;
-        case F_SETOWN:/*8*/
+        case NEUTRAL_F_SETOWN:/*8*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, (int) opt_p, 0, 0, 0);
             break;
-        case F_GETOWN:/*9*/
+        case NEUTRAL_F_GETOWN:/*9*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, 0, 0, 0, 0);
             break;
-        case 10:/*F_SETSIG*/
+        case NEUTRAL_F_SETSIG:/*10*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, (int) opt_p, 0, 0, 0);
             break;
-        case 11:/*F_GETSIG*/
+        case NEUTRAL_F_GETSIG:/*11*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, 0, 0, 0, 0);
             break;
-        case 12:/*F_GETLK64:*/
+        case NEUTRAL_F_GETLK64:/*12*/
             {
                 struct neutral_flock64_32 *lock_guest = (struct neutral_flock64_32 *) g_2_h(opt_p);
                 struct neutral_flock_64 lock;
@@ -202,7 +198,7 @@ static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
                     lock.l_start = lock_guest->l_start;
                     lock.l_len = lock_guest->l_len;
                     lock.l_pid = lock_guest->l_pid;
-                    res = syscall_neutral_64(PR_fcntl, fd, F_GETLK, (uint64_t)&lock, 0, 0, 0);
+                    res = syscall_neutral_64(PR_fcntl, fd, NEUTRAL_F_GETLK, (uint64_t)&lock, 0, 0, 0);
                     lock_guest->l_type = lock.l_type;
                     lock_guest->l_whence = lock.l_whence;
                     lock_guest->l_start = lock.l_start;
@@ -211,7 +207,7 @@ static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
                 }
             }
             break;
-        case 13://F_SETLK64
+        case NEUTRAL_F_SETLK64:/*13*/
             {
                 struct neutral_flock64_32 *lock_guest = (struct neutral_flock64_32 *) g_2_h(opt_p);
                 struct neutral_flock_64 lock;
@@ -224,11 +220,11 @@ static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
                     lock.l_start = lock_guest->l_start;
                     lock.l_len = lock_guest->l_len;
                     lock.l_pid = lock_guest->l_pid;
-                    res = syscall_neutral_64(PR_fcntl, fd, F_SETLK, (uint64_t)&lock, 0, 0, 0);
+                    res = syscall_neutral_64(PR_fcntl, fd, NEUTRAL_F_SETLK, (uint64_t)&lock, 0, 0, 0);
                 }
             }
             break;
-        case 14://F_SETLKW64
+        case NEUTRAL_F_SETLKW64:/*14*/
             {
                 struct neutral_flock64_32 *lock_guest = (struct neutral_flock64_32 *) g_2_h(opt_p);
                 struct neutral_flock_64 lock;
@@ -241,29 +237,29 @@ static int fcnt64_neutral(uint32_t fd_p, uint32_t cmd_p, uint32_t opt_p)
                     lock.l_start = lock_guest->l_start;
                     lock.l_len = lock_guest->l_len;
                     lock.l_pid = lock_guest->l_pid;
-                    res = syscall_neutral_64(PR_fcntl, fd, F_SETLKW, (uint64_t)&lock, 0, 0, 0);
+                    res = syscall_neutral_64(PR_fcntl, fd, NEUTRAL_F_SETLKW, (uint64_t)&lock, 0, 0, 0);
                 }
             }
             break;
-        case 15://F_SETOWN_EX
+        case NEUTRAL_F_SETOWN_EX:/*15*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, (uint64_t) g_2_h(opt_p), 0, 0, 0);
             break;
-        case F_GETOWN_EX:/*16*/
+        case NEUTRAL_F_GETOWN_EX:/*16*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, (uint64_t) g_2_h(opt_p), 0, 0, 0);
             break;
-        case 1024:/*F_SETLEASE:*/
+        case NEUTRAL_F_SETLEASE:/*1024*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, (int) opt_p, 0, 0, 0);
             break;
-        case 1025:/*F_GETLEASE:*/
+        case NEUTRAL_F_GETLEASE:/*1025*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, 0, 0, 0, 0);
             break;
-        case F_DUPFD_CLOEXEC:/*1030*/
+        case NEUTRAL_F_DUPFD_CLOEXEC:/*1030*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, (int) opt_p, 0, 0, 0);
             break;
-        case 1031:/*F_SETPIPE_SZ:*/
+        case NEUTRAL_F_SETPIPE_SZ:/*1031*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, (int) opt_p, 0, 0, 0);
             break;
-        case 1032:/*F_GETPIPE_SZ:*/
+        case NEUTRAL_F_GETPIPE_SZ:/*1032*/
             res = syscall_neutral_64(PR_fcntl, fd, cmd, 0, 0, 0, 0);
             break;
         default:
@@ -392,7 +388,6 @@ static int utimensat_neutral(uint32_t dirfd_p, uint32_t pathname_p, uint32_t tim
     return res;
 }
 
-#include <sys/sysinfo.h>
 static int sysinfo_neutral(uint32_t info_p)
 {
     struct neutral_sysinfo_32 *sysinfo_guest = (struct neutral_sysinfo_32 *) g_2_h(info_p);
@@ -483,7 +478,6 @@ static int getrusage_neutral(uint32_t who_p, uint32_t usage_p)
     return res;
 }
 
-#include <string.h>
 /* FIXME : use alloca for buffer */
 static int getdents_neutral(uint32_t fd_p, uint32_t dirp_p, uint32_t count_p)
 {
@@ -572,7 +566,6 @@ static int setitimer_neutral(uint32_t which_p, uint32_t new_value_p, uint32_t ol
     return res;
 }
 
-#include <sys/times.h>
 static int times_neutral(uint32_t buf_p)
 {
     long res;
@@ -695,14 +688,13 @@ static int writev_neutral(uint32_t fd_p, uint32_t iov_p, uint32_t iovcnt_p)
     return res;
 }
 
-#include <sys/prctl.h>
 static int prctl_neutral(uint32_t option_p, uint32_t arg2_p, uint32_t arg3_p, uint32_t arg4_p, uint32_t arg5_p)
 {
     long res;
     int option = (int) option_p;
 
     switch(option) {
-        case PR_GET_PDEATHSIG:/*2*/
+        case NEUTRAL_PR_GET_PDEATHSIG:/*2*/
             res = syscall_neutral_64(PR_prctl, option, (uint64_t) g_2_h(arg2_p), arg3_p, arg4_p, arg5_p, 0);
             break;
         default:
@@ -712,8 +704,6 @@ static int prctl_neutral(uint32_t option_p, uint32_t arg2_p, uint32_t arg3_p, ui
     return res;
 }
 
-#include <signal.h>
-#include <time.h>
 static int timer_create_neutral(uint32_t clockid_p, uint32_t sevp_p, uint32_t timerid_p)
 {
     long res;
@@ -724,11 +714,11 @@ static int timer_create_neutral(uint32_t clockid_p, uint32_t sevp_p, uint32_t ti
 
     if (sevp_p) {
         switch(sevp_guest->sigev_notify) {
-            case SIGEV_NONE:
-                evp.sigev_notify = SIGEV_NONE;
+            case NEUTRAL_SIGEV_NONE:
+                evp.sigev_notify = NEUTRAL_SIGEV_NONE;
                 break;
-            case SIGEV_SIGNAL:
-                evp.sigev_notify = SIGEV_SIGNAL;
+            case NEUTRAL_SIGEV_SIGNAL:
+                evp.sigev_notify = NEUTRAL_SIGEV_SIGNAL;
                 evp.sigev_signo = sevp_guest->sigev_signo;
                 /* FIXME: need to check kernel since doc is not clear which union part is use */
                 //evp.sigev_value.sival_ptr = (void *) g_2_h(sevp_guest->sigev_value.sival_ptr);
@@ -812,29 +802,28 @@ static int fstatfs64_neutral(uint32_t fd_p, uint32_t sz, uint32_t buf_p)
     return res;
 }
 
-#include <mqueue.h>
 static int mq_notify_neutral(uint32_t mqdes_p, uint32_t sevp_p)
 {
     long res;
-    mqd_t mqdes = (mqd_t) mqdes_p;
+    neutral_mqd_t mqdes = (neutral_mqd_t) mqdes_p;
     struct neutral_sigevent_32 *sevp_guest = (struct neutral_sigevent_32 *) g_2_h(sevp_p);
     struct neutral_sigevent_64 evp;
 
     if (sevp_p) {
         switch(sevp_guest->sigev_notify) {
-            case SIGEV_NONE:
-                evp.sigev_notify = SIGEV_NONE;
+            case NEUTRAL_SIGEV_NONE:
+                evp.sigev_notify = NEUTRAL_SIGEV_NONE;
                 break;
-            case SIGEV_SIGNAL:
-                evp.sigev_notify = SIGEV_SIGNAL;
+            case NEUTRAL_SIGEV_SIGNAL:
+                evp.sigev_notify = NEUTRAL_SIGEV_SIGNAL;
                 evp.sigev_signo = sevp_guest->sigev_signo;
                 /* FIXME: need to check kernel since doc is not clear which union part is use */
                 //evp.sigev_value.sival_ptr = (void *) g_2_h(sevp_guest->sigev_value.sival_ptr);
                 evp.sigev_value.sival_int = sevp_guest->sigev_value.sival_int;
                 break;
-            case SIGEV_THREAD:
+            case NEUTRAL_SIGEV_THREAD:
                 /* sigev_signo is in this case a file descriptor of an AF_NETLINK socket */
-                evp.sigev_notify = SIGEV_THREAD;
+                evp.sigev_notify = NEUTRAL_SIGEV_THREAD;
                 evp.sigev_signo = sevp_guest->sigev_signo;
                 evp.sigev_value.sival_ptr = ptr_2_int(g_2_h(sevp_guest->sigev_value.sival_ptr));
                 break;
@@ -934,9 +923,6 @@ static int mq_open_neutral(uint32_t name_p, uint32_t oflag_p, uint32_t mode_p, u
     return res;
 }
 
-#include <sys/ipc.h>
-#include <sys/shm.h>
-
 #define IPC_64      (0x100)
 static int shmctl_neutral(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
 {
@@ -947,12 +933,12 @@ static int shmctl_neutral(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
     assert(cmd&IPC_64);
     cmd &= ~IPC_64;
     switch(cmd) {
-        case IPC_RMID:
-        case SHM_LOCK:
-        case SHM_UNLOCK:
+        case NEUTRAL_IPC_RMID:
+        case NEUTRAL_SHM_LOCK:
+        case NEUTRAL_SHM_UNLOCK:
             res = syscall_neutral_64(PR_shmctl, shmid, cmd, (uint64_t) NULL, 0, 0, 0);
             break;
-        case IPC_SET:
+        case NEUTRAL_IPC_SET:
             {
                 struct neutral_shmid64_ds_32 *buf_guest = (struct neutral_shmid64_ds_32 *) g_2_h(buf_p);
                 struct neutral_shmid64_ds_64 buf;
@@ -988,8 +974,8 @@ static int shmctl_neutral(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
                 buf_guest->shm_lpid = buf.shm_lpid;
             }
             break;
-        case SHM_STAT:
-        case IPC_STAT:
+        case NEUTRAL_SHM_STAT:
+        case NEUTRAL_IPC_STAT:
             {
                 struct neutral_shmid64_ds_32 *buf_guest = (struct neutral_shmid64_ds_32 *) g_2_h(buf_p);
                 struct neutral_shmid64_ds_64 buf;
@@ -1012,7 +998,7 @@ static int shmctl_neutral(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
                 buf_guest->shm_nattch = buf.shm_nattch;
             }
             break;
-        case IPC_INFO:
+        case NEUTRAL_IPC_INFO:
             {
                 struct neutral_shminfo64_32 *buf_guest = (struct neutral_shminfo64_32 *) g_2_h(buf_p);
                 struct neutral_shminfo64_64 buf;
@@ -1026,7 +1012,7 @@ static int shmctl_neutral(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
                 buf_guest->shmall = buf.shmall;
             }
             break;
-        case SHM_INFO:
+        case NEUTRAL_SHM_INFO:
             {
                 struct neutral_shm_info_32 *buf_guest = (struct neutral_shm_info_32 *) g_2_h(buf_p);
                 struct neutral_shm_info_64 buf;
@@ -1048,30 +1034,20 @@ static int shmctl_neutral(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
     return res;
 }
 
-typedef int32_t key_serial_t;
-#ifndef KEYCTL_GET_KEYRING_ID
-#define KEYCTL_GET_KEYRING_ID       0   /* ask for a keyring's ID */
-#endif
-#ifndef KEYCTL_REVOKE
-#define KEYCTL_REVOKE           3   /* revoke a key */
-#endif
-#ifndef KEYCTL_READ
-#define KEYCTL_READ         11  /* read a key or keyring's contents */
-#endif
 static int keyctl_neutral(uint32_t cmd_p, uint32_t arg2_p, uint32_t arg3_p, uint32_t arg4_p, uint32_t arg5_p)
 {
     long res;
     int cmd = (int) cmd_p;
 
     switch(cmd) {
-        case KEYCTL_GET_KEYRING_ID:
-            res = syscall_neutral_64(PR_keyctl, cmd, (key_serial_t) arg2_p, (int) arg3_p, arg4_p, arg5_p, 0);
+        case NEUTRAL_KEYCTL_GET_KEYRING_ID:
+            res = syscall_neutral_64(PR_keyctl, cmd, (neutral_key_serial_t) arg2_p, (int) arg3_p, arg4_p, arg5_p, 0);
             break;
-        case KEYCTL_REVOKE:
-            res = syscall_neutral_64(PR_keyctl, cmd, (key_serial_t) arg2_p, arg3_p, arg4_p, arg5_p, 0);
+        case NEUTRAL_KEYCTL_REVOKE:
+            res = syscall_neutral_64(PR_keyctl, cmd, (neutral_key_serial_t) arg2_p, arg3_p, arg4_p, arg5_p, 0);
             break;
-        case KEYCTL_READ:
-            res = syscall_neutral_64(PR_keyctl, cmd, (key_serial_t) arg2_p, (uint64_t) g_2_h(arg3_p), (size_t) arg4_p, arg5_p, 0);
+        case NEUTRAL_KEYCTL_READ:
+            res = syscall_neutral_64(PR_keyctl, cmd, (neutral_key_serial_t) arg2_p, (uint64_t) g_2_h(arg3_p), (size_t) arg4_p, arg5_p, 0);
             break;
         default:
             fatal("keyctl cmd %d not supported\n", cmd);
@@ -1102,7 +1078,7 @@ static int futimesat_neutral(uint32_t dirfd_p, uint32_t pathname_p, uint32_t tim
 static int mq_timedsend_neutral(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t msg_len_p, uint32_t msg_prio_p, uint32_t abs_timeout_p)
 {
     int res;
-    mqd_t mqdes = (mqd_t) mqdes_p;
+    neutral_mqd_t mqdes = (neutral_mqd_t) mqdes_p;
     char *msg_ptr = (char *) g_2_h(msg_ptr_p);
     size_t msg_len = (size_t) msg_len_p;
     unsigned int msg_prio = (unsigned int) msg_prio_p;
@@ -1118,9 +1094,6 @@ static int mq_timedsend_neutral(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t m
     return res;
 }
 
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/sem.h>
 static int semctl_neutral(uint32_t semid_p, uint32_t semnum_p, uint32_t cmd_p, uint32_t arg0_p)
 {
     long res;
@@ -1131,14 +1104,14 @@ static int semctl_neutral(uint32_t semid_p, uint32_t semnum_p, uint32_t cmd_p, u
     assert(cmd&IPC_64);
     cmd &= ~IPC_64;
     switch(cmd) {
-        case GETVAL:
-        case GETNCNT:
-        case IPC_RMID:
-        case GETPID:
-        case GETZCNT:
+        case NEUTRAL_GETVAL:
+        case NEUTRAL_GETNCNT:
+        case NEUTRAL_IPC_RMID:
+        case NEUTRAL_GETPID:
+        case NEUTRAL_GETZCNT:
             res = syscall_neutral_64(PR_semctl, semid, semnum, cmd, 0, 0, 0);
             break;
-        case IPC_SET:
+        case NEUTRAL_IPC_SET:
             {
                 struct neutral_semid64_ds_32 *arg_guest = (struct neutral_semid64_ds_32 *) g_2_h(arg0_p);
                 struct neutral_semid64_ds_64 buf;
@@ -1170,8 +1143,8 @@ static int semctl_neutral(uint32_t semid_p, uint32_t semnum_p, uint32_t cmd_p, u
                 }
             }
             break;
-        case SEM_STAT:
-        case IPC_STAT:
+        case NEUTRAL_SEM_STAT:
+        case NEUTRAL_IPC_STAT:
             {
                 struct neutral_semid64_ds_32 *arg_guest = (struct neutral_semid64_ds_32 *) g_2_h(arg0_p);
                 struct neutral_semid64_ds_64 buf;
@@ -1193,29 +1166,29 @@ static int semctl_neutral(uint32_t semid_p, uint32_t semnum_p, uint32_t cmd_p, u
                 }
             }
             break;
-        case SEM_INFO:
-        case IPC_INFO:
+        case NEUTRAL_SEM_INFO:
+        case NEUTRAL_IPC_INFO:
             {
                  struct seminfo* seminfo = (struct seminfo *) g_2_h(arg0_p);
 
                  res = syscall_neutral_64(PR_semctl, semid, semnum, cmd, (uint64_t) seminfo, 0, 0);
             }
             break;
-        case GETALL:
+        case NEUTRAL_GETALL:
             {
                 unsigned short *array = (unsigned short *) g_2_h(arg0_p);
 
                 res = syscall_neutral_64(PR_semctl, semid, semnum, cmd, (uint64_t) array, 0, 0);
             }
             break;
-        case SETVAL:
+        case NEUTRAL_SETVAL:
             {
                 int val = (int) arg0_p;
 
                 res = syscall_neutral_64(PR_semctl, semid, semnum, cmd, val, 0, 0);
             }
             break;
-        case SETALL:
+        case NEUTRAL_SETALL:
             {
                 unsigned short *array = (unsigned short *) g_2_h(arg0_p);
 
@@ -1252,9 +1225,6 @@ static int msgsnd_neutral(uint32_t msqid_p, uint32_t msgp_p, uint32_t msgsz_p, u
     return res;
 }
 
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/msg.h>
 static int msgctl_neutral(uint32_t msqid_p, uint32_t cmd_p, uint32_t buf_p)
 {
     long res;
@@ -1264,10 +1234,10 @@ static int msgctl_neutral(uint32_t msqid_p, uint32_t cmd_p, uint32_t buf_p)
     assert(cmd&IPC_64);
     cmd &= ~IPC_64;
     switch(cmd) {
-        case IPC_RMID:
+        case NEUTRAL_IPC_RMID:
             res = syscall_neutral_64(PR_msgctl, msqid, cmd, 0, 0, 0, 0);
             break;
-        case IPC_SET:
+        case NEUTRAL_IPC_SET:
             {
                 struct neutral_msqid64_ds_32 *buf_guest = (struct neutral_msqid64_ds_32 *) g_2_h(buf_p);
                 struct neutral_msqid64_ds_64 buf;
@@ -1309,8 +1279,8 @@ static int msgctl_neutral(uint32_t msqid_p, uint32_t cmd_p, uint32_t buf_p)
                 }
             }
             break;
-        case MSG_STAT:
-        case IPC_STAT:
+        case NEUTRAL_MSG_STAT:
+        case NEUTRAL_IPC_STAT:
             {
                 struct neutral_msqid64_ds_32 *buf_guest = (struct neutral_msqid64_ds_32 *) g_2_h(buf_p);
                 struct neutral_msqid64_ds_64 buf;
@@ -1337,8 +1307,8 @@ static int msgctl_neutral(uint32_t msqid_p, uint32_t cmd_p, uint32_t buf_p)
                 }
             }
             break;
-        case IPC_INFO:
-        case MSG_INFO:
+        case NEUTRAL_IPC_INFO:
+        case NEUTRAL_MSG_INFO:
             res = syscall_neutral_64(PR_msgctl, msqid, cmd, (uint64_t) g_2_h(buf_p), 0, 0, 0);
             break;
         default:
@@ -1351,7 +1321,7 @@ static int msgctl_neutral(uint32_t msqid_p, uint32_t cmd_p, uint32_t buf_p)
 static int mq_timedreceive_neutral(uint32_t mqdes_p, uint32_t msg_ptr_p, uint32_t msg_len_p, uint32_t msg_prio_p, uint32_t abs_timeout_p)
 {
     long res;
-    mqd_t mqdes = (mqd_t) mqdes_p;
+    neutral_mqd_t mqdes = (neutral_mqd_t) mqdes_p;
     char *msg_ptr = (char *) g_2_h(msg_ptr_p);
     size_t msg_len = (size_t) msg_len_p;
     unsigned int *msg_prio = (unsigned int *) g_2_h(msg_prio_p);
@@ -1409,12 +1379,11 @@ static int pselect6_neutral(uint32_t nfds_p, uint32_t readfds_p, uint32_t writef
     return res;
 }
 
-#include <poll.h>
 static int ppoll_neutral(uint32_t fds_p, uint32_t nfds_p, uint32_t timeout_ts_p, uint32_t sigmask_p, uint32_t sigsetsize_p)
 {
     int res;
     struct neutral_pollfd *fds = (struct neutral_pollfd *) g_2_h(fds_p);
-    nfds_t nfds = (nfds_t) nfds_p;
+    unsigned int nfds = (unsigned int) nfds_p;
     struct neutral_timespec_32 *timeout_ts_guest = (struct neutral_timespec_32 *) g_2_h(timeout_ts_p);
     sigset_t *sigmask = (sigset_t *) g_2_h(sigmask_p);
     size_t sigsetsize = (size_t) sigsetsize_p;
@@ -1597,7 +1566,7 @@ static int rt_sigtimedwait_neutral(uint32_t set_p, uint32_t info_p, uint32_t tim
         timeout.tv_sec = timeout_guest->tv_sec;
         timeout.tv_nsec = timeout_guest->tv_nsec;
     }
-    res = syscall_neutral_64(PR_rt_sigtimedwait, (uint64_t) set, (uint64_t) (info_p?&info:NULL), (uint64_t) (timeout_p?&timeout:NULL), _NSIG / 8, 0, 0);
+    res = syscall_neutral_64(PR_rt_sigtimedwait, (uint64_t) set, (uint64_t) (info_p?&info:NULL), (uint64_t) (timeout_p?&timeout:NULL), NEUTRAL__NSIG / 8, 0, 0);
     if (info_p) {
         info_guest->si_signo = info.si_signo;
         info_guest->si_code = info.si_code;
@@ -1634,8 +1603,6 @@ static int msgrcv_neutral(uint32_t msqid_p, uint32_t msgp_p, uint32_t msgsz_p, u
     return res;
 }
 
-#include <sys/types.h>
-#include <sys/socket.h>
 static int sendmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
 {
     long res;
@@ -1685,7 +1652,7 @@ static int clock_settime_neutral(uint32_t clk_id_p, uint32_t tp_p)
 static int mq_getsetattr_neutral(uint32_t mqdes_p, uint32_t newattr_p, uint32_t oldattr_p)
 {
     long res;
-    mqd_t mqdes = (mqd_t) mqdes_p;
+    neutral_mqd_t mqdes = (neutral_mqd_t) mqdes_p;
     struct neutral_mq_attr_32 *newattr_guest = (struct neutral_mq_attr_32 *) g_2_h(newattr_p);
     struct neutral_mq_attr_32 *oldattr_guest = (struct neutral_mq_attr_32 *) g_2_h(oldattr_p);
     struct neutral_mq_attr_64 newattr;
