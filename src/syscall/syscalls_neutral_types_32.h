@@ -215,22 +215,21 @@ struct neutral_mq_attr_32 {
     int32_t __reserved[4];
 };
 
-struct neutral_ipc_perm_32 {
-    int32_t __key;
+struct neutral_ipc64_perm_32 {
+    int32_t key;
     uint32_t uid;
     uint32_t gid;
     uint32_t cuid;
     uint32_t cgid;
-    uint16_t mode;
-    uint16_t __pad1;
-    uint16_t __seq;
+    uint32_t mode;
+    uint16_t seq;
     uint16_t __pad2;
     uint32_t __unused1;
     uint32_t __unused2;
 };
 
-struct neutral_shmid_ds_32 {
-    struct neutral_ipc_perm_32 shm_perm;
+struct neutral_shmid64_ds_32 {
+    struct neutral_ipc64_perm_32 shm_perm;
     uint32_t shm_segsz;
     int32_t shm_atime;
     uint32_t __unused1;
@@ -266,13 +265,13 @@ struct neutral_shm_info_32 {
     uint32_t swap_successes;
 };
 
-struct neutral_semid_ds_32 {
-    struct neutral_ipc_perm_32 sem_perm;  /* Ownership and permissions */
-    uint32_t sem_otime; /* Last semop time */
+struct neutral_semid64_ds_32 {
+    struct neutral_ipc64_perm_32 sem_perm;
+    int32_t sem_otime; /* last semop time */
     uint32_t __unused1;
-    uint32_t sem_ctime; /* Last change time */
+    int32_t sem_ctime; /* last change time */
     uint32_t __unused2;
-    uint32_t sem_nsems; /* No. of semaphores in set */
+    uint32_t sem_nsems; /* no. of semaphores in array */
     uint32_t __unused3;
     uint32_t __unused4;
 };
@@ -282,32 +281,21 @@ struct neutral_msgbuf_32 {
     char mtext[1];
 };
 
-struct neutral_msqid_ds_32 {
-    struct neutral_ipc_perm_32 msg_perm;
-    uint32_t msg_stime;
+struct neutral_msqid64_ds_32 {
+    struct neutral_ipc64_perm_32 msg_perm;
+    int32_t msg_stime;
     uint32_t __unused1;
-    uint32_t msg_rtime;
+    int32_t msg_rtime;
     uint32_t __unused2;
-    uint32_t msg_ctime;
+    int32_t msg_ctime;
     uint32_t __unused3;
     uint32_t __msg_cbytes;
     uint32_t msg_qnum;
     uint32_t msg_qbytes;
-    uint32_t msg_lspid;
-    uint32_t msg_lrpid;
+    int32_t msg_lspid;
+    int32_t msg_lrpid;
     uint32_t __unused4;
     uint32_t __unused5;
-};
-
-struct neutral_msginfo_32 {
-    uint32_t msgpool;
-    uint32_t msgmap;
-    uint32_t msgmax;
-    uint32_t msgmnb;
-    uint32_t msgmni;
-    uint32_t msgssz;
-    uint32_t msgtql;
-    uint16_t msgseg;
 };
 
 struct neutral_flock64_32 {

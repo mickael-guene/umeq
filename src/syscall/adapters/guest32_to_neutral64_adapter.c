@@ -944,6 +944,7 @@ static int shmctl_neutral(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
     int shmid = (int) shmid_p;
     int cmd = (int) cmd_p;
 
+    assert(cmd&IPC_64);
     cmd &= ~IPC_64;
     switch(cmd) {
         case IPC_RMID:
@@ -953,16 +954,16 @@ static int shmctl_neutral(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
             break;
         case IPC_SET:
             {
-                struct neutral_shmid_ds_32 *buf_guest = (struct neutral_shmid_ds_32 *) g_2_h(buf_p);
-                struct shmid_ds buf;
+                struct neutral_shmid64_ds_32 *buf_guest = (struct neutral_shmid64_ds_32 *) g_2_h(buf_p);
+                struct neutral_shmid64_ds_64 buf;
 
-                buf.shm_perm.__key = buf_guest->shm_perm.__key;
+                buf.shm_perm.key = buf_guest->shm_perm.key;
                 buf.shm_perm.uid = buf_guest->shm_perm.uid;
                 buf.shm_perm.gid = buf_guest->shm_perm.gid;
                 buf.shm_perm.cuid = buf_guest->shm_perm.cuid;
                 buf.shm_perm.cgid = buf_guest->shm_perm.cgid;
                 buf.shm_perm.mode = buf_guest->shm_perm.mode;
-                buf.shm_perm.__seq = buf_guest->shm_perm.__seq;
+                buf.shm_perm.seq = buf_guest->shm_perm.seq;
                 buf.shm_segsz = buf_guest->shm_segsz;
                 buf.shm_atime = buf_guest->shm_atime;
                 buf.shm_dtime = buf_guest->shm_dtime;
@@ -972,13 +973,13 @@ static int shmctl_neutral(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
 
                 res = syscall_neutral_64(PR_shmctl, shmid, cmd, (uint64_t) &buf, 0, 0, 0);
 
-                buf_guest->shm_perm.__key = buf.shm_perm.__key;
+                buf_guest->shm_perm.key = buf.shm_perm.key;
                 buf_guest->shm_perm.uid = buf.shm_perm.uid;
                 buf_guest->shm_perm.gid = buf.shm_perm.gid;
                 buf_guest->shm_perm.cuid = buf.shm_perm.cuid;
                 buf_guest->shm_perm.cgid = buf.shm_perm.cgid;
                 buf_guest->shm_perm.mode = buf.shm_perm.mode;
-                buf_guest->shm_perm.__seq = buf.shm_perm.__seq;
+                buf_guest->shm_perm.seq = buf.shm_perm.seq;
                 buf_guest->shm_segsz = buf.shm_segsz;
                 buf_guest->shm_atime = buf.shm_atime;
                 buf_guest->shm_dtime = buf.shm_dtime;
@@ -990,18 +991,18 @@ static int shmctl_neutral(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
         case SHM_STAT:
         case IPC_STAT:
             {
-                struct neutral_shmid_ds_32 *buf_guest = (struct neutral_shmid_ds_32 *) g_2_h(buf_p);
-                struct shmid_ds buf;
+                struct neutral_shmid64_ds_32 *buf_guest = (struct neutral_shmid64_ds_32 *) g_2_h(buf_p);
+                struct neutral_shmid64_ds_64 buf;
 
                 res = syscall_neutral_64(PR_shmctl, shmid, cmd, (uint64_t) &buf, 0, 0, 0);
 
-                buf_guest->shm_perm.__key = buf.shm_perm.__key;
+                buf_guest->shm_perm.key = buf.shm_perm.key;
                 buf_guest->shm_perm.uid = buf.shm_perm.uid;
                 buf_guest->shm_perm.gid = buf.shm_perm.gid;
                 buf_guest->shm_perm.cuid = buf.shm_perm.cuid;
                 buf_guest->shm_perm.cgid = buf.shm_perm.cgid;
                 buf_guest->shm_perm.mode = buf.shm_perm.mode;
-                buf_guest->shm_perm.__seq = buf.shm_perm.__seq;
+                buf_guest->shm_perm.seq = buf.shm_perm.seq;
                 buf_guest->shm_segsz = buf.shm_segsz;
                 buf_guest->shm_atime = buf.shm_atime;
                 buf_guest->shm_dtime = buf.shm_dtime;
@@ -1014,7 +1015,7 @@ static int shmctl_neutral(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
         case IPC_INFO:
             {
                 struct neutral_shminfo64_32 *buf_guest = (struct neutral_shminfo64_32 *) g_2_h(buf_p);
-                struct shminfo buf;
+                struct neutral_shminfo64_64 buf;
 
                 res = syscall_neutral_64(PR_shmctl, shmid, cmd, (uint64_t) &buf, 0, 0, 0);
 
@@ -1028,7 +1029,7 @@ static int shmctl_neutral(uint32_t shmid_p, uint32_t cmd_p, uint32_t buf_p)
         case SHM_INFO:
             {
                 struct neutral_shm_info_32 *buf_guest = (struct neutral_shm_info_32 *) g_2_h(buf_p);
-                struct shm_info buf;
+                struct neutral_shm_info_64 buf;
 
                 res = syscall_neutral_64(PR_shmctl, shmid, cmd, (uint64_t) &buf, 0, 0, 0);
 
@@ -1127,6 +1128,7 @@ static int semctl_neutral(uint32_t semid_p, uint32_t semnum_p, uint32_t cmd_p, u
     int semnum = (int) semnum_p;
     int cmd = (int) cmd_p;
 
+    assert(cmd&IPC_64);
     cmd &= ~IPC_64;
     switch(cmd) {
         case GETVAL:
@@ -1138,30 +1140,30 @@ static int semctl_neutral(uint32_t semid_p, uint32_t semnum_p, uint32_t cmd_p, u
             break;
         case IPC_SET:
             {
-                struct semid_ds buf;
-                struct neutral_semid_ds_32 *arg_guest = (struct neutral_semid_ds_32 *) g_2_h(arg0_p);
+                struct neutral_semid64_ds_32 *arg_guest = (struct neutral_semid64_ds_32 *) g_2_h(arg0_p);
+                struct neutral_semid64_ds_64 buf;
 
                 if (arg0_p == 0 || arg0_p == 0xffffffff)
                     res = -EFAULT;
                 else {
-                    buf.sem_perm.__key = arg_guest->sem_perm.__key;
+                    buf.sem_perm.key = arg_guest->sem_perm.key;
                     buf.sem_perm.uid = arg_guest->sem_perm.uid;
                     buf.sem_perm.gid = arg_guest->sem_perm.gid;
                     buf.sem_perm.cuid = arg_guest->sem_perm.cuid;
                     buf.sem_perm.cgid = arg_guest->sem_perm.cgid;
                     buf.sem_perm.mode = arg_guest->sem_perm.mode;
-                    buf.sem_perm.__seq = arg_guest->sem_perm.__seq;
+                    buf.sem_perm.seq = arg_guest->sem_perm.seq;
                     buf.sem_otime = arg_guest->sem_otime;
                     buf.sem_ctime = arg_guest->sem_ctime;
                     buf.sem_nsems = arg_guest->sem_nsems;
                     res = syscall_neutral_64(PR_semctl, semid, semnum, cmd, (uint64_t) &buf, 0, 0);
-                    arg_guest->sem_perm.__key = buf.sem_perm.__key;
+                    arg_guest->sem_perm.key = buf.sem_perm.key;
                     arg_guest->sem_perm.uid = buf.sem_perm.uid;
                     arg_guest->sem_perm.gid = buf.sem_perm.gid;
                     arg_guest->sem_perm.cuid = buf.sem_perm.cuid;
                     arg_guest->sem_perm.cgid = buf.sem_perm.cgid;
                     arg_guest->sem_perm.mode = buf.sem_perm.mode;
-                    arg_guest->sem_perm.__seq = buf.sem_perm.__seq;
+                    arg_guest->sem_perm.seq = buf.sem_perm.seq;
                     arg_guest->sem_otime = buf.sem_otime;
                     arg_guest->sem_ctime = buf.sem_ctime;
                     arg_guest->sem_nsems = buf.sem_nsems;
@@ -1171,20 +1173,20 @@ static int semctl_neutral(uint32_t semid_p, uint32_t semnum_p, uint32_t cmd_p, u
         case SEM_STAT:
         case IPC_STAT:
             {
-                struct semid_ds buf;
-                struct neutral_semid_ds_32 *arg_guest = (struct neutral_semid_ds_32 *) g_2_h(arg0_p);
+                struct neutral_semid64_ds_32 *arg_guest = (struct neutral_semid64_ds_32 *) g_2_h(arg0_p);
+                struct neutral_semid64_ds_64 buf;
 
                 if (arg0_p == 0 || arg0_p == 0xffffffff)
                     res = -EFAULT;
                 else {
                     res = syscall_neutral_64(PR_semctl, semid, semnum, cmd, (uint64_t) &buf, 0, 0);
-                    arg_guest->sem_perm.__key = buf.sem_perm.__key;
+                    arg_guest->sem_perm.key = buf.sem_perm.key;
                     arg_guest->sem_perm.uid = buf.sem_perm.uid;
                     arg_guest->sem_perm.gid = buf.sem_perm.gid;
                     arg_guest->sem_perm.cuid = buf.sem_perm.cuid;
                     arg_guest->sem_perm.cgid = buf.sem_perm.cgid;
                     arg_guest->sem_perm.mode = buf.sem_perm.mode;
-                    arg_guest->sem_perm.__seq = buf.sem_perm.__seq;
+                    arg_guest->sem_perm.seq = buf.sem_perm.seq;
                     arg_guest->sem_otime = buf.sem_otime;
                     arg_guest->sem_ctime = buf.sem_ctime;
                     arg_guest->sem_nsems = buf.sem_nsems;
@@ -1259,6 +1261,7 @@ static int msgctl_neutral(uint32_t msqid_p, uint32_t cmd_p, uint32_t buf_p)
     int msqid = (int) msqid_p;
     int cmd = (int) cmd_p;
 
+    assert(cmd&IPC_64);
     cmd &= ~IPC_64;
     switch(cmd) {
         case IPC_RMID:
@@ -1266,19 +1269,19 @@ static int msgctl_neutral(uint32_t msqid_p, uint32_t cmd_p, uint32_t buf_p)
             break;
         case IPC_SET:
             {
-                struct neutral_msqid_ds_32 *buf_guest = (struct neutral_msqid_ds_32 *) g_2_h(buf_p);
-                struct msqid_ds buf;
+                struct neutral_msqid64_ds_32 *buf_guest = (struct neutral_msqid64_ds_32 *) g_2_h(buf_p);
+                struct neutral_msqid64_ds_64 buf;
 
                 if (buf_p == 0 || buf_p == 0xffffffff)
                     res = -EFAULT;
                 else {
-                    buf.msg_perm.__key = buf_guest->msg_perm.__key;
+                    buf.msg_perm.key = buf_guest->msg_perm.key;
                     buf.msg_perm.uid = buf_guest->msg_perm.uid;
                     buf.msg_perm.gid = buf_guest->msg_perm.gid;
                     buf.msg_perm.cuid = buf_guest->msg_perm.cuid;
                     buf.msg_perm.cgid = buf_guest->msg_perm.cgid;
                     buf.msg_perm.mode = buf_guest->msg_perm.mode;
-                    buf.msg_perm.__seq = buf_guest->msg_perm.__seq;
+                    buf.msg_perm.seq = buf_guest->msg_perm.seq;
                     buf.msg_stime = buf_guest->msg_stime;
                     buf.msg_rtime = buf_guest->msg_rtime;
                     buf.msg_ctime = buf_guest->msg_ctime;
@@ -1288,13 +1291,13 @@ static int msgctl_neutral(uint32_t msqid_p, uint32_t cmd_p, uint32_t buf_p)
                     buf.msg_lspid = buf_guest->msg_lspid;
                     buf.msg_lrpid = buf_guest->msg_lrpid;
                     res = syscall_neutral_64(PR_msgctl, msqid, cmd, (uint64_t) &buf, 0, 0, 0);
-                    buf_guest->msg_perm.__key = buf.msg_perm.__key;
+                    buf_guest->msg_perm.key = buf.msg_perm.key;
                     buf_guest->msg_perm.uid = buf.msg_perm.uid;
                     buf_guest->msg_perm.gid = buf.msg_perm.gid;
                     buf_guest->msg_perm.cuid = buf.msg_perm.cuid;
                     buf_guest->msg_perm.cgid = buf.msg_perm.cgid;
                     buf_guest->msg_perm.mode = buf.msg_perm.mode;
-                    buf_guest->msg_perm.__seq = buf.msg_perm.__seq;
+                    buf_guest->msg_perm.seq = buf.msg_perm.seq;
                     buf_guest->msg_stime = buf.msg_stime;
                     buf_guest->msg_rtime = buf.msg_rtime;
                     buf_guest->msg_ctime = buf.msg_ctime;
@@ -1306,22 +1309,23 @@ static int msgctl_neutral(uint32_t msqid_p, uint32_t cmd_p, uint32_t buf_p)
                 }
             }
             break;
+        case MSG_STAT:
         case IPC_STAT:
             {
-                struct neutral_msqid_ds_32 *buf_guest = (struct neutral_msqid_ds_32 *) g_2_h(buf_p);
-                struct msqid_ds buf;
+                struct neutral_msqid64_ds_32 *buf_guest = (struct neutral_msqid64_ds_32 *) g_2_h(buf_p);
+                struct neutral_msqid64_ds_64 buf;
 
                 if (buf_p == 0 || buf_p == 0xffffffff)
                     res = -EFAULT;
                 else {
                     res = syscall_neutral_64(PR_msgctl, msqid, cmd, (uint64_t) &buf, 0, 0, 0);
-                    buf_guest->msg_perm.__key = buf.msg_perm.__key;
+                    buf_guest->msg_perm.key = buf.msg_perm.key;
                     buf_guest->msg_perm.uid = buf.msg_perm.uid;
                     buf_guest->msg_perm.gid = buf.msg_perm.gid;
                     buf_guest->msg_perm.cuid = buf.msg_perm.cuid;
                     buf_guest->msg_perm.cgid = buf.msg_perm.cgid;
                     buf_guest->msg_perm.mode = buf.msg_perm.mode;
-                    buf_guest->msg_perm.__seq = buf.msg_perm.__seq;
+                    buf_guest->msg_perm.seq = buf.msg_perm.seq;
                     buf_guest->msg_stime = buf.msg_stime;
                     buf_guest->msg_rtime = buf.msg_rtime;
                     buf_guest->msg_ctime = buf.msg_ctime;
@@ -1334,70 +1338,8 @@ static int msgctl_neutral(uint32_t msqid_p, uint32_t cmd_p, uint32_t buf_p)
             }
             break;
         case IPC_INFO:
-            {
-                struct neutral_msginfo_32 *buf_guest = (struct neutral_msginfo_32 *) g_2_h(buf_p);
-                struct msginfo buf;
-
-                if (buf_p == 0 || buf_p == 0xffffffff)
-                    res = -EFAULT;
-                else {
-                    res = syscall_neutral_64(PR_msgctl, msqid, cmd, (uint64_t) &buf, 0, 0, 0);
-                    buf_guest->msgpool = buf.msgpool;
-                    buf_guest->msgmap = buf.msgmap;
-                    buf_guest->msgmax = buf.msgmax;
-                    buf_guest->msgmnb = buf.msgmnb;
-                    buf_guest->msgmni = buf.msgmni;
-                    buf_guest->msgssz = buf.msgssz;
-                    buf_guest->msgtql = buf.msgtql;
-                    buf_guest->msgseg = buf.msgseg;
-                }
-            }
-        case MSG_STAT:
-            {
-                struct neutral_msqid_ds_32 *buf_guest = (struct neutral_msqid_ds_32 *) g_2_h(buf_p);
-                struct msqid_ds buf;
-
-                if (buf_p == 0 || buf_p == 0xffffffff)
-                    res = -EFAULT;
-                else {
-                    res = syscall_neutral_64(PR_msgctl, msqid, cmd, (uint64_t) &buf, 0, 0, 0);
-                    buf_guest->msg_perm.__key = buf.msg_perm.__key;
-                    buf_guest->msg_perm.uid = buf.msg_perm.uid;
-                    buf_guest->msg_perm.gid = buf.msg_perm.gid;
-                    buf_guest->msg_perm.cuid = buf.msg_perm.cuid;
-                    buf_guest->msg_perm.cgid = buf.msg_perm.cgid;
-                    buf_guest->msg_perm.mode = buf.msg_perm.mode;
-                    buf_guest->msg_perm.__seq = buf.msg_perm.__seq;
-                    buf_guest->msg_stime = buf.msg_stime;
-                    buf_guest->msg_rtime = buf.msg_rtime;
-                    buf_guest->msg_ctime = buf.msg_ctime;
-                    buf_guest->__msg_cbytes = buf.__msg_cbytes;
-                    buf_guest->msg_qnum = buf.msg_qnum;
-                    buf_guest->msg_qbytes = buf.msg_qbytes;
-                    buf_guest->msg_lspid = buf.msg_lspid;
-                    buf_guest->msg_lrpid = buf.msg_lrpid;
-                }
-            }
-            break;
         case MSG_INFO:
-            {
-                struct neutral_msginfo_32 *buf_guest = (struct neutral_msginfo_32 *) g_2_h(buf_p);
-                struct msginfo buf;
-
-                if (buf_p == 0 || buf_p == 0xffffffff)
-                    res = -EFAULT;
-                else {
-                    res = syscall_neutral_64(PR_msgctl, msqid, cmd, (uint64_t) &buf, 0, 0, 0);
-                    buf_guest->msgpool = buf.msgpool;
-                    buf_guest->msgmap = buf.msgmap;
-                    buf_guest->msgmax = buf.msgmax;
-                    buf_guest->msgmnb = buf.msgmnb;
-                    buf_guest->msgmni = buf.msgmni;
-                    buf_guest->msgssz = buf.msgssz;
-                    buf_guest->msgtql = buf.msgtql;
-                    buf_guest->msgseg = buf.msgseg;
-                }
-            }
+            res = syscall_neutral_64(PR_msgctl, msqid, cmd, (uint64_t) g_2_h(buf_p), 0, 0, 0);
             break;
         default:
             fatal("msgctl_neutral: unsupported command %d\n", cmd);

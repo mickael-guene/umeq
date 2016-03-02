@@ -166,6 +166,69 @@ static long epoll_wait_neutral(uint64_t epfd_p, uint64_t events_p, uint64_t maxe
     return res;
 }
 
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/sem.h>
+static long semctl_neutral(uint64_t semid_p, uint64_t semnum_p, uint64_t cmd_p, uint64_t arg0_p)
+{
+    long res;
+    int cmd = (int) cmd_p;
+
+    switch(cmd) {
+        case IPC_SET:
+            {
+                struct neutral_semid64_ds_64 *buf_neutral = (struct neutral_semid64_ds_64 *) arg0_p;
+                struct semid_ds buf;
+
+                buf.sem_perm.__key = buf_neutral->sem_perm.key;
+                buf.sem_perm.uid = buf_neutral->sem_perm.uid;
+                buf.sem_perm.gid = buf_neutral->sem_perm.gid;
+                buf.sem_perm.cuid = buf_neutral->sem_perm.cuid;
+                buf.sem_perm.cgid = buf_neutral->sem_perm.cgid;
+                buf.sem_perm.mode = buf_neutral->sem_perm.mode;
+                buf.sem_perm.__seq = buf_neutral->sem_perm.seq;
+                buf.sem_otime = buf_neutral->sem_otime;
+                buf.sem_ctime = buf_neutral->sem_ctime;
+                buf.sem_nsems = buf_neutral->sem_nsems;
+                res = syscall(SYS_semctl, semid_p, semnum_p, cmd_p, &buf);
+                buf_neutral->sem_perm.key = buf.sem_perm.__key;
+                buf_neutral->sem_perm.uid = buf.sem_perm.uid;
+                buf_neutral->sem_perm.gid = buf.sem_perm.gid;
+                buf_neutral->sem_perm.cuid = buf.sem_perm.cuid;
+                buf_neutral->sem_perm.cgid = buf.sem_perm.cgid;
+                buf_neutral->sem_perm.mode = buf.sem_perm.mode;
+                buf_neutral->sem_perm.seq = buf.sem_perm.__seq;
+                buf_neutral->sem_otime = buf.sem_otime;
+                buf_neutral->sem_ctime = buf.sem_ctime;
+                buf_neutral->sem_nsems = buf.sem_nsems;
+            }
+            break;
+        case SEM_STAT:
+        case IPC_STAT:
+            {
+                struct neutral_semid64_ds_64 *buf_neutral = (struct neutral_semid64_ds_64 *) arg0_p;
+                struct semid_ds buf;
+
+                res = syscall(SYS_semctl, semid_p, semnum_p, cmd_p, &buf);
+                buf_neutral->sem_perm.key = buf.sem_perm.__key;
+                buf_neutral->sem_perm.uid = buf.sem_perm.uid;
+                buf_neutral->sem_perm.gid = buf.sem_perm.gid;
+                buf_neutral->sem_perm.cuid = buf.sem_perm.cuid;
+                buf_neutral->sem_perm.cgid = buf.sem_perm.cgid;
+                buf_neutral->sem_perm.mode = buf.sem_perm.mode;
+                buf_neutral->sem_perm.seq = buf.sem_perm.__seq;
+                buf_neutral->sem_otime = buf.sem_otime;
+                buf_neutral->sem_ctime = buf.sem_ctime;
+                buf_neutral->sem_nsems = buf.sem_nsems;
+            }
+            break;
+        default:
+            res = syscall(SYS_semctl, semid_p, semnum_p, cmd_p, arg0_p);
+    }
+
+    return res;
+}
+
 long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, uint64_t p5)
 {
     int res = -ENOSYS;
@@ -619,7 +682,7 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
             res = syscall(SYS_sched_yield);
             break;
         case PR_semctl:
-            res = syscall(SYS_semctl, p0, p1, p2, p3);
+            res = semctl_neutral(p0, p1, p2, p3);
             break;
         case PR_semget:
             res = syscall(SYS_semget, p0, p1, p2);

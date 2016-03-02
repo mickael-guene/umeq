@@ -178,32 +178,6 @@ struct neutral_mq_attr_64 {
     int64_t __reserved[4];
 };
 
-struct neutral_ipc_perm_64 {
-    int32_t __key;
-    uint32_t uid;
-    uint32_t gid;
-    uint32_t cuid;
-    uint32_t cgid;
-    uint32_t mode;
-    uint16_t seq;
-    uint16_t __pad0;
-};
-
-struct neutral_shmid_ds_64 {
-    struct neutral_ipc_perm_64 shm_perm;
-    int32_t shm_segsz;
-    uint32_t __pad0;
-    int64_t shm_atime;
-    int64_t shm_dtime;
-    int64_t shm_ctime;
-    int32_t shm_cpid;
-    int32_t shm_lpid;
-    uint16_t shm_nattch;
-    uint16_t shm_unused;
-    uint64_t shm_unused2;
-    uint64_t shm_unused3;
-};
-
 typedef struct neutral_siginfo_64 {
     int32_t si_signo;
     int32_t si_errno;
@@ -262,6 +236,78 @@ struct neutral_msghdr_64 {
 struct neutral_mmsghdr_64 {
     struct neutral_msghdr_64 msg_hdr;
     uint32_t msg_len;
+};
+
+struct neutral_ipc64_perm_64 {
+    int32_t key;
+    uint32_t uid;
+    uint32_t gid;
+    uint32_t cuid;
+    uint32_t cgid;
+    uint32_t mode;
+    uint16_t seq;
+    uint16_t __pad2;
+    uint32_t __pad3;
+    uint64_t __unused1;
+    uint64_t __unused2;
+};
+
+struct neutral_shmid64_ds_64 {
+    struct neutral_ipc64_perm_64 shm_perm;
+    uint64_t shm_segsz;
+    int64_t shm_atime;
+    int64_t shm_dtime;
+    int64_t shm_ctime;
+    int32_t shm_cpid;
+    int32_t shm_lpid;
+    uint64_t shm_nattch;
+    uint64_t __unused4;
+    uint64_t __unused5;
+};
+
+struct neutral_shminfo64_64 {
+    uint64_t shmmax;
+    uint64_t shmmin;
+    uint64_t shmmni;
+    uint64_t shmseg;
+    uint64_t shmall;
+    uint64_t __unused1;
+    uint64_t __unused2;
+    uint64_t __unused3;
+    uint64_t __unused4;
+};
+
+struct neutral_shm_info_64 {
+    int32_t used_ids;
+    uint32_t __pad0;
+    uint64_t shm_tot;
+    uint64_t shm_rss;
+    uint64_t shm_swp;
+    uint64_t swap_attempts;
+    uint64_t swap_successes;
+};
+
+struct neutral_semid64_ds_64 {
+    struct neutral_ipc64_perm_64 sem_perm;
+    int64_t sem_otime; /* last semop time */
+    int64_t sem_ctime; /* last change time */
+    uint64_t sem_nsems; /* no. of semaphores in array */
+    uint64_t __unused3;
+    uint64_t __unused4;
+};
+
+struct neutral_msqid64_ds_64 {
+    struct neutral_ipc64_perm_64 msg_perm;
+    int64_t msg_stime;
+    int64_t msg_rtime;
+    int64_t msg_ctime;
+    uint64_t __msg_cbytes;
+    uint64_t msg_qnum;
+    uint64_t msg_qbytes;
+    int32_t msg_lspid;
+    int32_t msg_lrpid;
+    uint64_t __unused4;
+    uint64_t __unused5;
 };
 
 #endif
