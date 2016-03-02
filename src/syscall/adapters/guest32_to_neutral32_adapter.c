@@ -827,6 +827,12 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
         case PR_nanosleep:
             res = syscall_neutral_32(PR_nanosleep, (uint32_t) g_2_h(p0), (uint32_t) g_2_h(p1), p2, p3, p4, p5);
             break;
+        case PR_open:
+            res = syscall_neutral_32(PR_open, (uint32_t) g_2_h(p0), p1, p2, p3, p4, p5);
+            break;
+        case PR_openat:
+            res = syscall_neutral_32(PR_openat, p0, (uint32_t) g_2_h(p1), p2, p3, p4, p5);
+            break;
         case PR_pause:
             res = syscall_neutral_32(PR_pause, p0, p1, p2, p3, p4, p5);
             break;
@@ -1133,6 +1139,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             break;
         case PR_umask:
             res = syscall_neutral_32(PR_umask, p0, p1, p2, p3 ,p4, p5);
+            break;
+        case PR_uname:
+            res = syscall_neutral_32(PR_uname, (uint32_t) g_2_h(p0), p1, p2, p3 ,p4, p5);
             break;
         case PR_unlink:
             res = syscall_neutral_32(PR_unlink, (uint32_t) g_2_h(p0), p1, p2, p3 ,p4, p5);

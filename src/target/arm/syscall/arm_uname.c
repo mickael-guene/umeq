@@ -18,23 +18,19 @@
  * 02110-1301 USA.
  */
 
-#define _GNU_SOURCE
-#include <unistd.h>
-#include <sys/syscall.h>
-#include <signal.h>
-#include <sys/utsname.h>
-#include <assert.h>
-#include <errno.h>
 #include <string.h>
 
 #include "arm_syscall.h"
+#include "syscalls_neutral.h"
+#include "syscalls_neutral_types.h"
 
 int arm_uname(struct arm_target *context)
 {
     int res;
-    struct utsname *buf = (struct utsname *) g_2_h(context->regs.r[0]);
+    struct neutral_new_utsname *buf = (struct neutral_new_utsname *) g_2_h(context->regs.r[0]);
 
-    res = syscall(SYS_uname, buf);
+    res = syscall_adapter_guest32(PR_uname, context->regs.r[0], context->regs.r[1], context->regs.r[2],
+                                            context->regs.r[3], context->regs.r[4], context->regs.r[5]);
     if (res == 0)
         strcpy(buf->machine, "armv7l");
 

@@ -564,6 +564,12 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_nanosleep:
             res = syscall(SYS_nanosleep, p0, p1);
             break;
+        case PR_open:
+            res = syscall(SYS_open, p0, neutralToX86Flags(p1), p2);
+            break;
+        case PR_openat:
+            res = syscall(SYS_openat, p0, p1, neutralToX86Flags(p2), p3);
+            break;
         case PR_pause:
             res = syscall(SYS_pause);
             break;
@@ -842,6 +848,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
             break;
         case PR_umask:
             res = syscall(SYS_umask, p0);
+            break;
+        case PR_uname:
+            res = syscall(SYS_uname, p0);
             break;
         case PR_unlink:
             res = syscall(SYS_unlink, p0);
