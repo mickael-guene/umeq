@@ -308,7 +308,7 @@ void setup_memory_profile()
 void main_wrapper(void *sp)
 {
     unsigned int argc = *(unsigned int *)sp;
-#if __i386__
+#if UMEQ_ARCH_HOST_SIZE == 32
     char **argv = (char **)(sp + 4);
 #else
     char **argv = (char **)(sp + 8);

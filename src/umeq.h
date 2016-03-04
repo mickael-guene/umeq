@@ -66,7 +66,7 @@ struct tls_context {
     struct cache *cache;
 };
 
-#ifdef __i386__
+#if UMEQ_ARCH_HOST_SIZE == 32
     #define ptr_2_int(ptr)  ((uint32_t)(ptr))
     #define int_2_ptr(integer)  ((void *)((uint32_t)(integer)))
 #else

@@ -28,7 +28,6 @@
 #include "umeq.h"
 #include "runtime.h"
 
-#if __i386__
 # ifndef TLS_GET_GS
 #  define TLS_GET_GS() \
   ({ int __seg; __asm ("movw %%gs, %w0" : "=q" (__seg)); __seg & 0xffff; })
@@ -49,55 +48,37 @@ static int get_thread_area(struct user_desc *u_info)
 {
     return syscall(SYS_get_thread_area, u_info);
 }
-#endif /* __i386__ */
 
 /* public api */
 void setup_thread_area(struct tls_context *main_thread_tls_context)
 {
     main_thread_tls_context->target = NULL;
     main_thread_tls_context->target_runtime = NULL;
+    struct user_desc desc;
+    int res;
 
-#if __i386__
-    {
-        struct user_desc desc;
-        int res;
-
-        desc.entry_number = -1;
-        desc.base_addr = (int) main_thread_tls_context;
-        desc.limit = 0xfffff; /* We use 4GB which is 0xfffff pages. */
-        desc.seg_32bit = 1;
-        desc.contents = 0;
-        desc.read_exec_only = 0;
-        desc.limit_in_pages = 1;
-        desc.seg_not_present = 0;
-        desc.useable = 1;
-        res = set_thread_area(&desc);
-        assert(res == 0);
-        TLS_SET_GS (desc.entry_number * 8 + 3);
-    }
-#else
-    syscall(SYS_arch_prctl, ARCH_SET_FS, main_thread_tls_context);
-#endif
+    desc.entry_number = -1;
+    desc.base_addr = (int) main_thread_tls_context;
+    desc.limit = 0xfffff; /* We use 4GB which is 0xfffff pages. */
+    desc.seg_32bit = 1;
+    desc.contents = 0;
+    desc.read_exec_only = 0;
+    desc.limit_in_pages = 1;
+    desc.seg_not_present = 0;
+    desc.useable = 1;
+    res = set_thread_area(&desc);
+    assert(res == 0);
+    TLS_SET_GS (desc.entry_number * 8 + 3);
 }
 
 struct tls_context *get_tls_context()
 {
-#if __i386__
-    {
-        struct user_desc desc;
-        int res;
+    struct user_desc desc;
+    int res;
 
-        desc.entry_number = TLS_GET_GS() >> 3;
-        res = get_thread_area(&desc);
-        assert(res == 0);
+    desc.entry_number = TLS_GET_GS() >> 3;
+    res = get_thread_area(&desc);
+    assert(res == 0);
 
-        return (struct tls_context *) desc.base_addr;
-    }
-#else
-    struct tls_context *tls_context;
-
-    syscall(SYS_arch_prctl, ARCH_GET_FS, &tls_context);
-
-    return tls_context;
-#endif
+    return (struct tls_context *) desc.base_addr;
 }

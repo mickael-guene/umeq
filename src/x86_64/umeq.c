@@ -1,6 +1,6 @@
 /* This file is part of Umeq, an equivalent of qemu user mode emulation with improved robustness.
  *
- * Copyright (C) 2015 STMicroelectronics
+ * Copyright (C) 2016 STMicroelectronics
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -18,16 +18,29 @@
  * 02110-1301 USA.
  */
 
-.GLOBAL _start
+#define _GNU_SOURCE        /* or _BSD_SOURCE or _SVID_SOURCE */
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <asm/prctl.h>
+#include <sys/prctl.h>
 
-#if __i386__
-_start:
-    xor %ebp, %ebp
-    push %esp
-    call main_wrapper
-#else
-_start:
-    xorl %ebp, %ebp
-    mov  %rsp, %rdi
-    call main_wrapper
-#endif
+#include "umeq.h"
+#include "runtime.h"
+
+/* public api */
+void setup_thread_area(struct tls_context *main_thread_tls_context)
+{
+    main_thread_tls_context->target = NULL;
+    main_thread_tls_context->target_runtime = NULL;
+
+    syscall(SYS_arch_prctl, ARCH_SET_FS, main_thread_tls_context);
+}
+
+struct tls_context *get_tls_context()
+{
+    struct tls_context *tls_context;
+
+    syscall(SYS_arch_prctl, ARCH_GET_FS, &tls_context);
+
+    return tls_context;
+}

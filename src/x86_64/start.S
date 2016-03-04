@@ -18,33 +18,9 @@
  * 02110-1301 USA.
  */
 
-#include <stdlib.h>
-#include <stdint.h>
+.GLOBAL _start
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#ifndef __TARGET32__
-#define __TARGET32__ 1
-
-typedef uint32_t guest_ptr;
-
-#if UMEQ_ARCH_HOST_SIZE == 32
-#define g_2_h(ptr)  ((void *)(uint32_t)(((uint32_t)(ptr)) + (mmap_offset)))
-#define h_2_g(ptr)  ((guest_ptr) (((uint32_t)(ptr)) - (mmap_offset)))
-#else
-#define g_2_h(ptr)  ((void *)(uint64_t)(((uint64_t)(ptr)) + (mmap_offset)))
-#define h_2_g(ptr)  ((guest_ptr) (((uint64_t)(ptr)) - (mmap_offset)))
-#endif
-
-extern uint64_t mmap_offset;
-extern guest_ptr mmap_guest(guest_ptr addr, size_t length, int prot, int flags, int fd, off_t offset);
-extern int munmap_guest(guest_ptr addr, size_t length);
-extern void *munmap_guest_ongoing(guest_ptr addr, size_t length);
-
-#endif
-
-#ifdef __cplusplus
-}
-#endif
+_start:
+    xorl %ebp, %ebp
+    mov  %rsp, %rdi
+    call main_wrapper

@@ -1,0 +1,1 @@
+set(SRCS ${SRCS} i386/start.S i386/umeq.c PARENT_SCOPE)

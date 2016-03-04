@@ -31,6 +31,9 @@ if (UMEQ_ARCH_x64_64)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcmodel=large")
 endif (UMEQ_ARCH_x64_64)
 
+# define top level source files
+set (SRCS main.c)
+
 # directories to include
 include_directories(${CMAKE_BINARY_DIR}/generated/version)
 include_directories(jitter)
@@ -57,13 +60,14 @@ add_subdirectory(runtime)
 add_subdirectory(target)
 add_subdirectory(syscall)
 add_subdirectory(fpu)
+add_subdirectory (${UMEQ_ARCH_HOST_NAME})
 
 # umeq-arm
-add_executable(umeq-arm main.c umeq.c start.S)
+add_executable(umeq-arm ${SRCS})
 target_link_libraries(umeq-arm -nostdlib -Wl,-Ttext-segment=${UMEQ_LOAD_ADDR} -Wl,-z,execstack -static -Wl,--start-group jitter loader32 cache runtime arm_target ${UMEQ_SYSCALL_32} softfloat -Wl,--end-group)
 
 # umeq-arm64 is only build for 64 bits hosts
 if (UMEQ_ARCH_HOST_SIZE EQUAL 64)
-	add_executable(umeq-arm64 main.c umeq.c start.S)
+	add_executable(umeq-arm64 ${SRCS})
 	target_link_libraries(umeq-arm64 -nostdlib -Wl,-Ttext-segment=0x8000000000 -Wl,-z,execstack -static -Wl,--start-group jitter loader64 cache runtime arm64_target syscall64_64 softfloat -Wl,--end-group)
 endif (UMEQ_ARCH_HOST_SIZE EQUAL 64)
