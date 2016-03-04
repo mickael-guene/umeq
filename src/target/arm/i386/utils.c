@@ -17,16 +17,12 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301 USA.
  */
+#define _GNU_SOURCE
+#include <signal.h>
 
-# This is host dependent. Just a pb if we want multiple host support which is not the case.
-.GLOBAL wrap_signal_restorer
+#include "arm_private.h"
 
-#ifdef __i386__
-wrap_signal_restorer:
-    mov $173, %eax
-    int $0x80
-#else
-wrap_signal_restorer:
-    mov $0xf,%rax
-    syscall
-#endif
+void *get_host_pc_from_user_context(ucontext_t *ucp)
+{
+    return (void *) ucp->uc_mcontext.gregs[REG_EIP];
+}

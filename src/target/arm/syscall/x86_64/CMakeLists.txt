@@ -1,0 +1,1 @@
+set(SRCS ${SRCS} syscall/x86_64/arm_restorer.S syscall/x86_64/clone_asm.S syscall/x86_64/clone.c syscall/x86_64/ptrace.c PARENT_SCOPE)

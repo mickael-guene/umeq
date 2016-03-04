@@ -39,15 +39,6 @@
 #include "umeq.h"
 #include "syscalls_neutral_types.h"
 
-#if __i386__
- #define PROOT_MAGIC_NB         350
-#else
- #define PROOT_MAGIC_NB         313
-#endif
-
-#define MAGIC1  0x7a711e06171129a2UL
-#define MAGIC2  0xc6925d1ed6dcd674UL
-
 #ifndef PTRACE_GETVFPREGS
 #define PTRACE_GETVFPREGS 27
 #endif
@@ -128,37 +119,6 @@ struct exec_ptrace_info {
     unsigned long exec_event_info;
     unsigned long exec_event_in_signal_emulation;
 } host_exec_info;
-
-#ifdef __i386__
-#include <asm/ldt.h>
-static long get_regs_base(int pid, unsigned long *regs_base) {
-    struct user_regs_struct user_regs;
-    struct user_desc desc;
-    int res;
-
-    res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
-    if (!res) {
-        desc.entry_number = user_regs.xgs >> 3;
-        res = syscall(SYS_ptrace, 25/*PTRACE_GET_THREAD_AREA*/, pid, user_regs.xgs >> 3, &desc);
-        if (!res) {
-            res = syscall(SYS_ptrace, PTRACE_PEEKTEXT, pid, desc.base_addr + 4, regs_base);
-        }
-    }
-
-    return res;
-}
-#else /*__i386__*/
-static long get_regs_base(int pid, unsigned long *regs_base) {
-    struct user_regs_struct user_regs;
-    long res;
-
-    res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, 0, &user_regs);
-    if (!res)
-        res = syscall(SYS_ptrace, PTRACE_PEEKDATA, pid, user_regs.fs_base + 8, regs_base);
-
-    return res;
-}
-#endif /*__i386__*/
 
 static int is_syscall_stop(pid_t pid)
 {
@@ -259,29 +219,6 @@ static int get_and_set_entry_show(pid_t pid, int command, int is_entry)
 
     return data?1:0;
 }
-
-#if __i386__
-static int is_magic_syscall(pid_t pid, int *syscall_no, int *command, int *is_entry)
-{
-    fatal("implement me\n");
-}
-#else
-static int is_magic_syscall(pid_t pid, int *syscall_no, int *command, int *is_entry)
-{
-    long res;
-    struct user_regs_struct regs;
-    int is_magic;
-
-    res = syscall(SYS_ptrace, PTRACE_GETREGS, pid, NULL, &regs);
-    assert(res == 0);
-    *syscall_no = regs.orig_rax;
-    *command = regs.rdx;
-    *is_entry = regs.rax==-ENOSYS?1:0;
-    is_magic = regs.rdi== MAGIC1 && regs.rsi == MAGIC2;
-
-    return is_magic;
-}
-#endif
 
 static action_t handle_command_2(pid_t pid, int is_entry, int *status)
 {
@@ -475,13 +412,13 @@ void ptrace_exec_event(struct arm_target *context)
                 /* syscall execve exit sequence */
                  /* this will be translated into sysexec exit */
                 context->regs.is_in_syscall = 2;
-                syscall((long) PROOT_MAGIC_NB, 1);
+                ptrace_event_proot(1);
                  /* this will be translated into SIGTRAP */
                 context->regs.is_in_syscall = 0;
-                syscall((long) PROOT_MAGIC_NB, 2);
+                ptrace_event_proot(2);
             } else {
                 //context->regs.r[8] = 221;
-                syscall(SYS_gettid, MAGIC1, MAGIC2, 2);
+                ptrace_event_chroot(2);
                 context->regs.is_in_syscall = 0;
             }
             is_exec_event_need = 0;
@@ -494,9 +431,9 @@ void ptrace_syscall_enter(struct arm_target *context)
     if (maybe_ptraced) {
         context->regs.is_in_syscall = 1;
         if (is_under_proot)
-            syscall((long) PROOT_MAGIC_NB, 0);
+            ptrace_event_proot(0);
         else
-            syscall(SYS_gettid, MAGIC1, MAGIC2, 0);
+            ptrace_event_chroot(0);
     }
 }
 
@@ -505,9 +442,9 @@ void ptrace_syscall_exit(struct arm_target *context)
     if (maybe_ptraced) {
         context->regs.is_in_syscall = 2;
         if (is_under_proot)
-            syscall((long) PROOT_MAGIC_NB, 1);
+            ptrace_event_proot(1);
         else
-            syscall(SYS_gettid, MAGIC1, MAGIC2, 1);
+            ptrace_event_chroot(1);
         context->regs.is_in_syscall = 0;
     }
 }

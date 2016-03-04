@@ -1,0 +1,1 @@
+set(SRCS ${SRCS} i386/utils.c PARENT_SCOPE)

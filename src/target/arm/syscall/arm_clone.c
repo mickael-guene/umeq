@@ -36,7 +36,6 @@
 
 /* FIXME: we assume a x86_64 host */
 extern int loop(uint64_t entry, uint64_t stack_entry, uint32_t signum, void *parent_target);
-extern int clone_asm(long number, ...);
 extern void clone_exit_asm(void *stack , long stacksize, int res, void *patch_address);
 
 static int is_syscall_error(int res)
@@ -67,39 +66,6 @@ void clone_thread_trampoline_arm()
     /* unmap thread stack and exit without using stack */
     clone_exit_asm(stack, mmap_size[memory_profile], res, patch_address);
 }
-
-#if __i386__
-#include <linux/unistd.h>
-#include <asm/ldt.h>
-
-/* FIXME : factorize this code somewhere with umeq.c */
-# ifndef TLS_GET_GS
-#  define TLS_GET_GS() \
-  ({ int __seg; __asm ("movw %%gs, %w0" : "=q" (__seg)); __seg & 0xffff; })
-# endif
-
-# ifndef TLS_SET_GS
-#  define TLS_SET_GS(val) \
-  __asm ("movw %w0, %%gs" :: "q" (val))
-# endif
-
-static int get_thread_area(struct user_desc *u_info)
-{
-    return syscall(SYS_get_thread_area, u_info);
-}
-
-static void setup_desc(struct tls_context *tls_context, struct user_desc *desc)
-{
-    int res;;
-
-    desc->entry_number = TLS_GET_GS() >> 3;
-    res = get_thread_area(desc);
-    assert(res == 0);
-    desc->base_addr = (int) tls_context;
-}
-#else
-
-#endif
 
 static int clone_thread_arm(struct arm_target *context)
 {
@@ -132,26 +98,8 @@ static int clone_thread_arm(struct arm_target *context)
         parent_target->regs.r[13] = context->regs.r[1];
         // do the same for c13_tls2 so it has the correct value
         parent_target->regs.c13_tls2 = context->regs.r[3];
-#if __i386__
-        {
-            struct user_desc desc;
+        res = clone_thread_host(context, stack, new_thread_tls_context);
 
-            setup_desc(new_thread_tls_context, &desc);
-            //clone
-            res = clone_asm(SYS_clone, (unsigned long) context->regs.r[0],
-                                        stack,
-                                        context->regs.r[2]?g_2_h(context->regs.r[2]):NULL,//ptid
-                                        &desc,
-                                        context->regs.r[4]?g_2_h(context->regs.r[4]):NULL);//ctid
-        }
-#else
-        //clone
-        res = clone_asm(SYS_clone, (unsigned long) context->regs.r[0],
-                                    stack,
-                                    context->regs.r[2]?g_2_h(context->regs.r[2]):NULL,//ptid
-                                    context->regs.r[4]?g_2_h(context->regs.r[4]):NULL,//ctid
-                                    new_thread_tls_context);
-#endif
         // only parent return here
     }
 
@@ -166,22 +114,7 @@ static int clone_vfork_arm(struct arm_target *context)
 
 static int clone_fork_arm(struct arm_target *context)
 {
-    /* just do the syscall */
-#if __i386__
-    int res = syscall(SYS_clone,
-                        (unsigned long) (context->regs.r[0] & ~(CLONE_VM | CLONE_SETTLS)),
-                        NULL, //host fork use a new stack
-                        context->regs.r[2]?g_2_h(context->regs.r[2]):NULL,
-                        NULL, //continue to use parent tls settings
-                        context->regs.r[4]?g_2_h(context->regs.r[4]):NULL);
-#else
-    int res = syscall(SYS_clone,
-                        (unsigned long) (context->regs.r[0] & ~(CLONE_VM | CLONE_SETTLS)),
-                        NULL, //host fork use a new stack
-                        context->regs.r[2]?g_2_h(context->regs.r[2]):NULL,
-                        context->regs.r[4]?g_2_h(context->regs.r[4]):NULL,
-                        NULL); //continue to use parent tls settings
-#endif
+    int res = clone_fork_host(context);
 
     /* support use of a new guest stack */
     if (res == 0 && context->regs.r[1])

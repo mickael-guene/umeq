@@ -39,11 +39,7 @@
 #include "arm_softfloat.h"
 #include "umeq.h"
 
-#ifndef __i386__
-#define USE_GCC_128_BITS_SUPPORT    1
-#endif
-
-#ifndef USE_GCC_128_BITS_SUPPORT
+#ifndef __SIZEOF_INT128__
 typedef struct int128_t {
     uint64_t msb;
     uint64_t lsb;

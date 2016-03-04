@@ -40,7 +40,7 @@ void *auxv_end = NULL;
  #define HWCAP_VFPv3 (1 << 13)
 #endif
 
-#ifdef __i386__
+#if UMEQ_ARCH_HOST_SIZE == 32
 #define Elfhost_auxv_t  Elf32_auxv_t
 #else
 #define Elfhost_auxv_t  Elf64_auxv_t

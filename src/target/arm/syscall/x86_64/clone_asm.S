@@ -21,43 +21,6 @@
 .GLOBAL clone_asm
 .GLOBAL clone_exit_asm
 
-#ifdef __i386__
-clone_asm:
-    push %ebp
-    mov %esp, %ebp
-    push %ebx
-    push %esi
-    push %edi
-    mov 0x08(%ebp), %eax
-    mov 0x0c(%ebp), %ebx
-    mov 0x10(%ebp), %ecx
-    mov 0x14(%ebp), %edx
-    mov 0x18(%ebp), %esi
-    mov 0x1c(%ebp), %edi
-    mov 0x20(%ebp), %ebp
-    int $0x80
-    test %eax,%eax
-    jz clone_thread_trampoline_arm
-    pop %edi
-    pop %esi
-    pop %ebx
-    pop %ebp
-    ret
-
-clone_exit_asm:
-    mov 4(%esp), %ebx
-    mov 8(%esp), %ecx
-    mov 12(%esp), %esi
-    mov 16(%esp), %edi
-    #here destroy stack
-    mov $91, %eax
-    int $0x80
-    #here patch
-    movb $0, (%edi)
-    mov %esi, %ebx
-    mov $1, %eax
-    int $0x80
-#else
 clone_asm:
     mov    %rdi,%rax
     mov    %rsi,%rdi
@@ -80,4 +43,3 @@ clone_exit_asm:
     mov %r15,%rdi
     mov $60, %rax
     syscall
-#endif

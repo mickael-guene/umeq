@@ -152,11 +152,8 @@ static uint32_t restore_precise_pc(struct arm_target *prev_context, ucontext_t *
     uint32_t res = prev_context->regs.r[15];
 
     if (ucp) {
-#ifdef __i386__
-        void *host_pc_signal = (void *)ucp->uc_mcontext.gregs[REG_EIP];
-#else
-        void *host_pc_signal = (void *)ucp->uc_mcontext.gregs[REG_RIP];
-#endif
+        void *host_pc_signal = get_host_pc_from_user_context(ucp);
+
         /* we can be in three distinct area :
         - in jitting area
         - in umeq helper function

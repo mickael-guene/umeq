@@ -22,10 +22,13 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <ucontext.h>
+
 #include "loader32.h"
 #include "target.h"
 
 #include "softfloat.h"
+#include "umeq.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -126,7 +129,13 @@ extern void disassemble_thumb_with_marker(struct arm_target *context, struct irI
 extern int on_sig_stack(struct arm_target *context, uint32_t sp);
 extern int is_out_of_signal_stack(struct arm_target *context);
 extern uint32_t sigsp(struct arm_target *prev_context, uint32_t signum);
-
+extern int clone_fork_host(struct arm_target *context);
+extern int clone_thread_host(struct arm_target *context, void *stack, struct tls_context *new_thread_tls_context);
+extern void ptrace_event_proot(int event);
+extern void ptrace_event_chroot(int event);
+extern long get_regs_base(int pid, unsigned long *regs_base);
+extern int is_magic_syscall(pid_t pid, int *syscall_no, int *command, int *is_entry);
+extern void *get_host_pc_from_user_context(ucontext_t *ucp);
 
 #endif
 
