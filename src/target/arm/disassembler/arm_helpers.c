@@ -3687,12 +3687,12 @@ static void smlawy_t32(uint64_t _regs, uint32_t insn)
     smlawy(_regs, INSN2(4, 4), INSN2(11, 8), INSN1(3, 0), INSN2(3, 0), INSN2(15, 12));
 }
 
-static void sdiv(uint64_t _regs, uint32_t insn)
+static void sdiv(uint64_t _regs, uint32_t insn, int is_thumb)
 {
     struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
-    int rn = INSN1(3, 0);
-    int rd = INSN2(11, 8);
-    int rm = INSN2(3, 0);
+    int rn = is_thumb?INSN1(3, 0):INSN(3, 0);
+    int rd = is_thumb?INSN2(11, 8):INSN(19, 16);
+    int rm = is_thumb?INSN2(3, 0):INSN(11, 8);
     int32_t res = 0;
 
     if (regs->r[rm])
@@ -3701,12 +3701,12 @@ static void sdiv(uint64_t _regs, uint32_t insn)
     regs->r[rd] = res;
 }
 
-static void udiv(uint64_t _regs, uint32_t insn)
+static void udiv(uint64_t _regs, uint32_t insn, int is_thumb)
 {
     struct arm_registers *regs = (struct arm_registers *) int_2_ptr(_regs);
-    int rn = INSN1(3, 0);
-    int rd = INSN2(11, 8);
-    int rm = INSN2(3, 0);
+    int rn = is_thumb?INSN1(3, 0):INSN(3, 0);
+    int rd = is_thumb?INSN2(11, 8):INSN(19, 16);
+    int rm = is_thumb?INSN2(3, 0):INSN(11, 8);
     uint32_t res = 0;
 
     if (regs->r[rm])
@@ -8411,6 +8411,12 @@ void arm_hlp_signed_multiplies(uint64_t regs, uint32_t insn)
             else
                 smlad_smlsd_a1(regs, insn);
             break;
+        case 1:
+            sdiv(regs, insn, 0);
+            break;
+        case 3:
+            udiv(regs, insn, 0);
+            break;
         case 4:
             smlald_smlsld_a1(regs, insn);
             break;
@@ -8667,10 +8673,10 @@ void thumb_hlp_t2_long_mult_A_long_mult_acc_A_div(uint64_t regs, uint32_t insn)
 
     switch(op1) {
         case 1:
-            sdiv(regs, insn);
+            sdiv(regs, insn, 1);
             break;
         case 3:
-            udiv(regs, insn);
+            udiv(regs, insn, 1);
             break;
         case 4:
             if ((op2 & 0xc) == 0x8)
