@@ -160,9 +160,6 @@ void arm_hlp_syscall(uint64_t regs)
             case PR_shmdt:
                 res = arm_shmdt(context);
                 break;
-            case PR_rt_sigqueueinfo:
-                res = arm_rt_sigqueueinfo(context);
-                break;
             case PR_rt_sigreturn:
             case PR_sigreturn:
                 context->isLooping = 0;

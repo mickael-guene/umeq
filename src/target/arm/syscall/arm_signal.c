@@ -219,24 +219,3 @@ int arm_sigaltstack(struct arm_target *context)
 out:
     return res;
 }
-
-int arm_rt_sigqueueinfo(struct arm_target *context)
-{
-    int res;
-    uint32_t tgid_p = context->regs.r[0];
-    uint32_t sig_p = context->regs.r[1];
-    uint32_t uinfo_p = context->regs.r[2];
-    pid_t tgid = (pid_t) tgid_p;
-    int sig = (int) sig_p;
-    siginfo_t_arm *uinfo_arm = (siginfo_t_arm *) g_2_h(uinfo_p);
-    siginfo_t uinfo;
-
-    uinfo.si_code = uinfo_arm->si_code;
-    uinfo.si_pid = uinfo_arm->_sifields._rt._si_pid;
-    uinfo.si_uid = uinfo_arm->_sifields._rt._si_uid;
-    uinfo.si_value.sival_int = uinfo_arm->_sifields._rt._si_sigval.sival_int;
-
-    res = syscall(SYS_rt_sigqueueinfo, tgid, sig, &uinfo);
-
-    return res;
-}

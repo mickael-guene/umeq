@@ -911,6 +911,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
         case PR_rt_sigprocmask:
             res = syscall_neutral_32(PR_rt_sigprocmask, p0, IS_NULL(p1), IS_NULL(p2), p3, p4, p5);
             break;
+        case PR_rt_sigqueueinfo:
+            res = syscall_neutral_32(PR_rt_sigqueueinfo, p0, p1, (uint32_t) g_2_h(p2), p3, p4, p5);
+            break;
         case PR_rt_sigsuspend:
             res = syscall_neutral_32(PR_rt_sigsuspend, (uint32_t) g_2_h(p0), p1, p2, p3, p4, p5);
             break;

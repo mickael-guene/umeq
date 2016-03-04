@@ -1787,6 +1787,24 @@ static int sendmmsg_neutral(uint32_t sockfd_p, uint32_t msgvec_p, uint32_t vlen_
     return res;
 }
 
+static int rt_sigqueueinfo_neutral(uint32_t pid_p, uint32_t sig_p, uint32_t uinfo_p)
+{
+    long res;
+    pid_t pid = (pid_t) pid_p;
+    int sig = (int) sig_p;
+    neutral_siginfo_t_32 *uinfo_guest = (neutral_siginfo_t_32 *) g_2_h(uinfo_p);
+    neutral_siginfo_t_64 uinfo;
+
+    uinfo.si_code = uinfo_guest->si_code;
+    uinfo._sifields._rt._si_pid = uinfo_guest->_sifields._rt._si_pid;
+    uinfo._sifields._rt._si_uid = uinfo_guest->_sifields._rt._si_uid;
+    uinfo._sifields._rt._si_sigval.sival_int = uinfo_guest->_sifields._rt._si_sigval.sival_int;
+
+    res = syscall_neutral_64(PR_rt_sigqueueinfo, pid, sig, (uint64_t) &uinfo, 0, 0, 0);
+
+    return res;
+}
+
 int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4, uint32_t p5)
 {
     int res = -ENOSYS;
@@ -2244,6 +2262,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
             break;
         case PR_rt_sigprocmask:
             res = syscall_neutral_64(PR_rt_sigprocmask, (int)p0, IS_NULL(p1), IS_NULL(p2), (size_t) p3, p4, p5);
+            break;
+        case PR_rt_sigqueueinfo:
+            res = rt_sigqueueinfo_neutral(p0, p1, p2);
             break;
         case PR_rt_sigsuspend:
             res = syscall_neutral_64(PR_rt_sigsuspend, (uint64_t) g_2_h(p0), (size_t)p1, p2, p3, p4, p5);

@@ -648,6 +648,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_rt_sigprocmask:
             res = syscall(SYS_rt_sigprocmask, p0, p1, p2, p3);
             break;
+        case PR_rt_sigqueueinfo:
+            res = syscall(SYS_rt_sigqueueinfo, p0, p1, p2);
+            break;
         case PR_rt_sigsuspend:
             res = syscall(SYS_rt_sigsuspend, p0, p1);
             break;
