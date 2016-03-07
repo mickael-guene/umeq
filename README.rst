@@ -36,14 +36,17 @@ Current Status
 ==============
 Host support
 ^^^^^^^^^^^^
-Only x86_64 host machine is support.
+For the moment umeq support following host architecture:
+- x86_64 host is in release state.
+- i386 host is in beta state. Moreover in that case only 32 bits guest are
+supported.
 
 Guest support
 ^^^^^^^^^^^^^
 For the moment umeq support following guest architecture:
 
 - arm64 support is in release state.
-- armv7 support is in alpha state. Simd floating support is not fully correct.
+- armv7 support is in beta state.
 
 Proot compatibility
 ^^^^^^^^^^^^^^^^^^^
