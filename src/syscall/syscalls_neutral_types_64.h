@@ -310,6 +310,29 @@ struct neutral_msqid64_ds_64 {
     uint64_t __unused5;
 };
 
+struct neutral_stat_64 {
+    uint64_t            st_dev;      /* Device.  */
+    uint64_t            st_ino;      /* File serial number.  */
+    uint32_t            st_mode;        /* File mode.  */
+    uint32_t            st_nlink;       /* Link count.  */
+    uint32_t            st_uid;         /* User ID of the file's owner.  */
+    uint32_t            st_gid;         /* Group ID of the file's group. */
+    uint64_t            st_rdev;     /* Device number, if device.  */
+    uint64_t            __pad1;
+    int64_t             st_size;        /* Size of file, in bytes.  */
+    int32_t             st_blksize;     /* Optimal block size for I/O.  */
+    int32_t             __pad2;
+    int64_t             st_blocks;      /* Number 512-byte blocks allocated. */
+    int64_t             st_atime_;       /* Time of last access.  */
+    uint64_t            st_atime_nsec;
+    int64_t             st_mtime_;       /* Time of last modification.  */
+    uint64_t            st_mtime_nsec;
+    int64_t             st_ctime_;       /* Time of last status change.  */
+    uint64_t            st_ctime_nsec;
+    uint32_t            __unused4;
+    uint32_t            __unused5;
+};
+
 #endif
 
 #ifdef __cplusplus

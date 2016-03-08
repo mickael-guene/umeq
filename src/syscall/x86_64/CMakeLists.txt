@@ -1,1 +1,3 @@
-set(SRCS ${SRCS} x86_64/syscall_neutral_64.c x86_64/syscall_x86_64_stat.c PARENT_SCOPE)
+set(SRCS_COMMON x86_64/syscall_neutral_64.c x86_64/syscall_x86_64_stat.c)
+set(SRCS ${SRCS} ${SRCS_COMMON} PARENT_SCOPE)
+set(SRCS_64 ${SRCS_64} ${SRCS_COMMON} PARENT_SCOPE)

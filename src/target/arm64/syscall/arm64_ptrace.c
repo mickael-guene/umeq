@@ -33,7 +33,6 @@
 
 #include "arm64_private.h"
 #include "arm64_syscall.h"
-#include "arm64_syscall_types.h"
 #include "runtime.h"
 #include "arm64_helpers.h"
 #include "umeq.h"

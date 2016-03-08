@@ -28,8 +28,8 @@
 #include "sysnums-arm64.h"
 #include "hownums-arm64.h"
 #include "runtime.h"
-#include "syscall64_64.h"
 #include "arm64_syscall.h"
+#include "syscalls_neutral.h"
 
 #define PROOT_SYSCALL_VOID      -2
 
@@ -63,42 +63,16 @@ void arm64_hlp_syscall(uint64_t regs)
     how = syshow_arm64[no_neutral];
 
 	/* so how we handle this sycall */
-    if (how == HOW_64_to_64) {
-        res = syscall64_64(no_neutral, context->regs.r[0], context->regs.r[1], context->regs.r[2], 
-                                            context->regs.r[3], context->regs.r[4], context->regs.r[5]);
+    if (how == HOW_neutral_64) {
+        res = syscall_adapter_guest64(no_neutral, context->regs.r[0], context->regs.r[1], context->regs.r[2],
+                                                  context->regs.r[3], context->regs.r[4], context->regs.r[5]);
     } else if (how == HOW_custom_implementation) {
         switch(no_neutral) {
-            case PR_uname:
-                res = arm64_uname(context);
-                break;
             case PR_brk:
                 res = arm64_brk(context);
                 break;
-            case PR_openat:
-                res = arm64_openat(context);
-                break;
-            case PR_fstat:
-                res = arm64_fstat(context);
-                break;
-            case PR_rt_sigaction:
-                res = arm64_rt_sigaction(context);
-                break;
-            case PR_fstatat64:
-                res = arm64_fstatat64(context);
-                break;
             case PR_clone:
                 res = arm64_clone(context);
-                break;
-            case PR_rt_sigreturn:
-                context->isLooping = 0;
-                context->exitStatus = 0;
-                res = 0;
-                break;
-            case PR_sigaltstack:
-                res = arm64_sigaltstack(context);
-                break;
-            case PR_ptrace:
-                res = arm64_ptrace(context);
                 break;
             case PR_exit:
                 if (context->is_in_signal) {
@@ -115,17 +89,37 @@ void arm64_hlp_syscall(uint64_t regs)
             case PR_mmap:
                 res = arm64_mmap(context);
                 break;
+            case PR_mremap:
+                res = arm64_mremap(context);
+                break;
             case PR_munmap:
                 res = arm64_munmap(context);
                 break;
-            case PR_mremap:
-                res = arm64_mremap(context);
+            case PR_openat:
+                res = arm64_openat(context);
+                break;
+            case PR_ptrace:
+                res = arm64_ptrace(context);
+                break;
+            case PR_rt_sigaction:
+                res = arm64_rt_sigaction(context);
+                break;
+            case PR_sigaltstack:
+                res = arm64_sigaltstack(context);
+                break;
+            case PR_rt_sigreturn:
+                context->isLooping = 0;
+                context->exitStatus = 0;
+                res = 0;
                 break;
             case PR_shmat:
                 res = arm64_shmat(context);
                 break;
             case PR_shmdt:
                 res = arm64_shmdt(context);
+                break;
+            case PR_uname:
+                res = arm64_uname(context);
                 break;
             case PR_wait4:
                 res = arm64_wait4(context);

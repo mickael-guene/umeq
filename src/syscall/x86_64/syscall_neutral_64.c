@@ -31,6 +31,10 @@
 #include "target64.h"
 #include "syscall_x86_64.h"
 
+#ifndef SYS_getrandom
+ #define SYS_getrandom 318
+#endif
+
 struct convertFlags {
     long neutralFlag;
     long x86Flag;
@@ -229,9 +233,30 @@ static long semctl_neutral(uint64_t semid_p, uint64_t semnum_p, uint64_t cmd_p, 
     return res;
 }
 
+static long epoll_pwait_neutral(uint64_t epfd_p, uint64_t events_p, uint64_t maxevents_p, uint64_t timeout_p, uint64_t sigmask_p, uint64_t sigmask_size_p)
+{
+    long res;
+    int epfd = (int) epfd_p;
+    struct neutral_epoll_event *events_guest = (struct neutral_epoll_event *) events_p;
+    int maxevents = (int) maxevents_p;
+    int timeout = (int) timeout_p;
+    sigset_t *sigmask = (sigset_t *) sigmask_p;
+    int sigmask_size = (int) sigmask_size_p;
+    struct epoll_event *events = (struct epoll_event *) alloca(maxevents * sizeof(struct epoll_event));
+    int i;
+
+    res = syscall(SYS_epoll_pwait, epfd, events, maxevents, timeout, sigmask, sigmask_size);
+    for(i = 0; i < maxevents; i++) {
+        events_guest[i].events = events[i].events;
+        events_guest[i].data = events[i].data.u64;
+    }
+
+    return res;
+}
+
 long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3, uint64_t p4, uint64_t p5)
 {
-    int res = -ENOSYS;
+    long res = -ENOSYS;
 
     switch(no) {
         case PR_accept:
@@ -306,6 +331,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_epoll_create1:
             res = syscall(SYS_epoll_create1, p0);
             break;
+        case PR_epoll_pwait:
+            res = epoll_pwait_neutral(p0, p1, p2, p3, p4, p5);
+            break;
         case PR_epoll_wait:
             res = epoll_wait_neutral(p0 , p1, p2, p3);
             break;
@@ -368,6 +396,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
             break;
         case PR_futex:
             res = syscall(SYS_futex, p0, p1, p2, p3, p4, p5);
+            break;
+        case PR_fstat:
+            res = syscall_x86_64_fstat(p0, p1);
             break;
         case PR_fstat64:
             res = syscall_x86_64_fstat64(p0, p1);
@@ -446,6 +477,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
             break;
         case PR_getpgid:
             res = syscall(SYS_getpgid, p0);
+            break;
+        case PR_getrandom:
+            res = syscall(SYS_getrandom, p0, p1, p2);
             break;
         case PR_gettid:
             res = syscall(SYS_gettid);
@@ -564,6 +598,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_nanosleep:
             res = syscall(SYS_nanosleep, p0, p1);
             break;
+        case PR_newfstatat:
+            res = syscall_x86_64_newfstatat(p0, p1, p2, p3);
+            break;
         case PR_open:
             res = syscall(SYS_open, p0, neutralToX86Flags(p1), p2);
             break;
@@ -599,6 +636,12 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
             break;
         case PR_prlimit64:
             res = syscall(SYS_prlimit64, p0, p1, p2, p3);
+            break;
+        case PR_process_vm_readv:
+            res = syscall(SYS_process_vm_readv, p0, p1, p2, p3, p4, p5);
+            break;
+        case PR_process_vm_writev:
+            res = syscall(SYS_process_vm_writev, p0, p1, p2, p3, p4, p5);
             break;
         case PR_pselect6:
             res = syscall(SYS_pselect6, p0, p1, p2, p3, p4, p5);
@@ -638,6 +681,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
             break;
         case PR_rename:
             res = syscall(SYS_rename, p0, p1);
+            break;
+        case PR_renameat:
+            res = syscall(SYS_renameat, p0, p1, p2, p3);
             break;
         case PR_rmdir:
             res = syscall(SYS_rmdir, p0);
@@ -744,8 +790,14 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_setpriority:
             res = syscall(SYS_setpriority, p0, p1, p2);
             break;
+        case PR_setresgid:
+            res = syscall(SYS_setresgid, p0, p1, p2);
+            break;
         case PR_setresgid32:
             res = syscall(SYS_setresgid, p0, p1, p2);
+            break;
+        case PR_setresuid:
+            res = syscall(SYS_setresuid, p0, p1, p2);
             break;
         case PR_setresuid32:
             res = syscall(SYS_setresuid, p0, p1, p2);
@@ -810,6 +862,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_sync_file_range:
             res = syscall(SYS_sync_file_range, p0, p1, p2, p3);
             break;
+        case PR_syncfs:
+            res = syscall(SYS_syncfs, p0);
+            break;
         case PR_sysinfo:
             res = syscall(SYS_sysinfo, p0);
             break;
@@ -860,6 +915,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
             break;
         case PR_unlinkat:
             res = syscall(SYS_unlinkat, p0, p1, p2);
+            break;
+        case PR_unshare:
+            res = syscall(SYS_unshare, p0);
             break;
         case PR_utimensat:
             res = syscall(SYS_utimensat, p0, p1, p2, p3);
