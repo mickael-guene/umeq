@@ -567,7 +567,7 @@ long syscall64_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64_t p3,
             res = syscall(SYS_unshare, (int) p0);
             break;
         case PR_waitid:
-            res = syscall(SYS_waitid, (int) p0, (id_t) p1, IS_NULL(p2, siginfo_t), (int) p3,
+            res = syscall(SYS_waitid, (idtype_t) p0, (id_t) p1, IS_NULL(p2, siginfo_t), (int) p3,
                                       IS_NULL(p4, struct rusage));
             break;
         case PR_perf_event_open:
