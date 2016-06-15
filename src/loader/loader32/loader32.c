@@ -171,10 +171,6 @@ static int elfToMapProtection(uint32_t flags)
     if (flags & PF_R)
         prot |= PROT_READ;
 
-    /* FIXME:  */
-    if (1/*isdebug*/)
-        prot |= PROT_WRITE;
-
     return prot;
 }
 
