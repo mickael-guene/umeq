@@ -107,12 +107,11 @@ static void gdb_send_reply(char *reply)
     gdb_send_packet(buf, len + 4);
 }
 
-static void gdb_read_memory(char *buf, unsigned int addr, unsigned int len)
+static void gdb_read_memory(char *buf, unsigned long long int addr, unsigned long long int len)
 {
     int i;
 
-    if ((addr >= 0 && addr < 4096) ||
-        (addr >= 0xFFFFF000)) {
+    if (addr >= 0 && addr < 4096) {
         sprintf(buf, "E14");
     } else {
         for(i = 0; i < len; i++) {
@@ -158,8 +157,8 @@ static void gdb_new_command(struct gdb *gdb)
         case 'm':
             {
                 char *next;
-                unsigned int addr = strtoull(&cmd[1], &next, 16);
-                unsigned int len;
+                unsigned long long int addr = strtoull(&cmd[1], &next, 16);
+                unsigned long long int len;
 
                 next++;
                 len = strtoull(next, NULL, 16);
@@ -182,7 +181,7 @@ static void gdb_new_command(struct gdb *gdb)
         case 'Z':
         case 'z':
             {
-                unsigned int type, addr, len;
+                unsigned long long int type, addr, len;
                 char *next;
 
                 type = strtoul(&cmd[1], &next, 16);

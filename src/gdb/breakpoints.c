@@ -228,7 +228,7 @@ static void releaseBreakpoint(breakpoint *bp)
     bp->isInUse = 0;
 }
 
-void gdb_insert_breakpoint(unsigned long addr, int len, int type)
+void gdb_insert_breakpoint(unsigned long long int addr, int len, int type)
 {
     //breakpoint *newBreakpoint = (breakpoint *) malloc(sizeof(breakpoint));
     breakpoint *newBreakpoint = getFreeBreakpoint();
@@ -255,7 +255,7 @@ void gdb_insert_breakpoint(unsigned long addr, int len, int type)
     cleanCaches(0, ~0);
 }
 
-void gdb_remove_breakpoint(unsigned long addr, int len, int type)
+void gdb_remove_breakpoint(unsigned long long int addr, int len, int type)
 {
     breakpoint *pCurrent = bpList;
     breakpoint *pPrev = NULL;
