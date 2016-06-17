@@ -37,6 +37,8 @@
 
 #define DL_NAME_MAX_SIZE                256
 
+extern int isGdb;
+
 unsigned int startbrk;
 static guest_ptr load_AT_PHDR_init = 0;
 
@@ -170,6 +172,9 @@ static int elfToMapProtection(uint32_t flags)
         prot |= PROT_WRITE;
     if (flags & PF_R)
         prot |= PROT_READ;
+
+    if (isGdb)
+        prot |= PROT_WRITE;
 
     return prot;
 }
