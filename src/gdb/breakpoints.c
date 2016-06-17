@@ -12,7 +12,7 @@
 #include "target64.h"
 #endif
 
-#if 1
+#if 0
 #define ARM_BRK             0xe7f001f1
 #define T2_BRK              0x00a0f0f7
 #define T1_BRK              0xde01
