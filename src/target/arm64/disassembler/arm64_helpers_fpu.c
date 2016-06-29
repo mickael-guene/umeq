@@ -467,7 +467,6 @@ static void dis_fcvtu_scalar_integer(uint64_t _regs, uint32_t insn, enum rm rmod
     signed char float_rounding_mode_save = regs->fp_status.float_rounding_mode;
 
     regs->fp_status.float_rounding_mode = arm64_rm_to_softfloat_rm(rmode);
-    regs->v[rd].d[1] = 0;
     switch(sf_type0) {
         case 0:
             if (float32_is_any_nan(regs->v[rn].s[0])) {
@@ -511,7 +510,6 @@ static void dis_fcvts_scalar_integer(uint64_t _regs, uint32_t insn, enum rm rmod
     signed char float_rounding_mode_save = regs->fp_status.float_rounding_mode;
 
     regs->fp_status.float_rounding_mode = arm64_rm_to_softfloat_rm(rmode);
-    regs->v[rd].d[1] = 0;
     switch(sf_type0) {
         case 0:
             if (float32_is_any_nan(regs->v[rn].s[0])) {
