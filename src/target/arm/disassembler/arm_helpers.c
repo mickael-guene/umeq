@@ -3695,7 +3695,11 @@ static void sdiv(uint64_t _regs, uint32_t insn, int is_thumb)
     int rm = is_thumb?INSN2(3, 0):INSN(11, 8);
     int32_t res = 0;
 
-    if (regs->r[rm])
+    /* dividing LONG_MIN with -1 is undefined in c. In that case sdiv return
+       LONG_MIN */
+    if (regs->r[rn] == 0x80000000 && regs->r[rm] == 0xffffffff)
+        res = 0x80000000;
+    else if (regs->r[rm])
         res = (int32_t)regs->r[rn] / (int32_t)regs->r[rm];
 
     regs->r[rd] = res;

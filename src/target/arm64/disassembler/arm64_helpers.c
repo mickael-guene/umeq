@@ -301,14 +301,22 @@ uint32_t arm64_hlp_udiv_32(uint64_t context, uint32_t op1, uint32_t op2)
 
 int64_t arm64_hlp_sdiv_64(uint64_t context, int64_t op1, int64_t op2)
 {
-    if (op2)
+    /* dividing LLONG_MIN with -1 is undefined in c. In that case sdiv return
+       LLONG_MIN */
+    if (op1 == 0x8000000000000000ULL && op2 == ~0ULL)
+        return op1;
+    else if (op2)
         return op1/op2;
     return 0;
 }
 
 int32_t arm64_hlp_sdiv_32(uint64_t context, int32_t op1, int32_t op2)
 {
-    if (op2)
+    /* dividing LONG_MIN with -1 is undefined in c. In that case sdiv return
+       LONG_MIN */
+    if (op1 == 0x80000000 && op2 == ~0)
+        return op1;
+    else if (op2)
         return op1/op2;
     return 0;
 }
