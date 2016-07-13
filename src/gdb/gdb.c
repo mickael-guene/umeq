@@ -145,6 +145,10 @@ static void gdb_new_command(struct gdb *gdb)
         case 'q':
             if (strcmp(&cmd[1],"C") == 0) {
                 sprintf(buf, "QC1");
+            } else if (strcmp(cmd,"qfThreadInfo") == 0) {
+                sprintf(buf, "m1");
+            } else if (strcmp(cmd,"qsThreadInfo") == 0) {
+                sprintf(buf, "l");
             } else {
                 buf[0] = '\0';
             }
