@@ -83,13 +83,13 @@ static inline uint64_t make_uint64_t(double f)
 
 static inline uint32_t extract32(uint32_t value, int start, int length)
 {
-    assert(start >= 0 && length > 0 && length <= 32 - start);
+    assert_illegal_opcode(start >= 0 && length > 0 && length <= 32 - start);
     return (value >> start) & (~0U >> (32 - length));
 }
 
 static inline uint64_t extract64(uint64_t value, int start, int length)
 {
-    assert(start >= 0 && length > 0 && length <= 64 - start);
+    assert_illegal_opcode(start >= 0 && length > 0 && length <= 64 - start);
     return (value >> start) & (~0ULL >> (64 - length));
 }
 
@@ -106,7 +106,9 @@ static bool round_to_inf(float_status *fpst, bool sign_bit)
         return false;
     }
 
-    assert(0);
+    assert_illegal_opcode(0);
+
+    return false;
 }
 
 static float64 recip_estimate(float64 a, float_status *real_fp_status)
@@ -1094,7 +1096,7 @@ static inline void dis_fabs(uint64_t _regs, uint32_t insn)
                 res.d[i] = fabs64(regs, regs->v[rn].d[i]);
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     regs->v[rd] = res;

@@ -29,6 +29,8 @@ extern "C" {
 #include <stdarg.h>
 #include <assert.h>
 
+//#define ASSERT_ON_ILLEGAL   1
+
 extern void debug(const char *format, ...);
 extern void info(const char *format, ...);
 extern void warning(const char *format, ...);
@@ -39,6 +41,74 @@ do { \
 fatal_internal(__VA_ARGS__); \
 assert(0); \
 } while(0)
+
+#ifdef __IN_HELPERS
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <signal.h>
+
+#ifdef ASSERT_ON_ILLEGAL
+#define fatal_illegal_opcode(...) \
+do { \
+fatal_internal(__VA_ARGS__); \
+assert(0); \
+} while(0)
+
+#define assert_illegal_opcode(cond) \
+do { \
+assert(cond); \
+} while(0)
+#else /* ASSERT_ON_ILLEGAL */
+
+#define fatal_illegal_opcode(...) \
+do { \
+    generate_illegal_signal(); \
+} while(0)
+
+#define assert_illegal_opcode(cond) \
+do { \
+if (!(cond)) { \
+    generate_illegal_signal(); \
+} \
+} while(0)
+#endif /* ASSERT_ON_ILLEGAL */
+#else /*__IN_HELPERS*/
+#ifdef ASSERT_ON_ILLEGAL
+#define fatal_illegal_opcode(...) \
+do { \
+(void) context; \
+(void) ir; \
+fatal_internal(__VA_ARGS__); \
+assert(0); \
+return 1; \
+} while(0)
+
+#define assert_illegal_opcode(cond) \
+do { \
+(void) context; \
+(void) ir; \
+if (!(cond)) { \
+    assert(cond); \
+    return 1; \
+} \
+} while(0)
+#else /* ASSERT_ON_ILLEGAL */
+#define fatal_illegal_opcode(...) \
+do { \
+mk_gdb_breakpoint_instruction(context, ir); \
+return 1; \
+} while(0)
+
+#define assert_illegal_opcode(cond) \
+do { \
+if (!(cond)) { \
+    mk_gdb_breakpoint_instruction(context, ir); \
+    return 1; \
+} \
+} while(0)
+#endif /* ASSERT_ON_ILLEGAL */
+#endif /* __IN_HELPERS */
 
 #endif
 

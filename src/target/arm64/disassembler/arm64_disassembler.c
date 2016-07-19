@@ -327,7 +327,7 @@ static struct irRegister *mk_extend_reg_64(struct irInstructionAllocator *ir, in
             unshifted = read_x(ir, rm, ZERO_REG);
             break;
         default:
-            fatal("bug. Should not be reach\n");
+            return NULL;
     }
     /* do the shift */
     if (shift)
@@ -375,7 +375,7 @@ static struct irRegister *mk_extend_reg_32(struct irInstructionAllocator *ir, in
             unshifted = read_w(ir, rm, ZERO_REG);
             break;
         default:
-            fatal("bug. Should not be reach\n");
+            return NULL;
     }
     /* do the shift */
     if (shift)
@@ -476,7 +476,7 @@ static void mk_exit_pred(struct arm64_target *context, struct irInstructionAlloc
     ir->add_exit_cond(ir, next_pc, pred);
 }
 
-static uint64_t simd_immediate(int op, int cmode, int imm8_p)
+static uint64_t simd_immediate(int op, int cmode, int imm8_p, int *is_illegal)
 {
     uint64_t imm8 = imm8_p;
     uint64_t imm64 = 0;
@@ -533,11 +533,11 @@ static uint64_t simd_immediate(int op, int cmode, int imm8_p)
                     (imm8_6 << 59) | (imm8_6 << 58) | (imm8_6 << 57) | (imm8_6 << 56) |
                     (imm8_6 << 55) | (imm8_6 << 54) | (imm8_5_0 << 48);
         } else {
-            fatal("cmode0 = %d / op = %d\n", (cmode & 1), op);
+            *is_illegal = 1;
         }
         break;
     default:
-        assert(0);
+        *is_illegal = 1;
     }
 
     return imm64;
@@ -765,7 +765,7 @@ static int dis_load_store_pair_simd_vfp(struct arm64_target *context, uint32_t i
             }
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     /* write back */
@@ -846,7 +846,7 @@ static int dis_add_sub_immediate_insn(struct arm64_target *context, uint32_t ins
     struct irRegister *op1;
     struct irRegister *op2;
 
-    assert(shift != 2 && shift != 3);
+    assert_illegal_opcode(shift != 2 && shift != 3);
     if (shift == 1)
         imm12 = imm12 << 12;
 
@@ -887,14 +887,14 @@ static int dis_add_sub_shifted_register_insn(struct arm64_target *context, uint3
                     op2 = ir->add_asr_64(ir, read_x(ir, rm, ZERO_REG), mk_8(ir, imm6));
                     break;
                 default:
-                    assert(0);
+                    assert_illegal_opcode(0);
             }
         } else
             op2 = read_x(ir, rm, ZERO_REG);
     } else {
         op1 = read_w(ir, rn, ZERO_REG);
         if (imm6) {
-            assert(imm6 < 32);
+            assert_illegal_opcode(imm6 < 32);
             switch(shift) {
                 case 0://lsl
                     op2 = ir->add_shl_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imm6));
@@ -906,7 +906,7 @@ static int dis_add_sub_shifted_register_insn(struct arm64_target *context, uint3
                     op2 = ir->add_asr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imm6));
                     break;
                 default:
-                    assert(0);
+                    assert_illegal_opcode(0);
             }
         } else
             op2 = read_w(ir, rm, ZERO_REG);
@@ -933,6 +933,7 @@ static int dis_add_sub_extended_register_insn(struct arm64_target *context, uint
         op1 = read_w(ir, rn, SP_REG);
         op2 = mk_extend_reg_32(ir, rm, option, imm3);
     }
+    assert_illegal_opcode(op2 != NULL);
 
     return dis_add_sub(context, insn, ir, op1, op2, SP_REG);
 }
@@ -1081,7 +1082,7 @@ static int dis_logical_shifted_register(struct arm64_target *context, uint32_t i
             res = ir->add_xor_64(ir, read_x(ir, rn, ZERO_REG), op2_inverted);
             break;
         default:
-            fatal("opc = %d\n", opc);
+            fatal_illegal_opcode("opc = %d\n", opc);
     }
 
     /* update nzcv if needed */
@@ -1242,7 +1243,7 @@ static int dis_load_register_literal(struct arm64_target *context, uint32_t insn
             write_w_sign_extend(ir, rt, ir->add_load_32(ir, address), ZERO_REG);
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     return 0;
@@ -1431,7 +1432,7 @@ static int dis_csel(struct arm64_target *context, uint32_t insn, struct irInstru
     return dis_cond_select(context, insn, ir, read_x(ir, rm, ZERO_REG));
 }
 
-static void dis_load_store_register(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir,
+static int dis_load_store_register(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir,
                                     int size, int opc, int rt, struct irRegister *address)
 {
     struct irRegister *res = NULL;
@@ -1482,7 +1483,7 @@ static void dis_load_store_register(struct arm64_target *context, uint32_t insn,
                 res = ir->add_32S_to_64(ir, ir->add_load_32(ir, address));
                 break;
             default:
-                assert(0);
+                assert_illegal_opcode(0);
         }
         write_x(ir, rt, res, ZERO_REG);
     } else {
@@ -1495,13 +1496,15 @@ static void dis_load_store_register(struct arm64_target *context, uint32_t insn,
                 res = ir->add_16S_to_32(ir, ir->add_load_16(ir, address));
                 break;
             default:
-                assert(0);
+                assert_illegal_opcode(0);
         }
         write_w(ir, rt, res, ZERO_REG);
     }
+
+    return 0;
 }
 
-static void dis_load_store_register_simd(struct irInstructionAllocator *ir, int is_load, int size, int rt, struct irRegister *address)
+static int dis_load_store_register_simd(struct arm64_target *context, struct irInstructionAllocator *ir, int is_load, int size, int rt, struct irRegister *address)
 {
     /* do load store */
     if (is_load) {
@@ -1527,7 +1530,7 @@ static void dis_load_store_register_simd(struct irInstructionAllocator *ir, int 
                 write_v_msb(ir, rt, ir->add_load_64(ir, ir->add_add_64(ir, address, mk_64(ir, 8))));
                 break;
             default:
-                fatal("size = %d\n", size);
+                fatal_illegal_opcode("size = %d\n", size);
         }
     } else {
         switch(size) {
@@ -1548,9 +1551,11 @@ static void dis_load_store_register_simd(struct irInstructionAllocator *ir, int 
                 ir->add_store_64(ir, read_v_msb(ir, rt), ir->add_add_64(ir, address, mk_64(ir, 8)));
                 break;
             default:
-                fatal("size = %d\n", size);
+                fatal_illegal_opcode("size = %d\n", size);
         }
     }
+
+    return 0;
 }
 
 static int dis_load_store_register_unsigned_offset(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1570,9 +1575,7 @@ static int dis_load_store_register_unsigned_offset(struct arm64_target *context,
     address = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, imm12 << size));
 
     /* do load store */
-    dis_load_store_register(context, insn, ir, size, opc, rt, address);
-
-    return 0;
+    return dis_load_store_register(context, insn, ir, size, opc, rt, address);
 }
 
 static int dis_load_store_register_unsigned_offset_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1588,9 +1591,7 @@ static int dis_load_store_register_unsigned_offset_simd(struct arm64_target *con
     address = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, imm12 << size));
 
     /* do load store */
-    dis_load_store_register_simd(ir, is_load, size, rt, address);
-
-    return 0;
+    return dis_load_store_register_simd(context, ir, is_load, size, rt, address);
 }
 
 static int dis_load_store_register_unscaled_immediate(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1612,9 +1613,7 @@ static int dis_load_store_register_unscaled_immediate(struct arm64_target *conte
     address = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, imm9));
 
     /* do load store */
-    dis_load_store_register(context, insn, ir, size, opc, rt, address);
-
-    return 0;
+    return dis_load_store_register(context, insn, ir, size, opc, rt, address);
 }
 
 static int dis_load_store_register_unscaled_immediate_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1630,9 +1629,7 @@ static int dis_load_store_register_unscaled_immediate_simd(struct arm64_target *
     /* compute address */
     address = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, imm9));
     /* do load store */
-    dis_load_store_register_simd(ir, is_load, size, rt, address);
-
-    return 0;
+    return dis_load_store_register_simd(context, ir, is_load, size, rt, address);
 }
 
 static int dis_load_store_register_immediate_post_indexed(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1643,6 +1640,7 @@ static int dis_load_store_register_immediate_post_indexed(struct arm64_target *c
     int rn = INSN(9, 5);
     int rt = INSN(4, 0);
     struct irRegister *address;
+    int res;
 
     imm9 = (imm9 << 55) >> 55;
 
@@ -1650,12 +1648,12 @@ static int dis_load_store_register_immediate_post_indexed(struct arm64_target *c
     address = read_x(ir, rn, SP_REG);
 
     /* do load store */
-    dis_load_store_register(context, insn, ir, size, opc, rt, address);
+    res = dis_load_store_register(context, insn, ir, size, opc, rt, address);
 
     /* write back rn */
     write_x(ir, rn, ir->add_add_64(ir, address, mk_64(ir, imm9)), SP_REG);
 
-    return 0;
+    return res;
 }
 
 static int dis_load_store_register_immediate_post_indexed_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1666,6 +1664,7 @@ static int dis_load_store_register_immediate_post_indexed_simd(struct arm64_targ
     int rt = INSN(4, 0);
     int64_t imm9 = INSN(20, 12);
     struct irRegister *address;
+    int res;
 
     imm9 = (imm9 << 55) >> 55;
 
@@ -1673,12 +1672,12 @@ static int dis_load_store_register_immediate_post_indexed_simd(struct arm64_targ
     address = read_x(ir, rn, SP_REG);
 
     /* do load store */
-    dis_load_store_register_simd(ir, is_load, size, rt, address);
+    res = dis_load_store_register_simd(context, ir, is_load, size, rt, address);
 
     /* write back rn */
     write_x(ir, rn, ir->add_add_64(ir, address, mk_64(ir, imm9)), SP_REG);
 
-    return 0;
+    return res;
 }
 
 static int dis_load_store_register_register_offset(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1706,7 +1705,7 @@ static int dis_load_store_register_register_offset(struct arm64_target *context,
     } else if (option == 6) {
         offset_not_scale = ir->add_32S_to_64(ir, read_w(ir, rm, ZERO_REG));
     } else
-        assert(0);
+        assert_illegal_opcode(0);
     if (S && size) {
         offset = ir->add_shl_64(ir, offset_not_scale, mk_8(ir, size));
     } else {
@@ -1716,9 +1715,7 @@ static int dis_load_store_register_register_offset(struct arm64_target *context,
     address = ir->add_add_64(ir, read_x(ir, rn, SP_REG), offset);
 
     /* do load store */
-    dis_load_store_register(context, insn, ir, size, opc, rt, address);
-
-    return 0;
+    return dis_load_store_register(context, insn, ir, size, opc, rt, address);
 }
 
 static int dis_load_store_register_register_offset_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1742,7 +1739,7 @@ static int dis_load_store_register_register_offset_simd(struct arm64_target *con
     } else if (option == 6) {
         offset_not_scale = ir->add_32S_to_64(ir, read_w(ir, rm, ZERO_REG));
     } else
-        assert(0);
+        assert_illegal_opcode(0);
     if (S && size) {
         offset = ir->add_shl_64(ir, offset_not_scale, mk_8(ir, size));
     } else {
@@ -1752,9 +1749,7 @@ static int dis_load_store_register_register_offset_simd(struct arm64_target *con
     address = ir->add_add_64(ir, read_x(ir, rn, SP_REG), offset);
 
     /* do load store */
-    dis_load_store_register_simd(ir, is_load, size, rt, address);
-
-    return 0;
+    return dis_load_store_register_simd(context, ir, is_load, size, rt, address);
 }
 
 static int dis_load_store_register_unprivileged(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1770,6 +1765,7 @@ static int dis_load_store_register_immediate_pre_indexed(struct arm64_target *co
     int rn = INSN(9, 5);
     int rt = INSN(4, 0);
     struct irRegister *address;
+    int res;
 
     imm9 = (imm9 << 55) >> 55;
 
@@ -1777,12 +1773,12 @@ static int dis_load_store_register_immediate_pre_indexed(struct arm64_target *co
     address = ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, imm9));
 
     /* do load store */
-    dis_load_store_register(context, insn, ir, size, opc, rt, address);
+    res = dis_load_store_register(context, insn, ir, size, opc, rt, address);
 
     /* write back rn */
     write_x(ir, rn, address, SP_REG);
 
-    return 0;
+    return res;
 }
 
 static int dis_load_store_register_immediate_pre_indexed_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1793,6 +1789,7 @@ static int dis_load_store_register_immediate_pre_indexed_simd(struct arm64_targe
     int rt = INSN(4, 0);
     int64_t imm9 = INSN(20, 12);
     struct irRegister *address;
+    int res;
 
     imm9 = (imm9 << 55) >> 55;
 
@@ -1800,12 +1797,12 @@ static int dis_load_store_register_immediate_pre_indexed_simd(struct arm64_targe
     address =  ir->add_add_64(ir, read_x(ir, rn, SP_REG), mk_64(ir, imm9));
 
     /* do load store */
-    dis_load_store_register_simd(ir, is_load, size, rt, address);
+    res = dis_load_store_register_simd(context, ir, is_load, size, rt, address);
 
     /* write back rn */
     write_x(ir, rn, address, SP_REG);
 
-    return 0;
+    return res;
 }
 
 static int dis_load_register_literal_simd(struct arm64_target *context, uint32_t insn, struct irInstructionAllocator *ir)
@@ -1835,7 +1832,7 @@ static int dis_load_register_literal_simd(struct arm64_target *context, uint32_t
             }
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     return 0;
@@ -1964,7 +1961,7 @@ static int dis_extr(struct arm64_target *context, uint32_t insn, struct irInstru
                                 ir->add_shl_64(ir, read_x(ir, rn, ZERO_REG), mk_8(ir, 64 - imms)));
             write_x(ir, rd, res, ZERO_REG);
         } else {
-            assert(imms < 32);
+            assert_illegal_opcode(imms < 32);
             res = ir->add_or_32(ir,
                                 ir->add_shr_32(ir, read_w(ir, rm, ZERO_REG), mk_8(ir, imms)),
                                 ir->add_shl_32(ir, read_w(ir, rn, ZERO_REG), mk_8(ir, 32 - imms)));
@@ -2365,7 +2362,7 @@ static int dis_msr_register(struct arm64_target *context, uint32_t insn, struct 
     } else {
         fprintf(stderr, "op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\n", op0, op1, crn, crm, op2);
         fprintf(stderr, "pc = 0x%016lx\n", context->pc);
-        assert(0);
+        assert_illegal_opcode(0);
     }
 
     return 0;
@@ -2400,7 +2397,7 @@ static int dis_mrs_register(struct arm64_target *context, uint32_t insn, struct 
     } else {
         fprintf(stderr, "op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\n", op0, op1, crn, crm, op2);
         fprintf(stderr, "pc = 0x%016lx\n", context->pc);
-        assert(0);
+        assert_illegal_opcode(0);
     }
 
     return 0;
@@ -2894,7 +2891,7 @@ static int dis_sys(struct arm64_target *context, uint32_t insn, struct irInstruc
         mk_exit(context, ir, mk_64(ir, context->pc + 4));
         isExit = 1;
     } else
-        fatal("op1=%d / crn=%d / crm=%d / op2=%d\n", op1, crn, crm, op2);
+        fatal_illegal_opcode("op1=%d / crn=%d / crm=%d / op2=%d\n", op1, crn, crm, op2);
 
     return isExit;
 }
@@ -2929,7 +2926,7 @@ static int dis_fmov(struct arm64_target *context, uint32_t insn, struct irInstru
         //fmov Vd.D[1], Xn
         write_v_msb(ir, rd, read_x(ir, rn, ZERO_REG));
     } else
-        fatal("sf=%d / type=%d / rmode=%d / opcode=%d\n", sf, type, rmode, opcode);
+        fatal_illegal_opcode("sf=%d / type=%d / rmode=%d / opcode=%d\n", sf, type, rmode, opcode);
 
     return 0;
 }
@@ -2977,7 +2974,7 @@ static int dis_smov(struct arm64_target *context, uint32_t insn, struct irInstru
         index = (q_imm5 >> 4) & 1;
         res = ir->add_read_context_64(ir, offsetof(struct arm64_registers, v[rn].d[index]));
     } else
-        assert(0);
+        assert_illegal_opcode(0);
     if (q)
         write_x(ir, rd, res, ZERO_REG);
     else
@@ -3007,7 +3004,7 @@ static int dis_umov(struct arm64_target *context, uint32_t insn, struct irInstru
         index = (q_imm5 >> 4) & 1;
         res = ir->add_read_context_64(ir, offsetof(struct arm64_registers, v[rn].d[index]));
     } else
-        assert(0);
+        assert_illegal_opcode(0);
     write_x(ir, rd, res, ZERO_REG);
 
     return 0;
@@ -3194,8 +3191,10 @@ static int dis_mvni(struct arm64_target *context, uint32_t insn, struct irInstru
     int imm8 = (INSN(18,16) << 5) + INSN(9,5);
     int cmode = INSN(15,12);
     int rd = INSN(4, 0);
-    struct irRegister *imm64 = mk_64(ir, ~simd_immediate(op, cmode, imm8));
+    int is_illegal = 0;
+    struct irRegister *imm64 = mk_64(ir, ~simd_immediate(op, cmode, imm8, &is_illegal));
 
+    assert_illegal_opcode(!is_illegal);
     write_v_lsb(ir, rd, imm64);
     write_v_msb(ir, rd, Q?imm64:mk_64(ir, 0));
 
@@ -3209,8 +3208,10 @@ static int dis_movi(struct arm64_target *context, uint32_t insn, struct irInstru
     int imm8 = (INSN(18,16) << 5) + INSN(9,5);
     int cmode = INSN(15,12);
     int rd = INSN(4, 0);
-    struct irRegister *imm64 = mk_64(ir, simd_immediate(op, cmode, imm8));
+    int is_illegal = 0;
+    struct irRegister *imm64 = mk_64(ir, simd_immediate(op, cmode, imm8, &is_illegal));
 
+    assert_illegal_opcode(!is_illegal);
     write_v_lsb(ir, rd, imm64);
     write_v_msb(ir, rd, Q?imm64:mk_64(ir, 0));
 
@@ -3224,8 +3225,10 @@ static int dis_bic_immediate(struct arm64_target *context, uint32_t insn, struct
     int imm8 = (INSN(18,16) << 5) + INSN(9,5);
     int cmode = INSN(15,12);
     int rd = INSN(4, 0);
-    struct irRegister *imm64 = mk_64(ir, ~simd_immediate(op, cmode, imm8));
+    int is_illegal = 0;
+    struct irRegister *imm64 = mk_64(ir, ~simd_immediate(op, cmode, imm8, &is_illegal));
 
+    assert_illegal_opcode(!is_illegal);
     write_v_lsb(ir, rd, ir->add_and_64(ir, read_v_lsb(ir, rd), imm64));
     if (Q) {
         write_v_msb(ir, rd, ir->add_and_64(ir, read_v_msb(ir, rd), imm64));
@@ -3243,8 +3246,10 @@ static int dis_orr_immediate(struct arm64_target *context, uint32_t insn, struct
     int imm8 = (INSN(18,16) << 5) + INSN(9,5);
     int cmode = INSN(15,12);
     int rd = INSN(4, 0);
-    struct irRegister *imm64 = mk_64(ir, simd_immediate(op, cmode, imm8));
+    int is_illegal = 0;
+    struct irRegister *imm64 = mk_64(ir, simd_immediate(op, cmode, imm8, &is_illegal));
 
+    assert_illegal_opcode(!is_illegal);
     write_v_lsb(ir, rd, ir->add_or_64(ir, read_v_lsb(ir, rd), imm64));
     if (Q) {
         write_v_msb(ir, rd, ir->add_or_64(ir, read_v_msb(ir, rd), imm64));
@@ -3262,8 +3267,10 @@ static int dis_fmov_immediate(struct arm64_target *context, uint32_t insn, struc
     int imm8 = (INSN(18,16) << 5) + INSN(9,5);
     int cmode = INSN(15,12);
     int rd = INSN(4, 0);
-    struct irRegister *imm64 = mk_64(ir, simd_immediate(op, cmode, imm8));
+    int is_illegal = 0;
+    struct irRegister *imm64 = mk_64(ir, simd_immediate(op, cmode, imm8, &is_illegal));
 
+    assert_illegal_opcode(!is_illegal);
     write_v_lsb(ir, rd, imm64);
     if (Q) {
         write_v_msb(ir, rd, imm64);
@@ -3661,7 +3668,7 @@ static int dis_load_store_exclusive(struct arm64_target *context, uint32_t insn,
     } else if (o0 == 1 &&  o1 == 1 && o2 == 0 && l == 0) {
         isExit = dis_store_release_exclusive_pair(context, insn, ir);
     } else
-        fatal("pc = 0x%08x / o0=%d / o1=%d / o2=%d / l =%d\n", context->pc, o0, o1, o2, l);
+        fatal_illegal_opcode("pc = 0x%08x / o0=%d / o1=%d / o2=%d / l =%d\n", context->pc, o0, o1, o2, l);
 
     return isExit;
 }
@@ -3806,7 +3813,7 @@ static int dis_data_processing_immediate_insn(struct arm64_target *context, uint
                     isExit = dis_movk(context, insn, ir);
                     break;
                 default:
-                    assert(0);
+                    assert_illegal_opcode(0);
             }
             break;
         case 6:
@@ -3871,7 +3878,7 @@ static int dis_data_processing_1_source(struct arm64_target *context, uint32_t i
             isExit = dis_cls(context, insn, ir);
             break;
         default:
-            fatal("opcode = %d(%x)\n", opcode, opcode);
+            fatal_illegal_opcode("opcode = %d(%x)\n", opcode, opcode);
     }
 
     return isExit;
@@ -3906,7 +3913,7 @@ static int dis_data_processing_2_source(struct arm64_target *context, uint32_t i
             isExit = dis_crc32(context, insn, ir);
             break;
         default:
-            fatal("opcode = %d(0x%x)\n", opcode, opcode);
+            fatal_illegal_opcode("opcode = %d(0x%x)\n", opcode, opcode);
     }
 
     return isExit;
@@ -3943,7 +3950,7 @@ static int dis_data_processing_3_source(struct arm64_target *context, uint32_t i
             isExit = dis_umulh(context, insn, ir);
             break;
         default:
-            fatal("op31_o0 = %d(0x%x)\n", op31_o0, op31_o0);
+            fatal_illegal_opcode("op31_o0 = %d(0x%x)\n", op31_o0, op31_o0);
     }
 
     return isExit;
@@ -3977,7 +3984,7 @@ static int dis_data_processing_register_insn(struct arm64_target *context, uint3
                         isExit = dis_data_processing_2_source(context, insn, ir);
                     break;
                 default:
-                    assert(0);
+                    assert_illegal_opcode(0);
             }
         }
     } else {
@@ -4005,7 +4012,7 @@ static int dis_exception_insn(struct arm64_target *context, uint32_t insn, struc
     else if (opc == 1 && ll == 0)
         isExit = dis_brk(context, insn, ir);
     else
-        fatal("opc = %d / ll = %d\n", opc, ll);
+        fatal_illegal_opcode("opc = %d / ll = %d\n", opc, ll);
 
     return isExit;
 }
@@ -4026,7 +4033,7 @@ static int dis_unconditionnal_branch_register(struct arm64_target *context, uint
             isExit = dis_ret(context, insn, ir);
             break;
         default:
-            fatal("opc = %d\n", opc);
+            fatal_illegal_opcode("opc = %d\n", opc);
     }
 
     return isExit;
@@ -4044,7 +4051,7 @@ static int dis_system(struct arm64_target *context, uint32_t insn, struct irInst
         if (op0 == 2 || op0 == 3)
             isExit = dis_mrs_register(context, insn, ir);
         else
-            assert(0);
+            assert_illegal_opcode(0);
     } else {
         switch(op0) {
             case 0:
@@ -4063,16 +4070,16 @@ static int dis_system(struct arm64_target *context, uint32_t insn, struct irInst
                             isExit = dis_isb(context, insn, ir);
                             break;
                         default:
-                            fatal("op2 = %d\n", op2);
+                            fatal_illegal_opcode("op2 = %d\n", op2);
                     }
                 } else if (crn == 2) {
                     ;//hints are handled like nop
                 } else
-                    fatal("pc = 0x%016lx / crn = %d\n", context->pc, crn);
+                    fatal_illegal_opcode("pc = 0x%016lx / crn = %d\n", context->pc, crn);
                 break;
             case 1:
                 if (l)
-                    assert(0 && "sysl");
+                    assert_illegal_opcode(0 && "sysl");
                 else
                     isExit = dis_sys(context, insn, ir);
                 break;
@@ -4080,7 +4087,7 @@ static int dis_system(struct arm64_target *context, uint32_t insn, struct irInst
                 isExit = dis_msr_register(context, insn, ir);
                 break;
             default:
-                fatal("op0 = %d\n", op0);
+                fatal_illegal_opcode("op0 = %d\n", op0);
         }
     }
 
@@ -4120,7 +4127,7 @@ static int dis_branch_A_exception_A_system_insn(struct arm64_target *context, ui
             }
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     return isExit;
@@ -4206,7 +4213,7 @@ static int dis_advanced_simd_copy(struct arm64_target *context, uint32_t insn, s
                 isExit = dis_umov(context, insn, ir);
                 break;
             default:
-                fatal("imm4 = %d\n", imm4);
+                fatal_illegal_opcode("imm4 = %d\n", imm4);
         }
     }
 
@@ -4242,7 +4249,7 @@ static int dis_advanced_simd_modified_immediate(struct arm64_target *context, ui
                 isExit = dis_fmov_immediate(context, insn, ir);
                 break;
         default:
-            fatal("cmode = %d(0x%x)\n", cmode, cmode);
+            fatal_illegal_opcode("cmode = %d(0x%x)\n", cmode, cmode);
     }
 
     return isExit;
@@ -4258,39 +4265,49 @@ static int dis_advanced_simd(struct arm64_target *context, uint32_t insn, struct
                 if (INSN(21, 21) == 0) {
                     if (INSN(29,29) == 0) {
                         if(INSN(11,11) == 0) {
+                            assert_illegal_opcode((insn & 0xbf208c00) == 0x0e000000);
                             isExit = dis_advanced_simd_table_lookup(context, insn, ir);
                         } else {
+                            assert_illegal_opcode((insn & 0xbf208c00) == 0x0e000800);
                             isExit = dis_advanced_simd_permute(context, insn, ir);
                         }
                     } else {
+                        assert_illegal_opcode((insn & 0xbf208400) == 0x2e000000);
                         isExit = dis_advanced_simd_ext(context, insn, ir);
                     }
                 } else { //INSN(21, 21) == 1
                     if (INSN(11, 11) == 0) {
+                        assert_illegal_opcode((insn & 0x9f200c00) == 0x0e200000);
                         isExit = dis_advanced_simd_three_different(context, insn, ir);
                     } else { //INSN(11, 11) == 1
                         if (INSN(20, 20) == 0) {
+                            assert_illegal_opcode((insn & 0x9f3e0c00) == 0x0e200800);
                             isExit = dis_advanced_simd_two_reg_misc(context, insn, ir);
                         } else { //INSN(20, 20) == 1
+                            assert_illegal_opcode((insn & 0x9f3e0c00) == 0x0e300800);
                             isExit = dis_advanced_simd_accross_lanes(context, insn, ir);
                         }
                     }
                 }
             } else { //INSN(10,10) == 1
                 if (INSN(21, 21) == 0) {
-                    assert((insn & 0x9fe08400) == 0x0e000400);
+                    assert_illegal_opcode((insn & 0x9fe08400) == 0x0e000400);
                     isExit = dis_advanced_simd_copy(context, insn, ir);
                 } else {
+                    assert_illegal_opcode((insn & 0x9f200400) == 0x0e200400);
                     isExit = dis_advanced_simd_three_same(context, insn, ir);
                 }
             }
         } else { //INSN(24,24) == 1
             if (INSN(10,10) == 0) {
+                assert_illegal_opcode((insn & 0x9f000400) == 0x0f000000);
                 isExit = dis_advanced_simd_vector_x_indexed_element(context, insn, ir);
             } else { //INSN(10,10) == 1
                 if (INSN(22,19) == 0) {
+                    assert_illegal_opcode((insn & 0x9ff80400) == 0x0f000400);
                     isExit = dis_advanced_simd_modified_immediate(context, insn, ir);
                 } else {
+                    assert_illegal_opcode((insn & 0x9f000400) == 0x0f000400);
                     isExit = dis_advanced_simd_shift_by_immediate(context, insn, ir);
                 }
             }
@@ -4299,33 +4316,39 @@ static int dis_advanced_simd(struct arm64_target *context, uint32_t insn, struct
         if (INSN(24, 24) == 0) {
             if (INSN(10, 10) == 0) {
                 if (INSN(11, 11) == 0) {
+                    assert_illegal_opcode((insn & 0xdf200c00) == 0x5e200000);
                     isExit = dis_advanced_simd_scalar_three_different(context, insn, ir);
                 } else { //INSN(11, 11) == 1
                     if (INSN(20, 20) == 0) {
+                        assert_illegal_opcode((insn & 0xdf3e0c00) == 0x5e200800);
                         isExit = dis_advanced_simd_scalar_two_reg_misc(context, insn, ir);
                     } else { //INSN(20, 20) == 1
+                        assert_illegal_opcode((insn & 0xdf3e0c00) == 0x5e300800);
                         isExit = dis_advanced_simd_scalar_pair_wise(context, insn, ir);
                     }
                 }
             } else { //INSN(10, 10) == 1
                 if (INSN(21, 21) == 0) {
+                    assert_illegal_opcode((insn & 0xdfe08400) == 0x5e000400);
                     isExit = dis_advanced_simd_scalar_copy(context, insn, ir);
                 } else {
+                    assert_illegal_opcode((insn & 0xdf200400) == 0x5e200400);
                     isExit = dis_advanced_simd_scalar_three_same(context, insn, ir);
                 }
             }
         } else { //INSN(24, 24) == 1
             if (INSN(30,30) == 0) {
-                assert(0); //floating point data processing 3 source
+                assert_illegal_opcode(0); //floating point data processing 3 source
             }   else { //INSN(30,30) == 1
                 if (INSN(10,10) == 0) {
+                    assert_illegal_opcode((insn & 0xdf000400) == 0x5f000000);
                     isExit = dis_advanced_simd_scalar_x_indexed_element(context, insn, ir);
                 } else { //INSN(10,10) == 1
+                    assert_illegal_opcode((insn & 0xdf800400) == 0x5f000400);
                     isExit = dis_advanced_simd_scalar_shift_by_immediate(context, insn, ir);
                 }
             }
         }
-        //fatal("pc = 0x%016lx / insn=0x%08x\n", context->pc, insn);
     }
 
     return isExit;
@@ -4384,7 +4407,7 @@ static int disassemble_insn(struct arm64_target *context, uint32_t insn, struct 
     if (INSN(28, 27) == 0) {
         //unallocated
         fprintf(stderr, "pc = 0x%016lx / insn = 0x%08x / insn = 0x%08x\n", context->pc, insn, *((uint32_t *) context->pc));
-        fatal("unallocated ins\n");
+        fatal_illegal_opcode("unallocated ins\n");
     } else if (INSN(28, 26) == 4) {
         isExit = dis_data_processing_immediate_insn(context, insn, ir);
     } else if (INSN(28, 26) == 5) {
@@ -4398,7 +4421,7 @@ static int disassemble_insn(struct arm64_target *context, uint32_t insn, struct 
     } else if (INSN(28, 25) == 15) {
         isExit = dis_data_processing_simd_insn(context, insn, ir);
     } else
-        fatal("Unknow insn = 0x%08x\n", insn);
+        fatal_illegal_opcode("Unknow insn = 0x%08x\n", insn);
 
     return isExit;
 }

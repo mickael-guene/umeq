@@ -18,12 +18,9 @@
  * 02110-1301 USA.
  */
 
-#define _GNU_SOURCE
-#include <unistd.h>
-#include <sys/syscall.h>
+#define __IN_HELPERS        1
 #include <stdio.h>
 #include <assert.h>
-#include <signal.h>
 
 #include "arm64_private.h"
 #include "arm64_helpers.h"
@@ -62,6 +59,12 @@ static int tkill(int pid, int sig)
 static pid_t gettid()
 {
     return syscall(SYS_gettid);
+}
+
+static void generate_illegal_signal()
+{
+    tkill(gettid(), SIGILL);
+    assert(0);/* make compiler happy */
 }
 
 void arm64_gdb_breakpoint_instruction(uint64_t regs)
@@ -121,7 +124,7 @@ uint32_t arm64_hlp_compute_next_nzcv_32(uint64_t context, uint32_t opcode, uint3
             v = (((calc ^ op1) & (calc ^ op2)) >> 3) & 0x10000000;
             break;
         default:
-            fatal("ops = %d\n", ops);
+            fatal_illegal_opcode("ops = %d\n", ops);
     }
 
     n = (calc & 0x80000000);
@@ -169,7 +172,7 @@ uint32_t arm64_hlp_compute_next_nzcv_64(uint64_t context, uint32_t opcode, uint6
             fprintf(stderr, "op1 = 0x%016lx\n", op1);
             fprintf(stderr, "op2 = 0x%016lx\n", op2);
             fprintf(stderr, "oldcpsr = 0x%018x\n", oldnzcv);
-            fatal("ops = %d\n", ops);
+            fatal_illegal_opcode("ops = %d\n", ops);
     }
 
     n = (calc & 0x8000000000000000UL) >> 32;
@@ -219,7 +222,7 @@ uint32_t arm64_hlp_compute_flags_pred(uint64_t context, uint32_t cond, uint32_t 
             pred = 1;
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     //invert cond
     if (cond&1 && cond != 15)
@@ -268,7 +271,7 @@ uint64_t arm64_hlp_compute_bitfield(uint64_t context, uint32_t insn, uint64_t rn
       inzero = 1;
       break;
     default:
-      assert(0);
+      assert_illegal_opcode(0);
   }
 
   int64_t dst = inzero ? 0 : rd;
@@ -371,7 +374,7 @@ uint64_t arm64_hlp_ldxr(uint64_t regs, uint64_t address, uint32_t size_access)
             context->exclusive_value = (uint8_t) *((uint8_t *)g_2_h(address));
             break;
         default:
-            fatal("size_access %d unsupported\n", size_access);
+            fatal_illegal_opcode("size_access %d unsupported\n", size_access);
     }
 
     return context->exclusive_value;
@@ -411,7 +414,7 @@ void arm64_hlp_ldxp_dirty(uint64_t _regs, uint32_t insn)
         if (rt2 != 31)
             regs->r[rt2] = (uint32_t) (context->exclusive_value >> 32);
     } else
-        assert(0);
+        assert_illegal_opcode(0);
 }
 
 void arm64_hlp_ldaxp_dirty(uint64_t _regs, uint32_t insn)
@@ -469,7 +472,7 @@ void arm64_hlp_stxp_dirty(uint64_t _regs, uint32_t insn)
                 break;
             }
         default:
-            fatal("size_access %d unsupported\n", size_access);
+            fatal_illegal_opcode("size_access %d unsupported\n", size_access);
     }
     regs->r[rs] = res;
 }
@@ -511,7 +514,7 @@ uint32_t arm64_hlp_stxr(uint64_t regs, uint64_t address, uint32_t size_access, u
                 res = 1;
             break;
         default:
-            fatal("size_access %d unsupported\n", size_access);
+            fatal_illegal_opcode("size_access %d unsupported\n", size_access);
     }
 
     return res;

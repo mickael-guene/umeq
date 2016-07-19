@@ -33,6 +33,8 @@
 #define INSN1(msb, lsb) INSN(msb+16, lsb+16)
 #define INSN2(msb, lsb) INSN(msb, lsb)
 
+static void mk_gdb_breakpoint_instruction(struct arm_target *context, struct irInstructionAllocator *ir);
+
 /* it block handle */
 static int inItBlock(struct arm_target *context)
 {
@@ -344,14 +346,14 @@ static int mk_data_processing_modified(struct arm_target *context, struct irInst
             break;
         case 4:// eor/teq
             if (rd == 15) {
-                assert(s == 1);
+                assert_illegal_opcode(s == 1);
                 isExit = 0;
             } else
                 result = ir->add_xor_32(ir, op1, op2);
             break;
         case 8:// add/cmn
             if (rd == 15) {
-                assert(s == 1);
+                assert_illegal_opcode(s == 1);
                 isExit = 0;
             } else
                 result = ir->add_add_32(ir, op1, op2);
@@ -374,7 +376,7 @@ static int mk_data_processing_modified(struct arm_target *context, struct irInst
             break;
         case 13://sub/cmp
             if (rd == 15) {
-                assert(s == 1);
+                assert_illegal_opcode(s == 1);
                 isExit = 0;
             } else
                 result = ir->add_sub_32(ir, op1, op2);
@@ -383,10 +385,10 @@ static int mk_data_processing_modified(struct arm_target *context, struct irInst
             result = ir->add_sub_32(ir, op2, op1);
             break;
         default:
-            fatal("insn=0x%x op=%d(0x%x)\n", insn, opcode, opcode);
+            fatal_illegal_opcode("insn=0x%x op=%d(0x%x)\n", insn, opcode, opcode);
     }
 
-    assert(isExit == 0);
+    assert_illegal_opcode(isExit == 0);
     if (result)
         write_reg(context, ir, rd, result);
     if (s)
@@ -620,7 +622,7 @@ static int dis_t2_b_t3(struct arm_target *context, uint32_t insn, struct irInstr
         write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc));
 #endif
     } else
-        fatal("cond(%d) >= 14 ?\n", cond);
+        fatal_illegal_opcode("cond(%d) >= 14 ?\n", cond);
 
     /* sign extend */
     imm32 = (imm32 << 11) >> 11;
@@ -1103,7 +1105,7 @@ static int dis_t1_add_register_t2(struct arm_target *context, uint32_t insn, str
     int rdn = (INSN(7, 7) << 3) | INSN(2, 0);
     int rm = INSN(6, 3);
 
-    assert(rdn != 15 && "implement me");
+    assert_illegal_opcode(rdn != 15 && "implement me");
 
     write_reg(context, ir, rdn, ir->add_add_32(ir,
                                                read_reg(context, ir, rdn),
@@ -1218,7 +1220,7 @@ static int dis_t1_b_t1(struct arm_target *context, uint32_t insn, struct irInstr
         write_reg(context, ir, 15, ir->add_mov_const_32(ir, context->pc));
 #endif
     } else
-        fatal("cond(%d) >= 14 ?\n", cond);
+        fatal_illegal_opcode("cond(%d) >= 14 ?\n", cond);
 
     /* sign extend */
     imm32 = (imm32 << 24) >> 23;
@@ -1390,7 +1392,7 @@ static int dis_t32_ldrh_ldrsh_literal(struct arm_target *context, uint32_t insn,
     uint32_t base = (context->pc + 4) & ~3;
     uint32_t address = u?base+imm32:base-imm32;
 
-    assert(rt != 15);
+    assert_illegal_opcode(rt != 15);
 
     if (is_signed)
         write_reg(context, ir, rt, ir->add_16S_to_32(ir, ir->add_load_16(ir, mk_address(ir, mk_32(ir, address)))));
@@ -1410,7 +1412,7 @@ static int dis_t32_t2_ldrh_ldrsh_register(struct arm_target *context, uint32_t i
     int is_signed = INSN1(8, 8);
     struct irRegister *address;
 
-    assert(rt != 15);
+    assert_illegal_opcode(rt != 15);
 
     address = ir->add_add_32(ir, read_reg(context, ir, rn),
                                  ir->add_shl_32(ir,
@@ -1496,8 +1498,8 @@ static int dis_t2_ldrt(struct arm_target *context, uint32_t insn, struct irInstr
     uint32_t imm32 = INSN2(7, 0);
     struct irRegister *address;
 
-    assert(rt != 15);
-    assert(rn != 15);
+    assert_illegal_opcode(rt != 15);
+    assert_illegal_opcode(rn != 15);
 
     address = ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32));
     write_reg(context, ir, rt, ir->add_load_32(ir, mk_address(ir, address)));
@@ -1560,9 +1562,9 @@ static int dis_t2_load_store_double_immediate_offset(struct arm_target *context,
     int offset = INSN2(7, 0) << 2;
     struct irRegister *address;
 
-    assert(rt != 15 && "implement it");
-    assert(rt2 != 15 && "implement it");
-    assert(rn != 15);
+    assert_illegal_opcode(rt != 15 && "implement it");
+    assert_illegal_opcode(rt2 != 15 && "implement it");
+    assert_illegal_opcode(rn != 15);
     /* compute address of access */
     if (p) {
         //either offset or pre-indexedregs
@@ -1603,9 +1605,9 @@ static int dis_t2_ldrd_literal(struct arm_target *context, uint32_t insn, struct
     struct irRegister *address;
     struct irRegister *address2;
 
-    assert(rt != 13 && rt != 15);
-    assert(rt2 != 13 && rt2 != 15);
-    assert(rt != rt2);
+    assert_illegal_opcode(rt != 13 && rt != 15);
+    assert_illegal_opcode(rt2 != 13 && rt2 != 15);
+    assert_illegal_opcode(rt != rt2);
 
     address = mk_address(ir, mk_32(ir, ((context->pc + 4) & ~3) + (is_add?imm32:-imm32)));
     address2 = mk_address(ir, mk_32(ir, ((context->pc + 4) & ~3) + 4 + (is_add?imm32:-imm32)));
@@ -1623,8 +1625,8 @@ static int dis_t32_ldrbt_t1_ldrsbt_t1(struct arm_target *context, uint32_t insn,
     int is_signed = INSN1(8, 8);
     struct irRegister *address;
 
-    assert(rt != 15);
-    assert(rn != 15);
+    assert_illegal_opcode(rt != 15);
+    assert_illegal_opcode(rn != 15);
 
     address = ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32));
     if (is_signed)
@@ -1643,8 +1645,8 @@ static int dis_t32_ldrb_t2_ldrsb_t1(struct arm_target *context, uint32_t insn, s
     int is_signed = INSN1(8, 8);
     struct irRegister *address;
 
-    assert(rt != 15);
-    assert(rn != 15);
+    assert_illegal_opcode(rt != 15);
+    assert_illegal_opcode(rn != 15);
 
     address = ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32));
     if (is_signed)
@@ -1663,8 +1665,8 @@ static int dis_t32_ldrht_t1_ldrsht_t1(struct arm_target *context, uint32_t insn,
     int is_signed = INSN1(8, 8);
     struct irRegister *address;
 
-    assert(rt != 15);
-    assert(rn != 15);
+    assert_illegal_opcode(rt != 15);
+    assert_illegal_opcode(rn != 15);
 
     address = ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32));
     if (is_signed)
@@ -1683,8 +1685,8 @@ static int dis_t32_ldrh_t2_ldrsh_t1(struct arm_target *context, uint32_t insn, s
     int is_signed = INSN1(8, 8);
     struct irRegister *address;
 
-    assert(rt != 15);
-    assert(rn != 15);
+    assert_illegal_opcode(rt != 15);
+    assert_illegal_opcode(rn != 15);
 
     address = ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32));
     if (is_signed)
@@ -1750,9 +1752,9 @@ static int dis_t2_data_processing_register_shift(struct arm_target *context, uin
     struct irRegister *rm_reg;
     struct irRegister *nextCpsr;
 
-    assert(rn != 13 && rn !=15);
-    assert(rd != 13 && rd !=15);
-    assert(rm != 13 && rm !=15);
+    assert_illegal_opcode(rn != 13 && rn !=15);
+    assert_illegal_opcode(rd != 13 && rd !=15);
+    assert_illegal_opcode(rm != 13 && rm !=15);
 
     rn_reg = read_reg(context, ir, rn);
     rm_reg = read_reg(context, ir, rm);
@@ -1788,7 +1790,7 @@ static int dis_t2_data_processing_register_shift(struct arm_target *context, uin
             result = mk_ror_reg_32(ir, rn_reg, rm_reg);
             break;
     default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     /* update sco registers */
     /* we set bit4 since we want register behaviour */
@@ -1872,9 +1874,9 @@ static int dis_t2_sel(struct arm_target *context, uint32_t insn, struct irInstru
     struct irRegister *params[4];
     struct irRegister *result;
 
-    assert(rn != 15);
-    assert(rm != 15);
-    assert(rd != 15);
+    assert_illegal_opcode(rn != 15);
+    assert_illegal_opcode(rm != 15);
+    assert_illegal_opcode(rd != 15);
 
     params[0] = read_cpsr(context, ir);
     params[1] = read_reg(context, ir, rn);
@@ -1898,9 +1900,9 @@ static int dis_t2_clz(struct arm_target *context, uint32_t insn, struct irInstru
     struct irRegister *params[4];
     struct irRegister *result;
 
-    assert(rm != 15);
-    assert(rd != 15);
-    assert(rm == rm2);
+    assert_illegal_opcode(rm != 15);
+    assert_illegal_opcode(rd != 15);
+    assert_illegal_opcode(rm == rm2);
 
     params[0] = read_reg(context, ir, rm);
     params[1] = NULL;
@@ -2059,7 +2061,7 @@ static int dis_t2_str_imm12(struct arm_target *context, uint32_t insn, struct ir
             ir->add_store_32(ir, read_reg(context, ir, rt), mk_address(ir, address));
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     return 0;
@@ -2078,8 +2080,8 @@ static int dis_t2_str_imm8(struct arm_target *context, uint32_t insn, struct irI
     struct irRegister *address;
     struct irRegister *rn_reg;
 
-    assert(rn != 15);
-    assert(rt != 15);
+    assert_illegal_opcode(rn != 15);
+    assert_illegal_opcode(rt != 15);
 
     rn_reg = read_reg(context, ir, rn);
     //compute addresses
@@ -2103,7 +2105,7 @@ static int dis_t2_str_imm8(struct arm_target *context, uint32_t insn, struct irI
             ir->add_store_32(ir, read_reg(context, ir, rt), mk_address(ir, address));
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     //update rn if needed
@@ -2141,7 +2143,7 @@ static int dis_t2_str_register(struct arm_target *context, uint32_t insn, struct
             ir->add_store_32(ir, rt_reg, mk_address(ir, address));
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     return 0;
@@ -2222,13 +2224,13 @@ static int dis_t2_load_multiple(struct arm_target *context, uint32_t insn, struc
     int i;
     struct irRegister *newPc = NULL;
 
-    assert(rn != 15);
+    assert_illegal_opcode(rn != 15);
     assert(w != 1 || ((reglist >> rn) & 1) == 0);
     for(i=0;i<16;i++) {
         if ((reglist >> i) & 1)
             bitNb++;
     }
-    assert(bitNb >= 2);
+    assert_illegal_opcode(bitNb >= 2);
 
     /* compute start address */
     if (m) {
@@ -2280,13 +2282,13 @@ static int dis_t2_store_multiple(struct arm_target *context, uint32_t insn, stru
     struct irRegister *start_address;
     int i;
 
-    assert(rn != 15);
-    assert(w != 1 || ((reglist >> rn) & 1) == 0);
+    assert_illegal_opcode(rn != 15);
+    assert_illegal_opcode(w != 1 || ((reglist >> rn) & 1) == 0);
     for(i=0;i<16;i++) {
         if ((reglist >> i) & 1)
             bitNb++;
     }
-    assert(bitNb >= 2);
+    assert_illegal_opcode(bitNb >= 2);
 
     if (m) {
         start_address = read_reg(context, ir, rn);
@@ -2448,7 +2450,7 @@ static int dis_t1_data_processing(struct arm_target *context, uint32_t insn, str
             result = ir->add_xor_32(ir, op2, mk_32(ir, 0xffffffff));
             break;
         default:
-            fatal("opcode = %d(0x%x)\n", opcode, opcode);
+            fatal_illegal_opcode("opcode = %d(0x%x)\n", opcode, opcode);
     }
 
     if (result)
@@ -2488,7 +2490,7 @@ static int dis_t2_mrc(struct arm_target *context, uint32_t insn, struct irInstru
     int crm = INSN2(3, 0);
 
     /* only read of TPIDRPRW is possible */
-    assert(opcode_1 == 0 && crn == 13 && cp_num == 15 && opcode_2 == 3 && crm == 0);
+    assert_illegal_opcode(opcode_1 == 0 && crn == 13 && cp_num == 15 && opcode_2 == 3 && crm == 0);
 
     write_reg(context, ir, rd,
                            ir->add_read_context_32(ir, offsetof(struct arm_registers, c13_tls2)));
@@ -2620,7 +2622,7 @@ static int dis_t2_bfc(struct arm_target *context, uint32_t insn, struct irInstru
     int width = msb - lsb + 1;
     int mask = ~(((1ULL << width) - 1) << lsb);
 
-    assert(rd != 15);
+    assert_illegal_opcode(rd != 15);
 
     write_reg(context, ir, rd, ir->add_and_32(ir,
                                               read_reg(context, ir, rd),
@@ -2736,8 +2738,8 @@ static int dis_t2_ldrexx(struct arm_target *context, uint32_t insn, struct irIns
     struct irRegister *params[4];
     struct irRegister *result;
 
-    assert(rn != 15);
-    assert(rt != 15);
+    assert_illegal_opcode(rn != 15);
+    assert_illegal_opcode(rt != 15);
 
     if (imm32)
         params[0] = ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32));
@@ -2779,9 +2781,9 @@ static int dis_t2_ldrexd(struct arm_target *context, uint32_t insn, struct irIns
     struct irRegister *params[4];
     struct irRegister *result;
 
-    assert(rn != 15);
-    assert(rt != 15);
-    assert(rt2 != 15);
+    assert_illegal_opcode(rn != 15);
+    assert_illegal_opcode(rt != 15);
+    assert_illegal_opcode(rt2 != 15);
 
     params[0] = read_reg(context, ir, rn);
     params[1] = NULL;
@@ -2805,9 +2807,9 @@ static int dis_t2_strexx(struct arm_target *context, uint32_t insn, struct irIns
     struct irRegister *params[4];
     struct irRegister *result;
 
-    assert(rn != 15);
-    assert(rd != 15);
-    assert(rt != 15);
+    assert_illegal_opcode(rn != 15);
+    assert_illegal_opcode(rd != 15);
+    assert_illegal_opcode(rt != 15);
 
     if (imm32)
         params[0] = ir->add_add_32(ir, read_reg(context, ir, rn), mk_32(ir, imm32));
@@ -2850,10 +2852,10 @@ static int dis_t2_strexd(struct arm_target *context, uint32_t insn, struct irIns
     struct irRegister *params[4];
     struct irRegister *result;
 
-    assert(rn != 15);
-    assert(rd != 15);
-    assert(rt != 15);
-    assert(rt2 != 15);
+    assert_illegal_opcode(rn != 15);
+    assert_illegal_opcode(rd != 15);
+    assert_illegal_opcode(rt != 15);
+    assert_illegal_opcode(rt2 != 15);
 
     params[0] = read_reg(context, ir, rn);
     params[1] = read_reg(context, ir, rt);
@@ -2918,7 +2920,7 @@ static int dis_t2_msr(struct arm_target *context, uint32_t insn, struct irInstru
     struct irRegister *cpsr_mask;
     struct irRegister *rn_mask;
 
-    assert(rn != 15);
+    assert_illegal_opcode(rn != 15);
     mask += write_nzcvq?0xf8000000:0;
     mask += write_g?0x000f0000:0;
 
@@ -2950,7 +2952,7 @@ static int dis_t2_add_adr_t4(struct arm_target *context, uint32_t insn, struct i
     int rd = INSN2(11, 8);
     uint32_t imm32 = (INSN1(10,10) << 11) | (INSN2(14, 12) << 8) | INSN2(7, 0);
 
-    assert(rd != 15);
+    assert_illegal_opcode(rd != 15);
 
     if (rn == 15) {
         uint32_t dst = ((context->pc + 4) & ~3) + imm32;
@@ -2973,7 +2975,7 @@ static int dis_t32_ldrb_ldrsb_literal(struct arm_target *context, uint32_t insn,
     uint32_t base = (context->pc + 4) & ~3;
     uint32_t address = u?base+imm32:base-imm32;
 
-    assert(rt != 15);
+    assert_illegal_opcode(rt != 15);
 
     if (is_signed)
         write_reg(context, ir, rt, ir->add_8S_to_32(ir, ir->add_load_8(ir, mk_address(ir, mk_32(ir, address)))));
@@ -2992,7 +2994,7 @@ static int dis_t32_ldrb_register(struct arm_target *context, uint32_t insn, stru
     int is_signed = INSN1(8, 8);
     struct irRegister *address;
 
-    assert(rt != 15);
+    assert_illegal_opcode(rt != 15);
 
     address = ir->add_add_32(ir, read_reg(context, ir, rn),
                                  ir->add_shl_32(ir, read_reg(context, ir, rm), mk_8(ir, imm2)));
@@ -3302,7 +3304,7 @@ static int dis_t1_shift_A_add_A_substract_A_move_A_compare(struct arm_target *co
             isExit = dis_t1_sub_8_bits_immediate(context, insn, ir);
             break;
         default:
-            fatal("insn = 0x%x | opcode = %d(0x%x)\n", insn, opcode, opcode);
+            fatal_illegal_opcode("insn = 0x%x | opcode = %d(0x%x)\n", insn, opcode, opcode);
     }
 
     return isExit;
@@ -3357,7 +3359,7 @@ static int dis_t1_misc_16_bits(struct arm_target *context, uint32_t insn, struct
             isExit = dis_t1_itt_A_hints(context, insn, ir);
             break;
         default:
-            fatal("insn = %x | opcode = %d(0x%x)\n", insn, opcode, opcode);
+            fatal_illegal_opcode("insn = %x | opcode = %d(0x%x)\n", insn, opcode, opcode);
     }
 
     return isExit;
@@ -3396,7 +3398,7 @@ static int dis_t1_load_store_single_data_item(struct arm_target *context, uint32
                 isExit = dis_t1_ldrsh_register(context, insn, ir);
                 break;
             default:
-                fatal("opb = %d\n", opb);
+                fatal_illegal_opcode("opb = %d\n", opb);
         }
     } else if (opa == 0x6) {
         isExit = dis_t1_load_store_word_immediate(context, insn, ir);
@@ -3407,7 +3409,7 @@ static int dis_t1_load_store_single_data_item(struct arm_target *context, uint32
     } else if (opa == 0x9) {
         isExit = dis_t1_load_store_word_immediate_sp_relative(context, insn, ir);
     } else {
-        fatal("opa = %d\n", opa);
+        fatal_illegal_opcode("opa = %d\n", opa);
     }
 
     return isExit;
@@ -3452,7 +3454,7 @@ static int dis_t1_special_data_A_branch_and_exchange(struct arm_target *context,
             isExit = dis_t1_blx(context, insn, ir);
             break;
         default:
-            fatal("opcode = %d\n", opcode);
+            fatal_illegal_opcode("opcode = %d\n", opcode);
     }
 
     return isExit;
@@ -3541,7 +3543,7 @@ static int disassemble_thumb1_insn(struct arm_target *context, uint32_t insn, st
             isExit = dis_t1_b_t2(context, insn, ir);
             break;
         default:
-            fatal("insn = %x | opcode = %d(0x%x)\n", insn, opcode, opcode);
+            fatal_illegal_opcode("insn = %x | opcode = %d(0x%x)\n", insn, opcode, opcode);
     }
 
     return isExit;
@@ -3563,7 +3565,7 @@ static int dis_t2_misc_control_insn(struct arm_target *context, uint32_t insn, s
             isExit = dis_t32_t1_isb(context, insn, ir);
             break;
         default:
-            fatal("op = %d(0x%x)\n", op, op);
+            fatal_illegal_opcode("op = %d(0x%x)\n", op, op);
     }
 
     return isExit;
@@ -3576,14 +3578,14 @@ static int dis_t2_change_processor_state_A_hints(struct arm_target *context, uin
     int op2 = INSN2(7, 0);
 
     if (op1) {
-        assert(0);
+        assert_illegal_opcode(0);
     } else {
         switch(op2) {
             case 0:
                 //nop so nothing to do
                 break;
             default:
-                fatal("op2 = %d(0x%x)\n", op2, op2);
+                fatal_illegal_opcode("op2 = %d(0x%x)\n", op2, op2);
         }
     }
 
@@ -3609,7 +3611,7 @@ static int dis_t2_branches_A_misc(struct arm_target *context, uint32_t insn, str
                     if (op == 56 && (op2 & 3) == 0) {
                         isExit = dis_t2_msr(context, insn, ir);
                     } else
-                        fatal("msr system level not supported\n");
+                        fatal_illegal_opcode("msr system level not supported\n");
                     break;
                 case 58:
                     isExit = dis_t2_change_processor_state_A_hints(context, insn, ir);
@@ -3621,7 +3623,7 @@ static int dis_t2_branches_A_misc(struct arm_target *context, uint32_t insn, str
                     isExit = dis_t2_mrs(context, insn, ir);
                     break;
                 default:
-                    fatal("op = %d(0x%x)\n", op, op);
+                    fatal_illegal_opcode("op = %d(0x%x)\n", op, op);
             }
         } else
             isExit = dis_t2_b_t3(context, insn, ir);
@@ -3630,7 +3632,7 @@ static int dis_t2_branches_A_misc(struct arm_target *context, uint32_t insn, str
     } else if (op1 == 1 || op1 == 3) {
         isExit = dis_t2_branch_t4(context, insn, ir);
     } else {
-        fatal("op1 = %d(0x%x)\n", op1, op1);
+        fatal_illegal_opcode("op1 = %d(0x%x)\n", op1, op1);
     }
 
     return isExit;
@@ -3674,7 +3676,7 @@ static int dis_t2_data_processing_plain_binary_immediate(struct arm_target *cont
             isExit = dis_t2_ubfx(context, insn, ir);
             break;
         default:
-            fatal("op = %d(0x%x)\n", op, op);
+            fatal_illegal_opcode("op = %d(0x%x)\n", op, op);
     }
 
     return isExit;
@@ -3756,7 +3758,7 @@ static int dis_t2_data_processing_shifted_register(struct arm_target *context, u
             }
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     return mk_data_processing_modified(context, ir, insn, op);
@@ -3808,14 +3810,14 @@ static int dis_t2_ldr_byte_A_hints(struct arm_target *context, uint32_t insn, st
                     else if ((op2 & 0x3c) == 0x38)
                         isExit = dis_t32_ldrbt_t1_ldrsbt_t1(context, insn, ir);
                     else
-                        fatal("op1 = %d / op2 = %d(0x%x) / rn = %d\n", op1, op2, op2, rn);
+                        fatal_illegal_opcode("op1 = %d / op2 = %d(0x%x) / rn = %d\n", op1, op2, op2, rn);
                     break;
                 case 1:
                 case 3:
                     isExit = dis_t32_ldrb_t2_ldrsb_t1(context, insn, ir);
                     break;
                 default:
-                    fatal("op1 = %d / op2 = %d(0x%x)\n", op1, op2, op2);
+                    fatal_illegal_opcode("op1 = %d / op2 = %d(0x%x)\n", op1, op2, op2);
             }
         }
     }
@@ -3832,7 +3834,7 @@ static int dis_t2_ldr_halfword_A_unallocated_hints(struct arm_target *context, u
     int rt = INSN2(15, 12);
 
     if (rt == 15) {
-        assert(0);
+        assert_illegal_opcode(0);
     } else {
         if (rn == 15) {
             isExit = dis_t32_ldrh_ldrsh_literal(context, insn, ir);
@@ -3847,14 +3849,14 @@ static int dis_t2_ldr_halfword_A_unallocated_hints(struct arm_target *context, u
                     else if ((op2 & 0x3c) == 0x38)
                         isExit = dis_t32_ldrht_t1_ldrsht_t1(context, insn, ir);
                     else
-                        fatal("op1 = %d / op2 = %d(0x%x) / rn = %d\n", op1, op2, op2, rn);
+                        fatal_illegal_opcode("op1 = %d / op2 = %d(0x%x) / rn = %d\n", op1, op2, op2, rn);
                     break;
                 case 1:
                 case 3:
                     isExit = dis_t32_ldrh_t2_ldrsh_t1(context, insn, ir);
                     break;
                 default:
-                    fatal("op1 = %d / op2 = %d(0x%x) / rn = %d\n", op1, op2, op2, rn);
+                    fatal_illegal_opcode("op1 = %d / op2 = %d(0x%x) / rn = %d\n", op1, op2, op2, rn);
             }
         }
     }
@@ -3894,7 +3896,7 @@ static int dis_t2_ldrd_strd_A_ldrex_strex_A_table_branch(struct arm_target *cont
                     isExit = dis_t2_strexd(context, insn, ir);
                 break;
             default:
-                fatal("op3 = 0x%x(%d)\n", op3, op3);
+                fatal_illegal_opcode("op3 = 0x%x(%d)\n", op3, op3);
         }
     } else if (op1 == 0 && op2 == 0) {
         isExit = dis_t2_strex(context, insn, ir);
@@ -3991,7 +3993,7 @@ static int dis_t2_misc(struct arm_target *context, uint32_t insn, struct irInstr
             isExit = dis_t2_clz(context, insn, ir);
             break;
         default:
-            fatal("op = %d\n", op);
+            fatal_illegal_opcode("op = %d\n", op);
     }
 
     return isExit;
@@ -4012,7 +4014,7 @@ static int dis_t2_data_processing_register(struct arm_target *context, uint32_t 
         } else if ((op2 & 0xc) == 8) {
             isExit = dis_t2_misc(context, insn, ir);
         } else {
-            assert(0);
+            assert_illegal_opcode(0);
         }
     } else if (op2 == 0) {
         isExit = dis_t2_data_processing_register_shift(context, insn, ir);
@@ -4055,7 +4057,7 @@ static int dis_t2_data_processing_register(struct arm_target *context, uint32_t 
                     isExit = dis_t2_uxtab(context, insn, ir);
                 break;
             default:
-                fatal("op1 = %d(0x%x)\n", op1, op1);
+                fatal_illegal_opcode("op1 = %d(0x%x)\n", op1, op1);
         }
     }
 
@@ -4072,7 +4074,7 @@ static int dis_t2_str_single_data(struct arm_target *context, uint32_t insn, str
         isExit = dis_t2_str_imm12(context, insn, ir);
     } else if (op2 & 0x20) {
         if ((op2 & 0x3c) == 0x38) {
-            assert(0);
+            assert_illegal_opcode(0);
             //isExit = dis_t2_str_unprivileged(context, insn, ir);
         } else {
             isExit = dis_t2_str_imm8(context, insn, ir);
@@ -4094,7 +4096,7 @@ static int dis_t2_load_store_multiple(struct arm_target *context, uint32_t insn,
         case 0:
         case 3:
             //srs/rfe
-            assert(0);
+            assert_illegal_opcode(0);
             break;
         case 1 ... 2:
             if (l)
@@ -4190,7 +4192,7 @@ static int dis_t2_long_mult_A_long_mult_acc_A_div(struct arm_target *context, ui
                 isExit = dis_t2_umull_smull_umlal_smlal(context, insn, ir);
             break;
         default:
-            fatal("op1 = %d\n", op1);
+            fatal_illegal_opcode("op1 = %d\n", op1);
     }
 
     return isExit;
@@ -4228,14 +4230,14 @@ static int dis_t2_coprocessor_insn(struct arm_target *context, uint32_t insn, st
                 if (op1 & 1) {
                     isExit = dis_t2_mrc(context, insn, ir);
                 } else {
-                    assert(0);
+                    assert_illegal_opcode(0);
                 }
             }
         } else {
             if ((coproc & 0xe) == 0xa) {
                 isExit = dis_common_vfp_data_processing_insn(context, insn, ir);
             } else {
-                assert(0);
+                assert_illegal_opcode(0);
             }
         }
     } else {
@@ -4245,10 +4247,10 @@ static int dis_t2_coprocessor_insn(struct arm_target *context, uint32_t insn, st
             } else if ((op1 & 0x3e) == 0x4) {
                 isExit = dis_t2_64_bits_transfert_between_arm_and_extension(context, insn, ir);
             } else {
-                fatal("op1 = 0x%x\n", op1);
+                fatal_illegal_opcode("op1 = 0x%x\n", op1);
             }
         } else {
-            fatal("insn = 0x%08x / op1 = 0x%x\n", insn, op1);
+            fatal_illegal_opcode("insn = 0x%08x / op1 = 0x%x\n", insn, op1);
         }
     }
 
@@ -4328,16 +4330,16 @@ static int disassemble_thumb2_insn(struct arm_target *context, uint32_t insn, st
                 isExit = dis_t2_ldr(context, insn, ir);
             } else if ((op2 & 0x67) == 0x07) {
                 //dis_t2_undefined
-                assert(0);
+                assert_illegal_opcode(0);
             } else if ((op2 & 0x71) == 0x00) {
                 isExit = dis_t2_str_single_data(context, insn, ir);
             } else if ((op2 & 0x71) == 0x10) {
                 dis_common_adv_simd_element_or_structure_load_store_insn(context, insn, ir);
             } else
-                assert(0);
+                assert_illegal_opcode(0);
             break;
         default:
-            fatal("Unvalid value\n");
+            fatal_illegal_opcode("Unvalid value\n");
     }
 
     return isExit;

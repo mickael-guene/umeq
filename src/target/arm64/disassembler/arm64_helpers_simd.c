@@ -18,6 +18,7 @@
  * 02110-1301 USA.
  */
 
+#define __IN_HELPERS        1
 #include <stdio.h>
 #include <assert.h>
 #include <math.h>
@@ -49,6 +50,22 @@ void arm64_hlp_dump_simd(uint64_t regs)
             printf("\n");
     }
     printf("pc    = 0x%016lx\n", context->regs.pc);
+}
+
+static int tkill(int pid, int sig)
+{
+    return syscall(SYS_tkill, (long) pid, (long) sig);
+}
+
+static pid_t gettid()
+{
+    return syscall(SYS_gettid);
+}
+
+static void generate_illegal_signal()
+{
+    tkill(gettid(), SIGILL);
+    assert(0);/* make compiler happy */
 }
 
 static inline uint8_t uabs8(uint8_t op1, uint8_t op2)
@@ -278,7 +295,7 @@ void arm64_hlp_dirty_simd_dup_element(uint64_t _regs, uint32_t insn)
         rn_r = regs->v[rn].s[imm5 >> 3];
         lsb = (rn_r << 32) | (rn_r << 0);
     } else {
-        assert(q == 1);
+        assert_illegal_opcode(q == 1);
         lsb = regs->v[rn].d[imm5 >> 4];
     }
     if (q)
@@ -309,7 +326,7 @@ void arm64_hlp_dirty_simd_dup_general(uint64_t _regs, uint32_t insn)
         rn_r = rn_r & 0xffffffff;
         lsb = (rn_r << 32) | (rn_r << 0);
     } else {
-        assert(q == 1);
+        assert_illegal_opcode(q == 1);
         lsb = rn_r;
     }
     if (q)
@@ -481,7 +498,7 @@ static void dis_sqrshrun_sqshrun(uint64_t _regs, uint32_t insn)
         for(i = 0; i < (is_scalar?1:2); i++)
             res.s[is_scalar?i:(q?i+2:i)] = usat32(regs, ((__int128_t)(int64_t)regs->v[rn].d[i] + (is_round?(1L<<(shift-1)):0)) >> shift);
     } else
-        assert(0);
+        assert_illegal_opcode(0);
     regs->v[rd] = res;
 }
 
@@ -524,7 +541,7 @@ static void dis_sqrshrn_sqshrn_uqrshrn_uqshrn(uint64_t _regs, uint32_t insn)
             else
                 res.s[is_scalar?i:(q?i+2:i)] = ssat32(regs, ((__int128_t)(int64_t)regs->v[rn].d[i] + (is_round?(1L<<(shift-1)):0)) >> shift);
     } else
-        assert(0);
+        assert_illegal_opcode(0);
     regs->v[rd] = res;
 }
 
@@ -541,7 +558,7 @@ static void dis_ucvtf_fixed(uint64_t _regs, uint32_t insn)
     int i;
 
     if (is_double) {
-        assert(q);
+        assert_illegal_opcode(q);
         for(i = 0; i < (is_scalar?1:2); i++) {
             res.d[i] = float64_val(uint64_to_float64(regs->v[rn].d[i], &regs->fp_status));
             res.d[i] = float64_scalbn(res.d[i], -fracbits, &regs->fp_status);
@@ -569,7 +586,7 @@ static void dis_scvtf_fixed(uint64_t _regs, uint32_t insn)
     int i;
 
     if (is_double) {
-        assert(q);
+        assert_illegal_opcode(q);
         for(i = 0; i < (is_scalar?1:2); i++) {
             res.d[i] = float64_val(int64_to_float64(regs->v[rn].d[i], &regs->fp_status));
             res.d[i] = float64_scalbn(res.d[i], -fracbits, &regs->fp_status);
@@ -617,7 +634,7 @@ static void dis_fcvtzu_fixed(uint64_t _regs, uint32_t insn)
     int i;
 
     if (is_double) {
-        assert(q);
+        assert_illegal_opcode(q);
         for(i = 0; i < (is_scalar?1:2); i++)
             res.d[i] = fcvtzu64_fixed_64(regs, regs->v[rn].d[i], fracbits);
     } else {
@@ -641,7 +658,7 @@ static void dis_fcvtzs_fixed(uint64_t _regs, uint32_t insn)
     int i;
 
     if (is_double) {
-        assert(q);
+        assert_illegal_opcode(q);
         for(i = 0; i < (is_scalar?1:2); i++)
             res.d[i] = fcvtzs64_fixed_64(regs, regs->v[rn].d[i], fracbits);
     } else {
@@ -687,7 +704,7 @@ static void dis_sshll_ushll(uint64_t _regs, uint32_t insn)
             else
                 res.d[i] = (int64_t)(int32_t)regs->v[rn].s[q?i+2:i] << shift;
     } else
-        assert(0);
+        assert_illegal_opcode(0);
 
     regs->v[rd] = res;
 }
@@ -835,7 +852,7 @@ static void dis_shrn_rshrn(uint64_t _regs, uint32_t insn)
         for(i = 0; i < 2; i++)
             res.s[i] = (regs->v[rn].d[i] + (is_round?(1UL << (shift - 1)):0)) >> shift;
     } else
-        assert(0);
+        assert_illegal_opcode(0);
 
     if (q)
         regs->v[rd].v.msb = res.v.lsb;
@@ -864,7 +881,10 @@ void arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd(uint64_t _regs, uint3
             dis_srshr_srsra_sshr_ssra_urshr_ursra_ushr_usra(_regs, insn);
             break;
         case 8:
-            U?dis_sri(_regs, insn):assert(0);
+            if (U)
+                dis_sri(_regs, insn);
+            else
+                assert_illegal_opcode(0);
             break;
         case 10:
             if (U)
@@ -873,7 +893,10 @@ void arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd(uint64_t _regs, uint3
                 dis_shl(_regs, insn);
             break;
         case 12:
-            U?dis_sqshlu(_regs, insn):assert(0);
+            if (U) 
+                dis_sqshlu(_regs, insn);
+            else
+                assert_illegal_opcode(0);
             break;
         case 14:
             U?dis_uqshl(_regs, insn):dis_sqshl(_regs, insn);
@@ -900,7 +923,7 @@ void arm64_hlp_dirty_advanced_simd_shift_by_immediate_simd(uint64_t _regs, uint3
             U?dis_fcvtzu_fixed(_regs, insn):dis_fcvtzs_fixed(_regs, insn);
             break;
         default:
-            fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
+            fatal_illegal_opcode("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
     }
 }
 
@@ -996,7 +1019,7 @@ static void dis_xtn(uint64_t _regs, uint32_t insn)
                 res.s[q?i+2:i] = regs->v[rn].d[i];
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -1028,7 +1051,7 @@ static void dis_sqxtun(uint64_t _regs, uint32_t insn)
                 res.s[is_scalar?i:q?i+2:i] = usat32(regs, (int64_t)regs->v[rn].d[i]);
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -1070,7 +1093,7 @@ static void dis_sqxtn_uqxtn(uint64_t _regs, uint32_t insn)
                     res.s[is_scalar?i:q?i+2:i] = ssat32(regs, (int64_t)regs->v[rn].d[i]);
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     regs->v[rd] = res;
@@ -1093,7 +1116,7 @@ static void dis_fcvtxn(uint64_t _regs, uint32_t insn)
         for(i = 0; i < (is_scalar?1:2); i++)
             res.s[is_scalar?i:(q?2+i:i)] = fcvtxn64(regs, regs->v[rn].d[i]);
     else
-        assert(0);
+        assert_illegal_opcode(0);
 
     regs->v[rd] = res;
 }
@@ -1593,7 +1616,7 @@ static void dis_suqadd_usqadd(uint64_t _regs, uint32_t insn)
                     res.d[i] = ssat64(regs, regs->v[rn].d[i] + (__int128_t)(int64_t)regs->v[rd].d[i]);
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     regs->v[rd] = res;
@@ -1628,7 +1651,7 @@ static void dis_sqneg(uint64_t _regs, uint32_t insn)
                 res.d[i] = ssat64(regs, -(__int128_t)(int64_t)regs->v[rn].d[i]);
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -1682,7 +1705,7 @@ static void dis_sqabs(uint64_t _regs, uint32_t insn)
             }
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -1711,7 +1734,7 @@ static void dis_shll(uint64_t _regs, uint32_t insn)
                 res.d[i] = (uint64_t)regs->v[rn].s[q?i+2:i] << 32;
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -1907,7 +1930,7 @@ static void dis_smax_smin_umax_umin(uint64_t _regs, uint32_t insn)
             }
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -1949,7 +1972,7 @@ static void dis_sabd_saba_uabd_uaba(uint64_t _regs, uint32_t insn)
                     res.s[i] = (is_acc?regs->v[rd].s[i]:0) + sabs32(regs->v[rn].s[i], regs->v[rm].s[i]);
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     regs->v[rd] = res;
@@ -2056,7 +2079,7 @@ static void dis_sshl_family(uint64_t _regs, uint32_t insn)
             }
             break;
         case 3:
-            assert(q);
+            assert_illegal_opcode(q);
             for(i = 0; i < (is_scalar?1:2); i++) {
                 int8_t shift = regs->v[rm].d[i];
                 if (U) {
@@ -2069,7 +2092,7 @@ static void dis_sshl_family(uint64_t _regs, uint32_t insn)
             }
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     regs->v[rd] = res;
@@ -2235,7 +2258,7 @@ static void dis_sqdmulh_sqrdmulh(uint64_t _regs, uint32_t insn)
                 res.s[i] = ssat32(regs, (2 * (__int128_t)(int32_t)regs->v[rn].s[i] * (__int128_t)(int32_t)regs->v[rm].s[i] + (is_round?(1L<<31):0)) >> 32);
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     regs->v[rd] = res;
@@ -2287,12 +2310,12 @@ static void dis_fabd(uint64_t _regs, uint32_t insn)
                 res.s[i] = fabs32(regs, fsub32(regs, regs->v[rn].s[i], regs->v[rm].s[i]));
             break;
         case 3:
-            assert(q);
+            assert_illegal_opcode(q);
             for(i = 0; i < (is_scalar?1:2); i++)
                 res.d[i] = fabs64(regs, fsub64(regs, regs->v[rn].d[i], regs->v[rm].d[i]));
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -2310,7 +2333,7 @@ static void dis_fadd_fsub(uint64_t _regs, uint32_t insn)
     int i;
 
     if (is_double) {
-        assert(q);
+        assert_illegal_opcode(q);
         for(i = 0; i < 2; i++)
             if (is_sub)
                 res.d[i] = fsub64(regs, regs->v[rn].d[i], regs->v[rm].d[i]);
@@ -2424,7 +2447,7 @@ static void dis_fmax_fmin(uint64_t _regs, uint32_t insn)
     union simd_register res = {0};
     int i;
 
-    assert(is_scalar==0);
+    assert_illegal_opcode(is_scalar==0);
     if (is_double) {
         for(i = 0; i < 2; i++)
             if (is_min)
@@ -2454,7 +2477,7 @@ static void dis_fmaxnm_fminnm(uint64_t _regs, uint32_t insn)
     union simd_register res = {0};
     int i;
 
-    assert(is_scalar==0);
+    assert_illegal_opcode(is_scalar==0);
     if (is_double) {
         for(i = 0; i < 2; i++)
             if (is_min)
@@ -2483,7 +2506,7 @@ static void dis_fdiv(uint64_t _regs, uint32_t insn)
     union simd_register res = {0};
     int i;
 
-    assert(is_scalar==0);
+    assert_illegal_opcode(is_scalar==0);
     if (is_double)
         for(i = 0; i < 2; i++)
             res.d[i] = fdiv64(regs, regs->v[rn].d[i], regs->v[rm].d[i]);
@@ -2796,7 +2819,7 @@ static void dis_addp(uint64_t _regs, uint32_t insn)
             }
             break;
         case 3:
-            assert(q == 1);
+            assert_illegal_opcode(q == 1);
             for(i = 0; i < 1; i++) {
                 res.d[i] = regs->v[rn].d[2*i] + regs->v[rn].d[2*i + 1];
                 if (!is_scalar)
@@ -2874,7 +2897,7 @@ static void dis_smaxp_sminp_umaxp_uminp(uint64_t _regs, uint32_t insn)
             }
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -2937,7 +2960,7 @@ static void dis_saddl_ssubl_uaddl_usubl(uint64_t _regs, uint32_t insn)
                 }
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -3000,7 +3023,7 @@ static void dis_saddw_ssubw_uaddw_usubw(uint64_t _regs, uint32_t insn)
                 }
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -3045,7 +3068,7 @@ static void dis_addhn_raddhn_subhn_rsubhn(uint64_t _regs, uint32_t insn)
             }
             break;
         case 3:
-            assert(0);
+            assert_illegal_opcode(0);
             break;
     }
     if (q)
@@ -3092,7 +3115,7 @@ static void dis_sabdl_sabal_uabdl_uabal(uint64_t _regs, uint32_t insn)
                     res.d[i] += sabs32(regs->v[rn].s[q?i+2:i], regs->v[rm].s[q?i+2:i]);
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -3155,7 +3178,7 @@ static void dis_smlal_smlsl_umlal_umlsl(uint64_t _regs, uint32_t insn)
                 }
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -3193,7 +3216,7 @@ static void dis_sqdmlal_sqdmlsl(uint64_t _regs, uint32_t insn)
             }
         break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -3233,7 +3256,7 @@ static void dis_smull_umull(uint64_t _regs, uint32_t insn)
                     res.d[i] = (int64_t)(int32_t)regs->v[rn].s[q?i+2:i] * (int64_t)(int32_t)regs->v[rm].s[q?i+2:i];
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -3293,7 +3316,7 @@ static void dis_saddlv_uaddlv(uint64_t _regs, uint32_t insn)
                     res.s[0] += (int16_t)regs->v[rn].h[i];
             break;
         case 2:
-            assert(q);
+            assert_illegal_opcode(q);
             for(i = 0; i < 4; i++)
                 if (U)
                     res.d[0] += (uint64_t)regs->v[rn].s[i];
@@ -3301,7 +3324,7 @@ static void dis_saddlv_uaddlv(uint64_t _regs, uint32_t insn)
                     res.d[0] += (int64_t)(int32_t)regs->v[rn].s[i];
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd].v = res.v;
 }
@@ -3353,13 +3376,13 @@ static void dis_smaxv_sminv_umaxv_uminv(uint64_t _regs, uint32_t insn)
             {
                 if (U) {
                     uint32_t (*minmax)(uint32_t,uint32_t) = is_min?umin32:umax32;
-                    assert(q);
+                    assert_illegal_opcode(q);
                     res.s[0] = regs->v[rn].s[0];
                     for(i = 1; i < (q?4:2); i++)
                         res.s[0] = (*minmax)(regs->v[rn].s[i], res.s[0]);
                 } else {
                     uint32_t (*minmax)(int32_t,int32_t) = is_min?smin32:smax32;
-                    assert(q);
+                    assert_illegal_opcode(q);
                     res.s[0] = regs->v[rn].s[0];
                     for(i = 1; i < (q?4:2); i++)
                         res.s[0] = (*minmax)(regs->v[rn].s[i], res.s[0]);
@@ -3367,7 +3390,7 @@ static void dis_smaxv_sminv_umaxv_uminv(uint64_t _regs, uint32_t insn)
             }
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd].v = res.v;
 }
@@ -3383,8 +3406,8 @@ static void dis_fmaxv_fminv(uint64_t _regs, uint32_t insn)
     uint32_t tmp[2];
     union simd_register res = {0};
 
-    assert(is_double == 0);
-    assert(q);
+    assert_illegal_opcode(is_double == 0);
+    assert_illegal_opcode(q);
     if (is_min) {
         tmp[0] = fmin32(regs, regs->v[rn].s[0], regs->v[rn].s[1]);
         tmp[1] = fmin32(regs, regs->v[rn].s[2], regs->v[rn].s[3]);
@@ -3409,8 +3432,8 @@ static void dis_fmaxnmv_fminnmv(uint64_t _regs, uint32_t insn)
     uint32_t tmp[2];
     union simd_register res = {0};
 
-    assert(is_double == 0);
-    assert(q);
+    assert_illegal_opcode(is_double == 0);
+    assert_illegal_opcode(q);
     if (is_min) {
         tmp[0] = fminnm32(regs, regs->v[rn].s[0],regs->v[rn].s[1]);
         tmp[1] = fminnm32(regs, regs->v[rn].s[2],regs->v[rn].s[3]);
@@ -3446,12 +3469,12 @@ static void dis_addv(uint64_t _regs, uint32_t insn)
                 res.h[0] += regs->v[rn].h[i];
             break;
         case 2:
-            assert(q);
+            assert_illegal_opcode(q);
             for(i = 0; i < 4; i++)
                 res.s[0] += regs->v[rn].s[i];
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd].v = res.v;
 }
@@ -3492,7 +3515,7 @@ static void dis_shadd_srhadd_uhadd_urhadd(uint64_t _regs, uint32_t insn)
                     res.s[i] = ((int64_t)(int32_t)regs->v[rn].s[i] + (int64_t)(int32_t)regs->v[rm].s[i] + (is_round?1:0)) >> 1;
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd].v = res.v;
 }
@@ -3532,7 +3555,7 @@ static void dis_shsub_uhsub(uint64_t _regs, uint32_t insn)
                     res.s[i] = ((int64_t)(int32_t)regs->v[rn].s[i] - (int64_t)(int32_t)regs->v[rm].s[i]) >> 1;
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd].v = res.v;
 }
@@ -3638,7 +3661,7 @@ static void dis_revxx(uint64_t _regs, uint32_t insn)
                 res.s[i] = regs->v[rn].s[i ^ revmask];
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd].v = res.v;
 }
@@ -3674,7 +3697,7 @@ static void dis_cls_clz(uint64_t _regs, uint32_t insn)
             }
             break;
         case 3:
-            assert(0);
+            assert_illegal_opcode(0);
             break;
     }
     regs->v[rd].v = res.v;
@@ -3882,7 +3905,7 @@ static void dis_saddlp_sadalp_uaddlp_uadalp(uint64_t _regs, uint32_t insn)
                     res.d[i] += (int64_t)(int32_t)regs->v[rn].s[2*i] + (int64_t)(int32_t)regs->v[rn].s[2*i+1];
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -3946,7 +3969,7 @@ static void dis_mla_mls_by_element(uint64_t _regs, uint32_t insn)
                     res.s[i] = regs->v[rd].s[i] + regs->v[rn].s[i] * regs->v[rm].s[index];
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -4003,7 +4026,7 @@ static void dis_smlal_smlsl_umlal_umlsl_by_element(uint64_t _regs, uint32_t insn
             }
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -4043,7 +4066,7 @@ static void dis_smull_umull_by_element(uint64_t _regs, uint32_t insn)
                     res.d[i] = (int64_t)(int32_t)regs->v[rn].s[q?2+i:i] * (int64_t)(int32_t)regs->v[rm].s[index];
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -4077,7 +4100,7 @@ static void dis_mul_by_element(uint64_t _regs, uint32_t insn)
                 res.s[i] = regs->v[rn].s[i] * regs->v[rm].s[index];
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -4219,7 +4242,7 @@ static void dis_sqdmlal_sqdmlsl_by_element(uint64_t _regs, uint32_t insn)
             }
         break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -4253,7 +4276,7 @@ static void dis_sqdmull_by_element(uint64_t _regs, uint32_t insn)
                 res.d[i] = ssat64(regs, 2 * (__int128_t)(int32_t)regs->v[rn].s[is_scalar?i:q?i+2:i] * (__int128_t)(int32_t)regs->v[rm].s[index]);
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -4288,7 +4311,7 @@ static void dis_sqdmulh_sqrdmulh_by_element(uint64_t _regs, uint32_t insn)
                 res.s[i] = ssat32(regs, (2 * (__int128_t)(int32_t)regs->v[rn].s[i] * (__int128_t)(int32_t)regs->v[rm].s[index] + (is_round?(1L<<31):0)) >> 32);
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res;
 }
@@ -4315,7 +4338,7 @@ static void dis_sqdmull(uint64_t _regs, uint32_t insn)
                 res.d[i] = ssat64(regs, 2 * (__int128_t)(int32_t)regs->v[rn].s[is_scalar?i:q?i+2:i] * (__int128_t)(int32_t)regs->v[rm].s[is_scalar?i:q?i+2:i]);
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     regs->v[rd] = res;
@@ -4334,13 +4357,13 @@ static int dis_load_multiple_structure(uint64_t _regs, uint32_t insn, uint64_t a
     if (opcode & 2) {
         //ld1
         int i;
-        int nb;
+        int nb = 0;
         switch(opcode) {
             case 7: nb = 1; break;
             case 10: nb = 2; break;
             case 6: nb = 3; break;
             case 2: nb = 4; break;
-            default: assert(0);
+            default: assert_illegal_opcode(0);
         }
         for(i = 0; i < nb; i++) {
             regs->v[(rt + i) % 32].v.lsb = *((uint64_t *) (address + i * (q?16:8)));
@@ -4350,13 +4373,13 @@ static int dis_load_multiple_structure(uint64_t _regs, uint32_t insn, uint64_t a
     } else {
         int index;
         int r;
-        int nb;
+        int nb = 0;
 
         switch(opcode) {
             case 8: nb=2; break;
             case 4: nb=3; break;
             case 0: nb=4; break;
-            default: assert(0);
+            default: assert_illegal_opcode(0);
         }
 
         switch(size) {
@@ -4413,13 +4436,13 @@ static int dis_store_multiple_structure(uint64_t _regs, uint32_t insn, uint64_t 
     if (opcode & 2) {
         //st1
         int i;
-        int nb;
+        int nb = 0;
         switch(opcode) {
             case 7: nb = 1; break;
             case 10: nb = 2; break;
             case 6: nb = 3; break;
             case 2: nb = 4; break;
-            default: assert(0);
+            default: assert_illegal_opcode(0);
         }
         for(i = 0; i < nb; i++) {
             *((uint64_t *) (address + i * (q?16:8))) = regs->v[(rt + i) % 32].v.lsb;
@@ -4430,13 +4453,13 @@ static int dis_store_multiple_structure(uint64_t _regs, uint32_t insn, uint64_t 
     } else {
         int index;
         int r;
-        int nb;
+        int nb = 0;
 
         switch(opcode) {
             case 8: nb=2; break;
             case 4: nb=3; break;
             case 0: nb=4; break;
-            default: assert(0);
+            default: assert_illegal_opcode(0);
         }
 
         switch(size) {
@@ -4521,7 +4544,9 @@ static int dis_load_single_structure_replicate(uint64_t _regs, uint32_t insn, ui
 
 static int dis_store_single_structure_replicate(uint64_t _regs, uint32_t insn, uint64_t address)
 {
-    assert(0);
+    assert_illegal_opcode(0);
+
+    return 0;
 }
 
 static int dis_load_single_structure(uint64_t _regs, uint32_t insn, uint64_t address)
@@ -4557,7 +4582,7 @@ static int dis_load_single_structure(uint64_t _regs, uint32_t insn, uint64_t add
                 res += 8;
             }
         } else
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     return res;
@@ -4596,7 +4621,7 @@ static int dis_store_single_structure(uint64_t _regs, uint32_t insn, uint64_t ad
                 res += 8;
             }
         } else
-            assert(0);
+            assert_illegal_opcode(0);
     }
 
     return res;
@@ -4634,7 +4659,7 @@ static void dis_uzp1_uzp2(uint64_t _regs, uint32_t insn)
             }
             break;
         case 3:
-            assert(q);
+            assert_illegal_opcode(q);
             for(i = 0; i < 1; i++) {
                 res.d[i] = regs->v[rn].d[2*i+part];
                 res.d[i+1] = regs->v[rm].d[2*i+part];
@@ -4676,14 +4701,14 @@ static void dis_zip1_zip2(uint64_t _regs, uint32_t insn)
             }
             break;
         case 3:
-            assert(q);
+            assert_illegal_opcode(q);
             for(i = 0; i < 1; i++) {
                 res.d[2*i+0] = regs->v[rn].d[(part?1:0)+i];
                 res.d[2*i+1] = regs->v[rm].d[(part?1:0)+i];
             }
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     regs->v[rd] = res; 
 }
@@ -4720,7 +4745,7 @@ static void dis_trn1_trn2(uint64_t _regs, uint32_t insn)
             }
             break;
         case 3:
-            assert(q);
+            assert_illegal_opcode(q);
             for(i = 0; i < 1; i++) {
                 res.d[2*i+0] = regs->v[rn].d[2*i+part];
                 res.d[2*i+1] = regs->v[rm].d[2*i+part];
@@ -4742,7 +4767,7 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
             dis_revxx(_regs, insn);
             break;
         case 1:
-            assert(U==0);
+            assert_illegal_opcode(U==0);
             dis_revxx(_regs, insn);
             break;
         case 2:
@@ -4761,7 +4786,7 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
                 else if (size == 1)
                     dis_rbit(_regs, insn);
                 else
-                    fatal("size = %d\n", size);
+                    fatal_illegal_opcode("size = %d\n", size);
             } else
                 dis_cnt(_regs, insn);
             break;
@@ -4785,7 +4810,7 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
             break;
         case 10:
             if (U)
-                assert(0);
+                assert_illegal_opcode(0);
             else
                 dis_cmlt_zero(_regs, insn);
             break;
@@ -4799,19 +4824,22 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
             if (size&2)
                 U?dis_fcmge_zero(_regs, insn):dis_fcmgt_zero(_regs, insn);
             else
-                assert(0);
+                assert_illegal_opcode(0);
             break;
         case 13:
             if (size&2)
                 U?dis_fcmle_zero(_regs, insn):dis_fcmeq_zero(_regs, insn);
             else
-                assert(0);
+                assert_illegal_opcode(0);
             break;
         case 14:
             if (size&2)
-                U?assert(0):dis_fcmlt_zero(_regs, insn);
+                if (U)
+                    assert_illegal_opcode(0);
+                else
+                    dis_fcmlt_zero(_regs, insn);
             else
-                assert(0);
+                assert_illegal_opcode(0);
             break;
         case 15:
             U?dis_fneg(_regs, insn):dis_fabs(_regs, insn);
@@ -4823,26 +4851,32 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
             if (U)
                 dis_shll(_regs, insn);
             else
-                assert(0);
+                assert_illegal_opcode(0);
             break;
         case 20:
             dis_sqxtn_uqxtn(_regs, insn);
             break;
         case 22:
             if (size&2)
-                assert(0);
+                assert_illegal_opcode(0);
             else
                 U?dis_fcvtxn(_regs, insn):dis_fcvtn(_regs, insn);
             break;
         case 23:
             if (size&2)
-                assert(0);
+                assert_illegal_opcode(0);
             else
-                U?assert(0):dis_fcvtl(_regs, insn);
+                if (U) 
+                    assert_illegal_opcode(0);
+                else
+                    dis_fcvtl(_regs, insn);
             break;
         case 24:
             if (size&2)
-                U?assert(0):dis_frintp(_regs, insn);
+                if (U) 
+                    assert_illegal_opcode(0);
+                else
+                    dis_frintp(_regs, insn);
             else
                 U?dis_frinta(_regs, insn):dis_frintn(_regs, insn);
             break;
@@ -4878,12 +4912,15 @@ void arm64_hlp_dirty_advanced_simd_two_reg_misc_simd(uint64_t _regs, uint32_t in
             break;
         case 31:
             if(size&2)
-                U?dis_fsqrt(_regs, insn):assert(0);
+                if (U) 
+                    dis_fsqrt(_regs, insn);
+                else
+                    assert_illegal_opcode(0);
             else
-                assert(0);
+                assert_illegal_opcode(0);
             break;
         default:
-            fatal("opcode = %d(0x%x) / U=%d / size=%d\n", opcode, opcode, U, size);
+            fatal_illegal_opcode("opcode = %d(0x%x) / U=%d / size=%d\n", opcode, opcode, U, size);
     }
 }
 
@@ -4917,7 +4954,7 @@ void arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd(uint64_t _regs, uint
             break;
         case 10:
             if (U)
-                assert(0);
+                assert_illegal_opcode(0);
             else
                 dis_cmlt_zero(_regs, insn);
             break;
@@ -4931,31 +4968,40 @@ void arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd(uint64_t _regs, uint
             if (size1)
                 U?dis_fcmge_zero(_regs, insn):dis_fcmgt_zero(_regs, insn);
             else
-                assert(0);
+                assert_illegal_opcode(0);
             break;
         case 13:
             if (size1)
                 U?dis_fcmle_zero(_regs, insn):dis_fcmeq_zero(_regs, insn);
             else
-                assert(0);
+                assert_illegal_opcode(0);
             break;
         case 14:
             if (size1)
-                U?assert(0):dis_fcmlt_zero(_regs, insn);
+                if (U)
+                    assert_illegal_opcode(0);
+                else
+                    dis_fcmlt_zero(_regs, insn);
             else
-                assert(0);
+                assert_illegal_opcode(0);
             break;
         case 18:
-            U?dis_sqxtun(_regs, insn):assert(0);
+            if (U)
+                dis_sqxtun(_regs, insn);
+            else
+                assert_illegal_opcode(0);
             break;
         case 20:
             dis_sqxtn_uqxtn(_regs, insn);
             break;
         case 22:
             if (size1)
-                assert(0);
+                assert_illegal_opcode(0);
             else
-                U?dis_fcvtxn(_regs, insn):assert(0);
+                if (U)
+                    dis_fcvtxn(_regs, insn);
+                else
+                    assert_illegal_opcode(0);
             break;
         case 26:
             if (size1)
@@ -4971,7 +5017,7 @@ void arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd(uint64_t _regs, uint
             break;
         case 28:
             if (size1)
-                assert(0);
+                assert_illegal_opcode(0);
             else
                 U?dis_fcvtau(_regs, insn):dis_fcvtas(_regs, insn);
             break;
@@ -4983,12 +5029,15 @@ void arm64_hlp_dirty_advanced_simd_scalar_two_reg_misc_simd(uint64_t _regs, uint
             break;
         case 31:
             if (size1)
-                U?assert(0):dis_frecpx(_regs, insn);
+                if (U)
+                    assert_illegal_opcode(0);
+                else
+                    dis_frecpx(_regs, insn);
             else
-                assert(0);
+                assert_illegal_opcode(0);
             break;
         default:
-            fatal("opcode = %d(0x%x) / U=%d / size1=%d\n", opcode, opcode, U, size1);
+            fatal_illegal_opcode("opcode = %d(0x%x) / U=%d / size1=%d\n", opcode, opcode, U, size1);
     }
 }
 
@@ -5042,33 +5091,54 @@ void arm64_hlp_dirty_advanced_simd_scalar_three_same_simd(uint64_t _regs, uint32
             dis_sqdmulh_sqrdmulh(_regs, insn);
             break;
         case 26:
-            assert(size1);
-            U?dis_fabd(_regs, insn):assert(0);
+            assert_illegal_opcode(size1);
+            if (U)
+                dis_fabd(_regs, insn);
+            else
+                assert_illegal_opcode(0);
             break;
         case 27:
-            assert(size1==0);
-            U?assert(0):dis_fmulx(_regs, insn);
+            assert_illegal_opcode(size1==0);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_fmulx(_regs, insn);
             break;
         case 28:
             if (size1 == 0)
                 U?dis_fcmge(_regs, insn):dis_fcmeq(_regs, insn);
             else
-                U?dis_fcmgt(_regs, insn):assert(0);
+                if (U)
+                    dis_fcmgt(_regs, insn);
+                else
+                    assert_illegal_opcode(0);
             break;
         case 29:
             if (size1 == 0)
-                U?dis_facge(_regs, insn):assert(0);
+                if (U)
+                    dis_facge(_regs, insn);
+                else
+                    assert_illegal_opcode(0);
             else
-                U?dis_facgt(_regs, insn):assert(0);
+                if (U)
+                    dis_facgt(_regs, insn);
+                else
+                    assert_illegal_opcode(0);
             break;
         case 31:
             if (size1 == 0)
-                U?assert(0):dis_frecps(_regs, insn);
+                if (U)
+                    assert_illegal_opcode(0);
+                else
+                    dis_frecps(_regs, insn);
             else
-                U?assert(0):dis_frsqrts(_regs, insn);
+                if (U)
+                    assert_illegal_opcode(0);
+                else
+                    dis_frsqrts(_regs, insn);
             break;
         default:
-            fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
+            fatal_illegal_opcode("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
     }
 }
 
@@ -5173,7 +5243,7 @@ void arm64_hlp_dirty_advanced_simd_three_same_simd(uint64_t _regs, uint32_t insn
             break;
         case 23:
             if (U)
-                assert(0);
+                assert_illegal_opcode(0);
             else
                 dis_addp(_regs, insn);
             break;
@@ -5182,9 +5252,15 @@ void arm64_hlp_dirty_advanced_simd_three_same_simd(uint64_t _regs, uint32_t insn
             break;
         case 25:
             if (size&2)
-                U?assert(0):dis_fmla_fmls(_regs, insn);
+                if (U)
+                    assert_illegal_opcode(0);
+                else
+                    dis_fmla_fmls(_regs, insn);
             else
-                U?assert(0):dis_fmla_fmls(_regs, insn);
+                if (U)
+                    assert_illegal_opcode(0);
+                else
+                    dis_fmla_fmls(_regs, insn);
             break;
         case 26:
             if (size&2)
@@ -5194,33 +5270,45 @@ void arm64_hlp_dirty_advanced_simd_three_same_simd(uint64_t _regs, uint32_t insn
             break;
         case 27:
             if (size&2)
-                assert(0);
+                assert_illegal_opcode(0);
             else
                 U?dis_fmul(_regs, insn):dis_fmulx(_regs, insn);
             break;
         case 28:
             if (size&2)
-                U?dis_fcmgt(_regs, insn):assert(0);
+                if (U)
+                    dis_fcmgt(_regs, insn);
+                else
+                    assert_illegal_opcode(0);
             else
                 U?dis_fcmge(_regs, insn):dis_fcmeq(_regs, insn);
             break;
         case 29:
             if (size&2)
-                U?dis_facgt(_regs, insn):assert(0);
+                if (U) 
+                    dis_facgt(_regs, insn);
+                else
+                    assert_illegal_opcode(0);
             else
-                U?dis_facge(_regs, insn):assert(0);
+                if (U)
+                    dis_facge(_regs, insn);
+                else
+                    assert_illegal_opcode(0);
             break;
         case 30:
             U?dis_fmaxp_fminp(_regs, insn):dis_fmax_fmin(_regs, insn);
             break;
         case 31:
             if (size&2)
-                U?assert(0):dis_frsqrts(_regs, insn);
+                if (U)
+                    assert_illegal_opcode(0);
+                else
+                    dis_frsqrts(_regs, insn);
             else
                 U?dis_fdiv(_regs, insn):dis_frecps(_regs, insn);
             break;
         default:
-            fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
+            fatal_illegal_opcode("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
     }
 }
 
@@ -5255,26 +5343,35 @@ void arm64_hlp_dirty_advanced_simd_simd_three_different_simd(uint64_t _regs, uin
             dis_smlal_smlsl_umlal_umlsl(_regs, insn);
             break;
         case 9:
-            U?assert(0):dis_sqdmlal_sqdmlsl(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_sqdmlal_sqdmlsl(_regs, insn);
             break;
         case 10:
             dis_smlal_smlsl_umlal_umlsl(_regs, insn);
             break;
         case 11:
-            U?assert(0):dis_sqdmlal_sqdmlsl(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_sqdmlal_sqdmlsl(_regs, insn);
             break;
         case 12:
             dis_smull_umull(_regs, insn);
             break;
         case 13:
-            U?assert(0):dis_sqdmull(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_sqdmull(_regs, insn);
             break;
         case 14:
-            assert(U==0);
+            assert_illegal_opcode(U==0);
             dis_pmull(_regs, insn);
             break;
         default:
-            fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
+            fatal_illegal_opcode("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
     }
 }
 
@@ -5286,23 +5383,23 @@ void arm64_hlp_dirty_advanced_simd_scalar_pair_wise_simd(uint64_t _regs, uint32_
 
     switch(opcode) {
         case 12:
-            assert(U);
+            assert_illegal_opcode(U);
             dis_fmaxnmp_fminnmp(_regs, insn);
             break;
         case 13:
-            assert(U);
+            assert_illegal_opcode(U);
             dis_faddp(_regs, insn);
             break;
         case 15:
-            assert(U);
+            assert_illegal_opcode(U);
             dis_fmaxp_fminp(_regs, insn);
             break;
         case 27:
-            assert(U==0);
+            assert_illegal_opcode(U==0);
             dis_addp(_regs, insn);
             break;
         default:
-            fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
+            fatal_illegal_opcode("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
     }
 }
 
@@ -5329,11 +5426,11 @@ void arm64_hlp_dirty_advanced_simd_accross_lanes_simd(uint64_t _regs, uint32_t i
             dis_smaxv_sminv_umaxv_uminv(_regs, insn);
             break;
         case 27:
-            assert(U==0);
+            assert_illegal_opcode(U==0);
             dis_addv(_regs, insn);
             break;
         default:
-            fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
+            fatal_illegal_opcode("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
     }
 }
 
@@ -5345,31 +5442,37 @@ void arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd(uint64_t _regs,
     switch(opcode) {
         case 0:
         case 4:
-            assert(U);
+            assert_illegal_opcode(U);
             dis_mla_mls_by_element(_regs, insn);
             break;
         case 1:
-            assert(U==0);
+            assert_illegal_opcode(U==0);
             dis_fmla_fmls_by_element(_regs, insn);
             break;
         case 2:
             dis_smlal_smlsl_umlal_umlsl_by_element(_regs, insn);
             break;
         case 3:
-            U?assert(0):dis_sqdmlal_sqdmlsl_by_element(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_sqdmlal_sqdmlsl_by_element(_regs, insn);
             break;
         case 5:
-            assert(U==0);
+            assert_illegal_opcode(U==0);
             dis_fmla_fmls_by_element(_regs, insn);
             break;
         case 6:
             dis_smlal_smlsl_umlal_umlsl_by_element(_regs, insn);
             break;
         case 7:
-            U?assert(0):dis_sqdmlal_sqdmlsl_by_element(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_sqdmlal_sqdmlsl_by_element(_regs, insn);
             break;
         case 8:
-            assert(U == 0);
+            assert_illegal_opcode(U == 0);
             dis_mul_by_element(_regs, insn);
             break;
         case 9:
@@ -5379,16 +5482,25 @@ void arm64_hlp_dirty_advanced_simd_vector_x_indexed_element_simd(uint64_t _regs,
             dis_smull_umull_by_element(_regs, insn);
             break;
         case 11:
-            U?assert(0):dis_sqdmull_by_element(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_sqdmull_by_element(_regs, insn);
             break;
         case 12:
-            U?assert(0):dis_sqdmulh_sqrdmulh_by_element(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_sqdmulh_sqrdmulh_by_element(_regs, insn);
             break;
         case 13:
-            U?assert(0):dis_sqdmulh_sqrdmulh_by_element(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_sqdmulh_sqrdmulh_by_element(_regs, insn);
             break;
         default:
-            fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
+            fatal_illegal_opcode("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
     }
 }
 
@@ -5411,7 +5523,10 @@ void arm64_hlp_dirty_advanced_simd_scalar_shift_by_immediate_simd(uint64_t _regs
             dis_srshr_srsra_sshr_ssra_urshr_ursra_ushr_usra(_regs, insn);
             break;
         case 8:
-            U?dis_sri(_regs, insn):assert(0);
+            if (U)
+                dis_sri(_regs, insn);
+            else
+                assert_illegal_opcode(0);
             break;
         case 10:
             if (U)
@@ -5420,16 +5535,25 @@ void arm64_hlp_dirty_advanced_simd_scalar_shift_by_immediate_simd(uint64_t _regs
                 dis_shl(_regs, insn);
             break;
         case 12:
-            U?dis_sqshlu(_regs, insn):assert(0);
+            if (U)
+                dis_sqshlu(_regs, insn);
+            else
+                assert_illegal_opcode(0);
             break;
         case 14:
             U?dis_uqshl(_regs, insn):dis_sqshl(_regs, insn);
             break;
         case 16:
-            U?dis_sqrshrun_sqshrun(_regs, insn):assert(0);
+            if (U)
+                dis_sqrshrun_sqshrun(_regs, insn);
+            else
+                assert_illegal_opcode(0);
             break;
         case 17:
-            U?dis_sqrshrun_sqshrun(_regs, insn):assert(0);
+            if (U)
+                dis_sqrshrun_sqshrun(_regs, insn);
+            else
+                assert_illegal_opcode(0);
             break;
         case 18:
             dis_sqrshrn_sqshrn_uqrshrn_uqshrn(_regs, insn);
@@ -5444,7 +5568,7 @@ void arm64_hlp_dirty_advanced_simd_scalar_shift_by_immediate_simd(uint64_t _regs
             U?dis_fcvtzu_fixed(_regs, insn):dis_fcvtzs_fixed(_regs, insn);
             break;
         default:
-            fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
+            fatal_illegal_opcode("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
     }
 }
 
@@ -5455,31 +5579,52 @@ void arm64_hlp_dirty_advanced_simd_scalar_x_indexed_element_simd(uint64_t _regs,
 
     switch(opcode) {
         case 1:
-            U?assert(0):dis_fmla_fmls_by_element(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_fmla_fmls_by_element(_regs, insn);
             break;
         case 3:
-            U?assert(0):dis_sqdmlal_sqdmlsl_by_element(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_sqdmlal_sqdmlsl_by_element(_regs, insn);
             break;
         case 5:
-            U?assert(0):dis_fmla_fmls_by_element(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_fmla_fmls_by_element(_regs, insn);
             break;
         case 7:
-            U?assert(0):dis_sqdmlal_sqdmlsl_by_element(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_sqdmlal_sqdmlsl_by_element(_regs, insn);
             break;
         case 9:
             U?dis_fmulx_by_element(_regs, insn):dis_fmul_by_element(_regs, insn);
             break;
         case 11:
-            U?assert(0):dis_sqdmull_by_element(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_sqdmull_by_element(_regs, insn);
             break;
         case 12:
-            U?assert(0):dis_sqdmulh_sqrdmulh_by_element(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_sqdmulh_sqrdmulh_by_element(_regs, insn);
             break;
         case 13:
-            U?assert(0):dis_sqdmulh_sqrdmulh_by_element(_regs, insn);
+            if (U)
+                assert_illegal_opcode(0);
+            else
+                dis_sqdmulh_sqrdmulh_by_element(_regs, insn);
             break;
         default:
-            fatal("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
+            fatal_illegal_opcode("opcode = %d(0x%x) / U=%d\n", opcode, opcode, U);
     }
 }
 
@@ -5496,7 +5641,7 @@ void arm64_hlp_dirty_advanced_simd_scalar_three_different_simd(uint64_t _regs, u
             dis_sqdmull(_regs, insn);
             break;
         default:
-            fatal("opcode = %d(0x%x)\n", opcode, opcode);
+            fatal_illegal_opcode("opcode = %d(0x%x)\n", opcode, opcode);
     }
 }
 
@@ -5626,6 +5771,6 @@ void arm64_hlp_dirty_advanced_simd_permute_simd(uint64_t _regs, uint32_t insn)
             dis_trn1_trn2(_regs, insn);
             break;
         default:
-            fatal("opcode = %d(0x%x)\n", opcode, opcode);
+            fatal_illegal_opcode("opcode = %d(0x%x)\n", opcode, opcode);
     }
 }

@@ -18,6 +18,7 @@
  * 02110-1301 USA.
  */
 
+#define __IN_HELPERS        1
 #include <stdio.h>
 #include <assert.h>
 #include <math.h>
@@ -30,6 +31,22 @@
 
 #define INSN(msb, lsb) ((insn >> (lsb)) & ((1 << ((msb) - (lsb) + 1))-1))
 #define IEEE_H16        ((regs->fpcr_others & 0x04000000) == 0)
+
+static int tkill(int pid, int sig)
+{
+    return syscall(SYS_tkill, (long) pid, (long) sig);
+}
+
+static pid_t gettid()
+{
+    return syscall(SYS_gettid);
+}
+
+static void generate_illegal_signal()
+{
+    tkill(gettid(), SIGILL);
+    assert(0);/* make compiler happy */
+}
 
 #include "arm64_helpers_simd_fpu_common.c"
 
@@ -69,7 +86,7 @@ static void dis_fcvt(uint64_t _regs, uint32_t insn)
         if (IEEE_H16)
             res.d[0] = float64_maybe_silence_nan(res.d[0]);
     } else
-        fatal("type=%d / opc=%d\n", type, opc);
+        fatal_illegal_opcode("type=%d / opc=%d\n", type, opc);
     regs->v[rd] = res;
 }
 
@@ -184,7 +201,7 @@ static void dis_fsqrt(uint64_t _regs, uint32_t insn)
     union simd_register res = {0};
     int i;
 
-    assert(is_scalar);
+    assert_illegal_opcode(is_scalar);
     if (is_double)
         for(i = 0; i < (is_scalar?1:2); i++)
             res.d[i] = fsqrt64(regs, regs->v[rn].d[i]);
@@ -220,7 +237,7 @@ void arm64_hlp_dirty_scvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn)
             regs->v[rd].d[0] = float64_val(int64_to_float64(regs->r[rn], &regs->fp_status));
             break;
         default:
-            fatal("sf_type0 = %d\n", sf_type0);
+            fatal_illegal_opcode("sf_type0 = %d\n", sf_type0);
     }
 }
 
@@ -279,7 +296,7 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
                 res.d[0] = fneg64(regs, fmul64(regs, regs->v[rn].d[0], regs->v[rm].d[0]));
                 break;
             default:
-                fatal("opcode = %d(0x%x)\n", opcode, opcode);
+                fatal_illegal_opcode("opcode = %d(0x%x)\n", opcode, opcode);
         }
     } else {
         switch(opcode) {
@@ -311,7 +328,7 @@ void arm64_hlp_dirty_floating_point_data_processing_2_source_simd(uint64_t _regs
                 res.s[0] = fneg32(regs, fmul32(regs, regs->v[rn].s[0], regs->v[rm].s[0]));
                 break;
             default:
-                fatal("opcode = %d(0x%x)\n", opcode, opcode);
+                fatal_illegal_opcode("opcode = %d(0x%x)\n", opcode, opcode);
         }
     }
     regs->v[rd] = res;
@@ -407,7 +424,7 @@ void arm64_hlp_dirty_floating_point_data_processing_3_source_simd(uint64_t _regs
                 res.d[0] = fmadd64(regs, regs->v[rn].d[0], regs->v[rm].d[0], fneg64(regs, regs->v[ra].d[0]));
                 break;
             default:
-                fatal("o1_o0 = %d(0x%x)\n", o1_o0, o1_o0);
+                fatal_illegal_opcode("o1_o0 = %d(0x%x)\n", o1_o0, o1_o0);
         }
     } else {
         switch(o1_o0) {
@@ -424,7 +441,7 @@ void arm64_hlp_dirty_floating_point_data_processing_3_source_simd(uint64_t _regs
                 res.s[0] = fmadd32(regs, regs->v[rn].s[0], regs->v[rm].s[0], fneg32(regs, regs->v[ra].s[0]));
                 break;
             default:
-                fatal("o1_o0 = %d(0x%x)\n", o1_o0, o1_o0);
+                fatal_illegal_opcode("o1_o0 = %d(0x%x)\n", o1_o0, o1_o0);
         }
     }
     regs->v[rd] = res;
@@ -454,7 +471,7 @@ void arm64_hlp_dirty_ucvtf_scalar_integer_simd(uint64_t _regs, uint32_t insn)
             regs->v[rd].d[0] = float64_val(uint64_to_float64(regs->r[rn], &regs->fp_status));
             break;
         default:
-            fatal("sf_type0 = %d\n", sf_type0);
+            fatal_illegal_opcode("sf_type0 = %d\n", sf_type0);
     }
 }
 
@@ -497,7 +514,7 @@ static void dis_fcvtu_scalar_integer(uint64_t _regs, uint32_t insn, enum rm rmod
                 regs->r[rd] = float64_to_uint64(regs->v[rn].d[0], &regs->fp_status);
             break;
         default:
-            fatal("sf_type0 = %d\n", sf_type0);
+            fatal_illegal_opcode("sf_type0 = %d\n", sf_type0);
     }
     regs->fp_status.float_rounding_mode = float_rounding_mode_save;
 }
@@ -540,7 +557,7 @@ static void dis_fcvts_scalar_integer(uint64_t _regs, uint32_t insn, enum rm rmod
                 regs->r[rd] = float64_to_int64(regs->v[rn].d[0], &regs->fp_status);
             break;
         default:
-            fatal("sf_type0 = %d\n", sf_type0);
+            fatal_illegal_opcode("sf_type0 = %d\n", sf_type0);
     }
     regs->fp_status.float_rounding_mode = float_rounding_mode_save;
 }
@@ -621,7 +638,7 @@ static void dis_fcvtzs_fixed(uint64_t _regs, uint32_t insn)
             regs->r[rd] = fcvtzs64_fixed_64(regs, regs->v[rn].d[0], fracbits);
             break;
         default:
-            fatal("sf_type0=%d\n", sf_type0);
+            fatal_illegal_opcode("sf_type0=%d\n", sf_type0);
     }
 }
 
@@ -684,7 +701,7 @@ static void dis_scvtf_fixed(uint64_t _regs, uint32_t insn)
             res.d[0] = float64_scalbn(res.d[0], -fracbits, &regs->fp_status);
             break;
         default:
-            fatal("sf_type0=%d\n", sf_type0);
+            fatal_illegal_opcode("sf_type0=%d\n", sf_type0);
     }
     regs->v[rd] = res;
 }
@@ -720,7 +737,7 @@ static void dis_ucvtf_fixed(uint64_t _regs, uint32_t insn)
             res.d[0] = float64_scalbn(res.d[0], -fracbits, &regs->fp_status);
             break;
         default:
-            fatal("sf_type0=%d\n", sf_type0);
+            fatal_illegal_opcode("sf_type0=%d\n", sf_type0);
     }
     regs->v[rd] = res;
 }
@@ -752,8 +769,10 @@ void arm64_hlp_dirty_fcvtxx_scalar_integer_simd(uint64_t _regs, uint32_t insn)
         dis_fcvtps_scalar_integer(_regs, insn);
     else if ((type & 2) == 0 && rmode == 0 && opcode == 4)
         dis_fcvtas_scalar_integer(_regs, insn);
-    else
-        fatal("sf=%d / type=%d / rmode=%d / opcode=%d\n", sf, type, rmode, opcode);
+    else {
+        (void) sf;
+        fatal_illegal_opcode("sf=%d / type=%d / rmode=%d / opcode=%d\n", sf, type, rmode, opcode);
+    }
 }
 
 void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uint32_t insn)
@@ -795,7 +814,7 @@ void arm64_hlp_dirty_floating_point_data_processing_1_source(uint64_t _regs, uin
             dis_frinti(_regs, insn);
             break;
         default:
-            fatal("opcode = %d/0x%x\n", opcode, opcode);
+            fatal_illegal_opcode("opcode = %d/0x%x\n", opcode, opcode);
     }
 }
 
@@ -824,7 +843,9 @@ void arm64_hlp_dirty_conversion_between_floating_point_and_fixed_point(uint64_t 
             dis_ucvtf_fixed(_regs, insn);
             break;
         default:
-            fatal("type0=%d / rmode=%d / opcode=%d\n", type0, rmode, opcode);
+            (void) rmode;
+            (void) type0;
+            fatal_illegal_opcode("type0=%d / rmode=%d / opcode=%d\n", type0, rmode, opcode);
     }
 }
 

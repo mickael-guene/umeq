@@ -26,7 +26,7 @@ static uint64_t vfpExpandImm64(int imm8)
            (i5_0 << 48);
 }
 
-static uint64_t advSimdExpandImm(int op, int cmode, uint32_t _imm8)
+static uint64_t advSimdExpandImm(int op, int cmode, uint32_t _imm8, int *is_illegal)
 {
     uint64_t res;
     uint64_t imm8 = _imm8;
@@ -78,7 +78,8 @@ static uint64_t advSimdExpandImm(int op, int cmode, uint32_t _imm8)
             }
             break;
         default:
-            fatal("cmode = %d\n", cmode);
+            *is_illegal = 1;
+            res = 0;
     }
 
     return res;
@@ -191,7 +192,7 @@ static int dis_common_vstr(struct arm_target *context, uint32_t insn, struct irI
     int d;
 
     /* FIXME: not tested so disable it. handle arm/thumb differences */
-    assert(rn != 15);
+    assert_illegal_opcode(rn != 15);
     address = ir->add_add_32(ir, read_reg(context, ir, rn),
                              mk_32(ir, is_add?imm32:-imm32));
     if (is_64) {
@@ -211,7 +212,7 @@ static int dis_common_vmov_arm_core_and_s_insn(struct arm_target *context, uint3
     int rt = INSN(15, 12);
     int is_to_arm_registers = INSN(20, 20);
 
-    assert(rt != 15);
+    assert_illegal_opcode(rt != 15);
     if (is_to_arm_registers) {
         write_reg(context, ir, rt, read_reg_s(context, ir, vn));
     } else {
@@ -282,7 +283,7 @@ static int dis_common_vmov_register(struct arm_target *context, uint32_t insn, s
             write_reg_s(context, ir, d, read_reg_s(context, ir, m));
         }
     } else {
-        assert(0);
+        assert_illegal_opcode(0);
     }
 
     return 0;
@@ -336,8 +337,8 @@ static int dis_common_vmov_two_arm_core_and_d_insn(struct arm_target *context, u
     int is_to_arm_registers = INSN(20, 20);
     int m = (INSN(5, 5) << 4) + INSN(3, 0);
 
-    assert(rt != 15);
-    assert(rt2 != 15);
+    assert_illegal_opcode(rt != 15);
+    assert_illegal_opcode(rt2 != 15);
     if (is_to_arm_registers) {
         write_reg(context, ir, rt, read_reg_s(context, ir, m * 2));
         write_reg(context, ir, rt2, read_reg_s(context, ir, m * 2 + 1));
@@ -375,8 +376,10 @@ static int dis_common_vorr_immediate_insn(struct arm_target *context, uint32_t i
     int cmode = INSN(11, 8);
     int i = is_thumb?INSN(28, 28):INSN(24, 24);
     uint32_t imm8 = (i << 7) | (INSN(18, 16) << 4) | INSN(3, 0);
-    uint64_t imm64 = advSimdExpandImm(1, cmode, imm8);
+    int is_illegal = 0;
+    uint64_t imm64 = advSimdExpandImm(1, cmode, imm8, &is_illegal);
 
+    assert_illegal_opcode(!is_illegal);
     write_reg_d(context, ir, d, ir->add_or_64(ir,
                                               read_reg_d(context, ir, d),
                                               mk_64(ir, imm64)));
@@ -395,8 +398,10 @@ static int dis_common_vbic_immediate_insn(struct arm_target *context, uint32_t i
     int cmode = INSN(11, 8);
     int i = is_thumb?INSN(28, 28):INSN(24, 24);
     uint32_t imm8 = (i << 7) | (INSN(18, 16) << 4) | INSN(3, 0);
-    uint64_t imm64 = advSimdExpandImm(1, cmode, imm8);
+    int is_illegal = 0;
+    uint64_t imm64 = advSimdExpandImm(1, cmode, imm8, &is_illegal);
 
+    assert_illegal_opcode(!is_illegal);
     write_reg_d(context, ir, d, ir->add_and_64(ir,
                                                read_reg_d(context, ir, d),
                                                mk_64(ir, ~imm64)));
@@ -482,8 +487,10 @@ static int dis_common_vmov_immediate_simd_insn(struct arm_target *context, uint3
     int i = is_thumb?INSN(28, 28):INSN(24, 24);
     uint32_t imm8 = (i << 7) | (INSN(18, 16) << 4) | INSN(3, 0);
     int op = INSN(5, 5);
-    uint64_t imm64 = advSimdExpandImm(op, cmode, imm8);
+    int is_illegal = 0;
+    uint64_t imm64 = advSimdExpandImm(op, cmode, imm8, &is_illegal);
 
+    assert_illegal_opcode(!is_illegal);
     write_reg_d(context, ir, d, mk_64(ir, imm64));
     if (Q)
         write_reg_d(context, ir, d + 1, mk_64(ir, imm64));
@@ -499,8 +506,10 @@ static int dis_common_vmvn_immediate_simd_insn(struct arm_target *context, uint3
     int i = is_thumb?INSN(28, 28):INSN(24, 24);
     uint32_t imm8 = (i << 7) | (INSN(18, 16) << 4) | INSN(3, 0);
     int op = INSN(5, 5);
-    uint64_t imm64 = advSimdExpandImm(op, cmode, imm8);
+    int is_illegal = 0;
+    uint64_t imm64 = advSimdExpandImm(op, cmode, imm8, &is_illegal);
 
+    assert_illegal_opcode(!is_illegal);
     write_reg_d(context, ir, d, mk_64(ir, ~imm64));
     if (Q)
         write_reg_d(context, ir, d + 1, mk_64(ir, ~imm64));
@@ -572,7 +581,7 @@ static int dis_common_vbif_vbit_vbsl(struct arm_target *context, uint32_t insn, 
             op3 = n;
             break;
         default:
-            assert(0);
+            assert_illegal_opcode(0);
     }
     write_reg_d(context, ir, d, ir->add_or_64(ir,
                                               ir->add_and_64(ir, read_reg_d(context, ir, op1), read_reg_d(context, ir, op2)),
@@ -724,7 +733,7 @@ static int dis_common_extension_register_load_store_insn(struct arm_target *cont
     int is_load = INSN(20, 20);
 
     if (opcode == 2) {
-        fatal("64 bits transfers between arm core and extension registers\n");
+        fatal_illegal_opcode("64 bits transfers between arm core and extension registers\n");
     } else if (is_load) {
         if ((opcode & 0x9) == 8) {
             isExit = dis_common_vldr(context, insn, ir);
@@ -771,7 +780,7 @@ static int dis_common_transfert_arm_core_and_extension_registers_insn(struct arm
             isExit = dis_common_vmov_scalar_to_arm(context, insn, ir);
             break;
         default:
-            fatal("lc = %d / a = %d\n", lc, a);
+            fatal_illegal_opcode("lc = %d / a = %d\n", lc, a);
     }
 
     return isExit;
@@ -854,7 +863,7 @@ static int dis_common_vfp_data_processing_insn(struct arm_target *context, uint3
                         isExit = mk_common_vfp_data_processing_insn(context, insn, ir);
                         break;
                     default:
-                        fatal("opc2 = %d(0x%x)\n", opc2, opc2);
+                        fatal_illegal_opcode("opc2 = %d(0x%x)\n", opc2, opc2);
                 }
             } else {
                 isExit = dis_common_vmov_immediate(context, insn, ir);
@@ -862,7 +871,7 @@ static int dis_common_vfp_data_processing_insn(struct arm_target *context, uint3
             break;
         default:
             fprintf(stderr, "pc = 0x%08x\n", context->pc);
-            fatal("opc1 = %d(0x%x)\n", opc1, opc1);
+            fatal_illegal_opcode("opc1 = %d(0x%x)\n", opc1, opc1);
     }
 
     return isExit;
@@ -921,7 +930,7 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
                         isExit = u?dis_common_vbif_vbit_vbsl(context, insn, ir):dis_common_vorn_simd_insn(context, insn, ir);
                         break;
                     default:
-                        fatal("c = %d(0x%x)\n", c, c);
+                        fatal_illegal_opcode("c = %d(0x%x)\n", c, c);
                 }
             } else {
                 /* vrhadd */
@@ -946,7 +955,7 @@ static int dis_common_adv_simd_three_same_length_insn(struct arm_target *context
             isExit = dis_common_adv_simd_three_same_length_hlp(context, insn, ir);
             break;
         default:
-            fatal("a = %d(0x%x)\n", a, a);
+            fatal_illegal_opcode("a = %d(0x%x)\n", a, a);
     }
 
     return isExit;
@@ -1030,11 +1039,11 @@ static int dis_common_adv_simd_one_register_and_modified_immediate_insn(struct a
             isExit = dis_common_vmov_immediate_simd_insn(context, insn, ir);
             break;
         case 15:
-            assert(op == 0);
+            assert_illegal_opcode(op == 0);
             isExit = dis_common_vmov_immediate_simd_insn(context, insn, ir);
             break;
         default:
-            fatal("cmode = %d / op = %d\n", cmode, op);
+            fatal_illegal_opcode("cmode = %d / op = %d\n", cmode, op);
     }
 
     return isExit;
@@ -1073,7 +1082,7 @@ static int dis_common_adv_simd_data_preocessing_insn(struct arm_target *context,
             } else if ((b & 0x8) == 0) {
                 isExit = dis_common_adv_simd_two_regs_misc_insn(context, insn, ir);
             } else
-                assert(0);
+                assert_illegal_opcode(0);
         } else {
             isExit = dis_common_adv_simd_vext_insn(context, insn, ir);
         }
@@ -1090,7 +1099,7 @@ static int dis_common_adv_simd_data_preocessing_insn(struct arm_target *context,
             } else if ((c & 0x5) == 0x4 && ((a & 0x14) == 0x10 || (a & 0x16) == 0x14)) {
                 isExit = dis_common_adv_simd_two_regs_and_scalar_insn(context, insn, ir);
             } else
-                assert(0);
+                assert_illegal_opcode(0);
         }
     } else {
         isExit = dis_common_adv_simd_three_same_length_insn(context, insn, ir);
