@@ -98,6 +98,9 @@ void arm64_hlp_syscall(uint64_t regs)
             case PR_openat:
                 res = arm64_openat(context);
                 break;
+            case PR_readlinkat:
+                res = arm64_readlinkat(context);
+                break;
             case PR_ptrace:
                 res = arm64_ptrace(context);
                 break;

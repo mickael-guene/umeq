@@ -43,6 +43,8 @@
 char *exe_filename;
 int is_under_proot = 0;
 int maybe_ptraced = 0;
+int is_umeq_call_in_execve = 0;
+char *umeq_filename;
 
 struct memory_config {
     int max_insn;
@@ -228,6 +230,10 @@ int main(int argc, char **argv)
             target_argv0 = argv[target_argv0_index + 1];
             target_argv0_index += 2;
             is_under_proot = 1;
+        } else if (strcmp("-execve", argv[target_argv0_index]) == 0) {
+            is_umeq_call_in_execve = 1;
+            umeq_filename = argv[0];
+            target_argv0_index ++;
         } else if (strcmp("-version", argv[target_argv0_index]) == 0) {
             target_argv0_index++;
             display_version_and_exit();
@@ -236,6 +242,11 @@ int main(int argc, char **argv)
     }
     assert(additionnal_env_index < 16);
     assert(unset_env_index < 16);
+    /* clear is_under_proot flag if -execve option is in use */
+    if (is_umeq_call_in_execve) {
+        is_under_proot = 0;
+        syscall(SYS_prctl, PR_SET_NAME, target_argv0);
+    }
 
     exe_filename = argv[target_argv0_index];
     /* load program in memory */

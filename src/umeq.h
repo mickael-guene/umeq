@@ -79,6 +79,8 @@ extern struct target_arch current_target_arch;
 extern const char arch_name[];
 extern int is_under_proot;
 extern int maybe_ptraced;
+extern int is_umeq_call_in_execve;
+extern char *umeq_filename;
 
 static const int mmap_size[MEM_PROFILE_NB] = {2 * MB, 4 * MB, 8 * MB, 16 * MB};
 

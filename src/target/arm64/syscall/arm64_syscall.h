@@ -42,6 +42,7 @@ extern long arm64_mremap(struct arm64_target *context);
 extern long arm64_shmat(struct arm64_target *context);
 extern long arm64_shmdt(struct arm64_target *context);
 extern long arm64_wait4(struct arm64_target *context);
+extern long arm64_readlinkat(struct arm64_target *context);
 
 #endif
 

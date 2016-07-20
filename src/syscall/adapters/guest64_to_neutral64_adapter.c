@@ -22,6 +22,9 @@
 #include <sys/syscall.h>   /* For SYS_xxx definitions */
 #include <errno.h>
 #include <stdint.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "syscalls_neutral.h"
 #include "syscalls_neutral_types.h"
@@ -30,6 +33,17 @@
 #include "umeq.h"
 
 #define IS_NULL(px) ((uint64_t)((px)?g_2_h((px)):NULL))
+#define BINPRM_BUF_SIZE 128
+
+static char *strchr(char *s, int c)
+{
+    do {
+        if (*s == c)
+            return s;
+    } while(*s++ != '\0');
+
+    return NULL;
+}
 
 static long execve_neutral(uint64_t filename_p, uint64_t argv_p, uint64_t envp_p)
 {
@@ -37,15 +51,78 @@ static long execve_neutral(uint64_t filename_p, uint64_t argv_p, uint64_t envp_p
     const char *filename = (const char *) g_2_h(filename_p);
     uint64_t * argv_guest = (uint64_t *) g_2_h(argv_p);
     uint64_t * envp_guest = (uint64_t *) g_2_h(envp_p);
-    char *ptr[4096];
+    char *ptr[8192];
     char **argv;
     char **envp;
     int index = 0;
 
+    argv = &ptr[index];
+    /* handle -execve mode */
+    /* code adapted from https://github.com/resin-io/qemu/commit/6b9e5be0fbc07ae3d6525bbd57c60da58d33b840 and
+       https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/fs/binfmt_script.c */
+    if (is_umeq_call_in_execve) {
+        int fd;
+        int ret;
+        char buf[BINPRM_BUF_SIZE];
+        char *cp;
+        char *i_arg = NULL;
+        char *i_name = NULL;
+
+        /* read start of filename to test for shebang */
+        fd = open(filename, O_RDONLY);
+        if (fd == -1)
+            return -ENOENT;
+        ret = read(fd, buf, BINPRM_BUF_SIZE);
+        if (ret < 0) {
+            close(fd);
+            return -ENOENT;
+        }
+        close(fd);
+
+        /* shebang handling */
+        if ((buf[0] == '#') && (buf[1] == '!')) {
+            buf[BINPRM_BUF_SIZE - 1] = '\0';
+            if ((cp = strchr(buf, '\n')) == NULL)
+                cp = buf+BINPRM_BUF_SIZE-1;
+            *cp = '\0';
+            while (cp > buf) {
+                cp--;
+                if ((*cp == ' ') || (*cp == '\t'))
+                    *cp = '\0';
+                else
+                    break;
+            }
+            for (cp = buf+2; (*cp == ' ') || (*cp == '\t'); cp++);
+            if (*cp == '\0')
+                return -ENOEXEC; /* No interpreter name found */
+            i_name = cp;
+            i_arg = NULL;
+            for ( ; *cp && (*cp != ' ') && (*cp != '\t'); cp++)
+                /* nothing */ ;
+            while ((*cp == ' ') || (*cp == '\t'))
+                *cp++ = '\0';
+            if (*cp)
+                i_arg = cp;
+        }
+
+        /* insert umeq */
+        ptr[index++] = umeq_filename;
+        ptr[index++] = "-execve";
+        ptr[index++] = "-0";
+        if (i_name) {
+            ptr[index++] = i_name;
+            ptr[index++] = i_name;
+            if (i_arg)
+                ptr[index++] = i_arg;
+        } else {
+            ptr[index++] = (char *) g_2_h(*argv_guest);
+        }
+        argv_guest = (uint64_t *) ((long)argv_guest + 8);
+        ptr[index++] = filename;
+    }
+
     /* Manual say 'On Linux, argv and envp can be specified as NULL' */
     /* In that case we give array of length 1 with only one null element */
-
-    argv = &ptr[index];
     if (argv_p) {
         while(*argv_guest != 0) {
             ptr[index++] = (char *) g_2_h(*argv_guest);
@@ -68,7 +145,7 @@ static long execve_neutral(uint64_t filename_p, uint64_t argv_p, uint64_t envp_p
     if (index >= sizeof(ptr) / sizeof(char *))
         assert(0);
 
-    res = syscall_neutral_64(PR_execve, (uint64_t) filename, (uint64_t) argv,  (uint64_t) envp, 0, 0, 0);
+    res = syscall_neutral_64(PR_execve, (uint64_t) (is_umeq_call_in_execve?umeq_filename:filename), (uint64_t) argv,  (uint64_t) envp, 0, 0, 0);
 
     return res;
 }
