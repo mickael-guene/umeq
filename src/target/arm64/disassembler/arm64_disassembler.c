@@ -2360,9 +2360,7 @@ static int dis_msr_register(struct arm64_target *context, uint32_t insn, struct 
         //fpsr
         write_fpsr(context, ir, read_w(ir, rt, ZERO_REG));
     } else {
-        fprintf(stderr, "op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\n", op0, op1, crn, crm, op2);
-        fprintf(stderr, "pc = 0x%016lx\n", context->pc);
-        assert_illegal_opcode(0);
+        fatal_illegal_opcode("msr: op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\npc = 0x%016lx\n", op0, op1, crn, crm, op2, context->pc);
     }
 
     return 0;
@@ -2395,9 +2393,7 @@ static int dis_mrs_register(struct arm64_target *context, uint32_t insn, struct 
         /* 32 byte I and D cacheline size, VIPT icache */
         write_x(ir, rt, mk_64(ir, 0x80030003), ZERO_REG);
     } else {
-        fprintf(stderr, "op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\n", op0, op1, crn, crm, op2);
-        fprintf(stderr, "pc = 0x%016lx\n", context->pc);
-        assert_illegal_opcode(0);
+        fatal_illegal_opcode("mrs: op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\npc = 0x%016lx\n", op0, op1, crn, crm, op2, context->pc);
     }
 
     return 0;
@@ -4406,8 +4402,7 @@ static int disassemble_insn(struct arm64_target *context, uint32_t insn, struct 
 
     if (INSN(28, 27) == 0) {
         //unallocated
-        fprintf(stderr, "pc = 0x%016lx / insn = 0x%08x / insn = 0x%08x\n", context->pc, insn, *((uint32_t *) context->pc));
-        fatal_illegal_opcode("unallocated ins\n");
+        fatal_illegal_opcode("pc = 0x%016lx / insn = 0x%08x / insn = 0x%08x\nunallocated ins\n", context->pc, insn, *((uint32_t *) context->pc));
     } else if (INSN(28, 26) == 4) {
         isExit = dis_data_processing_immediate_insn(context, insn, ir);
     } else if (INSN(28, 26) == 5) {

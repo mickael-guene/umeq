@@ -167,11 +167,11 @@ uint32_t arm64_hlp_compute_next_nzcv_64(uint64_t context, uint32_t opcode, uint6
             v = (((calc ^ op1) & (calc ^ op2)) >> 35) & 0x10000000;
             break;
         default:
-            fprintf(stderr, "context = 0x%016lx\n", context);
+            /*fprintf(stderr, "context = 0x%016lx\n", context);
             fprintf(stderr, "opcode = 0x%08x\n", opcode);
             fprintf(stderr, "op1 = 0x%016lx\n", op1);
             fprintf(stderr, "op2 = 0x%016lx\n", op2);
-            fprintf(stderr, "oldcpsr = 0x%018x\n", oldnzcv);
+            fprintf(stderr, "oldcpsr = 0x%018x\n", oldnzcv);*/
             fatal_illegal_opcode("ops = %d\n", ops);
     }
 
