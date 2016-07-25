@@ -23,6 +23,9 @@
 #include <sys/syscall.h>   /* For SYS_xxx definitions */
 #include <errno.h>
 #include <stdint.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "syscalls_neutral.h"
 #include "syscalls_neutral_types.h"
@@ -31,6 +34,17 @@
 #include "umeq.h"
 
 #define IS_NULL(px) ((uint32_t)((px)?g_2_h((px)):NULL))
+#define BINPRM_BUF_SIZE 128
+
+static char *strchr_local(char *s, int c)
+{
+    do {
+        if (*s == c)
+            return s;
+    } while(*s++ != '\0');
+
+    return NULL;
+}
 
 static int futex_neutral(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32_t timeout_p, uint32_t uaddr2_p, uint32_t val3_p)
 {
@@ -169,31 +183,95 @@ static int execve_neutral(uint32_t filename_p,uint32_t argv_p,uint32_t envp_p)
     char **envp;
     int index = 0;
 
-    /* FIXME: do we really need to support this ? */
-    /* Manual say 'On Linux, argv and envp can be specified as NULL' */
-    assert(argv_p != 0);
-    assert(envp_p != 0);
-
     argv = &ptr[index];
-    while(*argv_guest != 0) {
-        ptr[index++] = (char *) g_2_h(*argv_guest);
+    /* handle -execve mode */
+    /* code adapted from https://github.com/resin-io/qemu/commit/6b9e5be0fbc07ae3d6525bbd57c60da58d33b840 and
+       https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/fs/binfmt_script.c */
+    if (is_umeq_call_in_execve) {
+        int fd;
+        int ret;
+        char buf[BINPRM_BUF_SIZE];
+        char *cp;
+        char *i_arg = NULL;
+        char *i_name = NULL;
+
+        /* read start of filename to test for shebang */
+        fd = open(filename, O_RDONLY);
+        if (fd == -1)
+            return -ENOENT;
+        ret = read(fd, buf, BINPRM_BUF_SIZE);
+        if (ret < 0) {
+            close(fd);
+            return -ENOENT;
+        }
+        close(fd);
+
+        /* shebang handling */
+        if ((buf[0] == '#') && (buf[1] == '!')) {
+            buf[BINPRM_BUF_SIZE - 1] = '\0';
+            if ((cp = strchr_local(buf, '\n')) == NULL)
+                cp = buf+BINPRM_BUF_SIZE-1;
+            *cp = '\0';
+            while (cp > buf) {
+                cp--;
+                if ((*cp == ' ') || (*cp == '\t'))
+                    *cp = '\0';
+                else
+                    break;
+            }
+            for (cp = buf+2; (*cp == ' ') || (*cp == '\t'); cp++);
+            if (*cp == '\0')
+                return -ENOEXEC; /* No interpreter name found */
+            i_name = cp;
+            i_arg = NULL;
+            for ( ; *cp && (*cp != ' ') && (*cp != '\t'); cp++)
+                /* nothing */ ;
+            while ((*cp == ' ') || (*cp == '\t'))
+                *cp++ = '\0';
+            if (*cp)
+                i_arg = cp;
+        }
+
+        /* insert umeq */
+        ptr[index++] = umeq_filename;
+        ptr[index++] = "-execve";
+        ptr[index++] = "-0";
+        if (i_name) {
+            ptr[index++] = i_name;
+            ptr[index++] = i_name;
+            if (i_arg)
+                ptr[index++] = i_arg;
+        } else {
+            ptr[index++] = (char *) g_2_h(*argv_guest);
+        }
         argv_guest = (uint32_t *) ((long)argv_guest + 4);
+        ptr[index++] = filename;
+    }
+    /* Manual say 'On Linux, argv and envp can be specified as NULL' */
+    /* In that case we give array of length 1 with only one null element */
+    if (argv_p) {
+        while(*argv_guest != 0) {
+            ptr[index++] = (char *) g_2_h(*argv_guest);
+            argv_guest = (uint32_t *) ((long)argv_guest + 4);
+        }
     }
     ptr[index++] = NULL;
     envp = &ptr[index];
     /* add internal umeq environment variable if process may be ptraced */
     if (maybe_ptraced)
         ptr[index++] = "__UMEQ_INTERNAL_MAYBE_PTRACED__=1";
-    while(*envp_guest != 0) {
-        ptr[index++] = (char *) g_2_h(*envp_guest);
-        envp_guest = (uint32_t *) ((long)envp_guest + 4);
+    if (envp_p) {
+        while(*envp_guest != 0) {
+            ptr[index++] = (char *) g_2_h(*envp_guest);
+            envp_guest = (uint32_t *) ((long)envp_guest + 4);
+        }
     }
     ptr[index++] = NULL;
     /* sanity check in case we overflow => see fixme */
     if (index >= sizeof(ptr) / sizeof(char *))
         assert(0);
 
-    res = syscall_neutral_32(PR_execve, (uint32_t)filename, (uint32_t)argv, (uint32_t)envp, 0, 0, 0);
+    res = syscall_neutral_32(PR_execve, (uint32_t)(is_umeq_call_in_execve?umeq_filename:filename), (uint32_t)argv, (uint32_t)envp, 0, 0, 0);
 
     return res;
 }
