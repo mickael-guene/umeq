@@ -23,9 +23,6 @@
 #include <sys/syscall.h>   /* For SYS_xxx definitions */
 #include <errno.h>
 #include <stdint.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 
 #include "syscalls_neutral.h"
 #include "syscalls_neutral_types.h"
@@ -34,17 +31,6 @@
 #include "umeq.h"
 
 #define IS_NULL(px) ((uint32_t)((px)?g_2_h((px)):NULL))
-#define BINPRM_BUF_SIZE 128
-
-static char *strchr_local(char *s, int c)
-{
-    do {
-        if (*s == c)
-            return s;
-    } while(*s++ != '\0');
-
-    return NULL;
-}
 
 static int futex_neutral(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32_t timeout_p, uint32_t uaddr2_p, uint32_t val3_p)
 {
@@ -188,49 +174,13 @@ static int execve_neutral(uint32_t filename_p,uint32_t argv_p,uint32_t envp_p)
     /* code adapted from https://github.com/resin-io/qemu/commit/6b9e5be0fbc07ae3d6525bbd57c60da58d33b840 and
        https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/tree/fs/binfmt_script.c */
     if (is_umeq_call_in_execve) {
-        int fd;
-        int ret;
-        char buf[BINPRM_BUF_SIZE];
-        char *cp;
         char *i_arg = NULL;
         char *i_name = NULL;
 
-        /* read start of filename to test for shebang */
-        fd = open(filename, O_RDONLY);
-        if (fd == -1)
-            return -ENOENT;
-        ret = read(fd, buf, BINPRM_BUF_SIZE);
-        if (ret < 0) {
-            close(fd);
-            return -ENOENT;
-        }
-        close(fd);
-
-        /* shebang handling */
-        if ((buf[0] == '#') && (buf[1] == '!')) {
-            buf[BINPRM_BUF_SIZE - 1] = '\0';
-            if ((cp = strchr_local(buf, '\n')) == NULL)
-                cp = buf+BINPRM_BUF_SIZE-1;
-            *cp = '\0';
-            while (cp > buf) {
-                cp--;
-                if ((*cp == ' ') || (*cp == '\t'))
-                    *cp = '\0';
-                else
-                    break;
-            }
-            for (cp = buf+2; (*cp == ' ') || (*cp == '\t'); cp++);
-            if (*cp == '\0')
-                return -ENOEXEC; /* No interpreter name found */
-            i_name = cp;
-            i_arg = NULL;
-            for ( ; *cp && (*cp != ' ') && (*cp != '\t'); cp++)
-                /* nothing */ ;
-            while ((*cp == ' ') || (*cp == '\t'))
-                *cp++ = '\0';
-            if (*cp)
-                i_arg = cp;
-        }
+        /* test for shebang and file exists */
+        res = parse_shebang(filename, &i_name, &i_arg);
+        if (res)
+            return res;
 
         /* insert umeq */
         ptr[index++] = umeq_filename;
