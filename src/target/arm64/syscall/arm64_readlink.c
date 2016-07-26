@@ -71,7 +71,7 @@ long arm64_readlinkat(struct arm64_target *context)
     long res;
     const char *pathname = (const char *) g_2_h(context->regs.r[1]);
 
-    if (is_umeq_call_in_execve && strcmp(pathname, "/proc/self/exe") == 0) {
+    if (strcmp(pathname, "/proc/self/exe") == 0) {
         res = recursive_proc_self_exe(context->regs.r[0], exe_filename, g_2_h(context->regs.r[2]), context->regs.r[3]);
     } else
         res = syscall_adapter_guest64(PR_readlinkat, context->regs.r[0], context->regs.r[1], context->regs.r[2],
