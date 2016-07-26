@@ -58,6 +58,7 @@ extern "C" {
 #define NEUTRAL_F_GETPIPE_SZ    1032
 
 #define NEUTRAL_PR_GET_PDEATHSIG    2
+#define NEUTRAL_PR_SET_NAME         15
 
 #define NEUTRAL_KEYCTL_GET_KEYRING_ID       0
 #define NEUTRAL_KEYCTL_REVOKE               3

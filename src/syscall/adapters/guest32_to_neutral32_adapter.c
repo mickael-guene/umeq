@@ -275,6 +275,7 @@ static int prctl_neutral(uint32_t option_p, uint32_t arg2_p, uint32_t arg3_p, ui
 
     switch(option) {
         case NEUTRAL_PR_GET_PDEATHSIG:/*2*/
+        case NEUTRAL_PR_SET_NAME:/*15*/
             res = syscall_neutral_32(PR_prctl, option, (uint32_t) g_2_h(arg2_p), arg3_p, arg4_p, arg5_p, 0);
             break;
         default:
