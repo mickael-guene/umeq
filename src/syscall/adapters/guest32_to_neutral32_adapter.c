@@ -1205,6 +1205,9 @@ int syscall_adapter_guest32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, ui
         case PR_writev:
             res = writev_neutral(p0, p1, p2);
             break;
+        case PR_getrandom:
+            res = syscall_neutral_32(PR_getrandom, (uint32_t) g_2_h(p0), (size_t) p1, (unsigned int) p2, p3, p4, p5);
+            break;
         default:
             fatal("syscall_adapter_guest32: unsupported neutral syscall %d\n", no);
     }

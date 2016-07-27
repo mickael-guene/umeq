@@ -31,6 +31,10 @@
 #include "target32.h"
 #include "syscall_i386.h"
 
+#ifndef SYS_getrandom
+ #define SYS_getrandom 355
+#endif
+
 struct convertFlags {
     int neutralFlag;
     int x86Flag;
@@ -451,6 +455,9 @@ int syscall_neutral_32(Sysnum no, uint32_t p0, uint32_t p1, uint32_t p2, uint32_
             break;
         case PR_getpriority:
             res = syscall(SYS_getpriority, p0, p1);
+            break;
+        case PR_getrandom:
+            res = syscall(SYS_getrandom, p0, p1, p2);
             break;
         case PR_getresgid32:
             res = syscall(SYS_getresgid32, p0, p1, p2);
