@@ -36,32 +36,19 @@
 #include "syscalls_neutral.h"
 #include "syscalls_neutral_types.h"
 
-static int is_symlink(int dirfd, char *pathname)
+static long readlinkat_proc_self_exe(char *buf, size_t bufsiz)
 {
     long res;
-    struct neutral_stat64 stat64;
+    int fd;
+    char fd_buffer[32];
 
-    res = syscall_neutral_64(PR_fstatat64, dirfd, (uint64_t)pathname, (uint64_t)&stat64, AT_SYMLINK_NOFOLLOW, 0, 0);
-
-    return res ? 0 : ((stat64.st_mode & S_IFMT) == S_IFLNK);
-}
-
-static long recursive_proc_self_exe(int dirfd, char *pathname, char *buf, size_t bufsiz)
-{
-    long res = -EINVAL;
-    char buffer[4096];
-
-    strcpy(buffer, pathname);
-    while(is_symlink(dirfd, buffer)) {
-        res = syscall_neutral_64(PR_readlinkat, dirfd, (uint64_t) buffer, (uint64_t) buffer, 4095, 0, 0);
-        if (res < 0)
-            break;
-        buffer[res] = '\0';
-    }
-    if (res > 0) {
-        res = res < bufsiz ? res : bufsiz;
-        memcpy(buf, buffer, res);
-    }
+    fd = open(exe_filename, O_RDONLY);
+    if (fd >= 0) {
+        sprintf(fd_buffer, "/proc/self/fd/%d", fd);
+        res = syscall(SYS_readlink, fd_buffer, buf, bufsiz);
+        close(fd);
+    } else
+        res = fd;
 
     return res;
 }
@@ -72,7 +59,7 @@ long arm64_readlinkat(struct arm64_target *context)
     const char *pathname = (const char *) g_2_h(context->regs.r[1]);
 
     if (strcmp(pathname, "/proc/self/exe") == 0) {
-        res = recursive_proc_self_exe(context->regs.r[0], exe_filename, g_2_h(context->regs.r[2]), context->regs.r[3]);
+        res = readlinkat_proc_self_exe(g_2_h(context->regs.r[2]), context->regs.r[3]);
     } else
         res = syscall_adapter_guest64(PR_readlinkat, context->regs.r[0], context->regs.r[1], context->regs.r[2],
                                                      context->regs.r[3], context->regs.r[4], context->regs.r[5]);
