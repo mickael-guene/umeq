@@ -148,6 +148,9 @@ void arm_hlp_syscall(uint64_t regs)
                 res = syscall_adapter_guest32(PR_readahead, context->regs.r[0], context->regs.r[2], context->regs.r[3],
                                                             context->regs.r[4], context->regs.r[4], context->regs.r[5]);
                 break;
+            case PR_readlink:
+                res = arm_readlink(context);
+                break;
             case PR_rt_sigaction:
                 res = arm_rt_sigaction(context);
                 break;

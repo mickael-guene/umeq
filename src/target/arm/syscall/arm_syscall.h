@@ -52,6 +52,7 @@ extern int arm_lstat64(struct arm_target *context);
 extern int arm_fstatat64(struct arm_target *context);
 extern int arm_fstat(struct arm_target *context);
 extern int arm_stat(struct arm_target *context);
+extern int arm_readlink(struct arm_target *context);
 
 #endif
 
