@@ -4,26 +4,54 @@ Umeq is an equivalent of `Qemu <http://wiki.qemu.org/Main_Page>`_ user mode.
 It allows you to run foreign architecture binaries on your host system.
 For example you can run arm64 binaries on x86_64 linux desktop.
 
-You can find compile umeq static binaries `here <https://github.com/mickael-guene/umeq-static-build/tree/master/bin>`_. If you have binfmt_misc support installed then you can also directly use `docker images <https://hub.docker.com/u/mickaelguene/>`_.
+You can find compile umeq static binaries `here <https://github.com/mickael-guene/umeq/releases>`_. You can also directly use `docker images <https://hub.docker.com/u/mickaelguene/>`_.
 
 Build status
 ============
 .. image:: https://travis-ci.org/mickael-guene/umeq.svg?branch=master
     :target: https://travis-ci.org/mickael-guene/umeq
-.. image:: https://scan.coverity.com/projects/4488/badge.svg
-    :target: https://scan.coverity.com/projects/4488
 
 How to use it
 =============
-Umeq can be used in three different ways.
+
+With `Docker <https://www.docker.com/>`_
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Once you have docker installed just run :
+::
+
+ > docker run -i -t --rm mickaelguene/arm64-debian
+ root@4941c21b263e:/# uname -a && cat /etc/os-release
+ Linux 4941c21b263e 4.6.0-1-amd64 #1 SMP Debian 4.6.3-1 (2016-07-04) aarch64 GNU/Linux
+ PRETTY_NAME="Debian GNU/Linux 8 (jessie)"
+ NAME="Debian GNU/Linux"
+ VERSION_ID="8"
+ VERSION="8 (jessie)"
+ ID=debian
+ HOME_URL="http://www.debian.org/"
+ SUPPORT_URL="http://www.debian.org/support"
+ BUG_REPORT_URL="https://bugs.debian.org/"
+ root@4941c21b263e:/# exit
+ exit
+ >
+
+If you have binfmt_misc support then you can start with any command like that :
+::
+
+ > docker run -i -t --rm mickaelguene/arm64-debian uname -a
+ Linux 0cd520698e0e 4.6.0-1-amd64 #1 SMP Debian 4.6.3-1 (2016-07-04) aarch64 GNU/Linux
+
+Else you need to specify umeq command line :
+::
+
+ > docker run -i -t --rm mickaelguene/arm64-debian umeq-arm64 -execve -0 uname /bin/uname -a
+ Linux 0cd520698e0e 4.6.0-1-amd64 #1 SMP Debian 4.6.3-1 (2016-07-04) aarch64 GNU/Linux
 
 With `Proot <http://proot.me>`_
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Running umeq along with PRoot allows you to execute foreign architecture binaries on your host system.
 The foreign application will be isolated in his original root file system.
-This is a simplest and recommended way to use umeq.
 
-In a chroot environment with binfmt support
+In a chroot environment with or without binfmt support
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 If you have the necessary rights, you can use umeq in a chroot environment using
 binfmt kernel support to run umeq transparently.
