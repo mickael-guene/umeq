@@ -61,6 +61,7 @@ extern "C" {
 #define NEUTRAL_PR_SET_NAME         15
 
 #define NEUTRAL_KEYCTL_GET_KEYRING_ID       0
+#define NEUTRAL_KEYCTL_JOIN_SESSION_KEYRING 1
 #define NEUTRAL_KEYCTL_REVOKE               3
 #define NEUTRAL_KEYCTL_READ                 11
 
