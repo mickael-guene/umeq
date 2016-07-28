@@ -328,6 +328,18 @@ struct neutral_mmsghdr_32 {
     uint32_t msg_len;
 };
 
+struct __attribute__ ((__packed__)) neutral_cmsghdr_32 {
+    uint32_t cmsg_len;
+    uint32_t cmsg_level;
+    uint32_t cmsg_type;
+};
+
+struct __attribute__ ((__packed__)) neutral_cmsghdr_64 {
+    uint64_t cmsg_len;
+    uint32_t cmsg_level;
+    uint32_t cmsg_type;
+};
+
 #endif
 
 #ifdef __cplusplus

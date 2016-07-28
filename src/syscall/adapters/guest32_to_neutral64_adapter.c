@@ -34,6 +34,10 @@
 
 #define IS_NULL(px) ((uint64_t)((px)?g_2_h((px)):NULL))
 
+#define CMSGHDR_GUEST_SIZE              (sizeof(struct neutral_cmsghdr_32))
+#define CMSGHDR_HOST_SIZE               (sizeof(struct neutral_cmsghdr_64))
+#define CMSGHDR_HOST_GUEST_SIZE_DIFF    (CMSGHDR_HOST_SIZE - CMSGHDR_GUEST_SIZE)
+
 static int futex_neutral(uint32_t uaddr_p, uint32_t op_p, uint32_t val_p, uint32_t timeout_p, uint32_t uaddr2_p, uint32_t val3_p)
 {
     long res;
@@ -1636,6 +1640,41 @@ static int msgrcv_neutral(uint32_t msqid_p, uint32_t msgp_p, uint32_t msgsz_p, u
     return res;
 }
 
+static int sendmsg_compute_msg_controllen(uint32_t msg_controllen_guest, void *msg_control_guest)
+{
+    int res = 0;
+
+    while (msg_controllen_guest >= sizeof(struct neutral_cmsghdr_32)) {
+        struct neutral_cmsghdr_32 *cmsghdr_guest = msg_control_guest;
+
+        res += cmsghdr_guest->cmsg_len + CMSGHDR_HOST_GUEST_SIZE_DIFF;
+        msg_controllen_guest -= cmsghdr_guest->cmsg_len;
+        msg_control_guest += cmsghdr_guest->cmsg_len;
+    }
+
+    return res;
+}
+
+static void sendmsg_copy_msg_control(void *msg_control_host, void *msg_control_guest, uint32_t msg_controllen_guest)
+{
+    while (msg_controllen_guest >= sizeof(struct neutral_cmsghdr_32)) {
+        struct neutral_cmsghdr_32 *cmsghdr_guest = msg_control_guest;
+        struct neutral_cmsghdr_64 *cmsghdr_host = msg_control_host;
+
+        /* copy header */
+        cmsghdr_host->cmsg_len = cmsghdr_guest->cmsg_len + CMSGHDR_HOST_GUEST_SIZE_DIFF;
+        cmsghdr_host->cmsg_level = cmsghdr_guest->cmsg_level;
+        cmsghdr_host->cmsg_type = cmsghdr_guest->cmsg_type;
+        msg_control_guest += CMSGHDR_GUEST_SIZE;
+        msg_control_host += CMSGHDR_HOST_SIZE;
+        /* copy payload */
+        memcpy(msg_control_host, msg_control_guest, cmsghdr_guest->cmsg_len - CMSGHDR_GUEST_SIZE);
+        msg_control_guest += cmsghdr_guest->cmsg_len - CMSGHDR_GUEST_SIZE;
+        msg_control_host += cmsghdr_guest->cmsg_len - CMSGHDR_GUEST_SIZE;
+        msg_controllen_guest -= cmsghdr_guest->cmsg_len;
+    }
+}
+
 static int sendmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
 {
     long res;
@@ -1658,9 +1697,12 @@ static int sendmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
     }
     msg.msg_iov = ptr_2_int(iovec);
     msg.msg_iovlen = msg_guest->msg_iovlen;
-    msg.msg_control = ptr_2_int(g_2_h(msg_guest->msg_control));
-    msg.msg_controllen = msg_guest->msg_controllen;
     msg.msg_flags = msg_guest->msg_flags;
+    /* ancilliary data stuff */
+    msg.msg_controllen = sendmsg_compute_msg_controllen(msg_guest->msg_controllen, g_2_h(msg_guest->msg_control));
+    msg.msg_control = msg.msg_controllen ? (uint64_t) alloca(msg.msg_controllen) : 0;
+    if (msg.msg_control)
+        sendmsg_copy_msg_control((void *) msg.msg_control, g_2_h(msg_guest->msg_control), msg_guest->msg_controllen);
 
     res = syscall_neutral_64(PR_sendmsg, sockfd, (uint64_t) &msg, flags, 0, 0, 0);
 
@@ -1708,6 +1750,43 @@ static int mq_getsetattr_neutral(uint32_t mqdes_p, uint32_t newattr_p, uint32_t 
     return res;
 }
 
+static uint64_t recvmsg_compute_msg_controllen(uint32_t msg_controllen_guest, void *msg_control_guest)
+{
+    int max_possible_msg = msg_controllen_guest / CMSGHDR_GUEST_SIZE;
+
+    return msg_controllen_guest + max_possible_msg * CMSGHDR_HOST_GUEST_SIZE_DIFF;
+}
+
+static uint32_t recvmsg_copy_msg_control(void *msg_control_guest, void *msg_control_host, uint64_t msg_controllen_host, uint32_t msg_controllen_guest)
+{
+    void *msg_control_guest_at_entry = msg_control_guest;
+
+    while(msg_controllen_host >= CMSGHDR_HOST_SIZE) {
+        struct neutral_cmsghdr_64 *cmsghdr_host = msg_control_host;
+        struct neutral_cmsghdr_32 *cmsghdr_guest = msg_control_guest;
+
+        /* be sure not to overflow guest buffer */
+        if (msg_controllen_guest < cmsghdr_host->cmsg_len - CMSGHDR_HOST_GUEST_SIZE_DIFF)
+            break;
+
+        /* copy header */
+        cmsghdr_guest->cmsg_len = cmsghdr_host->cmsg_len - CMSGHDR_HOST_GUEST_SIZE_DIFF;
+        cmsghdr_guest->cmsg_level = cmsghdr_host->cmsg_level;
+        cmsghdr_guest->cmsg_type = cmsghdr_host->cmsg_type;
+        msg_control_guest += CMSGHDR_GUEST_SIZE;
+        msg_control_host += CMSGHDR_HOST_SIZE;
+        /* copy payload */
+        memcpy(msg_control_guest, msg_control_host, cmsghdr_host->cmsg_len - CMSGHDR_HOST_SIZE);
+        msg_control_guest += cmsghdr_host->cmsg_len - CMSGHDR_HOST_SIZE;
+        msg_control_host += cmsghdr_host->cmsg_len - CMSGHDR_HOST_SIZE;
+        msg_controllen_host -= cmsghdr_host->cmsg_len;
+        msg_controllen_guest -= cmsghdr_guest->cmsg_len;
+    }
+
+    return msg_control_guest - msg_control_guest_at_entry;
+}
+
+
 static int recvmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
 {
     long res;
@@ -1730,14 +1809,14 @@ static int recvmsg_neutral(uint32_t sockfd_p, uint32_t msg_p, uint32_t flags_p)
     }
     msg.msg_iov = ptr_2_int(iovec);
     msg.msg_iovlen = msg_guest->msg_iovlen;
-    msg.msg_control = ptr_2_int(g_2_h(msg_guest->msg_control));
-    msg.msg_controllen = msg_guest->msg_controllen;
     msg.msg_flags = msg_guest->msg_flags;
+    msg.msg_controllen = recvmsg_compute_msg_controllen(msg_guest->msg_controllen, g_2_h(msg_guest->msg_control));
+    msg.msg_control = msg.msg_controllen ? (uint64_t) alloca(msg.msg_controllen) : 0;
 
     res = syscall_neutral_64(PR_recvmsg, sockfd, (uint64_t) &msg, flags, 0, 0, 0);
     if (res >= 0) {
         msg_guest->msg_namelen = msg.msg_namelen;
-        msg_guest->msg_controllen = msg.msg_controllen;
+        msg_guest->msg_controllen = recvmsg_copy_msg_control(g_2_h(msg_guest->msg_control), (void *) msg.msg_control, msg.msg_controllen, msg_guest->msg_controllen);
     }
 
     return res;
