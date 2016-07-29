@@ -244,6 +244,8 @@ int main(int argc, char **argv)
     assert(unset_env_index < 16);
     /* clear is_under_proot flag if -execve option is in use */
     if (is_umeq_call_in_execve) {
+        /* this option require -0 usage */
+        assert(target_argv0);
         is_under_proot = 0;
         syscall(SYS_prctl, PR_SET_NAME, target_argv0);
     }
