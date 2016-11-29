@@ -313,7 +313,7 @@ static int keyctl_neutral(uint32_t cmd_p, uint32_t arg2_p, uint32_t arg3_p, uint
             res = syscall_neutral_32(PR_keyctl, cmd, (neutral_key_serial_t) arg2_p, (int) arg3_p, arg4_p, arg5_p, 0);
             break;
         case NEUTRAL_KEYCTL_JOIN_SESSION_KEYRING:
-            res = syscall_neutral_64(PR_keyctl, cmd, (uint32_t) g_2_h(arg2_p), arg3_p, arg4_p, arg5_p, 0);
+            res = syscall_neutral_32(PR_keyctl, cmd, (uint32_t) g_2_h(arg2_p), arg3_p, arg4_p, arg5_p, 0);
             break;
         case NEUTRAL_KEYCTL_REVOKE:
             res = syscall_neutral_32(PR_keyctl, cmd, (neutral_key_serial_t) arg2_p, arg3_p, arg4_p, arg5_p, 0);
