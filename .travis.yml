@@ -8,5 +8,6 @@ before_script:
   - wget https://github.com/cedric-vincent/proot-static-build/raw/master/static/proot-x86_64 -O /tmp/bin/proot
   - chmod +x /tmp/bin/proot
   - export PATH=$PATH:/tmp/bin
+  - export PROOT_NO_SECCOMP=1
 
 script: mkdir build && cd build && cmake ../ && make -j2 all && proot -k 3.16.0 make test
