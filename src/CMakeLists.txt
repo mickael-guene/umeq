@@ -7,9 +7,9 @@ configure_file(
 	${CMAKE_BINARY_DIR}/generated/version/version.h
 )
 
-set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O2 -g -Wall -U_FORTIFY_SOURCE -ffreestanding")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O2 -g -Wall -U_FORTIFY_SOURCE -ffreestanding")
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O2 -g -Wall -U_FORTIFY_SOURCE -ffreestanding")
+set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O2 -g -Wall -U_FORTIFY_SOURCE -D__NO_STRING_INLINES -ffreestanding -fno-builtin")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O2 -g -Wall -U_FORTIFY_SOURCE -D__NO_STRING_INLINES -ffreestanding -fno-builtin")
+set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-stack-protector -O2 -g -Wall -U_FORTIFY_SOURCE -D__NO_STRING_INLINES -ffreestanding -fno-builtin")
 
 # define or modify some variables according to host size
 if (UMEQ_ARCH_HOST_SIZE EQUAL 64)

@@ -18,8 +18,8 @@
  * 02110-1301 USA.
  */
 
-.GLOBAL clone_asm
-.GLOBAL clone_exit_asm
+.global clone_asm
+.global clone_exit_asm
 
 clone_asm:
     mov    %rdi,%rax

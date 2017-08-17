@@ -18,7 +18,7 @@
  * 02110-1301 USA.
  */
 
-.GLOBAL _start
+.global _start
 
 _start:
     xorl %ebp, %ebp

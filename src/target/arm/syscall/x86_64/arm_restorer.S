@@ -18,7 +18,7 @@
  * 02110-1301 USA.
  */
 
-.GLOBAL wrap_signal_restorer
+.global wrap_signal_restorer
 
 wrap_signal_restorer:
     mov $0xf,%rax

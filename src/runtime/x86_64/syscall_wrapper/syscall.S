@@ -18,7 +18,7 @@
  * 02110-1301 USA.
  */
 
-.GLOBAL syscall
+.global syscall
 
 syscall:
     mov    %rdi,%rax

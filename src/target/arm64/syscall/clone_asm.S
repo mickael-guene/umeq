@@ -18,7 +18,7 @@
  * 02110-1301 USA.
  */
 
-.GLOBAL clone_asm
+.global clone_asm
 
 clone_asm:
     mov    %rdi,%rax
@@ -33,7 +33,7 @@ clone_asm:
     jz     clone_thread_trampoline_arm64
     retq
 
-.GLOBAL clone_exit_asm
+.global clone_exit_asm
 
 clone_exit_asm:
     mov %rdx, %r15

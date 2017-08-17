@@ -17,20 +17,21 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301 USA.
  */
-
 #include <string.h>
 
 #include <stdio.h>
-int __builtin_strcmp(const char *s1, const char *s2)
+
+int strcmp(const char *s1, const char *s2)
 {
-    while(*s1 && (*s1==*s2)) {
-        s1++;
-        s2++;
-    }
-    return *(unsigned char *)s1-*(unsigned char *)s2;
+	while(*s1 && (*s1==*s2)) {
+		s1++;
+		s2++;
+		}
+
+	return *(unsigned char *)s1-*(unsigned char *)s2;
 }
 
-int __builtin_strncmp(const char *s1, const char *s2, size_t n)
+int strncmp(const char *s1, const char *s2, size_t n)
 {
 	unsigned char c1 = '\0';
 	unsigned char c2 = '\0';

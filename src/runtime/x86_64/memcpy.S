@@ -1,4 +1,4 @@
-.GLOBAL memcpy
+.global memcpy
 
 memcpy:
 	movq %rdi, %rax

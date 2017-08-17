@@ -18,8 +18,8 @@
  * 02110-1301 USA.
  */
 
-.GLOBAL execute_be_x86_64
-.GLOBAL restore_be_x86_64
+.global execute_be_x86_64
+.global restore_be_x86_64
 
 /*  This will execute a jit sequence.
  *  rdi : contains backend structure pointer. We will save sp on struct inter.
