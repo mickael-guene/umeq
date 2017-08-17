@@ -18,6 +18,8 @@
  * 02110-1301 USA.
  */
 
+#define _GNU_SOURCE        /* or _BSD_SOURCE or _SVID_SOURCE */
+#include <unistd.h>
 #include <sys/syscall.h>
 #include <assert.h>
 #include <errno.h>
