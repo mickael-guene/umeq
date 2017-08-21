@@ -45,6 +45,9 @@
 #ifndef PTRACE_GETREGSET
 #define PTRACE_GETREGSET 0x4204
 #endif
+#ifndef NT_ARM_VFP
+#define NT_ARM_VFP  0x400
+#endif
 #ifndef NT_ARM_TLS
 #define NT_ARM_TLS 0x401
 #endif
@@ -670,6 +673,8 @@ long arm64_ptrace(struct arm64_target *context)
                     goto ptrace_getregset_error;
                 io->iov_len = sizeof(uint64_t);
             } else if (addr == NT_ARM_HW_BREAK || addr == NT_ARM_HW_WATCH) {
+                res = -EINVAL;
+            } else if (addr == NT_ARM_VFP) {
                 res = -EINVAL;
             } else
                 fatal("PTRACE_GETREGSET: addr = %d\n", addr);
