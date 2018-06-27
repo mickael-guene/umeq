@@ -2392,6 +2392,10 @@ static int dis_mrs_register(struct arm64_target *context, uint32_t insn, struct 
         //ctr_el0
         /* 32 byte I and D cacheline size, VIPT icache */
         write_x(ir, rt, mk_64(ir, 0x80030003), ZERO_REG);
+    } else if (op0 == 3 && op1 == 3 && crn == 0xe && crm == 0 && op2 == 2) {
+        //CNTVCT_EL0
+        /* always return zero */
+         write_x(ir, rt, mk_64(ir, 0), ZERO_REG);
     } else {
         fatal_illegal_opcode("mrs: op0=%d / op1=%d / crn=%d / crm=%d / op2=%d\npc = 0x%016lx\n", op0, op1, crn, crm, op2, context->pc);
     }
