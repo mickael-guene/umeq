@@ -595,6 +595,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_munlock:
             res = syscall(SYS_munlock, p0, p1);
             break;
+        case PR_name_to_handle_at:
+            res = syscall(SYS_name_to_handle_at, p0, p1, p2, p3, p4);
+            break;
         case PR_nanosleep:
             res = syscall(SYS_nanosleep, p0, p1);
             break;
