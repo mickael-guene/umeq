@@ -713,6 +713,10 @@ long arm64_ptrace(struct arm64_target *context)
             }
             ptrace_singlestep_error:
             break;
+        case PTRACE_SEIZE:
+            /* silently failed */
+            res = -EIO;
+            break;
         default:
             fprintf(stderr, "ptrace unknown command : %d / 0x%x / addr = %ld\n", request, request, addr);
             res = -EIO;
