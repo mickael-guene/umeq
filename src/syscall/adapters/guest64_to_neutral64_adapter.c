@@ -604,6 +604,9 @@ long syscall_adapter_guest64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, u
         case PR_remap_file_pages:
             res = syscall_neutral_64(PR_remap_file_pages, (uint64_t) g_2_h(p0), (size_t) p1, (int) p2, (size_t) p3, (int) p4, p5);
             break;
+        case PR_removexattr:
+            res = syscall_neutral_64(PR_removexattr, (uint64_t) g_2_h(p0), (uint64_t) g_2_h(p1), p2, p3, p4, p5);
+            break;
         case PR_renameat:
             res = syscall_neutral_64(PR_renameat, (int) p0, (uint64_t) g_2_h(p1), (int) p2, (uint64_t) g_2_h(p3), p4, p5);
             break;

@@ -526,6 +526,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_listen:
             res = syscall(SYS_listen, p0, p1);
             break;
+        case PR_llistxattr:
+            res = syscall(SYS_llistxattr, p0, p1, p2);
+            break;
         case PR_lgetxattr:
             res = syscall(SYS_lgetxattr, p0, p1, p2, p3);
             break;
@@ -681,6 +684,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
             break;
         case PR_remap_file_pages:
             res = syscall(SYS_remap_file_pages, p0, p1, p2, p3, p4);
+            break;
+        case PR_removexattr:
+            res = syscall(SYS_removexattr, p0, p1);
             break;
         case PR_rename:
             res = syscall(SYS_rename, p0, p1);
