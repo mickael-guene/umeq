@@ -694,6 +694,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_renameat:
             res = syscall(SYS_renameat, p0, p1, p2, p3);
             break;
+        case PR_renameat2:
+            res = syscall(SYS_renameat2, p0, p1, p2, p3, p4);
+            break;
         case PR_rmdir:
             res = syscall(SYS_rmdir, p0);
             break;
