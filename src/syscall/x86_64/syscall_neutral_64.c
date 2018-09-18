@@ -415,6 +415,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_futimesat:
             res = syscall(SYS_futimesat, p0, p1, p2);
             break;
+        case PR_getcpu:
+            res = syscall(SYS_getcpu, p0, p1, p2);
+            break;
         case PR_getcwd:
             res = syscall(SYS_getcwd, p0, p1);
             break;

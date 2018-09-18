@@ -48,7 +48,7 @@ HOW_neutral_64, HOW_neutral_64, HOW_neutral_64, HOW_neutral_64, HOW_not_yet_supp
 HOW_not_yet_supported, HOW_neutral_64, HOW_neutral_64, HOW_not_yet_supported, HOW_not_yet_supported,  /*80..84*/
 HOW_neutral_64, HOW_not_yet_supported, HOW_neutral_64, HOW_not_yet_supported, HOW_neutral_64,  /*85..89*/
 HOW_not_yet_supported, HOW_neutral_64, HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported,  /*90..94*/
-HOW_not_yet_supported, HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_64, HOW_not_yet_supported,  /*95..99*/
+HOW_not_yet_supported, HOW_not_yet_supported, HOW_neutral_64, HOW_neutral_64, HOW_not_yet_supported,  /*95..99*/
 HOW_neutral_64, HOW_neutral_64, HOW_not_yet_supported, HOW_neutral_64, HOW_not_yet_supported,  /*100..104*/
 HOW_neutral_64, HOW_not_yet_supported, HOW_neutral_64, HOW_not_yet_supported, HOW_neutral_64,  /*105..109*/
 HOW_neutral_64, HOW_neutral_64, HOW_not_yet_supported, HOW_neutral_64, HOW_not_yet_supported,  /*110..114*/

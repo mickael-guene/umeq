@@ -371,6 +371,9 @@ long syscall_adapter_guest64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, u
         case PR_futex:
             res = futex_neutral(p0,p1,p2,p3,p4,p5);
             break;
+        case PR_getcpu:
+            res = syscall_neutral_64(PR_getcpu, (uint64_t) g_2_h(p0), (uint64_t) g_2_h(p1), (uint64_t) g_2_h(p2), p3, p4, p5);
+                break;
         case PR_getcwd:
             res = syscall_neutral_64(PR_getcwd, (uint64_t)g_2_h(p0), p1, p2, p3, p4, p5);
             break;
