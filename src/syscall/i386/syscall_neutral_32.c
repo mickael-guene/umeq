@@ -56,7 +56,7 @@ const static struct convertFlags neutralToX86FlagsTable[] = {
         {02000000,O_CLOEXEC},
         {0200000,O_DIRECT},
         {01000000,O_NOATIME},
-        //{010000000,O_PATH}, //Not on my machine
+        {010000000,O_PATH},
         {0400000,O_LARGEFILE},
 };
 
