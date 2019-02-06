@@ -57,6 +57,9 @@
 #ifndef NT_ARM_HW_WATCH
 #define NT_ARM_HW_WATCH 0x403
 #endif
+#ifndef NT_ARM_SVE
+#define NT_ARM_SVE 0x405
+#endif
 #ifndef PTRACE_SEIZE
 #define PTRACE_SEIZE 0x4206
 #endif
@@ -675,6 +678,8 @@ long arm64_ptrace(struct arm64_target *context)
             } else if (addr == NT_ARM_HW_BREAK || addr == NT_ARM_HW_WATCH) {
                 res = -EINVAL;
             } else if (addr == NT_ARM_VFP) {
+                res = -EINVAL;
+            } else if (addr == NT_ARM_SVE) {
                 res = -EINVAL;
             } else
                 fatal("PTRACE_GETREGSET: addr = %d\n", addr);
