@@ -493,6 +493,9 @@ long syscall_adapter_guest64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, u
         case PR_mlock:
             res = syscall_neutral_64(PR_mlock, (uint64_t) g_2_h(p0), (size_t) p1, p2, p3, p4, p5);
             break;
+        case PR_mount:
+            res = syscall_neutral_64(PR_mount, (uint64_t) g_2_h(p0), (uint64_t) g_2_h(p1), (uint64_t) g_2_h(p2), (unsigned long) p3, (uint64_t) g_2_h(p4), p5);
+            break;
         case PR_mprotect:
             res = syscall_neutral_64(PR_mprotect, (uint64_t) g_2_h(p0), (size_t) p1, (int) p2, p3, p4, p5);
             break;
@@ -815,6 +818,12 @@ long syscall_adapter_guest64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, u
             break;
         case PR_umask:
             res = syscall_neutral_64(PR_umask, (mode_t) p0, p1, p2, p3 ,p4, p5);
+            break;
+        case PR_umount:
+            res = syscall_neutral_64(PR_umount, (uint64_t) g_2_h(p0), p1, p2, p3 ,p4, p5);
+            break;
+        case PR_umount2:
+            res = syscall_neutral_64(PR_umount2, (uint64_t) g_2_h(p0), p1, p2, p3 ,p4, p5);
             break;
         case PR_uname:
             res = syscall_neutral_64(PR_uname, (uint64_t) g_2_h(p0), p1, p2, p3 ,p4, p5);

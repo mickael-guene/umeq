@@ -562,6 +562,9 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
         case PR_mlock:
             res = syscall(SYS_mlock, p0, p1);
             break;
+        case PR_mount:
+            res = syscall(SYS_mount, p0, p1, p2, p3, p4);
+            break;
         case PR_mprotect:
             res = syscall(SYS_mprotect, p0, p1, p2);
             break;
@@ -921,6 +924,12 @@ long syscall_neutral_64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, uint64
             break;
         case PR_umask:
             res = syscall(SYS_umask, p0);
+            break;
+        case PR_umount:
+            res = syscall(SYS_umount2, p0, 0);
+            break;
+        case PR_umount2:
+            res = syscall(SYS_umount2, p0, p1);
             break;
         case PR_uname:
             res = syscall(SYS_uname, p0);
