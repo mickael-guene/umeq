@@ -1,6 +1,6 @@
 if (UMEQ_ARCH_x64_64)
 	set (SRCS adapters/guest32_to_neutral64_adapter.c adapters/shebang.c)
-	set (SRCS_64 adapters/guest64_to_neutral64_adapter.c adapters/shebang.c)
+	set (SRCS_64 adapters/guest64_to_neutral64_adapter.c adapters/shebang.c adapters/copy.c)
 	add_subdirectory (x86_64)
 	add_library (syscall32_64 ${SRCS})
 	add_library (syscall64_64 ${SRCS_64})

@@ -1,6 +1,6 @@
 /* This file is part of Umeq, an equivalent of qemu user mode emulation with improved robustness.
  *
- * Copyright (C) 2016 STMicroelectronics
+ * Copyright (C) 2015 STMicroelectronics
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -17,19 +17,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301 USA.
  */
+#define _GNU_SOURCE        /* or _BSD_SOURCE or _SVID_SOURCE */
+#include <unistd.h>
+#include <sys/syscall.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <sys/stat.h>
+#include <sys/types.h>
 
-#ifndef __ADAPTERS_PRIVATE__
-#define __ADAPTERS_PRIVATE__ 1
-
-extern long parse_shebang(const char *filename, char **i_name, char **i_arg);
-extern long copy_file(const char *filename, const char *path);
-
-#endif
-
-#ifdef __cplusplus
+int mkdir(const char *pathname, mode_t mode)
+{
+    return syscall((long) SYS_mkdir, (long) pathname, (long) mode);
 }
-#endif

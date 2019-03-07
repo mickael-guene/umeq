@@ -22,6 +22,8 @@
 #include <sys/syscall.h>   /* For SYS_xxx definitions */
 #include <errno.h>
 #include <stdint.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "syscalls_neutral.h"
 #include "syscalls_neutral_types.h"
@@ -31,6 +33,20 @@
 #include "adapters_private.h"
 
 #define IS_NULL(px) ((uint64_t)((px)?g_2_h((px)):NULL))
+
+static long chroot_neutral(uint64_t path_p)
+{
+    if (is_umeq_call_in_execve) {
+        /* need to copy umeq_filename with same hierarchy in path_p */
+        long res;
+
+        res = copy_file(umeq_filename, g_2_h(path_p));
+        if (res)
+            return res;
+    }
+
+    return syscall_neutral_64(PR_chroot, (uint64_t) g_2_h(path_p), 0, 0, 0, 0, 0);
+}
 
 static long execve_neutral(uint64_t filename_p, uint64_t argv_p, uint64_t envp_p)
 {
@@ -269,7 +285,7 @@ long syscall_adapter_guest64(Sysnum no, uint64_t p0, uint64_t p1, uint64_t p2, u
             res = syscall_neutral_64(PR_chdir, (uint64_t) g_2_h(p0), p1, p2, p3, p4, p5);
             break;
         case PR_chroot:
-            res = syscall_neutral_64(PR_chroot, (uint64_t) g_2_h(p0), p1, p2, p3, p4, p5);
+            res = chroot_neutral(p0);
             break;
         case PR_clock_getres:
             res = syscall_neutral_64(PR_clock_getres, (clockid_t) p0, IS_NULL(p1), p2, p3, p4, p5);
