@@ -2532,7 +2532,7 @@ static int dis_store_exclusive(struct arm64_target *context, uint32_t insn, stru
 
     params[0] = read_x(ir, rn, SP_REG);
     params[1] = mk_32(ir, size);
-    params[2] = read_x(ir, rt, SP_REG);
+    params[2] = read_x(ir, rt, ZERO_REG);
     params[3] = NULL;
 
     result = mk_call_32(context, ir, "arm64_hlp_stxr",
@@ -2587,7 +2587,7 @@ static int dis_store_release_exclusive(struct arm64_target *context, uint32_t in
 
     params[0] = read_x(ir, rn, SP_REG);
     params[1] = mk_32(ir, size);
-    params[2] = read_x(ir, rt, SP_REG);
+    params[2] = read_x(ir, rt, ZERO_REG);
     params[3] = NULL;
 
     result = mk_call_32(context, ir, "arm64_hlp_stlxr",

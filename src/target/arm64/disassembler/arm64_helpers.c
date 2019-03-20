@@ -436,6 +436,8 @@ void arm64_hlp_stxp_dirty(uint64_t _regs, uint32_t insn)
     uint64_t address = regs->r[rn];
     uint64_t res = 0;
 
+    assert(rt  != 31 && "FIXME: read 0 register here");
+    assert(rt2 != 31 && "FIXME: read 0 register here");
     switch(size_access) {
         case 3:
             {
